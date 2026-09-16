@@ -22,6 +22,10 @@ import {
   ArrowDownToLine,
   Loader2,
   Hammer,
+  Minus,
+  Square,
+  Copy,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TitlebarDock, type DockItem } from "./titlebar-dock";
@@ -39,9 +43,14 @@ import { activeWorkspaceId } from "@/features/workspaces/lib/active-workspace";
 import { useActiveOrgWorkspaces } from "@/features/workspaces/lib/org-scope";
 import { isDev } from "@/lib/env";
 
+/** Windows runs undecorated (see `lib.rs` setup), so the titlebar draws its
+ *  own min/max/close and needs no traffic-light gutter. */
+const isWindows = isTauri() && navigator.userAgent.includes("Windows");
+
 function useTauriWindow() {
   const windowRef = useRef<TauriWindow | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isMaximized, setIsMaximized] = useState(false);
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
@@ -52,8 +61,10 @@ function useTauriWindow() {
         const win = getCurrentWindow();
         windowRef.current = win;
         setIsFullscreen(await win.isFullscreen());
+        setIsMaximized(await win.isMaximized());
         unlisten = await win.onResized(async () => {
           setIsFullscreen(await win.isFullscreen());
+          setIsMaximized(await win.isMaximized());
         });
       } catch {
         // not in Tauri context
@@ -63,7 +74,7 @@ function useTauriWindow() {
     return () => unlisten?.();
   }, []);
 
-  return { windowRef, isFullscreen };
+  return { windowRef, isFullscreen, isMaximized };
 }
 
 export function Titlebar() {
@@ -88,15 +99,12 @@ export function Titlebar() {
     (currentProject ? workspaces.find((w) => w.path === currentProject.path)?.name : undefined) ??
     currentProject?.name ??
     "Atlas";
-  const { windowRef, isFullscreen } = useTauriWindow();
+  const { windowRef, isFullscreen, isMaximized } = useTauriWindow();
   // The titlebar reserves 72px for the OS window controls (traffic lights),
-  // EXCEPT when the sidebar is DOCKED (pinned + open): the docked column then
-  // sits under the lights and carries that gap itself, so the titlebar reclaims
-  // the space. Fullscreen hides the lights entirely. (Unpinned overlay mode
-  // doesn't occupy flow width, so it never affects this.)
-  const sidebarPinned = useWorkspaceStore.use.sidebarPinned();
-  const sidebarOpen = useWorkspaceStore.use.sidebarOpen();
-  const dockedSidebar = sidebarPinned && sidebarOpen;
+  // EXCEPT when the docked sidebar is open: that column sits under the lights
+  // and carries the gap itself, so the titlebar reclaims the space. Fullscreen
+  // hides the lights entirely.
+  const dockedSidebar = useWorkspaceStore.use.sidebarOpen();
 
   const isTitlebarSurface = (target: EventTarget | null) => {
     const el = target as HTMLElement | null;
@@ -138,7 +146,7 @@ export function Titlebar() {
     <div
       onMouseDown={handleDrag}
       onDoubleClick={handleDoubleClick}
-      className={`relative z-50 flex h-[30px] select-none items-center pr-3 bg-[var(--bg-base)] border-b border-border-default ${isFullscreen || dockedSidebar ? "pl-3" : "pl-[72px]"}`}
+      className={`relative z-50 flex h-[30px] select-none items-center bg-[var(--bg-base)] border-b border-border-default ${isWindows ? "pr-0" : "pr-3"} ${isWindows || isFullscreen || dockedSidebar ? "pl-3" : "pl-[72px]"}`}
     >
       <div className="flex h-[30px] min-w-0 flex-1 items-center gap-1.5">
         <WorkspaceToggle />
@@ -165,6 +173,56 @@ export function Titlebar() {
           <AccountButton />
         </div>
       )}
+
+      {isWindows && (
+        <WindowControls
+          maximized={isMaximized}
+          onMinimize={() => void windowRef.current?.minimize()}
+          onClose={() => void windowRef.current?.close()}
+        />
+      )}
+    </div>
+  );
+}
+
+/** Windows caption buttons (the native ones are gone with the decorations). */
+function WindowControls({
+  maximized,
+  onMinimize,
+  onClose,
+}: {
+  maximized: boolean;
+  onMinimize: () => void;
+  onClose: () => void;
+}) {
+  const base =
+    "flex h-[30px] w-[42px] items-center justify-center text-[#999] transition-colors hover:text-white";
+  return (
+    <div className="ml-4 flex h-[30px] items-stretch">
+      <button
+        className={cn(base, "hover:bg-[#ffffff14]")}
+        onClick={onMinimize}
+        aria-label="Minimize"
+        title="Minimize"
+      >
+        <Minus size={14} />
+      </button>
+      <button
+        className={cn(base, "hover:bg-[#ffffff14]")}
+        onClick={() => void invoke("window_zoom").catch(() => {})}
+        aria-label={maximized ? "Restore" : "Maximize"}
+        title={maximized ? "Restore" : "Maximize"}
+      >
+        {maximized ? <Copy size={12} /> : <Square size={11} />}
+      </button>
+      <button
+        className={cn(base, "hover:bg-[#e81123]")}
+        onClick={onClose}
+        aria-label="Close"
+        title="Close"
+      >
+        <X size={15} />
+      </button>
     </div>
   );
 }
@@ -184,7 +242,10 @@ function ActionDock() {
   return (
     <TitlebarDock
       items={[update, notifications, rightPanel]}
-      trailing={{ label: "Account and settings", node: <AccountButton compact /> }}
+      trailing={{
+        label: "Account and settings",
+        node: <AccountButton compact />,
+      }}
     />
   );
 }

@@ -627,8 +627,7 @@ export function WorkspaceSidebar() {
   // Highlight the clicked workspace INSTANTLY (optimistic), falling back to the
   // real active id once the switch settles.
   const displayActiveId = optimisticActiveId ?? activeWorkspaceId;
-  const sidebarPinned = useWorkspaceStore.use.sidebarPinned();
-  const { addWorkspace, toggleSidebarPinned } = useWorkspaceStore.use.actions();
+  const { addWorkspace } = useWorkspaceStore.use.actions();
   const { addTab, toggleRightPanelMode } = useLayoutStore.use.actions();
   // Which occupant the right slot shows, or null when closed — drives the
   // active state of the Chat / Source control items.
@@ -893,15 +892,6 @@ export function WorkspaceSidebar() {
         )}
         data-tauri-drag-region
       >
-        <RailIconButton
-          onClick={toggleSidebarPinned}
-          active={sidebarPinned}
-          title={
-            sidebarPinned ? "Unpin sidebar (float as overlay)" : "Pin sidebar (dock into layout)"
-          }
-        >
-          {sidebarPinned ? <PinOff size={12} /> : <Pin size={12} />}
-        </RailIconButton>
         <RailIconButton onClick={toggleAll} title={allCollapsed ? "Expand all" : "Collapse all"}>
           {allCollapsed ? <ChevronsUpDown size={12} /> : <ChevronsDownUp size={12} />}
         </RailIconButton>

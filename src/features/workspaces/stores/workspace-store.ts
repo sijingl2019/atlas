@@ -95,12 +95,8 @@ interface WorkspaceState {
   /** Hot-set cap. Beyond this, the LRU evictable (not active/pinned/running)
    *  workspace is discarded from RAM and cold-loads on revisit. */
   maxMounted: number;
-  /** Cmd+. sidebar visibility. */
+  /** Docked workspace sidebar visibility. Persisted to localStorage. */
   sidebarOpen: boolean;
-  /** When true the workspace sidebar is DOCKED (in-flow, pushes the layout)
-   *  instead of the default OVERLAY. A user preference, persisted to
-   *  localStorage. `sidebarOpen` still gates visibility in both modes. */
-  sidebarPinned: boolean;
   /** Group whose header is currently in inline-rename mode (transient, not
    *  persisted). Lives in the store so it survives the virtualized row
    *  remounting and so a freshly-created group can open straight into rename. */
@@ -161,10 +157,6 @@ interface WorkspaceState {
     unpinGroup: (id: string) => void;
     toggleSidebar: () => void;
     setSidebarOpen: (open: boolean) => void;
-    /** Toggle docked (pinned) vs overlay. Pinning also opens the sidebar so it
-     *  docks into view immediately. */
-    toggleSidebarPinned: () => void;
-    setSidebarPinned: (pinned: boolean) => void;
     /** One-shot hydration from Rust `AppState` on boot. */
     hydrate: (payload: {
       workspaces: Workspace[];
@@ -227,20 +219,23 @@ function teardownHot(id: string): void {
   void invoke("mention_cache_clear", { workspaceId: id }).catch(() => {});
 }
 
-const SIDEBAR_PINNED_KEY = "atlas.sidebar.pinned";
-/** Read the persisted dock preference (localStorage — a self-contained UI pref,
- *  not part of the Rust-backed AppState). */
-function readSidebarPinned(): boolean {
+const SIDEBAR_OPEN_KEY = "atlas.sidebar.open";
+/** Persisted sidebar visibility (localStorage — a self-contained UI pref, not
+ *  part of the Rust-backed AppState). Defaults to open. */
+function readSidebarOpen(): boolean {
   try {
-    return localStorage.getItem(SIDEBAR_PINNED_KEY) === "1";
+    return localStorage.getItem(SIDEBAR_OPEN_KEY) !== "0";
   } catch {
-    return false;
+    return true;
   }
 }
-/** Read once at module init so `sidebarOpen` and `sidebarPinned` below cannot
- *  disagree: pinned means DOCKED, and a docked sidebar that starts closed is
- *  invisible until the user opens it manually — the pin looked forgotten. */
-const initialSidebarPinned = readSidebarPinned();
+function writeSidebarOpen(open: boolean) {
+  try {
+    localStorage.setItem(SIDEBAR_OPEN_KEY, open ? "1" : "0");
+  } catch {
+    /* ignore */
+  }
+}
 
 export const useWorkspaceStore = createSelectors(
   create<WorkspaceState>()((set, get) => ({
@@ -249,10 +244,7 @@ export const useWorkspaceStore = createSelectors(
     activeWorkspaceId: null,
     mountedWorkspaceIds: [],
     maxMounted: DEFAULT_MAX_MOUNTED,
-    // Pinned restores OPEN — `toggleSidebarPinned` opens on pin, so the
-    // persisted preference means "docked and showing" across restarts too.
-    sidebarOpen: initialSidebarPinned,
-    sidebarPinned: initialSidebarPinned,
+    sidebarOpen: readSidebarOpen(),
     switching: false,
     optimisticActiveId: null,
     editingGroupId: null,
@@ -391,19 +383,11 @@ export const useWorkspaceStore = createSelectors(
         const target = workspaces.find((w) => w.id === id);
         if (!target) return;
 
-        // INSTANT UI response — before any guard or heavy work:
-        //  • close the OVERLAY switcher (its slide-out animation covers the
-        //    switch's eventual load latency). When DOCKED (pinned) the sidebar
-        //    is a persistent panel, so we leave it open — closing it would make
-        //    the whole layout jump on every switch.
-        //  • optimistically highlight the selection so the clicked item updates
-        //    immediately even though the real `activeWorkspaceId` lags behind.
-        const pinnedNow = get().sidebarPinned;
-        const wasOpen = get().sidebarOpen && !pinnedNow;
-        set({
-          optimisticActiveId: id,
-          ...(pinnedNow ? {} : { sidebarOpen: false }),
-        });
+        // INSTANT UI response — before any guard or heavy work: optimistically
+        // highlight the selection so the clicked item updates immediately even
+        // though the real `activeWorkspaceId` lags behind. The docked sidebar
+        // stays open — closing it would make the layout jump on every switch.
+        set({ optimisticActiveId: id });
 
         // A switch already in flight → don't DROP the click; remember the latest
         // target and run it when the current one settles (coalesce). The close +
@@ -424,15 +408,6 @@ export const useWorkspaceStore = createSelectors(
         }
 
         set({ switching: true });
-        // Let the panel-close + optimistic highlight PAINT (and the slide-out
-        // animation start) before the synchronous switch work seizes the main
-        // thread — otherwise React batches the close with the heavy work and the
-        // panel appears to hang. A macrotask (rAF) yields past paint; the
-        // microtask from `await flushAll` would not. Skip when the panel was
-        // already closed (keyboard/programmatic switch) — no animation to protect.
-        if (wasOpen && typeof requestAnimationFrame === "function") {
-          await new Promise<void>((r) => requestAnimationFrame(() => r()));
-        }
         try {
           // 1) Commit the OUTGOING workspace's tab/split VIEW into the layout
           //    store (its tab subtree stays MOUNTED + hidden in CenterPanel),
@@ -684,27 +659,14 @@ export const useWorkspaceStore = createSelectors(
         }));
         scheduleAppStateSave();
       },
-      toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
-      setSidebarOpen: (open) => set({ sidebarOpen: open }),
-      toggleSidebarPinned: () =>
-        set((s) => {
-          const sidebarPinned = !s.sidebarPinned;
-          try {
-            localStorage.setItem(SIDEBAR_PINNED_KEY, sidebarPinned ? "1" : "0");
-          } catch {
-            /* ignore */
-          }
-          // Pinning docks it into view immediately; unpinning leaves the
-          // (now overlay) sidebar in whatever open state it was.
-          return sidebarPinned ? { sidebarPinned, sidebarOpen: true } : { sidebarPinned };
-        }),
-      setSidebarPinned: (pinned) => {
-        try {
-          localStorage.setItem(SIDEBAR_PINNED_KEY, pinned ? "1" : "0");
-        } catch {
-          /* ignore */
-        }
-        set({ sidebarPinned: pinned });
+      toggleSidebar: () => {
+        const open = !get().sidebarOpen;
+        writeSidebarOpen(open);
+        set({ sidebarOpen: open });
+      },
+      setSidebarOpen: (open) => {
+        writeSidebarOpen(open);
+        set({ sidebarOpen: open });
       },
 
       hydrate: (payload) => {

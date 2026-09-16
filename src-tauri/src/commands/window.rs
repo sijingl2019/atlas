@@ -6,7 +6,7 @@
 /// We call `-[NSWindow performZoom:]` directly instead.
 ///
 /// AppKit calls must run on the main thread, so the message is dispatched
-/// via `run_on_main_thread`. No-op on non-macOS.
+/// via `run_on_main_thread`. Elsewhere it toggles maximize / restore.
 #[tauri::command]
 pub fn window_zoom(window: tauri::WebviewWindow) -> Result<(), String> {
     #[cfg(target_os = "macos")]
@@ -33,7 +33,11 @@ pub fn window_zoom(window: tauri::WebviewWindow) -> Result<(), String> {
     }
     #[cfg(not(target_os = "macos"))]
     {
-        let _ = window;
+        if window.is_maximized().map_err(|e| e.to_string())? {
+            window.unmaximize().map_err(|e| e.to_string())?;
+        } else {
+            window.maximize().map_err(|e| e.to_string())?;
+        }
     }
     Ok(())
 }

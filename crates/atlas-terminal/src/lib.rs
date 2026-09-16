@@ -72,7 +72,10 @@ impl TerminalManager {
 
         let shell = detect_shell();
         let mut cmd = CommandBuilder::new(&shell);
+        #[cfg(unix)]
         cmd.arg("-l"); // login shell — sources the user's profile so PATH etc. are correct
+        #[cfg(windows)]
+        cmd.arg("-NoLogo");
         if let Some(dir) = cwd {
             cmd.cwd(dir);
         }
@@ -166,6 +169,11 @@ impl TerminalManager {
             .get(id)
             .ok_or_else(|| anyhow::anyhow!("Terminal session not found: {id}"))?;
         let mut writer = session.writer.lock().unwrap();
+        // The frontend submits lines with `\n` (what a unix tty expects). ConPTY
+        // reads a bare LF as Ctrl+Enter, which PowerShell treats as "insert a
+        // line" instead of "run it" — Enter is CR there.
+        #[cfg(windows)]
+        let data = &*lf_to_cr(data);
         writer.write_all(data)?;
         writer.flush()?;
         Ok(())
@@ -348,8 +356,35 @@ pub fn cwd_of_pid(pid: u32) -> Option<String> {
     }
 }
 
+#[cfg(unix)]
 fn detect_shell() -> String {
     std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string())
+}
+
+/// `$SHELL` is unset on Windows, or an MSYS path (`/usr/bin/bash`) when the app
+/// was started from Git Bash — neither is spawnable. PowerShell ships with
+/// every supported Windows.
+#[cfg(windows)]
+fn detect_shell() -> String {
+    "powershell.exe".to_string()
+}
+
+/// LF -> CR, with CRLF collapsing to one CR so a pasted Windows line ending
+/// doesn't submit twice.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn lf_to_cr(data: &[u8]) -> std::borrow::Cow<'_, [u8]> {
+    if !data.contains(&b'\n') {
+        return data.into();
+    }
+    let mut out = Vec::with_capacity(data.len());
+    for (i, &b) in data.iter().enumerate() {
+        match b {
+            b'\n' if i > 0 && data[i - 1] == b'\r' => {}
+            b'\n' => out.push(b'\r'),
+            _ => out.push(b),
+        }
+    }
+    out.into()
 }
 
 // ── zsh shell integration ──────────────────────────────────────────────────
@@ -436,7 +471,14 @@ fn ensure_zsh_integration_dir() -> Option<std::path::PathBuf> {
 
 #[cfg(test)]
 mod resize_tests {
-    use super::needs_resize;
+    use super::{lf_to_cr, needs_resize};
+
+    #[test]
+    fn lf_becomes_cr() {
+        assert_eq!(&*lf_to_cr(b"ls\n"), b"ls\r");
+        assert_eq!(&*lf_to_cr(b"a\r\nb\n"), b"a\rb\r");
+        assert_eq!(&*lf_to_cr(b"\x1b[A"), b"\x1b[A");
+    }
 
     #[test]
     fn resize_dedups() {

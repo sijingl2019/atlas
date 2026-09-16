@@ -125,6 +125,14 @@ pub fn run() {
                 // animation stays smooth.
                 let _ = window
                     .set_background_color(Some(tauri::window::Color(0, 0, 0, 255)));
+                // Windows: drop the native title bar + menubar; the React
+                // titlebar draws its own min/max/close (`WindowControls`).
+                // `hide_menu` keeps the menu's accelerators (Ctrl+W close tab).
+                #[cfg(windows)]
+                {
+                    let _ = window.set_decorations(false);
+                    let _ = window.hide_menu();
+                }
             }
             // Pre-load the Rust-owned `AppState` (currentProject + recents)
             // before the webview starts loading — paid in parallel with the
