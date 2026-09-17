@@ -120,7 +120,7 @@ export function TitlebarDock({
       <div
         className={cn(
           "flex h-6 items-center gap-1 rounded-full px-1 py-0.5",
-          "border border-contrast/[0.07] bg-bg-raised",
+          "border border-contrast/[0.07] bg-[var(--bg-raised)]",
         )}
       >
         {items.map((item, index) => (

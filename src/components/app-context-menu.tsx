@@ -117,7 +117,9 @@ function MenuItem({
     >
       <span className="text-[var(--text-muted)]">{icon}</span>
       <span className="flex-1">{label}</span>
-      {hint && <span className="text-[9px] text-[var(--text-muted)] font-mono">{hint}</span>}
+      {hint && (
+        <span className="text-[9px] text-[var(--text-muted)] opacity-75 font-mono">{hint}</span>
+      )}
     </ContextMenu.Item>
   );
 }

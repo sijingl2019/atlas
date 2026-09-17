@@ -86,7 +86,7 @@ const TABLE = [
   // --color-text-muted), so the var is referenced directly.
   ["text-[#555]", "text-[var(--text-muted)]", { appCtx: 1, statusBar: 1, titlebar: 2, accountBtn: 1, browser: 6 }],
   ["text-[#666]", "text-[var(--text-muted)]", { dock: 1 }],
-  ["text-[#444]", "text-[var(--text-muted)]", { appCtx: 1 }],
+  ["text-[#444]", "text-[var(--text-muted)] opacity-75", { appCtx: 1 }],
   ["text-[#e0af68]", "text-[var(--status-warning)]", { transcript: 1 }],
   ["text-white", "text-text-primary", { titlebar: 1, sessionStats: 1 }, (l) => l.includes("text-[7px]") || l.includes("text-[28px]")],
   // A white check on the accent fill — which is #fff in Atlas Black, so the
@@ -102,7 +102,8 @@ const TABLE = [
   ["bg-[#0D0E0D]", "bg-[var(--panel-bg-2)]", { filesTab: 1 }],
   ["bg-[#0f0f0f]", "bg-bg-elevated", { appCtx: 1, browser: 1 }],
   ["bg-[#0F0F0F]", "bg-bg-elevated", { diffView: 1 }],
-  ["bg-[#121212]", "bg-bg-raised", { dock: 1 }],
+  // Not bg-bg-raised: @theme registers no --color-bg-raised, so that utility is never generated.
+  ["bg-[#121212]", "bg-[var(--bg-raised)]", { dock: 1 }],
   ["bg-[#141414]/95", "bg-[var(--bg-elevated)]/95", { memTimeline: 1 }],
   ["bg-[#1f1f1f]", "bg-bg-active", { capture: 1, createOrg: 2 }],
   ["bg-[#1a1a1a]", "bg-border-default", { appCtx: 2, browser: 2 }],
