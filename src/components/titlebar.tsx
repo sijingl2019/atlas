@@ -42,10 +42,11 @@ import type { Binding, CaptureHealth } from "@/features/capture/types";
 import { activeWorkspaceId } from "@/features/workspaces/lib/active-workspace";
 import { useActiveOrgWorkspaces } from "@/features/workspaces/lib/org-scope";
 import { isDev } from "@/lib/env";
+import { isMac, isWindows as isWindowsPlatform } from "@/lib/platform";
 
 /** Windows runs undecorated (see `lib.rs` setup), so the titlebar draws its
  *  own min/max/close and needs no traffic-light gutter. */
-const isWindows = isTauri() && navigator.userAgent.includes("Windows");
+const isWindows = isTauri() && isWindowsPlatform;
 
 function useTauriWindow() {
   const windowRef = useRef<TauriWindow | null>(null);
@@ -136,17 +137,23 @@ export function Titlebar() {
   };
 
   // macOS double-click-to-zoom. Tauri's `toggleMaximize()` doesn't map to
-  // AppKit's zoom, so we call a native `performZoom:` command instead.
+  // AppKit's zoom, so we call a native `performZoom:` command instead. It does
+  // map to maximize on Windows, which is the convention there.
   const handleDoubleClick = (e: React.MouseEvent) => {
     if (!isTitlebarSurface(e.target)) return;
-    void invoke("window_zoom").catch(() => {});
+    if (isMac) void invoke("window_zoom").catch(() => {});
+    else void windowRef.current?.toggleMaximize();
   };
 
   return (
     <div
       onMouseDown={handleDrag}
       onDoubleClick={handleDoubleClick}
-      className={`relative z-50 flex h-[30px] select-none items-center bg-[var(--bg-base)] border-b border-border-default ${isWindows ? "pr-0" : "pr-3"} ${isWindows || isFullscreen || dockedSidebar ? "pl-3" : "pl-[72px]"}`}
+      className={cn(
+        "relative z-50 flex h-[30px] select-none items-center bg-[var(--bg-base)] border-b border-border-default",
+        isWindows ? "pr-0" : "pr-3",
+        isFullscreen || dockedSidebar || !isMac ? "pl-3" : "pl-[72px]",
+      )}
     >
       <div className="flex h-[30px] min-w-0 flex-1 items-center gap-1.5">
         <WorkspaceToggle />

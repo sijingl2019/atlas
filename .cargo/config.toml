@@ -38,7 +38,6 @@
 # test` and `tauri dev` are unaffected by any of this.
 [env]
 MACOSX_DEPLOYMENT_TARGET = "11.0"
-
 # MSVC reads source files in the system ANSI codepage, not UTF-8. On a
 # Chinese/Japanese Windows (GBK 936, Shift-JIS 932) a lead byte inside a UTF-8
 # comment pairs with the byte after it and swallows the newline, so the next
@@ -52,3 +51,9 @@ MACOSX_DEPLOYMENT_TARGET = "11.0"
 # to each crate's own flags rather than replacing them.
 CFLAGS_x86_64_pc_windows_msvc = "/utf-8"
 CXXFLAGS_x86_64_pc_windows_msvc = "/utf-8"
+
+# Windows x86_64 only: aws-lc-sys (rustls' `aws-lc-rs` provider) assembles its
+# x86_64 code with NASM, which a stock MSVC toolchain lacks. This lets it link
+# the prebuilt NASM objects it ships instead. aws-lc-sys ignores it on every
+# other target, and the Tauri CLI never sets it, so it doesn't un-align caches.
+AWS_LC_SYS_PREBUILT_NASM = "1"

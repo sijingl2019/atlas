@@ -35,6 +35,7 @@ import type { FitAddon } from "@xterm/addon-fit";
 import type { WebglAddon } from "@xterm/addon-webgl";
 import { isScrollHot } from "@/lib/scroll-hot";
 import { useProjectStore } from "@/features/project/stores/project-store";
+import { isWindows } from "@/lib/platform";
 import { BlockStreamParser, type TerminalBlock, type TerminalEvent } from "./block-parser";
 import { createTerminalEventSink } from "./terminal-notifier";
 import { createTerminalKeymap } from "./terminal-keymap";
@@ -91,6 +92,12 @@ const MIN_ROWS = 3;
 // relaunch them through our integration ZDOTDIR — otherwise command blocks /
 // prompt markers break as root ("sudo -s behaves weirdly").
 const SUDO_SHELL_RE = /^sudo\s+(?:-s|-i|su(?:\s+-l?|\s+-)?)\s*$/;
+
+/** Enter, as written to the PTY when a line is submitted. ConPTY turns CR into
+ *  an Enter keypress but hands LF to PowerShell's line editor as a literal
+ *  newline — a `>>` continuation prompt instead of running the command. POSIX
+ *  shells keep LF, which the line discipline already reads as end-of-line. */
+const ENTER = isWindows ? "\r" : "\n";
 
 // ANSI palette for the interactive xterm surface — matches the block renderer
 // so blocks and the live surface look the same.
@@ -364,7 +371,7 @@ export class TerminalSession {
     this.queuedCommand = null;
     if (this.queuedFloor) window.clearTimeout(this.queuedFloor);
     this.queuedFloor = 0;
-    void invoke("terminal_write_text", { id: this.ptyId, text: `${line}\n` }).catch(() => {});
+    void invoke("terminal_write_text", { id: this.ptyId, text: line + ENTER }).catch(() => {});
   }
 
   async close(): Promise<void> {
@@ -807,7 +814,7 @@ export class TerminalSession {
 
   /** A secret typed into a block's inline password field. Never stored. */
   writePassword(pw: string): void {
-    this.writeText(pw + "\n");
+    this.writeText(pw + ENTER);
   }
 
   runCommand(cmd: string): void {
@@ -818,7 +825,7 @@ export class TerminalSession {
     // fresh prompt.
     if (trimmed === "clear") {
       this.parser.clearBlocks();
-      void invoke("terminal_write", { id, data: [0x0a] }).catch(() => {});
+      void invoke("terminal_write", { id, data: [ENTER.charCodeAt(0)] }).catch(() => {});
       return;
     }
     // Relaunch an interactive root shell with Atlas's zsh integration so blocks
@@ -829,7 +836,7 @@ export class TerminalSession {
       );
       return;
     }
-    this.writeText(cmd + "\n");
+    this.writeText(cmd + ENTER);
   }
 
   interrupt(): void {
