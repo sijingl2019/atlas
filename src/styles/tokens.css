@@ -154,6 +154,19 @@
   --diff-removed-text: #777777;
   --diff-modified-bg: rgba(192, 192, 192, 0.08);
 
+  /* === Mode-relative overlays ===
+     `--contrast` is the color that stands out against the base: every
+     translucent hover wash, hairline and sheen is drawn in it, so one
+     `bg-contrast/10` lifts a dark surface and shades a light one. `--shade`
+     darkens — shadows and recessed bands. These are the literals the app always
+     drew with (#fff, #000), so dark mode renders exactly as before. */
+  --contrast: #ffffff;
+  --shade: #000000;
+  /* The glass popover shadow, previously written out in twelve menus. */
+  --shadow-popover:
+    inset 0 1px 0 color-mix(in srgb, var(--contrast) 8%, transparent),
+    0 16px 48px color-mix(in srgb, var(--shade) 95%, transparent);
+
   /* === shadcn compat === */
   --background: var(--bg-base);
   --foreground: var(--text-primary);

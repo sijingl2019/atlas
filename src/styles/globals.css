@@ -59,6 +59,9 @@
   --color-border-strong: var(--border-strong);
   --color-border-focus: var(--border-focus);
 
+  --color-contrast: var(--contrast);
+  --color-shade: var(--shade);
+
   --color-success: var(--status-success);
   --color-warning: var(--status-warning);
   --color-error: var(--status-error);

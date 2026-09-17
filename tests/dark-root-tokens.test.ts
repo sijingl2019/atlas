@@ -24,7 +24,12 @@ const TOKENS = path.join(REPO_ROOT, "src", "styles", "tokens.css");
 const FIXTURE = path.join(REPO_ROOT, "tests", "fixtures", "dark-root-tokens.json");
 
 /** Tokens added to the dark :root since the snapshot, with their required value. */
-const ADDED: Record<string, string> = {};
+const ADDED: Record<string, string> = {
+  "--contrast": "#ffffff",
+  "--shade": "#000000",
+  "--shadow-popover":
+    "inset 0 1px 0 color-mix(in srgb, var(--contrast) 8%, transparent), 0 16px 48px color-mix(in srgb, var(--shade) 95%, transparent)",
+};
 
 describe("dark :root tokens", () => {
   const snapshot = JSON.parse(readFileSync(FIXTURE, "utf8")) as Record<string, string>;
