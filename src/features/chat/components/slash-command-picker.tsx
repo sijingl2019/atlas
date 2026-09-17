@@ -207,7 +207,7 @@ export const SlashCommandPicker = forwardRef<SlashCommandPickerHandle, SlashComm
           "atlas-slash-picker",
           "rounded-lg overflow-hidden",
           "bg-[var(--bg-secondary)] border border-[var(--border-default)]",
-          "shadow-[0_8px_24px_rgba(0,0,0,0.5)]",
+          "shadow-[0_8px_24px_color-mix(in_srgb,var(--shade)_50%,transparent)]",
           "flex flex-col",
         )}
         onMouseDown={(e) => e.preventDefault()}

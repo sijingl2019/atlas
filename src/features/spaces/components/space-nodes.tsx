@@ -257,7 +257,7 @@ export const SpaceMediaNode = memo(function SpaceMediaNode({ id, data, selected 
         className={cn(
           "h-full w-full overflow-hidden rounded-xl border transition-colors",
           selected ? "border-[var(--accent-primary)]/60" : "border-contrast/10",
-          "bg-black/30",
+          "bg-shade/30",
         )}
       >
         {failed ? (

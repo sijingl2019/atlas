@@ -934,7 +934,7 @@ export function WorkspaceSidebar() {
           // Same reasoning as CommsSurface: on a near-black panel the shadow
           // has almost nothing to darken, so the ring carries the edge.
           boxShadow:
-            "0 0 0 1px color-mix(in srgb, var(--contrast) 8%, transparent), 0 10px 28px rgba(0,0,0,0.6)",
+            "0 0 0 1px color-mix(in srgb, var(--contrast) 8%, transparent), 0 10px 28px color-mix(in srgb, var(--shade) 60%, transparent)",
         }}
       >
         {/* ONE scroller for everything below the org row (see `RailScroll`).
@@ -1434,7 +1434,10 @@ function HelpMenu() {
           align="start"
           side="top"
           sideOffset={6}
-          style={{ zIndex: 9999, boxShadow: "0 16px 48px rgba(0,0,0,0.95)" }}
+          style={{
+            zIndex: 9999,
+            boxShadow: "0 16px 48px color-mix(in srgb, var(--shade) 95%, transparent)",
+          }}
           className="w-[212px] overflow-hidden rounded-xl border border-contrast/[0.07] bg-[var(--bg-elevated)]/95 p-1 backdrop-blur-2xl select-none"
         >
           <HelpItem

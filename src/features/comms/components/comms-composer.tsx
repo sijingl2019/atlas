@@ -320,7 +320,7 @@ export function CommsComposer({
             className={cn(
               "absolute bottom-full left-2 right-2 z-[var(--z-dropdown)] mb-1 flex flex-col overflow-hidden rounded-lg",
               "border border-contrast/10 bg-black",
-              "shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_8px_24px_rgba(0,0,0,0.6)]",
+              "shadow-[inset_0_1px_0_color-mix(in_srgb,var(--contrast)_6%,transparent),0_8px_24px_color-mix(in_srgb,var(--shade)_60%,transparent)]",
               "animate-scale-in",
             )}
             // Selecting with the mouse must not blur the textarea first.
@@ -407,7 +407,7 @@ export function CommsComposer({
         className={cn(
           // `z-10` so the shell paints over — and visually tucks — the reply
           // strip's lower half.
-          "relative z-10 rounded-2xl border bg-[var(--bg-secondary)] shadow-[0_8px_24px_rgba(0,0,0,0.35)] transition-colors",
+          "relative z-10 rounded-2xl border bg-[var(--bg-secondary)] shadow-[0_8px_24px_color-mix(in_srgb,var(--shade)_35%,transparent)] transition-colors",
           isDropTarget
             ? "border-[var(--accent-primary)] ring-2 ring-[var(--accent-primary)]/40"
             : overLimit

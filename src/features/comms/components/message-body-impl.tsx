@@ -179,7 +179,7 @@ const COMPONENTS: Components = {
       <pre
         className={cn(
           "my-1.5 overflow-x-auto rounded-md px-2.5 py-2 font-mono text-[11px] leading-[1.55] hide-scrollbar",
-          "bg-black/50 border border-border-subtle",
+          "bg-shade/50 border border-border-subtle",
         )}
       >
         {lang && (

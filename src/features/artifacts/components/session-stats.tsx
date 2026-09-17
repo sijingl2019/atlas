@@ -186,7 +186,7 @@ export function SessionStats({ sessions }: { sessions: BoardSession[] }) {
           className="pointer-events-none absolute inset-0"
           style={{
             background:
-              "linear-gradient(90deg, rgba(0,0,0,.72) 0%, rgba(0,0,0,.5) 28%, rgba(0,0,0,.16) 56%, rgba(0,0,0,0) 80%)",
+              "linear-gradient(90deg, color-mix(in srgb, var(--shade) 72%, transparent) 0%, color-mix(in srgb, var(--shade) 50%, transparent) 28%, color-mix(in srgb, var(--shade) 16%, transparent) 56%, color-mix(in srgb, var(--shade) 0%, transparent) 80%)",
           }}
         />
 

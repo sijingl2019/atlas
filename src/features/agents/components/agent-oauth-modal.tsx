@@ -676,7 +676,7 @@ function SignInDock({ label, children }: { label: string; children: ReactNode })
         WebkitBackdropFilter: "blur(22px) saturate(170%)",
         border: "1px solid color-mix(in srgb, var(--contrast) 8%, transparent)",
         boxShadow:
-          "inset 0 1px 0 color-mix(in srgb, var(--contrast) 10%, transparent), 0 8px 28px rgba(0,0,0,0.55)",
+          "inset 0 1px 0 color-mix(in srgb, var(--contrast) 10%, transparent), 0 8px 28px color-mix(in srgb, var(--shade) 55%, transparent)",
       }}
     >
       {/* Radix requires both on every Content; the dock states carry their own

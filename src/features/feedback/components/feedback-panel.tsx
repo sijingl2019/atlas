@@ -280,7 +280,7 @@ export function FeedbackPanel() {
         </>
       )}
 
-      <div className="flex items-center gap-3 px-3.5 h-8 border-t border-contrast/5 bg-black/20">
+      <div className="flex items-center gap-3 px-3.5 h-8 border-t border-contrast/5 bg-shade/20">
         <button
           type="button"
           onClick={() => void openExternal(issueUrl(category, message))}

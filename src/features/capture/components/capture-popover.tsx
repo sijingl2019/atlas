@@ -272,7 +272,7 @@ export function CapturePopover({ projectPath, health, onChanged, onClose }: Prop
         // *on top of* the 1px border, so the top edge read twice as heavy as the
         // other three. No `will-change` — it would isolate the layer and kill
         // the blur.
-        boxShadow: "0 16px 48px rgba(0,0,0,0.95)",
+        boxShadow: "0 16px 48px color-mix(in srgb, var(--shade) 95%, transparent)",
       }}
     >
       {/* A bound project opens onto the radar rather than a title bar: the panel
@@ -643,7 +643,7 @@ function CaptureRadar({ live, health }: { live: boolean; health: CaptureHealth |
 
   return (
     <div
-      className="relative overflow-hidden border-b border-contrast/5 bg-black/40"
+      className="relative overflow-hidden border-b border-contrast/5 bg-shade/40"
       style={{ height: RADAR_HEIGHT }}
     >
       {/* Range rings: true circles centred on the dish. `border-t` draws only

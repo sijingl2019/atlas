@@ -256,7 +256,7 @@ function CommsSurface({ children }: { children: React.ReactNode }) {
         // Pure black on #0f0f0f leaves a drop shadow almost nothing to darken,
         // so the hairline ring carries the edge; the shadow just softens it.
         boxShadow:
-          "0 0 0 1px color-mix(in srgb, var(--contrast) 8%, transparent), 0 10px 28px rgba(0,0,0,0.6)",
+          "0 0 0 1px color-mix(in srgb, var(--contrast) 8%, transparent), 0 10px 28px color-mix(in srgb, var(--shade) 60%, transparent)",
       }}
     >
       {children}

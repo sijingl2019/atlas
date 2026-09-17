@@ -169,7 +169,7 @@ export function TitlebarDock({
             "flex w-max",
             "bg-black text-text-primary",
             "outline outline-1 outline-[var(--border-default)]",
-            "shadow-[0_8px_24px_rgba(0,0,0,0.5)]",
+            "shadow-[0_8px_24px_color-mix(in_srgb,var(--shade)_50%,transparent)]",
           )}
           style={{
             opacity: visible ? 1 : 0,

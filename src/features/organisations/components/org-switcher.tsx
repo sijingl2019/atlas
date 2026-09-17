@@ -271,7 +271,7 @@ export function OrgSwitcher() {
               // No inset top highlight: on a card this size it draws a bright
               // line across the whole head of the menu, which reads as a second
               // border above the first.
-              boxShadow: "0 16px 48px rgba(0,0,0,0.95)",
+              boxShadow: "0 16px 48px color-mix(in srgb, var(--shade) 95%, transparent)",
             }}
             className="flex max-h-[min(480px,70vh)] w-[268px] flex-col overflow-hidden rounded-xl border border-contrast/[0.07] bg-[var(--bg-elevated)]/95 backdrop-blur-2xl atlas-panel-in-tl select-none text-[var(--text-secondary)]"
           >

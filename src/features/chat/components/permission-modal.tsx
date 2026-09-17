@@ -324,7 +324,7 @@ function PermissionModalImpl({ tabId, onSendMessage }: PermissionModalProps) {
   // Standard case — inline card above the composer.
   return (
     <div className="px-4 pt-2">
-      <div className="mx-auto w-full max-w-[720px] overflow-hidden rounded-xl border border-[var(--border-default)] bg-[var(--bg-elevated)] shadow-[0_8px_24px_rgba(0,0,0,0.35)]">
+      <div className="mx-auto w-full max-w-[720px] overflow-hidden rounded-xl border border-[var(--border-default)] bg-[var(--bg-elevated)] shadow-[0_8px_24px_color-mix(in_srgb,var(--shade)_35%,transparent)]">
         <div className="flex items-start gap-2 px-3 pt-3">
           <div className="flex-1 min-w-0">
             <div className="text-[13px] font-medium leading-snug text-text-primary">

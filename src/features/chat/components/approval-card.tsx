@@ -132,7 +132,7 @@ export function ApprovalCard({
   }, [answer, q, step, goNext]);
 
   return (
-    <div className="mx-auto w-full max-w-[720px] overflow-hidden rounded-xl border border-[var(--border-default)] bg-[var(--bg-elevated)] shadow-[0_8px_24px_rgba(0,0,0,0.35)]">
+    <div className="mx-auto w-full max-w-[720px] overflow-hidden rounded-xl border border-[var(--border-default)] bg-[var(--bg-elevated)] shadow-[0_8px_24px_color-mix(in_srgb,var(--shade)_35%,transparent)]">
       <div className="px-4 pt-3.5 pb-4">
         {/* Header: icon, question, step counter. */}
         <div className="flex items-start gap-2.5">

@@ -436,7 +436,7 @@ function Starters({ disabled, onPick }: { disabled: boolean; onPick: (question: 
           />
           <AtlasIcon
             size={48}
-            className="atlas-fade-in rounded-[14px] shadow-[0_12px_50px_-12px_rgba(0,0,0,0.85)] ring-1 ring-contrast/10"
+            className="atlas-fade-in rounded-[14px] shadow-[0_12px_50px_-12px_color-mix(in_srgb,var(--shade)_85%,transparent)] ring-1 ring-contrast/10"
           />
         </div>
 
@@ -465,7 +465,7 @@ function Starters({ disabled, onPick }: { disabled: boolean; onPick: (question: 
                 "group atlas-fade-in flex flex-col gap-2 rounded-xl border border-[var(--border-default)] bg-[var(--bg-secondary)] p-2.5 text-left transition-all duration-150",
                 disabled
                   ? "cursor-default opacity-50"
-                  : "cursor-pointer hover:-translate-y-0.5 hover:border-[var(--border-strong)] hover:bg-[var(--bg-elevated)] hover:shadow-[0_8px_24px_-12px_rgba(0,0,0,0.7)]",
+                  : "cursor-pointer hover:-translate-y-0.5 hover:border-[var(--border-strong)] hover:bg-[var(--bg-elevated)] hover:shadow-[0_8px_24px_-12px_color-mix(in_srgb,var(--shade)_70%,transparent)]",
               )}
             >
               <div className="flex items-center justify-between">
@@ -535,7 +535,7 @@ function Composer({
       {/* `relative z-10` is load-bearing: the strip above is positioned, and
           positioned elements paint over non-positioned siblings regardless of
           DOM order — without this the strip would cover the composer. */}
-      <div className="relative z-10 overflow-hidden rounded-xl border border-[var(--border-default)] bg-[var(--bg-secondary)] shadow-[0_8px_24px_rgba(0,0,0,0.35)] focus-within:border-[var(--border-focus)]">
+      <div className="relative z-10 overflow-hidden rounded-xl border border-[var(--border-default)] bg-[var(--bg-secondary)] shadow-[0_8px_24px_color-mix(in_srgb,var(--shade)_35%,transparent)] focus-within:border-[var(--border-focus)]">
         <ChatInput
           ref={inputRef}
           // Fixed, not conditional: `ChatInput` reads its placeholder when the
