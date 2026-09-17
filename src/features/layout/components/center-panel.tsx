@@ -468,7 +468,7 @@ const TabColumn = memo(function TabColumn({
                         "absolute right-1.5 top-1/2 -translate-y-1/2",
                         "inline-flex items-center justify-center w-4 h-4 rounded-full",
                         "text-text-tertiary opacity-0 group-hover:opacity-100",
-                        "hover:bg-[#ffffff22] hover:text-text-primary transition-opacity duration-150",
+                        "hover:bg-contrast/[0.133] hover:text-text-primary transition-opacity duration-150",
                       )}
                     >
                       <X size={10} strokeWidth={2.2} />
@@ -814,7 +814,7 @@ function ProjectlessCenter() {
                     "absolute right-1.5 top-1/2 -translate-y-1/2",
                     "inline-flex h-4 w-4 items-center justify-center rounded-full",
                     "text-text-tertiary opacity-0 group-hover:opacity-100",
-                    "transition-opacity duration-150 hover:bg-[#ffffff22] hover:text-text-primary",
+                    "transition-opacity duration-150 hover:bg-contrast/[0.133] hover:text-text-primary",
                   )}
                 >
                   <X size={10} strokeWidth={2.2} />

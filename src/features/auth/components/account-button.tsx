@@ -59,7 +59,7 @@ export function AccountButton({ compact = false }: { compact?: boolean } = {}) {
         // A `<button>` still gets the arrow by default, and this one carries no
         // label or border — the pointer is most of what says it is pressable.
         // Matches the title bar's project-name button beside it.
-        "cursor-pointer hover:bg-[#ffffff08] outline-none focus:outline-none",
+        "cursor-pointer hover:bg-contrast/[0.031] outline-none focus:outline-none",
         signedIn || connecting ? "text-[#ccc]" : "text-[#555] hover:text-[#aaa]",
       )}
     >

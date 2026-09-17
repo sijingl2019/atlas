@@ -316,7 +316,7 @@
    so children read them off CSS custom properties. */
 .agent-claude {
   --agent: var(--text-primary);
-  --agent-bg: rgba(255, 255, 255, 0.06);
+  --agent-bg: color-mix(in srgb, var(--contrast) 6%, transparent);
   --agent-chip: var(--text-primary);
 }
 .agent-gpt {
@@ -346,12 +346,12 @@
 }
 .agent-codex {
   --agent: var(--text-primary);
-  --agent-bg: rgba(255, 255, 255, 0.06);
+  --agent-bg: color-mix(in srgb, var(--contrast) 6%, transparent);
   --agent-chip: var(--text-primary);
 }
 .agent-opencode {
   --agent: var(--text-primary);
-  --agent-bg: rgba(255, 255, 255, 0.06);
+  --agent-bg: color-mix(in srgb, var(--contrast) 6%, transparent);
   --agent-chip: var(--text-primary);
 }
 .agent-kilo {
@@ -363,7 +363,7 @@
    square stays neutral like claude/codex. */
 .agent-cersei {
   --agent: var(--text-primary);
-  --agent-bg: rgba(255, 255, 255, 0.06);
+  --agent-bg: color-mix(in srgb, var(--contrast) 6%, transparent);
   --agent-chip: var(--text-primary);
 }
 

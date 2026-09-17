@@ -98,12 +98,12 @@ export function NoteEditorPanel({ noteId, projectPath, onClose }: NoteEditorPane
             type="button"
             title="Change icon"
             onClick={(e) => setIconAnchor(e.currentTarget.getBoundingClientRect())}
-            className="flex h-5 w-5 items-center justify-center rounded-md bg-white/10 hover:bg-white/15 transition-colors cursor-pointer shrink-0"
+            className="flex h-5 w-5 items-center justify-center rounded-md bg-contrast/10 hover:bg-contrast/15 transition-colors cursor-pointer shrink-0"
           >
             {note.icon ? (
               <span className="text-[12px] leading-none">{note.icon}</span>
             ) : (
-              <span className="text-[11px] leading-none text-white/60">＋</span>
+              <span className="text-[11px] leading-none text-contrast/60">＋</span>
             )}
           </button>
           <input
@@ -119,7 +119,7 @@ export function NoteEditorPanel({ noteId, projectPath, onClose }: NoteEditorPane
               onClose();
             }}
             title="Delete note"
-            className="p-1 rounded hover:bg-white/10 text-[var(--text-tertiary)] hover:text-[var(--status-error)] cursor-pointer transition-colors"
+            className="p-1 rounded hover:bg-contrast/10 text-[var(--text-tertiary)] hover:text-[var(--status-error)] cursor-pointer transition-colors"
           >
             <Trash2 size={12} />
           </button>
@@ -127,7 +127,7 @@ export function NoteEditorPanel({ noteId, projectPath, onClose }: NoteEditorPane
             type="button"
             onClick={close}
             title="Close"
-            className="p-1 rounded hover:bg-white/10 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] cursor-pointer transition-colors"
+            className="p-1 rounded hover:bg-contrast/10 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] cursor-pointer transition-colors"
           >
             <X size={12} />
           </button>

@@ -25,22 +25,24 @@ export const NoteNode = memo(function NoteNode({ data, selected }: NodeProps) {
         "min-w-[260px] max-w-[360px]",
         "bg-[var(--bg-secondary)]/70 backdrop-blur-3xl backdrop-saturate-150",
         "border shadow-2xl transition-colors",
-        selected ? "border-[var(--accent-primary)]/60" : "border-white/10 hover:border-white/20",
+        selected
+          ? "border-[var(--accent-primary)]/60"
+          : "border-contrast/10 hover:border-contrast/20",
       )}
     >
       {/* Inner glow */}
-      <div className="absolute inset-0 rounded-2xl bg-gradient-to-b from-white/5 to-transparent opacity-60 pointer-events-none" />
+      <div className="absolute inset-0 rounded-2xl bg-gradient-to-b from-contrast/5 to-transparent opacity-60 pointer-events-none" />
 
       {/* Connection handles — one per side (4-way linking). */}
       <NodeHandles selected={selected} />
 
       {/* Header */}
-      <div className="relative flex items-center gap-2 border-b border-white/10 px-3 py-2">
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 shrink-0">
+      <div className="relative flex items-center gap-2 border-b border-contrast/10 px-3 py-2">
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-contrast/10 shrink-0">
           {d.icon ? (
             <span className="text-[15px] leading-none">{d.icon}</span>
           ) : (
-            <StickyNote size={13} className="text-white/80" />
+            <StickyNote size={13} className="text-contrast/80" />
           )}
         </div>
         <div className="flex-1 min-w-0">

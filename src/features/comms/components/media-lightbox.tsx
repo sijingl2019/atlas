@@ -177,7 +177,7 @@ function NavButton({
       title={side === "left" ? "Previous  ←" : "Next  →"}
       className={cn(
         "absolute top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full",
-        "border border-white/10 bg-[var(--bg-secondary)]/70 text-text-secondary backdrop-blur-xl",
+        "border border-contrast/10 bg-[var(--bg-secondary)]/70 text-text-secondary backdrop-blur-xl",
         "transition-opacity hover:text-text-primary cursor-pointer",
         "disabled:cursor-default disabled:opacity-0",
         side === "left" ? "left-3" : "right-3",

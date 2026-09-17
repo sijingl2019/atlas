@@ -436,12 +436,12 @@ function Starters({ disabled, onPick }: { disabled: boolean; onPick: (question: 
           />
           <AtlasIcon
             size={48}
-            className="atlas-fade-in rounded-[14px] shadow-[0_12px_50px_-12px_rgba(0,0,0,0.85)] ring-1 ring-white/10"
+            className="atlas-fade-in rounded-[14px] shadow-[0_12px_50px_-12px_rgba(0,0,0,0.85)] ring-1 ring-contrast/10"
           />
         </div>
 
         <h2
-          className="atlas-fade-in bg-gradient-to-b from-white to-white/55 bg-clip-text text-[18px] font-semibold tracking-tight text-transparent"
+          className="atlas-fade-in bg-gradient-to-b from-contrast to-contrast/55 bg-clip-text text-[18px] font-semibold tracking-tight text-transparent"
           style={{ animationDelay: "40ms" }}
         >
           Ask this session

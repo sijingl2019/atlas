@@ -319,7 +319,7 @@ export function CommsComposer({
           <div
             className={cn(
               "absolute bottom-full left-2 right-2 z-[var(--z-dropdown)] mb-1 flex flex-col overflow-hidden rounded-lg",
-              "border border-white/10 bg-black",
+              "border border-contrast/10 bg-black",
               "shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_8px_24px_rgba(0,0,0,0.6)]",
               "animate-scale-in",
             )}
@@ -338,7 +338,7 @@ export function CommsComposer({
                   onClick={() => insertMention(m)}
                   className={cn(
                     "flex h-[26px] w-full items-center gap-1.5 px-2 text-left transition-colors cursor-pointer",
-                    i === highlighted ? "bg-white/[0.07]" : "hover:bg-white/[0.04]",
+                    i === highlighted ? "bg-contrast/[0.07]" : "hover:bg-contrast/[0.04]",
                   )}
                 >
                   <CommsAvatar member={m} size={16} />
@@ -348,7 +348,7 @@ export function CommsComposer({
                 </button>
               ))}
             </div>
-            <div className="flex h-[26px] shrink-0 items-center justify-between border-t border-white/10 px-2">
+            <div className="flex h-[26px] shrink-0 items-center justify-between border-t border-contrast/10 px-2">
               <span className="flex items-center gap-1.5 text-[9px] text-text-tertiary">
                 <Kbd>↑↓</Kbd>
                 <span>navigate</span>

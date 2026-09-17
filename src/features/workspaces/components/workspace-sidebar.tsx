@@ -933,7 +933,8 @@ export function WorkspaceSidebar() {
         style={{
           // Same reasoning as CommsSurface: on a near-black panel the shadow
           // has almost nothing to darken, so the ring carries the edge.
-          boxShadow: "0 0 0 1px rgba(255,255,255,0.08), 0 10px 28px rgba(0,0,0,0.6)",
+          boxShadow:
+            "0 0 0 1px color-mix(in srgb, var(--contrast) 8%, transparent), 0 10px 28px rgba(0,0,0,0.6)",
         }}
       >
         {/* ONE scroller for everything below the org row (see `RailScroll`).
@@ -1423,7 +1424,7 @@ function HelpMenu() {
           type="button"
           title="Help & community"
           aria-label="Help and community"
-          className="flex size-[22px] items-center justify-center rounded-full border border-white/[0.08] text-[var(--text-tertiary)] outline-none transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] cursor-pointer"
+          className="flex size-[22px] items-center justify-center rounded-full border border-contrast/[0.08] text-[var(--text-tertiary)] outline-none transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] cursor-pointer"
         >
           <HelpCircle size={12} />
         </button>
@@ -1434,7 +1435,7 @@ function HelpMenu() {
           side="top"
           sideOffset={6}
           style={{ zIndex: 9999, boxShadow: "0 16px 48px rgba(0,0,0,0.95)" }}
-          className="w-[212px] overflow-hidden rounded-xl border border-white/[0.07] bg-[var(--bg-elevated)]/95 p-1 backdrop-blur-2xl select-none"
+          className="w-[212px] overflow-hidden rounded-xl border border-contrast/[0.07] bg-[var(--bg-elevated)]/95 p-1 backdrop-blur-2xl select-none"
         >
           <HelpItem
             icon={<BookOpen size={12} />}
@@ -1454,7 +1455,7 @@ function HelpMenu() {
             onSelect={() => openSettingsSection("keybindings")}
           />
 
-          <DropdownMenu.Separator className="my-1 h-px bg-white/5" />
+          <DropdownMenu.Separator className="my-1 h-px bg-contrast/5" />
 
           <HelpItem
             icon={<GithubIcon className="size-3" />}
@@ -1468,7 +1469,7 @@ function HelpMenu() {
           />
           <HelpItem icon={<XIcon />} label="Follow on X" onSelect={() => void openUrl(X_URL)} />
 
-          <DropdownMenu.Separator className="my-1 h-px bg-white/5" />
+          <DropdownMenu.Separator className="my-1 h-px bg-contrast/5" />
 
           <HelpItem
             icon={<Settings size={12} />}

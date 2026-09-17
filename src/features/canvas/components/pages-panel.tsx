@@ -47,7 +47,7 @@ export function PagesPanel({ width = 240 }: { width?: number }) {
             e.stopPropagation();
             setIconFor({ id: entry.id, rect: e.currentTarget.getBoundingClientRect() });
           }}
-          className="flex h-4 w-4 shrink-0 items-center justify-center rounded hover:bg-white/10"
+          className="flex h-4 w-4 shrink-0 items-center justify-center rounded hover:bg-contrast/10"
         >
           <span className="text-[11px] leading-none">{entry.icon || DEFAULT_PAGE_ICON}</span>
         </button>

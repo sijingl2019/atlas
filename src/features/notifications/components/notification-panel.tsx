@@ -91,7 +91,7 @@ export function NotificationPanel() {
           {items.length === 0 ? (
             <div className="grid h-full place-items-center px-6">
               <div className="text-center">
-                <div className="mx-auto grid h-11 w-11 place-items-center rounded-2xl border border-border-subtle bg-white/[0.03]">
+                <div className="mx-auto grid h-11 w-11 place-items-center rounded-2xl border border-border-subtle bg-contrast/[0.03]">
                   <Bell size={18} className="text-text-tertiary" strokeWidth={1.5} />
                 </div>
                 <p className="mt-3 text-[12px] text-text-tertiary">No notifications</p>
@@ -137,7 +137,7 @@ function NotificationCard({ n }: { n: AppNotification }) {
       }}
       className={cn(
         "group relative flex items-start gap-2.5 rounded-xl border border-border-subtle px-3 py-2.5",
-        "bg-white/[0.03] hover:bg-white/[0.06] transition-colors cursor-pointer select-none",
+        "bg-contrast/[0.03] hover:bg-contrast/[0.06] transition-colors cursor-pointer select-none",
       )}
     >
       <span className="mt-0.5 shrink-0">
@@ -166,7 +166,7 @@ function NotificationCard({ n }: { n: AppNotification }) {
           e.stopPropagation();
           dismiss(n.id);
         }}
-        className="absolute right-1.5 top-1.5 opacity-0 group-hover:opacity-100 grid h-5 w-5 place-items-center rounded-md text-text-tertiary hover:text-text-primary hover:bg-white/[0.08] transition-opacity"
+        className="absolute right-1.5 top-1.5 opacity-0 group-hover:opacity-100 grid h-5 w-5 place-items-center rounded-md text-text-tertiary hover:text-text-primary hover:bg-contrast/[0.08] transition-opacity"
         title="Dismiss"
       >
         <X size={11} />

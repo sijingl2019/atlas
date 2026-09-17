@@ -105,7 +105,7 @@ const SECTION_LABEL = "text-[11px] font-medium text-[var(--text-secondary)]";
 const HINT = "mt-1 text-[10px] leading-[14px] text-[var(--text-tertiary)]";
 
 /** A read-only group of facts (detection, disclosure lines). */
-const GROUP = "rounded-lg border border-white/[0.06] bg-white/[0.02] px-2.5 py-2";
+const GROUP = "rounded-lg border border-contrast/[0.06] bg-contrast/[0.02] px-2.5 py-2";
 
 /** Selectable pill — the Type/Region language from the organisation modal. */
 function pillClass(state: "on" | "off" | "disabled") {
@@ -264,7 +264,7 @@ export function CapturePopover({ projectPath, health, onChanged, onClose }: Prop
         // the enter animation transforms. Splitting them across a wrapper would
         // isolate the compositing layer and flatten the blur to flat
         // transparency (see the note beside the keyframes in globals.css).
-        "border border-white/10 bg-[var(--bg-elevated)]/95 backdrop-blur-2xl",
+        "border border-contrast/10 bg-[var(--bg-elevated)]/95 backdrop-blur-2xl",
         "atlas-panel-in-tl",
       )}
       style={{
@@ -643,7 +643,7 @@ function CaptureRadar({ live, health }: { live: boolean; health: CaptureHealth |
 
   return (
     <div
-      className="relative overflow-hidden border-b border-white/5 bg-black/40"
+      className="relative overflow-hidden border-b border-contrast/5 bg-black/40"
       style={{ height: RADAR_HEIGHT }}
     >
       {/* Range rings: true circles centred on the dish. `border-t` draws only
@@ -654,7 +654,7 @@ function CaptureRadar({ live, health }: { live: boolean; health: CaptureHealth |
         <span
           key={r}
           aria-hidden
-          className="absolute rounded-full border-t border-dashed border-white/[0.07]"
+          className="absolute rounded-full border-t border-dashed border-contrast/[0.07]"
           style={{
             width: r * 2,
             height: r * 2,
@@ -684,7 +684,7 @@ function CaptureRadar({ live, health }: { live: boolean; health: CaptureHealth |
             aria-hidden
             className={cn(
               "absolute size-[4px] rounded-[1px] transition-colors duration-500",
-              i === blip && live ? "" : "bg-white/20",
+              i === blip && live ? "" : "bg-contrast/20",
             )}
             style={{
               top: at.top - 2,
@@ -714,7 +714,7 @@ function CaptureRadar({ live, health }: { live: boolean; health: CaptureHealth |
           so the origin of every ring is visibly a thing rather than a corner. */}
       <span
         aria-hidden
-        className="absolute size-[92px] rounded-full border border-white/[0.07] bg-[var(--bg-elevated)]"
+        className="absolute size-[92px] rounded-full border border-contrast/[0.07] bg-[var(--bg-elevated)]"
         style={{ left: RADAR_ORIGIN_X - 46, top: RADAR_HEIGHT - 46 }}
       />
 
@@ -799,7 +799,7 @@ function BoundState({
       {/* A Cloud Workspace whose bulk import was never approved imports
        *  nothing, forever, on purpose. Say so where it can be resolved. */}
       {binding.mode === "cloud" && !binding.importApproved && (
-        <div className="flex items-center justify-between gap-2 rounded-lg border border-dashed border-white/[0.10] px-2.5 py-1.5">
+        <div className="flex items-center justify-between gap-2 rounded-lg border border-dashed border-contrast/[0.10] px-2.5 py-1.5">
           <span className="text-[11px] text-[var(--text-secondary)]">
             History import is waiting for your review.
           </span>
@@ -850,7 +850,7 @@ function BoundState({
               type="button"
               disabled
               title={cloudReason}
-              className="inline-flex cursor-not-allowed items-center gap-1.5 rounded-full border border-white/[0.06] bg-white/[0.02] px-2.5 py-1 text-[11px] text-[var(--text-tertiary)] opacity-40"
+              className="inline-flex cursor-not-allowed items-center gap-1.5 rounded-full border border-contrast/[0.06] bg-contrast/[0.02] px-2.5 py-1 text-[11px] text-[var(--text-tertiary)] opacity-40"
             >
               <Cloud size={11} />
               Sync
@@ -860,7 +860,7 @@ function BoundState({
               type="button"
               disabled={busy}
               onClick={onPromote}
-              className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-white/[0.06] bg-white/[0.02] px-2.5 py-1 text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-white/[0.05] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-contrast/[0.06] bg-contrast/[0.02] px-2.5 py-1 text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-contrast/[0.05] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-40"
             >
               <ArrowUpRight size={11} />
               Sync
@@ -1117,10 +1117,10 @@ function Tabs({
             className={cn(
               "h-6 rounded-full border px-2.5 text-[11px] transition-colors",
               disabled
-                ? "cursor-not-allowed border-white/[0.04] bg-white/[0.01] text-[var(--text-tertiary)] opacity-40"
+                ? "cursor-not-allowed border-contrast/[0.04] bg-contrast/[0.01] text-[var(--text-tertiary)] opacity-40"
                 : on
-                  ? "cursor-pointer border-white/15 bg-white/[0.10] text-[var(--text-primary)]"
-                  : "cursor-pointer border-white/[0.06] bg-white/[0.02] text-[var(--text-tertiary)] hover:bg-white/[0.05] hover:text-[var(--text-secondary)]",
+                  ? "cursor-pointer border-contrast/15 bg-contrast/[0.10] text-[var(--text-primary)]"
+                  : "cursor-pointer border-contrast/[0.06] bg-contrast/[0.02] text-[var(--text-tertiary)] hover:bg-contrast/[0.05] hover:text-[var(--text-secondary)]",
             )}
             onClick={() => onTabChange(id)}
           >
@@ -1362,8 +1362,8 @@ function ConnectTab({
                 className={cn(
                   "flex w-full cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left transition-colors duration-150",
                   selected === remote.id
-                    ? "border-white/15 bg-white/[0.06]"
-                    : "border-transparent hover:bg-white/[0.03]",
+                    ? "border-contrast/15 bg-contrast/[0.06]"
+                    : "border-transparent hover:bg-contrast/[0.03]",
                 )}
               >
                 <span className="shrink-0">
@@ -1710,7 +1710,7 @@ function TimelinePreview() {
             poking out past the first and last node. The nodes themselves are
             laid out in flow — hand-positioning them meant re-deriving a magic
             offset every time the row height changed. */}
-        <span className="absolute bottom-[7px] left-[3px] top-[7px] w-px bg-white/[0.08]" />
+        <span className="absolute bottom-[7px] left-[3px] top-[7px] w-px bg-contrast/[0.08]" />
         <span
           className="atlas-timeline-beam absolute left-[2px] top-[3px] h-2.5 w-[3px] rounded-full bg-[var(--capture-live)]"
           style={{ "--atlas-beam-travel": "42px" } as React.CSSProperties}
@@ -1728,7 +1728,7 @@ function TimelinePreview() {
                   "relative size-[7px] shrink-0 rounded-full border",
                   row.dot === "commit"
                     ? "border-[var(--capture-live)] bg-[var(--capture-live)]"
-                    : "border-white/20 bg-[var(--bg-elevated)]",
+                    : "border-contrast/20 bg-[var(--bg-elevated)]",
                 )}
               />
               <span
@@ -1763,7 +1763,7 @@ function TimelinePreview() {
  */
 function GitInitOffer({ busy, onGitInit }: { busy: boolean; onGitInit: () => void }) {
   return (
-    <div className="flex items-start gap-2 rounded-lg border border-dashed border-white/[0.10] px-2.5 py-2">
+    <div className="flex items-start gap-2 rounded-lg border border-dashed border-contrast/[0.10] px-2.5 py-2">
       <GitBranch size={12} className="mt-0.5 shrink-0 text-[var(--text-tertiary)]" />
       <div className="min-w-0">
         <p className="text-[11px] text-[var(--text-secondary)]">

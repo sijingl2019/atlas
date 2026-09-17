@@ -61,8 +61,8 @@ const CONTROL_H = "h-[26px]";
  * correctly on the blurred band behind them, which is translucent.
  */
 const OUTLINE = [
-  "border border-white/[0.16] bg-white/[0.045] text-[var(--text-tertiary)]",
-  "transition-colors hover:border-white/[0.22] hover:bg-white/[0.09] hover:text-[var(--text-primary)]",
+  "border border-contrast/[0.16] bg-contrast/[0.045] text-[var(--text-tertiary)]",
+  "transition-colors hover:border-contrast/[0.22] hover:bg-contrast/[0.09] hover:text-[var(--text-primary)]",
 ].join(" ");
 
 interface ChatHeaderProps {
@@ -161,7 +161,7 @@ function ChatHeaderImpl({
                 // Border, translucent fill, blur AND the enter animation all on
                 // THIS element. Splitting them isolates the layer and kills the
                 // backdrop blur (see the feedback panel for the same rule).
-                "border border-white/10 bg-[var(--bg-elevated)]/95 backdrop-blur-2xl",
+                "border border-contrast/10 bg-[var(--bg-elevated)]/95 backdrop-blur-2xl",
                 // Grows out of its trigger's top-left corner.
                 "atlas-panel-in-tl",
               )}

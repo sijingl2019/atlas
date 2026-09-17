@@ -273,7 +273,7 @@ export function OrgSwitcher() {
               // border above the first.
               boxShadow: "0 16px 48px rgba(0,0,0,0.95)",
             }}
-            className="flex max-h-[min(480px,70vh)] w-[268px] flex-col overflow-hidden rounded-xl border border-white/[0.07] bg-[var(--bg-elevated)]/95 backdrop-blur-2xl atlas-panel-in-tl select-none text-[var(--text-secondary)]"
+            className="flex max-h-[min(480px,70vh)] w-[268px] flex-col overflow-hidden rounded-xl border border-contrast/[0.07] bg-[var(--bg-elevated)]/95 backdrop-blur-2xl atlas-panel-in-tl select-none text-[var(--text-secondary)]"
           >
             {/* Head: a filter field with the refresh beside it, no rule under
                 it — the same row the chat session picker opens with. The list
@@ -413,7 +413,7 @@ export function OrgSwitcher() {
               })}
             </div>
 
-            <DropdownMenu.Separator className="h-px shrink-0 bg-white/5" />
+            <DropdownMenu.Separator className="h-px shrink-0 bg-contrast/5" />
 
             {/* Create organisation — opens the name + handle modal (the handle
                 is globally unique, so it needs a real form, not an inline input). */}
@@ -451,7 +451,7 @@ export function OrgSwitcher() {
               </div>
             )}
 
-            <DropdownMenu.Separator className="h-px shrink-0 bg-white/5" />
+            <DropdownMenu.Separator className="h-px shrink-0 bg-contrast/5" />
 
             {/* Sync toggle for the ACTIVE org — in the footer (not under the org
              *  list) so it's unambiguous which org it applies to. Signed out,

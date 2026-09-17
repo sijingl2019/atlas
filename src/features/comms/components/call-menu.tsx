@@ -96,7 +96,7 @@ export function CallMenu({ convId, mode }: { convId: string; mode: CallMode }) {
             zIndex: 9999,
             boxShadow: "var(--shadow-popover)",
           }}
-          className="atlas-panel-in-tl select-none overflow-hidden rounded-xl border border-white/10 bg-[var(--bg-elevated)]/95 backdrop-blur-2xl"
+          className="atlas-panel-in-tl select-none overflow-hidden rounded-xl border border-contrast/10 bg-[var(--bg-elevated)]/95 backdrop-blur-2xl"
         >
           <div className="flex w-[230px] flex-col py-1">
             {liveCall ? (

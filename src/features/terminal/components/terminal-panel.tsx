@@ -293,7 +293,7 @@ function PaneView({
     <div
       className={cn(
         "h-full flex flex-col",
-        isActivePane && groupFocused && "ring-1 ring-[#ffffff08] ring-inset",
+        isActivePane && groupFocused && "ring-1 ring-contrast/[0.031] ring-inset",
       )}
     >
       <div className="flex items-center h-[32px] shrink-0 border-b border-border-default bg-bg-primary px-1 gap-0.5">
@@ -334,7 +334,7 @@ function PaneView({
         </div>
         <div className="flex items-center gap-0.5 shrink-0">
           {zoomed && (
-            <span className="mr-1 rounded bg-white/[0.06] px-1.5 py-px text-[9px] text-text-tertiary">
+            <span className="mr-1 rounded bg-contrast/[0.06] px-1.5 py-px text-[9px] text-text-tertiary">
               zoomed
             </span>
           )}

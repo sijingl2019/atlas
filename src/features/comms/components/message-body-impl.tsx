@@ -159,7 +159,7 @@ const COMPONENTS: Components = {
     if (!className) {
       return (
         <code
-          className="rounded px-1 py-px font-mono text-[11px] bg-white/[0.07] text-text-primary"
+          className="rounded px-1 py-px font-mono text-[11px] bg-contrast/[0.07] text-text-primary"
           {...rest}
         >
           {children}
@@ -285,7 +285,7 @@ const COMPONENTS: Components = {
       <table className="w-max min-w-full border-collapse text-[11px]">{props.children}</table>
     </div>
   ),
-  thead: (props) => <thead className="bg-white/[0.04]">{props.children}</thead>,
+  thead: (props) => <thead className="bg-contrast/[0.04]">{props.children}</thead>,
   th: (props) => (
     <th className="whitespace-nowrap border-b border-border-subtle px-2 py-1 text-left text-[10px] font-semibold text-text-secondary">
       {props.children}

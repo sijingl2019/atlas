@@ -66,7 +66,9 @@ export const ShapeNode = memo(function ShapeNode({ id, data, selected }: NodePro
     updateNote(id, { text: ref.current?.innerText ?? "" });
   }, [id, updateNote]);
 
-  const stroke = selected ? "var(--accent-primary)" : "rgba(255,255,255,0.25)";
+  const stroke = selected
+    ? "var(--accent-primary)"
+    : "color-mix(in srgb, var(--contrast) 25%, transparent)";
 
   return (
     // React Flow owns the box size (so NodeResizer can drive it); the shape fills

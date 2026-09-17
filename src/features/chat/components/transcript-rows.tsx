@@ -462,7 +462,7 @@ export const TurnFooterRowView = memo(function TurnFooterRowView({
           turn's result rather than another paragraph. Paths show basename only:
           the leading directories are identical on every row and were eating the
           width. */}
-      <div className="overflow-hidden rounded-xl border border-white/[0.09] bg-white/[0.035]">
+      <div className="overflow-hidden rounded-xl border border-contrast/[0.09] bg-contrast/[0.035]">
         <div className="flex h-[34px] items-center gap-2 px-3.5">
           <span className="text-[11px] font-medium text-[var(--text-primary)]">{label}</span>
           {(added > 0 || removed > 0) && (
@@ -488,7 +488,7 @@ export const TurnFooterRowView = memo(function TurnFooterRowView({
             )}
           </div>
         </div>
-        <div className="border-t border-white/[0.06] px-3.5 py-2">
+        <div className="border-t border-contrast/[0.06] px-3.5 py-2">
           {files.map((f) => (
             <div
               key={f.path}
@@ -568,7 +568,7 @@ function FooterPill({
         "text-[10px] font-medium leading-none transition-colors",
         primary
           ? "border-[var(--accent-primary)]/40 bg-[var(--accent-primary-muted)] text-[var(--accent-primary)] hover:bg-[var(--accent-primary)]/20"
-          : "border-white/[0.12] bg-white/[0.04] text-[var(--text-secondary)] hover:bg-white/[0.09] hover:text-[var(--text-primary)]",
+          : "border-contrast/[0.12] bg-contrast/[0.04] text-[var(--text-secondary)] hover:bg-contrast/[0.09] hover:text-[var(--text-primary)]",
       )}
     >
       {icon}

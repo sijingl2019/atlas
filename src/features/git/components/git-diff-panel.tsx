@@ -105,7 +105,7 @@ interface GitDiffPanelProps {
 }
 
 function sideBg(side: DiffSide | null, isLeft: boolean): string | undefined {
-  if (!side) return "rgba(255,255,255,0.018)"; // filler (no line on this side)
+  if (!side) return "color-mix(in srgb, var(--contrast) 1.8%, transparent)"; // filler (no line on this side)
   if (side.kind === "context") return undefined;
   // Left side = deletions (red), right side = additions (green). Colors follow
   // the active editor theme's diff tokens (atlas rgba values as fallbacks).

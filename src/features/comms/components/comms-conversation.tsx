@@ -516,7 +516,7 @@ function SubTabStrip({
         type="button"
         onClick={openSpace}
         title="Open this conversation's Space"
-        className="ml-auto flex h-[22px] shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.06] px-3 text-[10.5px] font-medium text-text-tertiary transition-colors hover:bg-white/[0.1] hover:text-text-primary"
+        className="ml-auto flex h-[22px] shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-contrast/10 bg-contrast/[0.06] px-3 text-[10.5px] font-medium text-text-tertiary transition-colors hover:bg-contrast/[0.1] hover:text-text-primary"
       >
         <Frame size={11} />
         Spaces

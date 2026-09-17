@@ -97,7 +97,7 @@ export function GanttTimeline({ data }: { data: MissionControlUsage }) {
                 style={{
                   left: `${pct(r.first)}%`,
                   width: `${Math.max(0.6, pct(r.last) - pct(r.first))}%`,
-                  backgroundColor: "rgba(255,255,255,0.08)",
+                  backgroundColor: "color-mix(in srgb, var(--contrast) 8%, transparent)",
                 }}
               />
               {/* bucketed heat cells (bounded count) */}

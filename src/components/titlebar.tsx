@@ -200,7 +200,7 @@ function WindowControls({
   return (
     <div className="ml-4 flex h-[30px] items-stretch">
       <button
-        className={cn(base, "hover:bg-[#ffffff14]")}
+        className={cn(base, "hover:bg-contrast/[0.078]")}
         onClick={onMinimize}
         aria-label="Minimize"
         title="Minimize"
@@ -208,7 +208,7 @@ function WindowControls({
         <Minus size={14} />
       </button>
       <button
-        className={cn(base, "hover:bg-[#ffffff14]")}
+        className={cn(base, "hover:bg-contrast/[0.078]")}
         onClick={() => void invoke("window_zoom").catch(() => {})}
         aria-label={maximized ? "Restore" : "Maximize"}
         title={maximized ? "Restore" : "Maximize"}
@@ -435,7 +435,7 @@ function WorkspaceToggle() {
     <button
       onClick={toggleSidebar}
       className={cn(
-        "relative flex items-center justify-center w-6 h-6 rounded hover:bg-[#ffffff08] transition-all duration-150",
+        "relative flex items-center justify-center w-6 h-6 rounded hover:bg-contrast/[0.031] transition-all duration-150",
         sidebarOpen ? "text-[#ccc]" : "text-[#555] hover:text-[#aaa]",
       )}
       title={sidebarOpen ? `Hide workspaces${suffix}` : `Show workspaces${suffix}`}
@@ -458,7 +458,7 @@ function LeftPanelToggle() {
   return (
     <button
       onClick={toggleLeftPanel}
-      className="flex items-center justify-center w-6 h-6 rounded text-[#555] hover:text-[#aaa] hover:bg-[#ffffff08] transition-all duration-150"
+      className="flex items-center justify-center w-6 h-6 rounded text-[#555] hover:text-[#aaa] hover:bg-contrast/[0.031] transition-all duration-150"
       title={leftPanel.visible ? "Hide left panel" : "Show left panel"}
       aria-label={leftPanel.visible ? "Hide left panel" : "Show left panel"}
     >

@@ -58,7 +58,7 @@ export function AppLayout() {
           whole shell right. Full-height so it sits beside the titlebar; the
           sidebar's own top bar already dodges the traffic lights. */}
       {sidebarOpen && (
-        <div className="atlas-workspace-rail h-screen w-[244px] shrink-0 border-r border-white/[0.06]">
+        <div className="atlas-workspace-rail h-screen w-[244px] shrink-0 border-r border-contrast/[0.06]">
           <WorkspaceSidebar />
         </div>
       )}

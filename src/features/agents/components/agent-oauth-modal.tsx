@@ -674,8 +674,9 @@ function SignInDock({ label, children }: { label: string; children: ReactNode })
         background: "linear-gradient(180deg, rgba(18,18,21,0.86) 0%, rgba(8,8,10,0.9) 100%)",
         backdropFilter: "blur(22px) saturate(170%)",
         WebkitBackdropFilter: "blur(22px) saturate(170%)",
-        border: "1px solid rgba(255,255,255,0.08)",
-        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.1), 0 8px 28px rgba(0,0,0,0.55)",
+        border: "1px solid color-mix(in srgb, var(--contrast) 8%, transparent)",
+        boxShadow:
+          "inset 0 1px 0 color-mix(in srgb, var(--contrast) 10%, transparent), 0 8px 28px rgba(0,0,0,0.55)",
       }}
     >
       {/* Radix requires both on every Content; the dock states carry their own
@@ -712,7 +713,7 @@ function TerminalHandoffDockBody({
           toast.success("Command copied.");
         }}
         title={`Copy — ${command}`}
-        className="flex h-6.5 min-w-0 items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 font-mono text-[11px] leading-none text-[var(--text-tertiary)] transition-colors hover:bg-white/[0.1] hover:text-[var(--text-primary)]"
+        className="flex h-6.5 min-w-0 items-center gap-1.5 rounded-full border border-contrast/10 bg-contrast/[0.04] px-2.5 font-mono text-[11px] leading-none text-[var(--text-tertiary)] transition-colors hover:bg-contrast/[0.1] hover:text-[var(--text-primary)]"
       >
         <span className="min-w-0 max-w-[220px] truncate">{command}</span>
         <Copy className="size-3 shrink-0" />
@@ -722,7 +723,7 @@ function TerminalHandoffDockBody({
           (`chat-panel.tsx`) — same radius and weight, sized to this row. */}
       <button
         onClick={onDone}
-        className="flex h-6.5 shrink-0 items-center rounded-full border border-white/10 bg-white/[0.06] px-3 text-[11px] font-medium leading-none text-[var(--text-primary)] transition-colors hover:bg-white/[0.14]"
+        className="flex h-6.5 shrink-0 items-center rounded-full border border-contrast/10 bg-contrast/[0.06] px-3 text-[11px] font-medium leading-none text-[var(--text-primary)] transition-colors hover:bg-contrast/[0.14]"
       >
         I've finished signing in
       </button>
@@ -730,7 +731,7 @@ function TerminalHandoffDockBody({
       <button
         onClick={onDismiss}
         title="Dismiss"
-        className="flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-full text-[var(--text-tertiary)] transition-colors hover:bg-white/[0.1] hover:text-[var(--text-primary)]"
+        className="flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-full text-[var(--text-tertiary)] transition-colors hover:bg-contrast/[0.1] hover:text-[var(--text-primary)]"
       >
         <X className="size-3.5" />
       </button>

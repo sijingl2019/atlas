@@ -76,12 +76,12 @@ export function SpaceToolbar({
 }) {
   // Bottom is a row; left/right are columns pinned to the middle of that edge.
   const horizontal = dock === "bottom";
-  const divider = horizontal ? "mx-0.5 h-5 w-px bg-white/10" : "my-0.5 h-px w-5 bg-white/10";
+  const divider = horizontal ? "mx-0.5 h-5 w-px bg-contrast/10" : "my-0.5 h-px w-5 bg-contrast/10";
   return (
     <div
       className={cn(
         "absolute z-40 flex items-center gap-1 p-1",
-        "rounded-xl border border-white/10 bg-[var(--bg-secondary)]/70 shadow-[var(--shadow-overlay)] backdrop-blur-2xl",
+        "rounded-xl border border-contrast/10 bg-[var(--bg-secondary)]/70 shadow-[var(--shadow-overlay)] backdrop-blur-2xl",
         horizontal
           ? "bottom-3 left-1/2 -translate-x-1/2 flex-row"
           : "top-1/2 -translate-y-1/2 flex-col",
@@ -189,7 +189,7 @@ function DockMenu({
             zIndex: 9999,
             boxShadow: "var(--shadow-popover)",
           }}
-          className="atlas-panel-in-tl select-none overflow-hidden rounded-xl border border-white/10 bg-[var(--bg-elevated)]/95 backdrop-blur-2xl"
+          className="atlas-panel-in-tl select-none overflow-hidden rounded-xl border border-contrast/10 bg-[var(--bg-elevated)]/95 backdrop-blur-2xl"
         >
           <div className="flex w-[168px] flex-col py-1">
             <div className="px-3 pb-1 pt-1 text-[9.5px] font-semibold uppercase tracking-wider text-text-tertiary">

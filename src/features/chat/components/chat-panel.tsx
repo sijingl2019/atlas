@@ -1616,10 +1616,10 @@ function WelcomeState() {
             separate the mark from the panel. */}
         <AtlasIcon
           size={60}
-          className="mb-5 rounded-[18px] ring-1 ring-white/10 shadow-[0_12px_50px_-12px_rgba(0,0,0,0.85)]"
+          className="mb-5 rounded-[18px] ring-1 ring-contrast/10 shadow-[0_12px_50px_-12px_rgba(0,0,0,0.85)]"
         />
 
-        <h2 className="bg-gradient-to-b from-white to-white/55 bg-clip-text text-[22px] font-semibold tracking-tight text-transparent">
+        <h2 className="bg-gradient-to-b from-contrast to-contrast/55 bg-clip-text text-[22px] font-semibold tracking-tight text-transparent">
           Atlas
         </h2>
         <p className="mt-1.5 text-[13px] text-[var(--text-tertiary)]">

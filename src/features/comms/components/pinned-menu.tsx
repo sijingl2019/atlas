@@ -94,10 +94,10 @@ export function PinnedMenu({
             zIndex: 9999,
             boxShadow: "var(--shadow-popover)",
           }}
-          className="overflow-hidden rounded-xl select-none border border-white/10 bg-[var(--bg-elevated)]/95 backdrop-blur-2xl atlas-panel-in-tl"
+          className="overflow-hidden rounded-xl select-none border border-contrast/10 bg-[var(--bg-elevated)]/95 backdrop-blur-2xl atlas-panel-in-tl"
         >
           <div className="flex max-h-[min(420px,60vh)] w-[320px] flex-col">
-            <div className="flex h-[32px] shrink-0 items-center gap-1.5 border-b border-white/5 px-3">
+            <div className="flex h-[32px] shrink-0 items-center gap-1.5 border-b border-contrast/5 px-3">
               <Search size={11} className="shrink-0 text-text-tertiary" />
               <input
                 value={query}
@@ -133,7 +133,7 @@ export function PinnedMenu({
                     }}
                     className={
                       "flex w-full cursor-pointer flex-col gap-1 px-3 py-2.5 text-left transition-colors hover:bg-[var(--bg-hover)]" +
-                      (i === filtered.length - 1 ? "" : " border-b border-white/5")
+                      (i === filtered.length - 1 ? "" : " border-b border-contrast/5")
                     }
                   >
                     <div className="flex min-w-0 items-center gap-1.5">

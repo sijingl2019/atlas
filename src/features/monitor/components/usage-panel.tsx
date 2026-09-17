@@ -9,11 +9,11 @@ import { fmtTokens, fmtCost } from "../lib/usage-format";
 
 // White-opacity ladder for the top sessions; dim "others" bucket.
 const SESSION_COLORS = [
-  "rgba(255,255,255,0.92)",
-  "rgba(255,255,255,0.70)",
-  "rgba(255,255,255,0.52)",
-  "rgba(255,255,255,0.38)",
-  "rgba(255,255,255,0.26)",
+  "color-mix(in srgb, var(--contrast) 92%, transparent)",
+  "color-mix(in srgb, var(--contrast) 70%, transparent)",
+  "color-mix(in srgb, var(--contrast) 52%, transparent)",
+  "color-mix(in srgb, var(--contrast) 38%, transparent)",
+  "color-mix(in srgb, var(--contrast) 26%, transparent)",
 ];
 const OTHERS_COLOR = "var(--text-ghost)";
 

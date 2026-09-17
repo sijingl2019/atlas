@@ -67,10 +67,10 @@ export function CreateChannelMenu() {
             zIndex: 9999,
             boxShadow: "var(--shadow-popover)",
           }}
-          className="overflow-hidden rounded-xl select-none border border-white/10 bg-[var(--bg-elevated)]/95 backdrop-blur-2xl atlas-panel-in-tl"
+          className="overflow-hidden rounded-xl select-none border border-contrast/10 bg-[var(--bg-elevated)]/95 backdrop-blur-2xl atlas-panel-in-tl"
         >
           <div className="flex w-[240px] flex-col">
-            <div className="flex h-[32px] items-center gap-1.5 border-b border-white/5 px-3">
+            <div className="flex h-[32px] items-center gap-1.5 border-b border-contrast/5 px-3">
               <Hash size={11} className="shrink-0 text-text-tertiary" />
               <input
                 ref={inputRef}
@@ -99,7 +99,7 @@ export function CreateChannelMenu() {
                 className={cn(
                   "flex h-[14px] w-[14px] items-center justify-center rounded border transition-colors",
                   isPrivate
-                    ? "border-white/40 bg-white/15 text-text-primary"
+                    ? "border-contrast/40 bg-contrast/15 text-text-primary"
                     : "border-border-default text-transparent",
                 )}
               >
@@ -109,12 +109,12 @@ export function CreateChannelMenu() {
               <span className="ml-auto text-[9.5px] text-text-ghost">invite-only</span>
             </button>
 
-            <div className="border-t border-white/5 p-2">
+            <div className="border-t border-contrast/5 p-2">
               <button
                 type="button"
                 disabled={!name.trim() || pending}
                 onClick={() => void create()}
-                className="flex h-[26px] w-full items-center justify-center gap-1.5 rounded-md bg-white/10 text-[11px] font-medium text-text-primary transition-colors hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-45 cursor-pointer"
+                className="flex h-[26px] w-full items-center justify-center gap-1.5 rounded-md bg-contrast/10 text-[11px] font-medium text-text-primary transition-colors hover:bg-contrast/15 disabled:cursor-not-allowed disabled:opacity-45 cursor-pointer"
               >
                 {pending && <Loader2 size={11} className="animate-spin" />}
                 Create channel

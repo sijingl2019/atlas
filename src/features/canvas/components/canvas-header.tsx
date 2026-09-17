@@ -27,7 +27,7 @@ export function CanvasHeader({
     <div
       className={cn(
         "absolute left-3 top-3 z-20 flex items-center gap-1.5 pl-1 pr-1 py-1",
-        "rounded-xl border border-white/10 bg-[var(--bg-secondary)]/70 backdrop-blur-2xl shadow-[var(--shadow-overlay)]",
+        "rounded-xl border border-contrast/10 bg-[var(--bg-secondary)]/70 backdrop-blur-2xl shadow-[var(--shadow-overlay)]",
       )}
     >
       <button
@@ -43,14 +43,14 @@ export function CanvasHeader({
       >
         <PanelLeft size={13} />
       </button>
-      <div className="mx-0.5 h-4 w-px bg-white/10" />
+      <div className="mx-0.5 h-4 w-px bg-contrast/10" />
       <span className="flex h-4 w-4 shrink-0 items-center justify-center text-[12px] leading-none">
         {pageIcon || DEFAULT_PAGE_ICON}
       </span>
       <span className="max-w-[180px] truncate text-[12px] font-semibold text-text-primary">
         {pageName || "Spaces"}
       </span>
-      <div className="mx-0.5 h-4 w-px bg-white/10" />
+      <div className="mx-0.5 h-4 w-px bg-contrast/10" />
       <button
         type="button"
         onClick={onFit}

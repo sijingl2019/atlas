@@ -120,7 +120,7 @@ export function TitlebarDock({
       <div
         className={cn(
           "flex h-6 items-center gap-1 rounded-full px-1 py-0.5",
-          "border border-white/[0.07] bg-[#121212]",
+          "border border-contrast/[0.07] bg-[#121212]",
         )}
       >
         {items.map((item, index) => (
@@ -141,7 +141,7 @@ export function TitlebarDock({
               "text-[#666] transition-colors duration-150",
               item.disabled
                 ? "cursor-default opacity-60"
-                : "cursor-pointer hover:bg-white/[0.08] hover:text-[#ccc]",
+                : "cursor-pointer hover:bg-contrast/[0.08] hover:text-[#ccc]",
             )}
           >
             {item.icon}

@@ -40,7 +40,7 @@ const STRIP =
 
 const ACTION =
   "flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 transition-colors " +
-  "text-[var(--text-secondary)] hover:bg-white/[0.05] hover:text-[var(--text-primary)] " +
+  "text-[var(--text-secondary)] hover:bg-contrast/[0.05] hover:text-[var(--text-primary)] " +
   "disabled:cursor-default disabled:text-[var(--text-tertiary)]/40 disabled:hover:bg-transparent";
 
 export function AiGrantBar() {

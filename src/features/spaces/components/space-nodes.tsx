@@ -67,14 +67,16 @@ export const SpaceNoteNode = memo(function SpaceNoteNode({ id, data, selected }:
         "group relative flex h-full w-full flex-col overflow-visible rounded-2xl",
         "bg-[var(--bg-secondary)]/70 backdrop-blur-3xl backdrop-saturate-150",
         "border shadow-2xl transition-colors",
-        selected ? "border-[var(--accent-primary)]/60" : "border-white/10 hover:border-white/20",
+        selected
+          ? "border-[var(--accent-primary)]/60"
+          : "border-contrast/10 hover:border-contrast/20",
       )}
     >
-      <div className="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-b from-white/5 to-transparent opacity-60" />
+      <div className="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-b from-contrast/5 to-transparent opacity-60" />
       <NodeHandles selected={selected} />
-      <div className="relative flex items-center gap-2 border-b border-white/10 px-3 py-2">
-        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-white/10">
-          <StickyNote size={12} className="text-white/80" />
+      <div className="relative flex items-center gap-2 border-b border-contrast/10 px-3 py-2">
+        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-contrast/10">
+          <StickyNote size={12} className="text-contrast/80" />
         </div>
         <input
           ref={title.ref}
@@ -161,7 +163,9 @@ export const SpaceShapeNode = memo(function SpaceShapeNode({ id, data, selected 
   const d = data as SpaceNodeCommonData;
   // Web parity: a shape's label is its `title` field, centered.
   const title = useMergedField(id, "title", d.title);
-  const stroke = selected ? "var(--accent-primary)" : "rgba(255,255,255,0.25)";
+  const stroke = selected
+    ? "var(--accent-primary)"
+    : "color-mix(in srgb, var(--contrast) 25%, transparent)";
 
   return (
     <div className="group relative h-full w-full">
@@ -194,8 +198,8 @@ export const SpaceGroupNode = memo(function SpaceGroupNode({ id, data, selected 
     <div
       className={cn(
         "group relative h-full w-full rounded-xl border-2 border-dashed",
-        selected ? "border-[var(--accent-primary)]/50" : "border-white/15",
-        "bg-white/[0.02]",
+        selected ? "border-[var(--accent-primary)]/50" : "border-contrast/15",
+        "bg-contrast/[0.02]",
       )}
     >
       <NodeHandles selected={selected} />
@@ -252,7 +256,7 @@ export const SpaceMediaNode = memo(function SpaceMediaNode({ id, data, selected 
       <div
         className={cn(
           "h-full w-full overflow-hidden rounded-xl border transition-colors",
-          selected ? "border-[var(--accent-primary)]/60" : "border-white/10",
+          selected ? "border-[var(--accent-primary)]/60" : "border-contrast/10",
           "bg-black/30",
         )}
       >
