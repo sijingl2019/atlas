@@ -196,7 +196,7 @@ function WindowControls({
   onClose: () => void;
 }) {
   const base =
-    "flex h-[30px] w-[42px] items-center justify-center text-[#999] transition-colors hover:text-white";
+    "flex h-[30px] w-[42px] items-center justify-center text-text-secondary transition-colors hover:text-text-primary";
   return (
     <div className="ml-4 flex h-[30px] items-stretch">
       <button
@@ -315,7 +315,7 @@ function ProjectLabel({
             // inherited line-height the label spans set a taller line box than
             // the dot, and `items-center` centred the dot against *that* — which
             // is why it sat visibly high.
-            className="group flex h-[19px] max-w-[320px] min-w-0 cursor-pointer items-center gap-1 rounded-full border border-[#303030] bg-[#0C0C0C] px-2 text-[11px] leading-none font-medium transition-colors hover:bg-[#1f1f1f]"
+            className="group flex h-[19px] max-w-[320px] min-w-0 cursor-pointer items-center gap-1 rounded-full border border-border-default bg-bg-input px-2 text-[11px] leading-none font-medium transition-colors hover:bg-bg-active"
             title={health?.summary ?? "Session capture"}
             aria-label={health?.summary ?? "Session capture"}
           >
@@ -436,14 +436,14 @@ function WorkspaceToggle() {
       onClick={toggleSidebar}
       className={cn(
         "relative flex items-center justify-center w-6 h-6 rounded hover:bg-contrast/[0.031] transition-all duration-150",
-        sidebarOpen ? "text-[#ccc]" : "text-[#555] hover:text-[#aaa]",
+        sidebarOpen ? "text-text-primary" : "text-[var(--text-muted)] hover:text-text-secondary",
       )}
       title={sidebarOpen ? `Hide workspaces${suffix}` : `Show workspaces${suffix}`}
       aria-label={sidebarOpen ? "Hide workspaces" : "Show workspaces"}
     >
       <Layers size={14} />
       {count > 1 && (
-        <span className="absolute -bottom-0.5 -right-0.5 text-[7px] font-mono text-white">
+        <span className="absolute -bottom-0.5 -right-0.5 text-[7px] font-mono text-text-primary">
           {count}
         </span>
       )}
@@ -458,7 +458,7 @@ function LeftPanelToggle() {
   return (
     <button
       onClick={toggleLeftPanel}
-      className="flex items-center justify-center w-6 h-6 rounded text-[#555] hover:text-[#aaa] hover:bg-contrast/[0.031] transition-all duration-150"
+      className="flex items-center justify-center w-6 h-6 rounded text-[var(--text-muted)] hover:text-text-secondary hover:bg-contrast/[0.031] transition-all duration-150"
       title={leftPanel.visible ? "Hide left panel" : "Show left panel"}
       aria-label={leftPanel.visible ? "Hide left panel" : "Show left panel"}
     >
@@ -592,7 +592,7 @@ function useNotificationItem(): DockItem {
               ? "bg-[var(--status-error)]"
               : needsAttention
                 ? "bg-[var(--status-success)] animate-pulse"
-                : "bg-white",
+                : "bg-text-primary",
           )}
           label={needsAttention ? "Something needs your attention" : "Unread notifications"}
         />

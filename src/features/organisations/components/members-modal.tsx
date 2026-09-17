@@ -407,7 +407,7 @@ function MemberRow({
                 <DropdownMenu.Content
                   align="end"
                   sideOffset={4}
-                  className="z-[var(--z-max)] min-w-[168px] rounded-md border border-[var(--border-default)] bg-black py-0.5 shadow-[var(--shadow-overlay)] text-[11px] text-[var(--text-secondary)]"
+                  className="z-[var(--z-max)] min-w-[168px] rounded-md border border-[var(--border-default)] bg-bg-base py-0.5 shadow-[var(--shadow-overlay)] text-[11px] text-[var(--text-secondary)]"
                 >
                   <div className="px-2.5 py-1 text-[9px] uppercase tracking-wider text-text-tertiary">
                     Role
@@ -648,7 +648,7 @@ function RolePicker({
         <DropdownMenu.Content
           align="end"
           sideOffset={4}
-          className="z-[var(--z-max)] min-w-[150px] rounded-md border border-[var(--border-default)] bg-black py-0.5 shadow-[var(--shadow-overlay)] text-[11px] text-[var(--text-secondary)]"
+          className="z-[var(--z-max)] min-w-[150px] rounded-md border border-[var(--border-default)] bg-bg-base py-0.5 shadow-[var(--shadow-overlay)] text-[11px] text-[var(--text-secondary)]"
         >
           {ROLES.map((r) => (
             <DropdownMenu.Item

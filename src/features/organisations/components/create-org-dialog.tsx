@@ -156,7 +156,7 @@ export function CreateOrgDialog({
   };
 
   const fieldBase =
-    "h-8 w-full rounded-lg border border-[#303030] bg-[#0C0C0C] px-2.5 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none transition-colors focus:border-[#4a4a4a]";
+    "h-8 w-full rounded-lg border border-border-default bg-bg-input px-2.5 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none transition-colors focus:border-border-focus";
   /** The app's pill-button language (matches "Save to KB" / "Commit changes"). */
   const pillButton =
     "inline-flex items-center gap-1.5 rounded-full border border-[var(--border-default)] px-3 py-1.5 text-[11px] font-medium leading-none cursor-pointer transition-colors";
@@ -215,11 +215,11 @@ export function CreateOrgDialog({
                 <span className="text-[11px] font-medium text-[var(--text-secondary)]">Handle</span>
                 <div
                   className={cn(
-                    "mt-1 flex h-8 items-center overflow-hidden rounded-lg border bg-[#0C0C0C] transition-colors focus-within:border-[#4a4a4a]",
-                    slug.kind === "taken" ? "border-error" : "border-[#303030]",
+                    "mt-1 flex h-8 items-center overflow-hidden rounded-lg border bg-bg-input transition-colors focus-within:border-border-focus",
+                    slug.kind === "taken" ? "border-error" : "border-border-default",
                   )}
                 >
-                  <span className="flex h-full shrink-0 select-none items-center border-r border-[#303030] px-2.5 text-[11px] text-[var(--text-tertiary)]">
+                  <span className="flex h-full shrink-0 select-none items-center border-r border-border-default px-2.5 text-[11px] text-[var(--text-tertiary)]">
                     {HANDLE_PREFIX}
                   </span>
                   <input
@@ -274,10 +274,10 @@ export function CreateOrgDialog({
                         className={cn(
                           "rounded-full border px-2.5 py-1 text-[11px] transition-colors",
                           isDisabled
-                            ? "cursor-not-allowed border-[#242424] bg-[#0C0C0C] text-[var(--text-tertiary)] opacity-40"
+                            ? "cursor-not-allowed border-border-default bg-bg-input text-[var(--text-tertiary)] opacity-40"
                             : on
-                              ? "cursor-pointer border-[#4a4a4a] bg-[#1f1f1f] text-[var(--text-primary)]"
-                              : "cursor-pointer border-[#303030] bg-[#0C0C0C] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]",
+                              ? "cursor-pointer border-border-focus bg-bg-active text-[var(--text-primary)]"
+                              : "cursor-pointer border-border-default bg-bg-input text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]",
                         )}
                       >
                         {label}
@@ -315,10 +315,10 @@ export function CreateOrgDialog({
                         className={cn(
                           "rounded-full border px-2.5 py-1 text-[11px] transition-colors",
                           isDisabled
-                            ? "cursor-not-allowed border-[#242424] bg-[#0C0C0C] text-[var(--text-tertiary)] opacity-40"
+                            ? "cursor-not-allowed border-border-default bg-bg-input text-[var(--text-tertiary)] opacity-40"
                             : on
-                              ? "cursor-pointer border-[#4a4a4a] bg-[#1f1f1f] text-[var(--text-primary)]"
-                              : "cursor-pointer border-[#303030] bg-[#0C0C0C] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]",
+                              ? "cursor-pointer border-border-focus bg-bg-active text-[var(--text-primary)]"
+                              : "cursor-pointer border-border-default bg-bg-input text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]",
                         )}
                       >
                         {r.label}

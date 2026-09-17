@@ -557,7 +557,7 @@ export const MentionPicker = forwardRef<MentionPickerHandle, MentionPickerProps>
           // grain overlay) made the compositor re-blend this layer against the
           // composer beneath it, which glitched against the blinking caret and
           // shifting message layout. Opaque black has no such coupling.
-          "bg-black border border-contrast/10",
+          "bg-bg-base border border-contrast/10",
           "shadow-[inset_0_1px_0_color-mix(in_srgb,var(--contrast)_6%,transparent),0_8px_24px_color-mix(in_srgb,var(--shade)_60%,transparent)]",
           "flex flex-col",
         )}

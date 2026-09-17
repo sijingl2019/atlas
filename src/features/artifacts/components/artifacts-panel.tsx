@@ -697,7 +697,7 @@ function BoardFilter({
           side="bottom"
           align="end"
           sideOffset={4}
-          className="z-[var(--z-max)] flex max-h-[420px] w-[262px] origin-[var(--radix-popover-content-transform-origin)] flex-col overflow-hidden rounded-lg border border-[var(--border-default)] bg-[#000] shadow-xl data-[state=closed]:animate-scale-out data-[state=open]:animate-scale-in"
+          className="z-[var(--z-max)] flex max-h-[420px] w-[262px] origin-[var(--radix-popover-content-transform-origin)] flex-col overflow-hidden rounded-lg border border-[var(--border-default)] bg-bg-base shadow-xl data-[state=closed]:animate-scale-out data-[state=open]:animate-scale-in"
         >
           {active > 0 && (
             <div className="flex h-[28px] shrink-0 items-center justify-between border-b border-[var(--border-default)] px-3">

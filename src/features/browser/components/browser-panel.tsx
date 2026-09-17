@@ -868,48 +868,49 @@ export function BrowserPanel({ tabId, initialUrl, groupId }: BrowserPanelProps) 
           </ContextMenu.Trigger>
           <ContextMenu.Portal>
             <ContextMenu.Content
-              className="w-[180px] rounded-lg border border-[#1a1a1a] bg-[#0f0f0f] shadow-xl py-1"
+              className="w-[180px] rounded-lg border border-border-default bg-bg-elevated shadow-xl py-1"
               style={{ zIndex: 99999 }}
             >
               <ContextMenu.Item
                 onClick={copySelection}
-                className="flex items-center gap-2 px-3 h-[28px] text-[11px] text-[#aaa] hover:bg-[#1a1a1a] hover:text-[#fff] cursor-default outline-none"
+                className="flex items-center gap-2 px-3 h-[28px] text-[11px] text-text-secondary hover:bg-bg-hover hover:text-text-primary cursor-default outline-none"
               >
-                <Copy size={11} className="text-[#555]" /> Copy Selection
+                <Copy size={11} className="text-[var(--text-muted)]" /> Copy Selection
               </ContextMenu.Item>
               <ContextMenu.Item
                 onClick={copyLink}
-                className="flex items-center gap-2 px-3 h-[28px] text-[11px] text-[#aaa] hover:bg-[#1a1a1a] hover:text-[#fff] cursor-default outline-none"
+                className="flex items-center gap-2 px-3 h-[28px] text-[11px] text-text-secondary hover:bg-bg-hover hover:text-text-primary cursor-default outline-none"
               >
-                <Globe size={11} className="text-[#555]" /> Copy Link
+                <Globe size={11} className="text-[var(--text-muted)]" /> Copy Link
               </ContextMenu.Item>
-              <ContextMenu.Separator className="h-px bg-[#1a1a1a] my-1" />
+              <ContextMenu.Separator className="h-px bg-border-default my-1" />
               <ContextMenu.Item
                 onClick={() => setSearchOpen(true)}
-                className="flex items-center gap-2 px-3 h-[28px] text-[11px] text-[#aaa] hover:bg-[#1a1a1a] hover:text-[#fff] cursor-default outline-none"
+                className="flex items-center gap-2 px-3 h-[28px] text-[11px] text-text-secondary hover:bg-bg-hover hover:text-text-primary cursor-default outline-none"
               >
-                <Search size={11} className="text-[#555]" /> Find in Page
+                <Search size={11} className="text-[var(--text-muted)]" /> Find in Page
               </ContextMenu.Item>
               <ContextMenu.Item
                 onClick={openBrowserWindow}
-                className="flex items-center gap-2 px-3 h-[28px] text-[11px] text-[#aaa] hover:bg-[#1a1a1a] hover:text-[#fff] cursor-default outline-none"
+                className="flex items-center gap-2 px-3 h-[28px] text-[11px] text-text-secondary hover:bg-bg-hover hover:text-text-primary cursor-default outline-none"
               >
-                <AppWindow size={11} className="text-[#555]" /> Open in Browser Window
+                <AppWindow size={11} className="text-[var(--text-muted)]" /> Open in Browser Window
               </ContextMenu.Item>
               <ContextMenu.Item
                 onClick={openExternal}
-                className="flex items-center gap-2 px-3 h-[28px] text-[11px] text-[#aaa] hover:bg-[#1a1a1a] hover:text-[#fff] cursor-default outline-none"
+                className="flex items-center gap-2 px-3 h-[28px] text-[11px] text-text-secondary hover:bg-bg-hover hover:text-text-primary cursor-default outline-none"
               >
-                <ExternalLink size={11} className="text-[#555]" /> Open in System Browser
+                <ExternalLink size={11} className="text-[var(--text-muted)]" /> Open in System
+                Browser
               </ContextMenu.Item>
               {page && currentProject && (
                 <>
-                  <ContextMenu.Separator className="h-px bg-[#1a1a1a] my-1" />
+                  <ContextMenu.Separator className="h-px bg-border-default my-1" />
                   <ContextMenu.Item
                     onClick={saveToKnowledge}
-                    className="flex items-center gap-2 px-3 h-[28px] text-[11px] text-[#aaa] hover:bg-[#1a1a1a] hover:text-[#fff] cursor-default outline-none"
+                    className="flex items-center gap-2 px-3 h-[28px] text-[11px] text-text-secondary hover:bg-bg-hover hover:text-text-primary cursor-default outline-none"
                   >
-                    <BookOpen size={11} className="text-[#555]" /> Save to Knowledge
+                    <BookOpen size={11} className="text-[var(--text-muted)]" /> Save to Knowledge
                   </ContextMenu.Item>
                 </>
               )}

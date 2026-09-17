@@ -547,7 +547,7 @@ function SourceFilter({
                       : "border-[var(--border-default)]",
                   )}
                 >
-                  {checked && <Check size={9} className="text-white" />}
+                  {checked && <Check size={9} className="text-text-inverse" />}
                 </span>
                 {s}
               </DropdownMenu.CheckboxItem>

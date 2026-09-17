@@ -501,7 +501,7 @@ export const TurnFooterRowView = memo(function TurnFooterRowView({
                   f.kind === "edit"
                     ? f.created
                       ? "text-[var(--diff-added-text)]"
-                      : "text-[#e0af68]"
+                      : "text-[var(--status-warning)]"
                     : "text-[var(--text-tertiary)]",
                 )}
               >

@@ -189,7 +189,7 @@ export function EditorFooter({ wordCount, charCount, projectPath, entryId }: Edi
             sideOffset={6}
             className={cn(
               "min-w-[200px] rounded-md p-0.5 z-[9999]",
-              "bg-black border border-border-default",
+              "bg-bg-base border border-border-default",
               "shadow-[0_8px_24px_color-mix(in_srgb,var(--shade)_60%,transparent)]",
               "text-text-primary",
             )}

@@ -31,7 +31,7 @@ function ContextMenuContent({
       <ContextMenuPrimitive.Content
         className={cn(
           "z-[9999] min-w-[11rem] overflow-hidden rounded-md p-0.5",
-          "bg-black border border-[var(--border-default)]",
+          "bg-bg-base border border-[var(--border-default)]",
           "shadow-[0_8px_24px_color-mix(in_srgb,var(--shade)_60%,transparent)]",
           "text-[var(--text-primary)]",
           className,
@@ -111,7 +111,7 @@ function ContextMenuSubContent({
     <ContextMenuPrimitive.SubContent
       className={cn(
         "z-[9999] min-w-[10rem] overflow-hidden rounded-md p-0.5",
-        "bg-black border border-[var(--border-default)]",
+        "bg-bg-base border border-[var(--border-default)]",
         "shadow-[0_8px_24px_color-mix(in_srgb,var(--shade)_60%,transparent)]",
         "text-[var(--text-primary)]",
         className,

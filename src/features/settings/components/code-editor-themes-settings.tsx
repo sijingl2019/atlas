@@ -74,7 +74,10 @@ export function CodeEditorThemesSettings() {
                       {t.name}
                     </span>
                     {selected && (
-                      <span className="h-2 w-2 shrink-0 rounded-full bg-[#3fb950]" title="Active" />
+                      <span
+                        className="h-2 w-2 shrink-0 rounded-full bg-[var(--stat-added)]"
+                        title="Active"
+                      />
                     )}
                   </div>
                   <div className="text-[10.5px] leading-snug text-text-tertiary">

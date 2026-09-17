@@ -158,7 +158,7 @@ export function SessionStats({ sessions }: { sessions: BoardSession[] }) {
           on top of it rather than sitting above it in flow. */}
       <div
         onMouseLeave={() => setHover(null)}
-        className="relative min-w-0 flex-[2] overflow-hidden border-l border-[var(--border-default)] bg-[#050505]"
+        className="relative min-w-0 flex-[2] overflow-hidden border-l border-[var(--border-default)] bg-bg-base"
       >
         <svg
           viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
@@ -194,12 +194,12 @@ export function SessionStats({ sessions }: { sessions: BoardSession[] }) {
           <>
             <span
               aria-hidden
-              className="pointer-events-none absolute bottom-0 top-0 w-px bg-[#3d3d3d]"
+              className="pointer-events-none absolute bottom-0 top-0 w-px bg-border-strong"
               style={{ left: `${(cursor.x / VIEW_W) * 100}%` }}
             />
             <span
               aria-hidden
-              className="pointer-events-none absolute size-[5px] rounded-full bg-white"
+              className="pointer-events-none absolute size-[5px] rounded-full bg-text-primary"
               style={{
                 left: `${(cursor.x / VIEW_W) * 100}%`,
                 top: `${cursor.y}%`,
@@ -211,10 +211,10 @@ export function SessionStats({ sessions }: { sessions: BoardSession[] }) {
 
         {/* The readout IS the tooltip — there is no second floating one. */}
         <div className="pointer-events-none absolute inset-0 px-5 pt-3.5">
-          <p className="text-[28px] font-semibold leading-none tracking-[-0.03em] text-white">
+          <p className="text-[28px] font-semibold leading-none tracking-[-0.03em] text-text-primary">
             {formatDuration((hover === null ? weekMinutes : week[hover].minutes) * 60)}
           </p>
-          <p className="mt-[5px] font-mono text-[10px] uppercase tracking-[0.06em] text-[#8a8a8a]">
+          <p className="mt-[5px] font-mono text-[10px] uppercase tracking-[0.06em] text-text-tertiary">
             {hover === null
               ? `${week[0].label} – ${week[week.length - 1].label}`
               : week[hover].full}

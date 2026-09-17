@@ -439,7 +439,13 @@ export function EditorPanel({ tabId, filePath, containerHeight }: EditorPanelPro
     containerHeight > TOOLBAR_HEIGHT ? containerHeight - TOOLBAR_HEIGHT : window.innerHeight - 140;
 
   return (
-    <div style={{ background: "#000000", height: containerHeight || "100%", overflow: "hidden" }}>
+    <div
+      style={{
+        background: "var(--bg-base)",
+        height: containerHeight || "100%",
+        overflow: "hidden",
+      }}
+    >
       {/* Breadcrumb toolbar */}
       <div
         className="flex items-center px-3 border-b border-border-default bg-bg-primary overflow-hidden"

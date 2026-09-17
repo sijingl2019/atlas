@@ -24,7 +24,7 @@ export function FeedbackButton() {
         "inline-flex items-center justify-center h-5 w-5 rounded cursor-pointer transition-colors",
         open
           ? "text-text-primary bg-bg-hover"
-          : "text-[#888] hover:text-text-primary hover:bg-bg-hover",
+          : "text-text-tertiary hover:text-text-primary hover:bg-bg-hover",
       )}
     >
       <MessageCircleQuestion size={11} strokeWidth={1.75} />

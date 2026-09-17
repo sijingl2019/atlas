@@ -245,7 +245,7 @@ const WorkspaceRow = memo(function WorkspaceRow({
                 // instantly → commitRename → edit mode exits. Suppressing the
                 // close auto-focus lets the input keep focus.
                 onCloseAutoFocus={(e) => e.preventDefault()}
-                className="z-[var(--z-max)] min-w-[148px] rounded-md border border-[var(--border-default)] bg-black py-0.5 shadow-[var(--shadow-overlay)] text-[11px] text-[var(--text-secondary)]"
+                className="z-[var(--z-max)] min-w-[148px] rounded-md border border-[var(--border-default)] bg-bg-base py-0.5 shadow-[var(--shadow-overlay)] text-[11px] text-[var(--text-secondary)]"
               >
                 <DropdownMenu.Item
                   onSelect={() => beginRenameWorkspace(ws.id)}
@@ -270,7 +270,7 @@ const WorkspaceRow = memo(function WorkspaceRow({
                     Move to group <ChevronRight size={11} />
                   </DropdownMenu.SubTrigger>
                   <DropdownMenu.Portal>
-                    <DropdownMenu.SubContent className="z-[var(--z-max)] min-w-[140px] rounded-md border border-[var(--border-default)] bg-black py-0.5 shadow-[var(--shadow-overlay)] text-[11px] text-[var(--text-secondary)]">
+                    <DropdownMenu.SubContent className="z-[var(--z-max)] min-w-[140px] rounded-md border border-[var(--border-default)] bg-bg-base py-0.5 shadow-[var(--shadow-overlay)] text-[11px] text-[var(--text-secondary)]">
                       {groups.map((g) => (
                         <DropdownMenu.Item
                           key={g.id}

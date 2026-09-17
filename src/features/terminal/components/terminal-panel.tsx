@@ -377,7 +377,7 @@ function PaneView({
           {hasSplits && (
             <button
               onClick={() => closePane(tabId, pane.id)}
-              className="flex items-center justify-center w-5 h-5 rounded text-text-tertiary hover:text-white hover:bg-bg-hover transition-colors cursor-pointer"
+              className="flex items-center justify-center w-5 h-5 rounded text-text-tertiary hover:text-text-primary hover:bg-bg-hover transition-colors cursor-pointer"
               title="Close pane"
             >
               <X size={11} />

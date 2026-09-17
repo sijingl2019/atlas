@@ -19,7 +19,7 @@ export function BranchPopover() {
     <button
       onClick={() => revealRightSection("changes")}
       title="Open Source Control"
-      className="flex items-center gap-1.5 px-1.5 h-5 rounded text-[11px] text-[#777] hover:text-[#aaa] hover:bg-contrast/[0.031] transition-colors cursor-pointer"
+      className="flex items-center gap-1.5 px-1.5 h-5 rounded text-[11px] text-text-tertiary hover:text-text-secondary hover:bg-contrast/[0.031] transition-colors cursor-pointer"
     >
       <GitBranch size={11} />
       <span className="font-mono">{branch}</span>

@@ -96,7 +96,7 @@ const CLOUD_UNAVAILABLE_REASON = "Cloud capture isn't available yet";
  * earn its keep. If a third appears, extract then.
  */
 const FIELD =
-  "h-8 w-full rounded-lg border border-[#303030] bg-[#0C0C0C] px-2.5 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none transition-colors focus:border-[#4a4a4a]";
+  "h-8 w-full rounded-lg border border-border-default bg-bg-input px-2.5 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none transition-colors focus:border-border-focus";
 
 /** Section heading above a group of controls. */
 const SECTION_LABEL = "text-[11px] font-medium text-[var(--text-secondary)]";
@@ -112,10 +112,10 @@ function pillClass(state: "on" | "off" | "disabled") {
   return cn(
     "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] leading-none transition-colors",
     state === "disabled"
-      ? "cursor-not-allowed border-[#242424] bg-[#0C0C0C] text-[var(--text-tertiary)] opacity-40"
+      ? "cursor-not-allowed border-border-default bg-bg-input text-[var(--text-tertiary)] opacity-40"
       : state === "on"
-        ? "cursor-pointer border-[#4a4a4a] bg-[#1f1f1f] text-[var(--text-primary)]"
-        : "cursor-pointer border-[#303030] bg-[#0C0C0C] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]",
+        ? "cursor-pointer border-border-focus bg-bg-active text-[var(--text-primary)]"
+        : "cursor-pointer border-border-default bg-bg-input text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]",
   );
 }
 

@@ -54,7 +54,7 @@ function SyncDot({ sync }: { sync: SyncState }) {
             <span
               className={cn(
                 "h-[7px] w-[7px] rounded-full",
-                sync === "synced" ? "bg-[#22c55e]" : "bg-[var(--status-error,#f66)]",
+                sync === "synced" ? "bg-[var(--stat-added)]" : "bg-[var(--status-error,#f66)]",
               )}
             />
           )}

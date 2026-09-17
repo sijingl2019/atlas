@@ -319,7 +319,7 @@ export function CommsComposer({
           <div
             className={cn(
               "absolute bottom-full left-2 right-2 z-[var(--z-dropdown)] mb-1 flex flex-col overflow-hidden rounded-lg",
-              "border border-contrast/10 bg-black",
+              "border border-contrast/10 bg-bg-base",
               "shadow-[inset_0_1px_0_color-mix(in_srgb,var(--contrast)_6%,transparent),0_8px_24px_color-mix(in_srgb,var(--shade)_60%,transparent)]",
               "animate-scale-in",
             )}

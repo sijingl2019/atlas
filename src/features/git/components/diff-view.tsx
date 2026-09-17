@@ -235,7 +235,7 @@ export function DiffView({
                     data-index={vr.index}
                     ref={virtualizer.measureElement}
                     style={base}
-                    className="flex items-center gap-1.5 px-2 py-1.5 rounded-t-md border border-border-default bg-[#0F0F0F] hover:bg-[#141414] cursor-pointer group"
+                    className="flex items-center gap-1.5 px-2 py-1.5 rounded-t-md border border-border-default bg-bg-elevated hover:bg-bg-hover cursor-pointer group"
                     onClick={() => toggleFile(file.path)}
                   >
                     <ChevronRight
