@@ -19,7 +19,7 @@ export function LoadingOrganisationOverlay() {
 
   return (
     <div
-      className="fixed inset-0 z-[var(--z-max)] flex flex-col items-center justify-center gap-4 bg-[#050505]"
+      className="fixed inset-0 z-[var(--z-max)] flex flex-col items-center justify-center gap-4 bg-bg-base"
       // Clear the titlebar drag zone so the overlay reads as app-body only.
       style={{ paddingTop: 30 }}
       aria-live="polite"

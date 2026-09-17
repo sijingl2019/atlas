@@ -54,7 +54,7 @@ function SyncDot({ sync }: { sync: SyncState }) {
             <span
               className={cn(
                 "h-[7px] w-[7px] rounded-full",
-                sync === "synced" ? "bg-[#22c55e]" : "bg-[var(--status-error,#f66)]",
+                sync === "synced" ? "bg-[var(--stat-added)]" : "bg-[var(--status-error,#f66)]",
               )}
             />
           )}
@@ -95,7 +95,7 @@ export function SpaceHeaderPill({
     <div
       className={cn(
         "absolute left-3 top-3 z-20 flex items-center gap-1.5 py-1 pl-1 pr-1",
-        "rounded-xl border border-white/10 bg-[var(--bg-secondary)]/70 shadow-[var(--shadow-overlay)] backdrop-blur-2xl",
+        "rounded-xl border border-contrast/10 bg-[var(--bg-secondary)]/70 shadow-[var(--shadow-overlay)] backdrop-blur-2xl",
       )}
     >
       <button
@@ -111,7 +111,7 @@ export function SpaceHeaderPill({
       >
         <PanelLeft size={13} />
       </button>
-      <div className="mx-0.5 h-4 w-px bg-white/10" />
+      <div className="mx-0.5 h-4 w-px bg-contrast/10" />
 
       {/* The page name is the shorthand page selector — the dock is the long
           way round, and a canvas is usually two clicks from another page. */}
@@ -135,9 +135,9 @@ export function SpaceHeaderPill({
             sideOffset={6}
             style={{
               zIndex: 9999,
-              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 48px rgba(0,0,0,0.95)",
+              boxShadow: "var(--shadow-popover)",
             }}
-            className="atlas-panel-in-tl select-none overflow-hidden rounded-xl border border-white/10 bg-[var(--bg-elevated)]/95 backdrop-blur-2xl"
+            className="atlas-panel-in-tl select-none overflow-hidden rounded-xl border border-contrast/10 bg-[var(--bg-elevated)]/95 backdrop-blur-2xl"
           >
             <div className="flex max-h-[320px] w-[220px] flex-col overflow-y-auto py-1">
               {selectable.map((p) => (
@@ -167,7 +167,7 @@ export function SpaceHeaderPill({
         </Popover.Portal>
       </Popover.Root>
 
-      <div className="mx-0.5 h-4 w-px bg-white/10" />
+      <div className="mx-0.5 h-4 w-px bg-contrast/10" />
       <ZoomReadout />
       <button
         type="button"
@@ -313,7 +313,7 @@ export function SpaceActionPill({
   return (
     <div
       className={cn(
-        "absolute right-3 top-3 z-40 flex h-8 items-center gap-1 rounded-xl border border-white/10 px-1.5",
+        "absolute right-3 top-3 z-40 flex h-8 items-center gap-1 rounded-xl border border-contrast/10 px-1.5",
         "bg-[var(--bg-secondary)]/70 shadow-[var(--shadow-overlay)] backdrop-blur-2xl",
       )}
     >
@@ -382,7 +382,7 @@ export function SpaceActionPill({
         )}
       </div>
 
-      <div className="mx-0.5 h-4 w-px bg-white/10" />
+      <div className="mx-0.5 h-4 w-px bg-contrast/10" />
 
       <Tooltip>
         <TooltipTrigger asChild>
@@ -399,7 +399,7 @@ export function SpaceActionPill({
         </TooltipContent>
       </Tooltip>
 
-      <div className="mx-0.5 h-4 w-px bg-white/10" />
+      <div className="mx-0.5 h-4 w-px bg-contrast/10" />
 
       <Popover.Root open={open} onOpenChange={setOpen}>
         <Tooltip>
@@ -424,9 +424,9 @@ export function SpaceActionPill({
             sideOffset={6}
             style={{
               zIndex: 9999,
-              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 48px rgba(0,0,0,0.95)",
+              boxShadow: "var(--shadow-popover)",
             }}
-            className="atlas-panel-in-tl select-none overflow-hidden rounded-xl border border-white/10 bg-[var(--bg-elevated)]/95 backdrop-blur-2xl"
+            className="atlas-panel-in-tl select-none overflow-hidden rounded-xl border border-contrast/10 bg-[var(--bg-elevated)]/95 backdrop-blur-2xl"
           >
             <div className="flex w-[140px] flex-col py-1">
               {FORMATS.map((f) => (

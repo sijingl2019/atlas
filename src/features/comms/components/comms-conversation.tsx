@@ -420,7 +420,7 @@ export const CommsConversation = memo(function CommsConversation({
                     "atlas-pill-in pointer-events-auto inline-flex items-center gap-1.5 rounded-full px-3 py-1.5",
                     "border border-border-default bg-bg-elevated",
                     "text-[11px] font-medium leading-none text-text-secondary",
-                    "shadow-[0_2px_8px_rgba(0,0,0,0.35)] transition-colors cursor-pointer",
+                    "shadow-[0_2px_8px_color-mix(in_srgb,var(--shade)_35%,transparent)] transition-colors cursor-pointer",
                     "hover:bg-bg-hover hover:text-text-primary",
                   )}
                 >
@@ -516,7 +516,7 @@ function SubTabStrip({
         type="button"
         onClick={openSpace}
         title="Open this conversation's Space"
-        className="ml-auto flex h-[22px] shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.06] px-3 text-[10.5px] font-medium text-text-tertiary transition-colors hover:bg-white/[0.1] hover:text-text-primary"
+        className="ml-auto flex h-[22px] shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-contrast/10 bg-contrast/[0.06] px-3 text-[10.5px] font-medium text-text-tertiary transition-colors hover:bg-contrast/[0.1] hover:text-text-primary"
       >
         <Frame size={11} />
         Spaces

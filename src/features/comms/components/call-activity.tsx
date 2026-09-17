@@ -69,7 +69,7 @@ export const CallActivity = memo(function CallActivity({
           className={cn(
             "relative z-[1] mt-[3px] flex h-5 w-5 items-center justify-center rounded-full border",
             live
-              ? "border-white/25 bg-white/10 text-text-primary"
+              ? "border-contrast/25 bg-contrast/10 text-text-primary"
               : "border-border-subtle bg-bg-elevated text-text-tertiary",
           )}
         >
@@ -115,7 +115,7 @@ export const CallActivity = memo(function CallActivity({
             </span>
           )}
           {live && (
-            <span className="rounded-full bg-white/10 px-1.5 py-px text-[10px] font-medium text-text-primary">
+            <span className="rounded-full bg-contrast/10 px-1.5 py-px text-[10px] font-medium text-text-primary">
               Ongoing
             </span>
           )}

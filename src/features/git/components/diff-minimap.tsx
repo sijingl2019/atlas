@@ -186,7 +186,7 @@ export const DiffMinimap = memo(function DiffMinimap({ rows, scrollRef }: DiffMi
       />
       <div
         ref={indicatorRef}
-        className="pointer-events-none absolute left-0 right-0 border-y border-white/25 bg-white/10"
+        className="pointer-events-none absolute left-0 right-0 border-y border-contrast/25 bg-contrast/10"
       />
     </div>
   );

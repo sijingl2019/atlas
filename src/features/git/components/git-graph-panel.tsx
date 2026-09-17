@@ -277,7 +277,7 @@ function GraphView({
             />
             <button
               onClick={onShowMore}
-              className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 px-3 h-7 rounded-full border border-[var(--border-default)] bg-[var(--bg-secondary)] text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] shadow-[0_6px_16px_rgba(0,0,0,0.5)] transition-colors cursor-pointer"
+              className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 px-3 h-7 rounded-full border border-[var(--border-default)] bg-[var(--bg-secondary)] text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] shadow-[0_6px_16px_color-mix(in_srgb,var(--shade)_50%,transparent)] transition-colors cursor-pointer"
               style={{ backdropFilter: "blur(4px)" }}
               title={`Show ${DEFAULT_LIMIT} more commits`}
             >

@@ -188,7 +188,7 @@ function CanvasSurface({
         sourceHandle: e.sourceHandle ?? undefined,
         targetHandle: e.targetHandle ?? undefined,
         type: "smoothstep",
-        style: { stroke: "rgba(255,255,255,0.25)", strokeWidth: 1.5 },
+        style: { stroke: "color-mix(in srgb, var(--contrast) 25%, transparent)", strokeWidth: 1.5 },
       })),
     [edges],
   );

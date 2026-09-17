@@ -168,7 +168,7 @@ export function SpacePages({
 
   return (
     <div
-      className="flex h-full shrink-0 flex-col border-r border-border-default bg-[#090909]"
+      className="flex h-full shrink-0 flex-col border-r border-border-default bg-bg-sidebar"
       style={{ width: 260 }}
     >
       {/* Quiet header — no divider, the local panel's recipe. */}

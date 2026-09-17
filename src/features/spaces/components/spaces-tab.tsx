@@ -54,28 +54,28 @@ function SpaceHost({ convId }: { convId: string }) {
   return (
     <div className="flex h-full min-h-0 flex-col bg-bg-base">
       {archived && (
-        <div className="flex shrink-0 items-center gap-2 border-b border-border-subtle bg-white/[0.03] px-3 py-1 text-[10px] text-text-tertiary">
+        <div className="flex shrink-0 items-center gap-2 border-b border-border-subtle bg-contrast/[0.03] px-3 py-1 text-[10px] text-text-tertiary">
           This conversation is archived — the canvas is read-only. Cursors still show who is
           looking.
         </div>
       )}
       {stale && (
-        <div className="flex shrink-0 items-center gap-2 border-b border-border-subtle bg-white/[0.03] px-3 py-1 text-[10px] text-text-tertiary">
+        <div className="flex shrink-0 items-center gap-2 border-b border-border-subtle bg-contrast/[0.03] px-3 py-1 text-[10px] text-text-tertiary">
           This Space was made with a newer version of Atlas — viewing only. Update to edit it.
         </div>
       )}
       {session.readOnly === "actor_ceiling" && (
-        <div className="flex shrink-0 items-center gap-2 border-b border-border-subtle bg-white/[0.03] px-3 py-1 text-[10px] text-text-tertiary">
+        <div className="flex shrink-0 items-center gap-2 border-b border-border-subtle bg-contrast/[0.03] px-3 py-1 text-[10px] text-text-tertiary">
           This page is full — you are viewing. Re-open the page when a seat frees up.
         </div>
       )}
       {connection === "unavailable" && (
-        <div className="flex shrink-0 items-center gap-2 border-b border-border-subtle bg-white/[0.03] px-3 py-1 text-[10px] text-[var(--status-error,#f66)]">
+        <div className="flex shrink-0 items-center gap-2 border-b border-border-subtle bg-contrast/[0.03] px-3 py-1 text-[10px] text-[var(--status-error,#f66)]">
           This Space refused the connection — you may no longer be a member.
         </div>
       )}
       {session.banner && (
-        <div className="flex shrink-0 items-center gap-2 border-b border-border-subtle bg-white/[0.03] px-3 py-1 text-[10px] text-text-tertiary">
+        <div className="flex shrink-0 items-center gap-2 border-b border-border-subtle bg-contrast/[0.03] px-3 py-1 text-[10px] text-text-tertiary">
           <AlertTriangle size={11} className="shrink-0" />
           <span className="min-w-0 flex-1 truncate">{session.banner}</span>
           <button

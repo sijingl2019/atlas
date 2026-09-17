@@ -151,7 +151,7 @@ export function CommsPanel() {
     return (
       <div className="atlas-vibrant-panel flex h-full flex-col bg-[var(--comms-outer)]">
         <div className="flex h-[38px] shrink-0 items-center pl-2">
-          <div className="flex h-[26px] items-center gap-1.5 rounded-lg bg-white/[0.07] pl-2.5 pr-2.5 text-[11.5px] font-medium text-text-primary select-none">
+          <div className="flex h-[26px] items-center gap-1.5 rounded-lg bg-contrast/[0.07] pl-2.5 pr-2.5 text-[11.5px] font-medium text-text-primary select-none">
             <MessagesSquare size={11} className="shrink-0 opacity-70" />
             Chats
           </div>
@@ -255,7 +255,8 @@ function CommsSurface({ children }: { children: React.ReactNode }) {
       style={{
         // Pure black on #0f0f0f leaves a drop shadow almost nothing to darken,
         // so the hairline ring carries the edge; the shadow just softens it.
-        boxShadow: "0 0 0 1px rgba(255,255,255,0.08), 0 10px 28px rgba(0,0,0,0.6)",
+        boxShadow:
+          "0 0 0 1px color-mix(in srgb, var(--contrast) 8%, transparent), 0 10px 28px color-mix(in srgb, var(--shade) 60%, transparent)",
       }}
     >
       {children}
@@ -322,8 +323,8 @@ function TabButton({
         "transition-[padding-right,background-color,color] duration-150",
         "pr-2.5 hover:pr-6",
         active
-          ? "bg-white/[0.07] text-text-primary"
-          : "text-text-tertiary hover:bg-white/[0.04] hover:text-text-secondary",
+          ? "bg-contrast/[0.07] text-text-primary"
+          : "text-text-tertiary hover:bg-contrast/[0.04] hover:text-text-secondary",
       )}
     >
       {icon}
@@ -346,7 +347,7 @@ function TabButton({
           "absolute right-1 top-1/2 -translate-y-1/2",
           "inline-flex h-4 w-4 items-center justify-center rounded-full",
           "text-text-tertiary opacity-0 group-hover/tab:opacity-100",
-          "transition-opacity duration-150 hover:bg-[#ffffff22] hover:text-text-primary cursor-pointer",
+          "transition-opacity duration-150 hover:bg-contrast/[0.133] hover:text-text-primary cursor-pointer",
         )}
       >
         <X size={10} strokeWidth={2.2} />

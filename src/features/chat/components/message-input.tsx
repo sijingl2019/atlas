@@ -1883,7 +1883,7 @@ export function MessageInput({
             // input + send button (the focus ring lives there — the "active
             // field" is the input surface, not the toolbar).
             "relative z-30 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-secondary)]",
-            "shadow-[0_8px_24px_rgba(0,0,0,0.35)]",
+            "shadow-[0_8px_24px_color-mix(in_srgb,var(--shade)_35%,transparent)]",
             // Drag-over highlight: a clear accent ring while OS files hover.
             isDropTarget && "border-[var(--accent-primary)] ring-2 ring-[var(--accent-primary)]/40",
             // NOTE: the disabled dim is NOT applied here. It used to be

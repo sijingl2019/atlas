@@ -50,7 +50,7 @@ export function CanvasExportToolbar() {
         disabled={!!busy}
         title="Export canvas"
         className={cn(
-          "flex items-center gap-1.5 rounded-xl border border-white/10 bg-[var(--bg-secondary)]/70 backdrop-blur-2xl px-2.5 h-8 shadow-[var(--shadow-overlay)]",
+          "flex items-center gap-1.5 rounded-xl border border-contrast/10 bg-[var(--bg-secondary)]/70 backdrop-blur-2xl px-2.5 h-8 shadow-[var(--shadow-overlay)]",
           "text-[11px] font-medium text-text-secondary hover:text-text-primary transition-colors cursor-pointer disabled:opacity-60",
         )}
       >

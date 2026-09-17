@@ -92,7 +92,7 @@ export function ConnectDialog() {
                 <p className="text-xs text-[var(--status-error)]">{error}</p>
                 <button
                   onClick={() => void beginSignIn()}
-                  className="mt-3 rounded border border-border-default px-2.5 py-1 text-xs text-text-primary transition-colors hover:bg-[#ffffff08]"
+                  className="mt-3 rounded border border-border-default px-2.5 py-1 text-xs text-text-primary transition-colors hover:bg-contrast/[0.031]"
                 >
                   Try again
                 </button>
@@ -113,7 +113,7 @@ export function ConnectDialog() {
                         className={cn(
                           "mx-auto mt-3 flex items-center gap-1.5 rounded border border-border-default",
                           "cursor-pointer px-2.5 py-1 text-[11px] transition-colors",
-                          "text-text-secondary hover:bg-[#ffffff08] hover:text-text-primary",
+                          "text-text-secondary hover:bg-contrast/[0.031] hover:text-text-primary",
                         )}
                       >
                         {copied ? (
@@ -156,7 +156,7 @@ export function ConnectDialog() {
           <div className="flex justify-end gap-2 border-t border-border-default px-4 py-2.5">
             <button
               onClick={() => (done ? closeDialog() : void cancelSignIn())}
-              className="rounded px-2.5 py-1 text-xs text-text-secondary transition-colors hover:bg-[#ffffff08] hover:text-text-primary"
+              className="rounded px-2.5 py-1 text-xs text-text-secondary transition-colors hover:bg-contrast/[0.031] hover:text-text-primary"
             >
               {done ? "Close" : "Cancel"}
             </button>

@@ -312,7 +312,7 @@ export function MemoryTimelineView() {
 
         {/* Floating semantic search pill — overlaid on the chart, no box. */}
         <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-10 w-[min(620px,calc(100%-40px))]">
-          <div className="flex items-center gap-2.5 h-11 rounded-full bg-[#141414]/95 backdrop-blur-2xl shadow-[0_10px_40px_rgba(0,0,0,0.6)] border border-white/[0.12] px-4">
+          <div className="flex items-center gap-2.5 h-11 rounded-full bg-[var(--bg-elevated)]/95 backdrop-blur-2xl shadow-[0_10px_40px_color-mix(in_srgb,var(--shade)_60%,transparent)] border border-contrast/[0.12] px-4">
             <Search size={15} className="text-[var(--text-tertiary)] shrink-0" />
             <input
               value={query}

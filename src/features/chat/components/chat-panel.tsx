@@ -1549,7 +1549,7 @@ const ChatComposer = memo(function ChatComposer({
                     "atlas-pill-in inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full",
                     "border border-[var(--border-default)] bg-[var(--bg-elevated)]",
                     "text-[11px] leading-none font-medium text-[var(--text-secondary)]",
-                    "shadow-[0_2px_8px_rgba(0,0,0,0.35)] cursor-pointer transition-colors",
+                    "shadow-[0_2px_8px_color-mix(in_srgb,var(--shade)_35%,transparent)] cursor-pointer transition-colors",
                     "hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]",
                   )}
                 >
@@ -1616,10 +1616,10 @@ function WelcomeState() {
             separate the mark from the panel. */}
         <AtlasIcon
           size={60}
-          className="mb-5 rounded-[18px] ring-1 ring-white/10 shadow-[0_12px_50px_-12px_rgba(0,0,0,0.85)]"
+          className="mb-5 rounded-[18px] ring-1 ring-contrast/10 shadow-[0_12px_50px_-12px_color-mix(in_srgb,var(--shade)_85%,transparent)]"
         />
 
-        <h2 className="bg-gradient-to-b from-white to-white/55 bg-clip-text text-[22px] font-semibold tracking-tight text-transparent">
+        <h2 className="bg-gradient-to-b from-contrast to-contrast/55 bg-clip-text text-[22px] font-semibold tracking-tight text-transparent">
           Atlas
         </h2>
         <p className="mt-1.5 text-[13px] text-[var(--text-tertiary)]">
@@ -1633,7 +1633,7 @@ function WelcomeState() {
               onClick={() =>
                 window.dispatchEvent(new CustomEvent("atlas:chat-prefill", { detail: { text } }))
               }
-              className="group relative flex flex-col gap-2.5 rounded-xl border border-[var(--border-default)] bg-[var(--bg-secondary)] p-3 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-[var(--border-strong)] hover:bg-[var(--bg-elevated)] hover:shadow-[0_8px_24px_-12px_rgba(0,0,0,0.7)] cursor-pointer"
+              className="group relative flex flex-col gap-2.5 rounded-xl border border-[var(--border-default)] bg-[var(--bg-secondary)] p-3 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-[var(--border-strong)] hover:bg-[var(--bg-elevated)] hover:shadow-[0_8px_24px_-12px_color-mix(in_srgb,var(--shade)_70%,transparent)] cursor-pointer"
             >
               <div className="flex items-center justify-between">
                 <span className="grid h-7 w-7 place-items-center rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[var(--text-tertiary)] transition-colors group-hover:text-[var(--text-primary)]">

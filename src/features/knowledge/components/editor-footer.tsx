@@ -164,7 +164,7 @@ export function EditorFooter({ wordCount, charCount, projectPath, entryId }: Edi
               "border border-border-default bg-bg-elevated text-[var(--text-primary)]",
               "text-[10px] font-medium leading-none cursor-pointer",
               "hover:bg-bg-hover transition-colors",
-              "shadow-[0_2px_8px_rgba(0,0,0,0.35)]",
+              "shadow-[0_2px_8px_color-mix(in_srgb,var(--shade)_35%,transparent)]",
               isBusy && "opacity-80 cursor-wait",
             )}
             title={busyLabel ?? "Export"}
@@ -189,8 +189,8 @@ export function EditorFooter({ wordCount, charCount, projectPath, entryId }: Edi
             sideOffset={6}
             className={cn(
               "min-w-[200px] rounded-md p-0.5 z-[9999]",
-              "bg-black border border-border-default",
-              "shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
+              "bg-bg-base border border-border-default",
+              "shadow-[0_8px_24px_color-mix(in_srgb,var(--shade)_60%,transparent)]",
               "text-text-primary",
             )}
           >

@@ -11,7 +11,7 @@ export function StatusBar() {
 
   return (
     <div
-      className="h-7 flex items-center justify-between px-3 shrink-0 bg-[#000] border-t border-border-default text-[11px] font-mono text-[#555] select-none relative"
+      className="h-7 flex items-center justify-between px-3 shrink-0 bg-bg-base border-t border-border-default text-[11px] font-mono text-[var(--text-muted)] select-none relative"
       style={{ zIndex: "var(--z-max)" as unknown as number }}
     >
       <div className="flex items-center gap-3">

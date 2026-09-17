@@ -22,7 +22,7 @@ const BASE =
   "text-[11.5px] font-medium leading-none";
 
 /** Addressed to you, or to everyone — the brighter of the two. */
-const SELF = "border-white/20 bg-[var(--comms-mention-bg)] text-[var(--comms-mention-text)]";
+const SELF = "border-contrast/20 bg-[var(--comms-mention-bg)] text-[var(--comms-mention-text)]";
 /** Someone else: the same neutral surface every other pill in the app uses. */
 const OTHER = "border-border-default bg-bg-elevated text-text-secondary";
 

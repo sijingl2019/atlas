@@ -61,7 +61,7 @@ export function CommsNotConnected({ org }: { org: Organisation | null }) {
           // one element — the vibrant-panel rule bans transform ANIMATION near
           // blur, not a still frosted control (the drop overlay already blurs
           // inside this panel).
-          className="relative mt-1 flex h-[30px] items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-4 text-[11.5px] font-medium text-text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-md transition-colors hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
+          className="relative mt-1 flex h-[30px] items-center gap-1.5 rounded-full border border-contrast/15 bg-contrast/10 px-4 text-[11.5px] font-medium text-text-primary shadow-[inset_0_1px_0_color-mix(in_srgb,var(--contrast)_12%,transparent)] backdrop-blur-md transition-colors hover:bg-contrast/15 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
         >
           {syncing ? (
             <Loader2 size={12} className="shrink-0 animate-spin" />

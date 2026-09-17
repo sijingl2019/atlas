@@ -61,12 +61,12 @@ export function RenameChannelMenu({
           sideOffset={6}
           style={{
             zIndex: 9999,
-            boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 48px rgba(0,0,0,0.95)",
+            boxShadow: "var(--shadow-popover)",
           }}
-          className="overflow-hidden rounded-xl select-none border border-white/10 bg-[var(--bg-elevated)]/95 backdrop-blur-2xl atlas-panel-in-tl"
+          className="overflow-hidden rounded-xl select-none border border-contrast/10 bg-[var(--bg-elevated)]/95 backdrop-blur-2xl atlas-panel-in-tl"
         >
           <div className="flex w-[240px] flex-col">
-            <div className="flex h-[32px] items-center gap-1.5 border-b border-white/5 px-3">
+            <div className="flex h-[32px] items-center gap-1.5 border-b border-contrast/5 px-3">
               <Hash size={11} className="shrink-0 text-text-tertiary" />
               <input
                 autoFocus
@@ -89,7 +89,7 @@ export function RenameChannelMenu({
                 type="button"
                 disabled={!name.trim() || pending}
                 onClick={() => void save()}
-                className="flex h-[26px] w-full items-center justify-center gap-1.5 rounded-md bg-white/10 text-[11px] font-medium text-text-primary transition-colors hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-45 cursor-pointer"
+                className="flex h-[26px] w-full items-center justify-center gap-1.5 rounded-md bg-contrast/10 text-[11px] font-medium text-text-primary transition-colors hover:bg-contrast/15 disabled:cursor-not-allowed disabled:opacity-45 cursor-pointer"
               >
                 {pending && <Loader2 size={11} className="animate-spin" />}
                 Rename

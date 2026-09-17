@@ -906,7 +906,7 @@ export function Toggle({
     >
       <span
         className={cn(
-          "pointer-events-none block h-4 w-4 rounded-full shadow-[0_1px_3px_rgba(0,0,0,0.45)]",
+          "pointer-events-none block h-4 w-4 rounded-full shadow-[0_1px_3px_color-mix(in_srgb,var(--shade)_45%,transparent)]",
           "transition-transform duration-150",
           value ? "translate-x-4 bg-[var(--bg-base)]" : "translate-x-0 bg-white",
         )}

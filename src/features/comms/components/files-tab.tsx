@@ -261,7 +261,7 @@ function FileRow({
       onClick={() => void saveAttachment(attachment)}
       // A surface of its own: on the panel's pure-black card these rows had
       // nothing to sit on and read as floating text.
-      className="flex w-full items-center gap-2 rounded-lg bg-[#0D0E0D] px-2.5 py-2 text-left transition-colors hover:bg-bg-hover cursor-pointer"
+      className="flex w-full items-center gap-2 rounded-lg bg-[var(--panel-bg-2)] px-2.5 py-2 text-left transition-colors hover:bg-bg-hover cursor-pointer"
     >
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[11.5px] text-text-secondary">

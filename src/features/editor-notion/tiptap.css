@@ -224,7 +224,7 @@
 /* Selection */
 .atlas-tiptap .ProseMirror::selection,
 .atlas-tiptap .ProseMirror *::selection {
-  background: rgba(255, 255, 255, 0.15);
+  background: color-mix(in srgb, var(--contrast) 15%, transparent);
   color: var(--text-primary);
 }
 

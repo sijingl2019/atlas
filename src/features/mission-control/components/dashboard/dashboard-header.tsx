@@ -73,7 +73,7 @@ export function DashboardHeader({
           <DropdownMenu.Content
             align="end"
             sideOffset={4}
-            className="z-[var(--z-max)] min-w-[170px] rounded-lg border border-[var(--border-default)] bg-[#000] py-1.5 shadow-xl text-[12px] text-[var(--text-secondary)]"
+            className="z-[var(--z-max)] min-w-[170px] rounded-lg border border-[var(--border-default)] bg-bg-base py-1.5 shadow-xl text-[12px] text-[var(--text-secondary)]"
           >
             <Item
               icon={<FileType2 size={13} />}

@@ -45,7 +45,7 @@ export function AddProjectMenu() {
         <DropdownMenu.Content
           align="end"
           sideOffset={4}
-          className="z-[var(--z-max)] w-[280px] max-h-[360px] rounded-lg border border-[var(--border-default)] bg-[#000] shadow-xl text-[var(--text-secondary)] flex flex-col overflow-hidden"
+          className="z-[var(--z-max)] w-[280px] max-h-[360px] rounded-lg border border-[var(--border-default)] bg-bg-base shadow-xl text-[var(--text-secondary)] flex flex-col overflow-hidden"
         >
           <DropdownMenu.Item
             onSelect={() => void pickAndAddWorkspace()}

@@ -665,7 +665,9 @@ export const SessionSidebar = memo(function SessionSidebar({
           "flex items-center gap-1.5 h-[32px] shrink-0 px-3",
           // The dropdown sits on a blurred, translucent panel — an opaque fill
           // here would punch a solid rectangle through the blur.
-          asDropdown ? "border-b border-white/5" : "border-b border-border-default bg-bg-primary",
+          asDropdown
+            ? "border-b border-contrast/5"
+            : "border-b border-border-default bg-bg-primary",
         )}
       >
         <Search size={11} className="text-text-tertiary shrink-0" />
@@ -832,7 +834,7 @@ export const SessionSidebar = memo(function SessionSidebar({
           // Same rule as the search row above: an opaque fill would punch a
           // solid strip through the picker's blurred panel.
           asDropdown
-            ? "border-t border-white/5"
+            ? "border-t border-contrast/5"
             : "border-t border-[var(--border-default)] bg-[var(--bg-sidebar)]",
         )}
       >

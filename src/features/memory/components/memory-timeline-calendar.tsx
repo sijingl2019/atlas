@@ -19,7 +19,7 @@ const GUTTER = 184;
 // Monochromatic — branches are disambiguated by the connector lines, not hue.
 const MONO = "#6b6b6b";
 const DOT_MEMORY = "#3fb950"; // has memory feeding into it
-const DOT_PLAIN = "rgba(255,255,255,0.7)"; // no linked memory
+const DOT_PLAIN = "color-mix(in srgb, var(--contrast) 70%, transparent)"; // no linked memory
 const CONNECTOR = "rgba(255,255,255,0.55)";
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 

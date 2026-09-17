@@ -166,7 +166,7 @@ export function DraftsTab({ conv }: { conv: ChatConversation }) {
                     {d.title}
                   </span>
                   {d.sent_at !== null && (
-                    <span className="shrink-0 rounded-full bg-white/10 px-1.5 py-px text-[9.5px] font-medium text-text-primary">
+                    <span className="shrink-0 rounded-full bg-contrast/10 px-1.5 py-px text-[9.5px] font-medium text-text-primary">
                       sent
                     </span>
                   )}

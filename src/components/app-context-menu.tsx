@@ -15,7 +15,7 @@ export function AppContextMenu({ children }: { children: React.ReactNode }) {
       <ContextMenu.Trigger asChild>{children}</ContextMenu.Trigger>
       <ContextMenu.Portal>
         <ContextMenu.Content
-          className="w-[180px] rounded-lg border border-[#1a1a1a] bg-[#0f0f0f] shadow-xl py-1"
+          className="w-[180px] rounded-lg border border-border-default bg-bg-elevated shadow-xl py-1"
           style={{ zIndex: 99999 }}
         >
           {currentProject && (
@@ -55,7 +55,7 @@ export function AppContextMenu({ children }: { children: React.ReactNode }) {
                   })
                 }
               />
-              <ContextMenu.Separator className="h-px bg-[#1a1a1a] my-1" />
+              <ContextMenu.Separator className="h-px bg-border-default my-1" />
             </>
           )}
           <MenuItem
@@ -64,7 +64,7 @@ export function AppContextMenu({ children }: { children: React.ReactNode }) {
             shortcut="⌘C"
             onClick={() => document.execCommand("copy")}
           />
-          <ContextMenu.Separator className="h-px bg-[#1a1a1a] my-1" />
+          <ContextMenu.Separator className="h-px bg-border-default my-1" />
           <MenuItem
             icon={<RefreshCw size={12} />}
             label="Reload Window"
@@ -113,11 +113,13 @@ function MenuItem({
   return (
     <ContextMenu.Item
       onClick={onClick}
-      className="flex items-center gap-2 px-3 h-[28px] text-[11px] text-[#aaa] hover:bg-[#1a1a1a] hover:text-[#fff] cursor-default outline-none"
+      className="flex items-center gap-2 px-3 h-[28px] text-[11px] text-text-secondary hover:bg-bg-hover hover:text-text-primary cursor-default outline-none"
     >
-      <span className="text-[#555]">{icon}</span>
+      <span className="text-[var(--text-muted)]">{icon}</span>
       <span className="flex-1">{label}</span>
-      {hint && <span className="text-[9px] text-[#444] font-mono">{hint}</span>}
+      {hint && (
+        <span className="text-[9px] text-[var(--text-muted)] opacity-75 font-mono">{hint}</span>
+      )}
     </ContextMenu.Item>
   );
 }

@@ -61,7 +61,7 @@ export const CommsAvatar = memo(function CommsAvatar({
           style={{ width: dot, height: dot }}
           className={cn(
             "absolute -bottom-px -right-px rounded-full border-2 border-[var(--comms-surface)]",
-            online ? "bg-[var(--comms-unread)]" : "bg-[#3d3d3d]",
+            online ? "bg-[var(--comms-unread)]" : "bg-border-strong",
           )}
         />
       )}

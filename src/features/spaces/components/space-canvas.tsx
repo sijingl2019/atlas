@@ -187,7 +187,10 @@ function SpaceSurface({
       sourceHandle: ANCHOR_TO_HANDLE[e.sourceAnchor],
       targetHandle: ANCHOR_TO_HANDLE[e.targetAnchor],
       type: "smoothstep",
-      style: { stroke: e.color ?? "rgba(255,255,255,0.25)", strokeWidth: 1.5 },
+      style: {
+        stroke: e.color ?? "color-mix(in srgb, var(--contrast) 25%, transparent)",
+        strokeWidth: 1.5,
+      },
     }));
   }, [revision, session.doc]);
 
@@ -634,7 +637,7 @@ function SpaceSurface({
         )}
 
         {uploading && (
-          <div className="absolute bottom-3 left-1/2 z-40 -translate-x-1/2 rounded-full border border-white/10 bg-[var(--bg-secondary)]/80 px-3 py-1 text-[11px] text-text-secondary backdrop-blur-xl">
+          <div className="absolute bottom-3 left-1/2 z-40 -translate-x-1/2 rounded-full border border-contrast/10 bg-[var(--bg-secondary)]/80 px-3 py-1 text-[11px] text-text-secondary backdrop-blur-xl">
             Uploading media…
           </div>
         )}

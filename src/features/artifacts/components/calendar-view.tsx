@@ -240,7 +240,7 @@ function DayCard({
   return (
     <div
       className={cn(
-        "pointer-events-none absolute z-50 w-[268px] rounded-md border border-[var(--border-default)] bg-[#000] px-3 pb-3 pt-2.5 shadow-xl",
+        "pointer-events-none absolute z-50 w-[268px] rounded-md border border-[var(--border-default)] bg-bg-base px-3 pb-3 pt-2.5 shadow-xl",
         column > 3 ? "right-1.5" : "left-1.5",
         row > rowCount - 3 ? "bottom-[34px]" : "top-[34px]",
       )}

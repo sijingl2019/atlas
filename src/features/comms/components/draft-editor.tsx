@@ -116,15 +116,15 @@ export function DraftEditor({ conv, draft }: { conv: ChatConversation; draft: Pr
 
         {/* Centre: the grouped action pill. */}
         <div className="flex min-w-0 flex-1 justify-center">
-          <div className="flex items-center overflow-hidden rounded-full border border-white/10 bg-white/[0.06]">
+          <div className="flex items-center overflow-hidden rounded-full border border-contrast/10 bg-contrast/[0.06]">
             <PillButton label="Copy draft" onClick={() => void copyAll()}>
               <Copy size={11} />
             </PillButton>
-            <span className="h-4 w-px bg-white/10" />
+            <span className="h-4 w-px bg-contrast/10" />
             <PillButton label="Send to agent" onClick={toAgent}>
               <Play size={11} />
             </PillButton>
-            <span className="h-4 w-px bg-white/10" />
+            <span className="h-4 w-px bg-contrast/10" />
             {/* No API mints a public draft link (the meetings door is the one
                 unauthenticated surface) — a mock, like the Spaces pill. */}
             <PillButton label="Public link — coming soon" disabled>
@@ -176,7 +176,7 @@ export function DraftEditor({ conv, draft }: { conv: ChatConversation; draft: Pr
       </div>
 
       {sent && (
-        <div className="shrink-0 border-b border-border-subtle bg-white/[0.03] px-3 py-1 text-[10px] text-text-tertiary">
+        <div className="shrink-0 border-b border-border-subtle bg-contrast/[0.03] px-3 py-1 text-[10px] text-text-tertiary">
           Sent to an agent — this draft is read-only now.
         </div>
       )}
@@ -224,7 +224,7 @@ function PillButton({
             "flex h-[22px] w-8 items-center justify-center text-text-secondary transition-colors",
             disabled
               ? "cursor-not-allowed text-text-ghost"
-              : "hover:bg-white/10 hover:text-text-primary cursor-pointer",
+              : "hover:bg-contrast/10 hover:text-text-primary cursor-pointer",
           )}
         >
           {children}

@@ -59,6 +59,9 @@
   --color-border-strong: var(--border-strong);
   --color-border-focus: var(--border-focus);
 
+  --color-contrast: var(--contrast);
+  --color-shade: var(--shade);
+
   --color-success: var(--status-success);
   --color-warning: var(--status-warning);
   --color-error: var(--status-error);
@@ -457,8 +460,8 @@
        the titlebar's bottom border and read as a thicker top edge. */
     background-image: linear-gradient(
       to bottom,
-      rgba(255, 255, 255, 0.03) 0,
-      rgba(255, 255, 255, 0) 180px
+      color-mix(in srgb, var(--contrast) 3%, transparent) 0,
+      color-mix(in srgb, var(--contrast) 0%, transparent) 180px
     );
   }
   .atlas-vibrant-panel::after {
@@ -481,11 +484,11 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.08);
+    background: color-mix(in srgb, var(--contrast) 8%, transparent);
     border-radius: 9999px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.14);
+    background: color-mix(in srgb, var(--contrast) 14%, transparent);
   }
 
   ::selection {
@@ -511,9 +514,9 @@
   select {
     -webkit-appearance: none;
     appearance: none;
-    background-color: #0f0f0f;
-    color: #aaa;
-    border: 1px solid #1a1a1a;
+    background-color: var(--bg-elevated);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-default);
     border-radius: 4px;
     padding: 0 28px 0 8px;
     font-size: 12px;
@@ -525,11 +528,11 @@
   }
   select:focus {
     outline: none;
-    border-color: #3d3d3d;
+    border-color: var(--border-strong);
   }
   select option {
-    background: #0f0f0f;
-    color: #aaa;
+    background: var(--bg-elevated);
+    color: var(--text-secondary);
   }
 
   /* Global transitions — only background-color to avoid icon jitter from color/opacity transitions */
@@ -1755,13 +1758,13 @@
   background:
     linear-gradient(
       180deg,
-      rgba(255, 255, 255, 0.038) 0%,
-      rgba(255, 255, 255, 0.016) 34%,
-      rgba(255, 255, 255, 0.006) 70%,
-      rgba(255, 255, 255, 0) 100%
+      color-mix(in srgb, var(--contrast) 3.8%, transparent) 0%,
+      color-mix(in srgb, var(--contrast) 1.6%, transparent) 34%,
+      color-mix(in srgb, var(--contrast) 0.6%, transparent) 70%,
+      color-mix(in srgb, var(--contrast) 0%, transparent) 100%
     ),
-    #0b0b0b;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.034);
+    var(--panel-rail-bg);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--contrast) 3.4%, transparent);
 }
 
 /* Set by use-transcript-scroll on the content element for the life of a

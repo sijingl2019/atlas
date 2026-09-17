@@ -120,7 +120,7 @@ export function TitlebarDock({
       <div
         className={cn(
           "flex h-6 items-center gap-1 rounded-full px-1 py-0.5",
-          "border border-white/[0.07] bg-[#121212]",
+          "border border-contrast/[0.07] bg-[var(--bg-raised)]",
         )}
       >
         {items.map((item, index) => (
@@ -138,10 +138,10 @@ export function TitlebarDock({
             aria-label={item.title ?? item.label}
             className={cn(
               "relative flex size-5 items-center justify-center rounded-full outline-none",
-              "text-[#666] transition-colors duration-150",
+              "text-[var(--text-muted)] transition-colors duration-150",
               item.disabled
                 ? "cursor-default opacity-60"
-                : "cursor-pointer hover:bg-white/[0.08] hover:text-[#ccc]",
+                : "cursor-pointer hover:bg-contrast/[0.08] hover:text-text-primary",
             )}
           >
             {item.icon}
@@ -167,9 +167,9 @@ export function TitlebarDock({
         <div
           className={cn(
             "flex w-max",
-            "bg-black text-text-primary",
+            "bg-bg-base text-text-primary",
             "outline outline-1 outline-[var(--border-default)]",
-            "shadow-[0_8px_24px_rgba(0,0,0,0.5)]",
+            "shadow-[0_8px_24px_color-mix(in_srgb,var(--shade)_50%,transparent)]",
           )}
           style={{
             opacity: visible ? 1 : 0,

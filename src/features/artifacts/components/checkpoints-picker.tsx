@@ -94,7 +94,7 @@ export function CheckpointsPicker({
         <Popover.Content
           align="end"
           sideOffset={4}
-          className="z-[var(--z-max)] flex max-h-[380px] w-[320px] origin-[var(--radix-popover-content-transform-origin)] flex-col overflow-hidden rounded-lg border border-[var(--border-default)] bg-[#000] shadow-xl data-[state=closed]:animate-scale-out data-[state=open]:animate-scale-in"
+          className="z-[var(--z-max)] flex max-h-[380px] w-[320px] origin-[var(--radix-popover-content-transform-origin)] flex-col overflow-hidden rounded-lg border border-[var(--border-default)] bg-bg-base shadow-xl data-[state=closed]:animate-scale-out data-[state=open]:animate-scale-in"
         >
           <div className="flex h-[30px] shrink-0 items-center gap-2 border-b border-[var(--border-default)] px-3">
             <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
