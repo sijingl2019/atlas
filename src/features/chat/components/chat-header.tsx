@@ -153,7 +153,7 @@ function ChatHeaderImpl({
               sideOffset={6}
               style={{
                 zIndex: 9999,
-                boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 48px rgba(0,0,0,0.95)",
+                boxShadow: "var(--shadow-popover)",
                 // No `will-change` — it would isolate the layer and flatten the blur.
               }}
               className={cn(
