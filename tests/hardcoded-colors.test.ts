@@ -43,7 +43,8 @@ type Allowed = { file: string; snippet: string; reason: string };
 const KEYCAP = "hint keycap: a fixed dark frosted-glass component in both modes";
 const COLORED_FILL = "white text/ring on a colored fill, not on the theme surface";
 const XTERM = "must match xterm's own canvas colors, which are set in JS";
-const JS_COLOR = "passed to canvas/SVG/chart JS, where a CSS variable cannot resolve";
+const CANVAS_2D = "drawn with Canvas 2D (fillStyle/strokeStyle), which needs a resolved color; a CSS variable does not work there";
+const SVG_PROP = "SVG attribute or chart/React Flow color prop, where var() does resolve (usage-donut.tsx already relies on it); kept literal until the light-mode palette work";
 
 const ALLOWED: Allowed[] = [
   // ── fixed components ──
@@ -89,15 +90,15 @@ const ALLOWED: Allowed[] = [
   { file: "features/terminal/components/terminal-panel.tsx", snippet: `className="h-full bg-[#000] relative"`, reason: XTERM },
   { file: "features/terminal/lib/terminal-session.ts", snippet: `selectionInactiveBackground: "rgba(255,255,255,0.16)"`, reason: XTERM },
 
-  // ── colors handed to JS renderers ──
-  { file: "components/graph-ruler.tsx", snippet: `BORDER_COL = "rgba(255,255,255,0.06)"`, reason: JS_COLOR },
-  { file: "features/canvas/components/canvas-panel.tsx", snippet: `color="rgba(255,255,255,0.18)"`, reason: JS_COLOR },
-  { file: "features/spaces/components/space-canvas.tsx", snippet: `color="rgba(255,255,255,0.18)"`, reason: JS_COLOR },
-  { file: "features/comms/components/comms-not-connected.tsx", snippet: `ctx.fillStyle = "rgba(255,255,255,0.16)"`, reason: JS_COLOR },
-  { file: "features/memory/components/memory-timeline-calendar.tsx", snippet: `CONNECTOR = "rgba(255,255,255,0.55)"`, reason: JS_COLOR },
-  { file: "features/mission-control/components/dashboard/usage-bar-chart.tsx", snippet: `fill: "rgba(255,255,255,0.03)"`, reason: JS_COLOR },
-  { file: "features/mission-control/lib/chart-theme.ts", snippet: `grid: "rgba(255,255,255,0.06)"`, reason: JS_COLOR },
-  { file: "ui/dither-field.tsx", snippet: "ctx.fillStyle = `rgba(255,255,255,${alpha})`", reason: JS_COLOR },
+  // ── colors handed to canvas, SVG and chart renderers ──
+  { file: "components/graph-ruler.tsx", snippet: `BORDER_COL = "rgba(255,255,255,0.06)"`, reason: CANVAS_2D },
+  { file: "features/canvas/components/canvas-panel.tsx", snippet: `color="rgba(255,255,255,0.18)"`, reason: SVG_PROP },
+  { file: "features/spaces/components/space-canvas.tsx", snippet: `color="rgba(255,255,255,0.18)"`, reason: SVG_PROP },
+  { file: "features/comms/components/comms-not-connected.tsx", snippet: `ctx.fillStyle = "rgba(255,255,255,0.16)"`, reason: CANVAS_2D },
+  { file: "features/memory/components/memory-timeline-calendar.tsx", snippet: `CONNECTOR = "rgba(255,255,255,0.55)"`, reason: SVG_PROP },
+  { file: "features/mission-control/components/dashboard/usage-bar-chart.tsx", snippet: `fill: "rgba(255,255,255,0.03)"`, reason: SVG_PROP },
+  { file: "features/mission-control/lib/chart-theme.ts", snippet: `grid: "rgba(255,255,255,0.06)"`, reason: SVG_PROP },
+  { file: "ui/dither-field.tsx", snippet: "ctx.fillStyle = `rgba(255,255,255,${alpha})`", reason: CANVAS_2D },
 
   // ── theme data and tested fallbacks ──
   { file: "features/editor/themes/themes.ts", snippet: `selectionBg: "rgba(255,255,255,0.13)"`, reason: "a dark editor theme's own palette" },
