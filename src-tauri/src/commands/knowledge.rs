@@ -1,6 +1,6 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Serialize)]
 pub struct KnowledgeEntry {
@@ -12,7 +12,8 @@ pub struct KnowledgeEntry {
     pub updated_at: String,
 }
 
-/// List all knowledge entries recursively from .atlas/knowledge/
+/// List all knowledge entries recursively from .atlas/knowledge/ and every
+/// linked folder (see [`walk_kb`]).
 ///
 /// IMPORTANT: every `#[tauri::command]` in this module is declared `async`
 /// and dispatches its I/O through `tokio::task::spawn_blocking`. Sync
@@ -27,75 +28,147 @@ pub async fn list_knowledge(project_path: String) -> Result<Vec<KnowledgeEntry>,
 }
 
 pub(crate) fn list_knowledge_sync(project_path: &str) -> Result<Vec<KnowledgeEntry>, String> {
-    let kb_dir = Path::new(project_path).join(".atlas").join("knowledge");
-    if !kb_dir.exists() {
-        return Ok(vec![]);
-    }
-
     let mut entries = Vec::new();
-    walk_knowledge(&kb_dir, &kb_dir, &mut entries);
+    for (id, path) in walk_kb(project_path) {
+        if let Some(e) = read_entry(id, &path) {
+            entries.push(e);
+        }
+    }
     entries.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
     Ok(entries)
 }
 
-fn walk_knowledge(dir: &Path, root: &Path, entries: &mut Vec<KnowledgeEntry>) {
-    let read = match fs::read_dir(dir) {
-        Ok(r) => r,
-        Err(_) => return,
-    };
+// ── Knowledge roots: `.atlas/knowledge` + linked external folders ───────────
 
-    for entry in read.flatten() {
-        let path = entry.path();
+/// An external folder (e.g. an Obsidian vault) mounted into the KB in place,
+/// without copying. Its notes surface under the top-level id prefix `name/`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct KbSource {
+    pub name: String,
+    pub path: String,
+}
 
-        if path.is_dir() {
-            walk_knowledge(&path, root, entries);
-            continue;
-        }
+fn kb_dir(project_path: &str) -> PathBuf {
+    Path::new(project_path).join(".atlas").join("knowledge")
+}
 
-        if path.extension().and_then(|e| e.to_str()) != Some("md") {
-            continue;
-        }
+fn sources_path(project_path: &str) -> PathBuf {
+    Path::new(project_path).join(".atlas").join("knowledge-sources.json")
+}
 
-        let content = match fs::read_to_string(&path) {
-            Ok(c) => c,
-            Err(_) => continue,
-        };
+/// Linked folders for a project. Missing or corrupt file → none.
+pub(crate) fn load_sources(project_path: &str) -> Vec<KbSource> {
+    fs::read_to_string(sources_path(project_path))
+        .ok()
+        .and_then(|raw| serde_json::from_str(&raw).ok())
+        .unwrap_or_default()
+}
 
-        // Use relative path (without .md) as the ID so nested notes work
-        let rel = path.strip_prefix(root).unwrap_or(&path);
-        let id = rel.with_extension("").to_string_lossy().to_string();
-
-        let filename = path.file_stem().unwrap_or_default().to_string_lossy().to_string();
-
-        // Use only the filename as the wire-side title fallback. The
-        // user-edited page-header title lives in `_meta.json` and is
-        // merged client-side; deriving a title from the first `#` line
-        // here meant the tree label drifted to the body's first heading
-        // (often a content paragraph after a markdown auto-shortcut),
-        // which was confusing and inconsistent with the page header.
-        let title = filename.clone();
-
-        let source = if filename.starts_with("paper-") { "paper" }
-            else if filename.starts_with("chat-") { "chat" }
-            else { "note" };
-
-        let updated_at = fs::metadata(&path).ok()
-            .and_then(|m| m.modified().ok())
-            .map(|t| {
-                let d = t.duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
-                chrono::DateTime::from_timestamp(d.as_secs() as i64, 0)
-                    .map(|dt| dt.to_rfc3339()).unwrap_or_default()
-            }).unwrap_or_default();
-
-        entries.push(KnowledgeEntry {
-            id,
-            title,
-            content,
-            source: source.to_string(),
-            file_path: path.to_string_lossy().to_string(),
-            updated_at,
-        });
+fn save_sources(project_path: &str, sources: &[KbSource]) -> Result<(), String> {
+    let path = sources_path(project_path);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
+    let json = serde_json::to_string_pretty(sources).map_err(|e| e.to_string())?;
+    fs::write(path, json).map_err(|e| e.to_string())
+}
+
+/// The on-disk location of a KB id (a note id without `.md`, or a dir). The
+/// first segment selects a linked source by name; anything else lives under
+/// `.atlas/knowledge`. Every KB command that turns an id into a path goes
+/// through here, so `kb_rel`'s no-climb guarantee holds for linked roots too.
+pub(crate) fn resolve_kb_path(project_path: &str, id: &str) -> Result<PathBuf, String> {
+    let id = kb_rel(id)?;
+    let (head, rest) = id.split_once('/').unwrap_or((id, ""));
+    if let Some(src) = load_sources(project_path).into_iter().find(|s| s.name == head) {
+        let mut p = PathBuf::from(src.path);
+        if !rest.is_empty() {
+            p.push(rest);
+        }
+        return Ok(p);
+    }
+    Ok(kb_dir(project_path).join(id))
+}
+
+/// Linked source containing `path`, with the path relative to its root.
+fn linked_source_for(project_path: &str, path: &Path) -> Option<(PathBuf, PathBuf)> {
+    load_sources(project_path).into_iter().find_map(|s| {
+        let root = PathBuf::from(s.path);
+        let rel = path.strip_prefix(&root).ok()?.to_path_buf();
+        Some((root, rel))
+    })
+}
+
+/// Every `.md` note across all KB roots as `(id, path)`. Ids always use `/`
+/// (never the OS separator — on Windows `\` broke the tree and `kb_rel`).
+/// Hidden entries (`.obsidian`, `.trash`, `.git`, …) are skipped.
+pub(crate) fn walk_kb(project_path: &str) -> Vec<(String, PathBuf)> {
+    let mut out = Vec::new();
+    walk_md(&kb_dir(project_path), "", &mut out);
+    for s in load_sources(project_path) {
+        walk_md(Path::new(&s.path), &s.name, &mut out);
+    }
+    out
+}
+
+fn walk_md(dir: &Path, prefix: &str, out: &mut Vec<(String, PathBuf)>) {
+    let Ok(read) = fs::read_dir(dir) else { return };
+    for entry in read.flatten() {
+        let name = entry.file_name().to_string_lossy().to_string();
+        if name.starts_with('.') {
+            continue;
+        }
+        let path = entry.path();
+        let id_part = if prefix.is_empty() { name.clone() } else { format!("{prefix}/{name}") };
+        if path.is_dir() {
+            walk_md(&path, &id_part, out);
+        } else if path.extension().and_then(|e| e.to_str()) == Some("md") {
+            let id = id_part.strip_suffix(".md").unwrap_or(&id_part).to_string();
+            out.push((id, path));
+        }
+    }
+}
+
+/// `<resolved id>.md` — the file behind a note id.
+pub(crate) fn note_file(project_path: &str, id: &str) -> Result<PathBuf, String> {
+    let mut p = resolve_kb_path(project_path, id)?.into_os_string();
+    p.push(".md");
+    Ok(p.into())
+}
+
+fn read_entry(id: String, path: &Path) -> Option<KnowledgeEntry> {
+    let content = fs::read_to_string(path).ok()?;
+
+    let filename = path.file_stem().unwrap_or_default().to_string_lossy().to_string();
+
+    // Use only the filename as the wire-side title fallback. The
+    // user-edited page-header title lives in `_meta.json` and is
+    // merged client-side; deriving a title from the first `#` line
+    // here meant the tree label drifted to the body's first heading
+    // (often a content paragraph after a markdown auto-shortcut),
+    // which was confusing and inconsistent with the page header.
+    let title = filename.clone();
+
+    let source = if filename.starts_with("paper-") { "paper" }
+        else if filename.starts_with("chat-") { "chat" }
+        else { "note" };
+
+    let updated_at = fs::metadata(path).ok()
+        .and_then(|m| m.modified().ok())
+        .map(|t| {
+            let d = t.duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
+            chrono::DateTime::from_timestamp(d.as_secs() as i64, 0)
+                .map(|dt| dt.to_rfc3339()).unwrap_or_default()
+        }).unwrap_or_default();
+
+    Some(KnowledgeEntry {
+        id,
+        title,
+        content,
+        source: source.to_string(),
+        file_path: path.to_string_lossy().to_string(),
+        updated_at,
+    })
 }
 
 /// A renderer-supplied path fragment, held inside the knowledge root.
@@ -130,10 +203,8 @@ pub async fn save_knowledge_note(
     id: String,
     content: String,
 ) -> Result<String, String> {
-    let id = kb_rel(&id)?.to_string();
     tokio::task::spawn_blocking(move || {
-        let kb_dir = Path::new(&project_path).join(".atlas").join("knowledge");
-        let filepath = kb_dir.join(format!("{id}.md"));
+        let filepath = note_file(&project_path, &id)?;
         if let Some(parent) = filepath.parent() {
             fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
@@ -235,31 +306,91 @@ pub async fn delete_knowledge_note(
     project_path: String,
     id: String,
 ) -> Result<(), String> {
-    let id = kb_rel(&id)?.to_string();
-    tokio::task::spawn_blocking(move || {
-        let filepath = Path::new(&project_path)
-            .join(".atlas")
-            .join("knowledge")
-            .join(format!("{id}.md"));
-        if filepath.exists() {
-            fs::remove_file(&filepath).map_err(|e| e.to_string())?;
+    tokio::task::spawn_blocking(move || delete_note_sync(&project_path, &id))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// Notes inside a linked folder go to `<root>/.trash/` (Obsidian's own
+/// convention, recoverable) — never hard-deleted from the user's vault.
+fn delete_note_sync(project_path: &str, id: &str) -> Result<(), String> {
+    let filepath = note_file(project_path, id)?;
+    if !filepath.exists() {
+        return Ok(());
+    }
+    match linked_source_for(project_path, &filepath) {
+        Some((root, rel)) => {
+            let dest = unique_dest(&root.join(".trash").join(rel));
+            if let Some(parent) = dest.parent() {
+                fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+            }
+            fs::rename(&filepath, &dest).map_err(|e| e.to_string())
         }
-        Ok(())
+        None => fs::remove_file(&filepath).map_err(|e| e.to_string()),
+    }
+}
+
+/// Create a directory inside the KB (under a linked folder when the first
+/// segment names one).
+#[tauri::command]
+pub async fn create_knowledge_dir(project_path: String, dir_name: String) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        let dir = resolve_kb_path(&project_path, &dir_name)?;
+        fs::create_dir_all(&dir).map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| e.to_string())?
 }
 
-/// Create a directory inside .atlas/knowledge/
 #[tauri::command]
-pub async fn create_knowledge_dir(project_path: String, dir_name: String) -> Result<(), String> {
-    let dir_name = kb_rel(&dir_name)?.to_string();
+pub async fn list_knowledge_sources(project_path: String) -> Result<Vec<KbSource>, String> {
+    tokio::task::spawn_blocking(move || load_sources(&project_path))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Mount an external folder into the KB in place (no copy). Idempotent per
+/// path. The mount name is the folder name, suffixed `-2`, `-3`, … if it would
+/// collide with another link or shadow a real folder in `.atlas/knowledge`.
+#[tauri::command]
+pub async fn link_knowledge_folder(project_path: String, path: String) -> Result<KbSource, String> {
+    tokio::task::spawn_blocking(move || link_folder_sync(&project_path, &path))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+fn link_folder_sync(project_path: &str, path: &str) -> Result<KbSource, String> {
+    let dir = Path::new(path);
+    if !dir.is_dir() {
+        return Err(format!("not a folder: {path}"));
+    }
+    let mut sources = load_sources(project_path);
+    if let Some(existing) = sources.iter().find(|s| Path::new(&s.path) == dir) {
+        return Ok(existing.clone());
+    }
+    let base = dir
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .ok_or_else(|| format!("cannot link a drive root: {path}"))?;
+    kb_rel(&base)?;
+    let taken = |n: &str| sources.iter().any(|s| s.name == n) || kb_dir(project_path).join(n).exists();
+    let name = (1..)
+        .map(|i| if i == 1 { base.clone() } else { format!("{base}-{i}") })
+        .find(|n| !taken(n))
+        .unwrap_or(base);
+    let src = KbSource { name, path: path.to_string() };
+    sources.push(src.clone());
+    save_sources(project_path, &sources)?;
+    Ok(src)
+}
+
+/// Remove a mount. Files in the linked folder are left untouched.
+#[tauri::command]
+pub async fn unlink_knowledge_folder(project_path: String, name: String) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
-        let dir = Path::new(&project_path)
-            .join(".atlas")
-            .join("knowledge")
-            .join(&dir_name);
-        fs::create_dir_all(&dir).map_err(|e| e.to_string())
+        let mut sources = load_sources(&project_path);
+        sources.retain(|s| s.name != name);
+        save_sources(&project_path, &sources)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -688,6 +819,60 @@ mod kb_rel_tests {
         assert!(kb_rel("a\\..\\b").is_err());
         assert!(kb_rel("").is_err());
         assert!(kb_rel("./note").is_err());
+    }
+}
+
+#[cfg(test)]
+mod linked_source_tests {
+    use super::*;
+
+    #[test]
+    fn linked_vault_is_read_and_written_in_place() {
+        let tmp = std::env::temp_dir().join(format!("atlas-kb-link-{}", uuid::Uuid::new_v4()));
+        let project = tmp.join("proj");
+        let vault = tmp.join("Vault");
+        fs::create_dir_all(project.join(".atlas/knowledge/sub")).unwrap();
+        fs::write(project.join(".atlas/knowledge/sub/local.md"), "l").unwrap();
+        fs::create_dir_all(vault.join("sub")).unwrap();
+        fs::create_dir_all(vault.join(".obsidian")).unwrap();
+        fs::write(vault.join("sub/note.md"), "n").unwrap();
+        fs::write(vault.join(".obsidian/hidden.md"), "h").unwrap();
+        let p = project.to_string_lossy().to_string();
+        let v = vault.to_string_lossy().to_string();
+
+        let src = link_folder_sync(&p, &v).unwrap();
+        assert_eq!(src.name, "Vault");
+        assert_eq!(link_folder_sync(&p, &v).unwrap(), src, "relinking the same path is a no-op");
+
+        // Ids use `/` on every OS; hidden dirs are skipped.
+        let mut ids: Vec<String> = walk_kb(&p).into_iter().map(|(id, _)| id).collect();
+        ids.sort();
+        assert_eq!(ids, ["Vault/sub/note", "sub/local"]);
+
+        // Writes land in the vault, not a copy.
+        assert_eq!(note_file(&p, "Vault/sub/x").unwrap(), vault.join("sub").join("x.md"));
+        assert!(resolve_kb_path(&p, "Vault/../..").is_err());
+
+        // Delete moves to the vault's .trash; local notes are removed.
+        delete_note_sync(&p, "Vault/sub/note").unwrap();
+        assert!(!vault.join("sub/note.md").exists());
+        assert!(vault.join(".trash/sub/note.md").exists());
+        delete_note_sync(&p, "sub/local").unwrap();
+        assert!(!project.join(".atlas/knowledge/sub/local.md").exists());
+
+        // A name that would shadow a local KB folder gets a suffix.
+        let other = tmp.join("x").join("sub");
+        fs::create_dir_all(&other).unwrap();
+        assert_eq!(link_folder_sync(&p, &other.to_string_lossy()).unwrap().name, "sub-2");
+
+        // Unlinking leaves the vault's files alone.
+        let mut sources = load_sources(&p);
+        sources.retain(|s| s.name != "Vault");
+        save_sources(&p, &sources).unwrap();
+        assert!(vault.join(".trash/sub/note.md").exists());
+        assert!(walk_kb(&p).iter().all(|(id, _)| !id.starts_with("Vault/")));
+
+        let _ = fs::remove_dir_all(&tmp);
     }
 }
 

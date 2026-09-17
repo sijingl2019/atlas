@@ -22,7 +22,6 @@
 
 use std::collections::HashMap;
 use std::fs;
-use std::path::Path;
 use std::sync::Arc;
 
 use parking_lot::RwLock;
@@ -99,19 +98,20 @@ impl KnowledgeLinksState {
 
 const SNIPPET_RADIUS: usize = 90;
 
-fn knowledge_dir(project_path: &str) -> std::path::PathBuf {
-    Path::new(project_path).join(".atlas").join("knowledge")
-}
-
 /// One-shot rebuild — walks every .md file, parses refs, builds the
 /// reverse index. Synchronous; callers route through spawn_blocking.
 fn build_graph(project_path: &str) -> LinkGraph {
-    let root = knowledge_dir(project_path);
-    if !root.exists() {
-        return LinkGraph::default();
-    }
-    let mut docs: Vec<(String, String, String)> = Vec::new(); // (id, title, body)
-    walk(&root, &root, &mut docs);
+    // (id, title, body). Filename-only title fallback: the user-edited title in
+    // `_meta.json` wins on the JS side; deriving from the first `#` would make
+    // the graph node label drift to body content (same as `list_knowledge`).
+    let docs: Vec<(String, String, String)> = super::knowledge::walk_kb(project_path)
+        .into_iter()
+        .filter_map(|(id, path)| {
+            let body = fs::read_to_string(&path).ok()?;
+            let title = path.file_stem().unwrap_or_default().to_string_lossy().to_string();
+            Some((id, title, body))
+        })
+        .collect();
 
     let mut graph = LinkGraph::default();
     for (from_id, from_title, body) in &docs {
@@ -142,33 +142,6 @@ fn build_graph(project_path: &str) -> LinkGraph {
         graph.forwardlinks.insert(from_id.clone(), targets);
     }
     graph
-}
-
-fn walk(dir: &Path, root: &Path, out: &mut Vec<(String, String, String)>) {
-    let Ok(read) = fs::read_dir(dir) else { return };
-    for entry in read.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            walk(&path, root, out);
-            continue;
-        }
-        if path.extension().and_then(|e| e.to_str()) != Some("md") {
-            continue;
-        }
-        let Ok(body) = fs::read_to_string(&path) else { continue };
-        let rel = path.strip_prefix(root).unwrap_or(&path);
-        let id = rel.with_extension("").to_string_lossy().to_string();
-        let filename = path
-            .file_stem()
-            .unwrap_or_default()
-            .to_string_lossy()
-            .to_string();
-        // Filename-only fallback. The user-edited title in `_meta.json`
-        // wins on the JS side; deriving from the first `#` would cause
-        // the graph node label to drift to body content. Mirrors the
-        // same change in `knowledge::list_knowledge`.
-        out.push((id, filename, body));
-    }
 }
 
 struct RefHit {

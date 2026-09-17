@@ -55,6 +55,8 @@ impl TerminalManager {
         cols: u16,
         rows: u16,
         cwd: Option<&str>,
+        // Windows only: `"cmd"` for cmd.exe, anything else PowerShell.
+        shell: Option<&str>,
         // BOUNDED. When the consumer falls behind, `blocking_send` parks this
         // session's reader thread, the kernel tty queue fills, and the child's
         // write() stalls — real flow control instead of unbounded buffering
@@ -70,12 +72,14 @@ impl TerminalManager {
             pixel_height: 0,
         })?;
 
-        let shell = detect_shell();
+        let shell = detect_shell(shell);
         let mut cmd = CommandBuilder::new(&shell);
         #[cfg(unix)]
         cmd.arg("-l"); // login shell — sources the user's profile so PATH etc. are correct
         #[cfg(windows)]
-        cmd.arg("-NoLogo");
+        if shell == "powershell.exe" {
+            cmd.arg("-NoLogo");
+        }
         if let Some(dir) = cwd {
             cmd.cwd(dir);
         }
@@ -357,16 +361,20 @@ pub fn cwd_of_pid(pid: u32) -> Option<String> {
 }
 
 #[cfg(unix)]
-fn detect_shell() -> String {
+fn detect_shell(_choice: Option<&str>) -> String {
     std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string())
 }
 
 /// `$SHELL` is unset on Windows, or an MSYS path (`/usr/bin/bash`) when the app
-/// was started from Git Bash — neither is spawnable. PowerShell ships with
-/// every supported Windows.
+/// was started from Git Bash — neither is spawnable. So the shell comes from
+/// the `terminalShell` setting; PowerShell and cmd ship with every Windows.
 #[cfg(windows)]
-fn detect_shell() -> String {
-    "powershell.exe".to_string()
+fn detect_shell(choice: Option<&str>) -> String {
+    match choice {
+        Some("cmd") => "cmd.exe",
+        _ => "powershell.exe",
+    }
+    .to_string()
 }
 
 /// LF -> CR, with CRLF collapsing to one CR so a pasted Windows line ending

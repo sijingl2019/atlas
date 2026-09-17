@@ -56,8 +56,8 @@ fn kb_dir(project_path: &str) -> PathBuf {
     Path::new(project_path).join(".atlas").join("knowledge")
 }
 
-fn note_path(project_path: &str, entry_id: &str) -> PathBuf {
-    kb_dir(project_path).join(format!("{entry_id}.md"))
+fn note_path(project_path: &str, entry_id: &str) -> Result<PathBuf, String> {
+    super::knowledge::note_file(project_path, entry_id)
 }
 
 /// Look up the user-edited title in `_meta.json`, falling back to the
@@ -95,33 +95,16 @@ struct NoteFile {
 }
 
 fn walk_notes(project_path: &str) -> Vec<NoteFile> {
-    let root = kb_dir(project_path);
-    if !root.exists() {
-        return vec![];
-    }
-    let mut out: Vec<NoteFile> = Vec::new();
-    walk(&root, &root, project_path, &mut out);
+    let mut out: Vec<NoteFile> = super::knowledge::walk_kb(project_path)
+        .into_iter()
+        .filter_map(|(id, path)| {
+            let body_md = fs::read_to_string(&path).ok()?;
+            let title = resolve_title(project_path, &id);
+            Some(NoteFile { id, title, body_md })
+        })
+        .collect();
     out.sort_by_key(|a| a.title.to_lowercase());
     out
-}
-
-fn walk(dir: &Path, root: &Path, project_path: &str, out: &mut Vec<NoteFile>) {
-    let Ok(read) = fs::read_dir(dir) else { return };
-    for entry in read.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            walk(&path, root, project_path, out);
-            continue;
-        }
-        if path.extension().and_then(|e| e.to_str()) != Some("md") {
-            continue;
-        }
-        let rel = path.strip_prefix(root).unwrap_or(&path);
-        let id = rel.with_extension("").to_string_lossy().to_string();
-        let Ok(body_md) = fs::read_to_string(&path) else { continue };
-        let title = resolve_title(project_path, &id);
-        out.push(NoteFile { id, title, body_md });
-    }
 }
 
 #[tauri::command]
@@ -131,7 +114,7 @@ pub async fn knowledge_export_note_md(
     target_path: String,
 ) -> Result<(), String> {
     tokio::task::spawn_blocking(move || -> Result<(), String> {
-        let src = note_path(&project_path, &entry_id);
+        let src = note_path(&project_path, &entry_id)?;
         let body = fs::read_to_string(&src).map_err(|e| e.to_string())?;
         fs::write(&target_path, body).map_err(|e| e.to_string())?;
         Ok(())
@@ -147,7 +130,7 @@ pub async fn knowledge_export_note_html(
     target_path: String,
 ) -> Result<(), String> {
     tokio::task::spawn_blocking(move || -> Result<(), String> {
-        let src = note_path(&project_path, &entry_id);
+        let src = note_path(&project_path, &entry_id)?;
         let md = fs::read_to_string(&src).map_err(|e| e.to_string())?;
         let title = resolve_title(&project_path, &entry_id);
         let body_html = md_to_html(&md);

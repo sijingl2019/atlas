@@ -11,7 +11,8 @@ import {
 import { useLayoutStore } from "@/features/layout/stores/layout-store";
 import { useIsTabVisible } from "@/features/layout/lib/use-tab-visible";
 import { BlockTerminal } from "./block-terminal";
-import { terminalSessions } from "../lib/terminal-session";
+import { ClassicTerminal } from "./classic-terminal";
+import { CLASSIC, terminalSessions } from "../lib/terminal-session";
 import { useIsFocusedTerminal } from "../lib/focus";
 import { pickPaneInDirection, type Direction, type RectLike } from "../lib/pane-navigation";
 import {
@@ -403,6 +404,9 @@ function PaneView({
   );
 }
 
+/** Windows gets the plain xterm terminal; see `CLASSIC`. */
+const TerminalView = CLASSIC ? ClassicTerminal : BlockTerminal;
+
 function TerminalSlot({
   ptyId,
   pane,
@@ -429,7 +433,7 @@ function TerminalSlot({
         pointerEvents: isActiveInPane ? "auto" : "none",
       }}
     >
-      <BlockTerminal
+      <TerminalView
         isActive={focused}
         visible={panelVisible && isActiveInPane}
         terminalKey={ptyId}

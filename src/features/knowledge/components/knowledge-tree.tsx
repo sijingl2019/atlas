@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Trash2, FileText } from "lucide-react";
+import { Trash2, FileText, Unlink } from "lucide-react";
 import { TreeRow } from "@/features/explorer/components/tree-row";
 import { ROW_HEIGHT } from "@/features/explorer/lib/tree-constants";
 
@@ -34,6 +34,9 @@ interface KnowledgeTreeProps {
   activeEntryId: string | null;
   onSelect: (id: string) => void;
   onDelete?: (id: string) => void;
+  /** Linked external folders — top-level dirs named `name`, with an unlink action. */
+  sources: Array<{ name: string; path: string }>;
+  onUnlinkSource: (name: string) => void;
   /** Fired whenever the set of expanded directories changes so the
    *  sidebar can flip its collapse-all/expand-all button icon. */
   onExpandedCountChange?: (count: number) => void;
@@ -50,7 +53,7 @@ interface KnowledgeTreeProps {
  */
 export const KnowledgeTree = forwardRef<KnowledgeTreeHandle, KnowledgeTreeProps>(
   function KnowledgeTree(
-    { entries, activeEntryId, onSelect, onDelete, onExpandedCountChange },
+    { entries, activeEntryId, onSelect, onDelete, sources, onUnlinkSource, onExpandedCountChange },
     ref,
   ) {
     const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -75,6 +78,11 @@ export const KnowledgeTree = forwardRef<KnowledgeTreeHandle, KnowledgeTreeProps>
         return map.get(path)!;
       };
       ensure("");
+      // Linked folders show up even while they contain no notes.
+      for (const s of sources) {
+        ensure("").dirs.add(s.name);
+        ensure(s.name);
+      }
       const seen = new Set<string>();
       for (const entry of entries) {
         if (seen.has(entry.id)) continue;
@@ -95,7 +103,9 @@ export const KnowledgeTree = forwardRef<KnowledgeTreeHandle, KnowledgeTreeProps>
         });
       }
       return map;
-    }, [entries]);
+    }, [entries, sources]);
+
+    const sourcePaths = useMemo(() => new Map(sources.map((s) => [s.name, s.path])), [sources]);
 
     // Flatten for the virtualizer, honoring `expanded`. Folders sort
     // before files at every level; both sort alphabetically.
@@ -154,7 +164,7 @@ export const KnowledgeTree = forwardRef<KnowledgeTreeHandle, KnowledgeTreeProps>
         return n;
       });
 
-    if (entries.length === 0) {
+    if (entries.length === 0 && sources.length === 0) {
       return (
         <div className="px-3 py-4 text-[11px] text-text-tertiary text-center">No notes yet</div>
       );
@@ -166,6 +176,7 @@ export const KnowledgeTree = forwardRef<KnowledgeTreeHandle, KnowledgeTreeProps>
           {virtualizer.getVirtualItems().map((virtualRow) => {
             const node = flat[virtualRow.index];
             const isActive = !node.isDir && node.key === activeEntryId;
+            const sourcePath = node.isDir ? sourcePaths.get(node.key) : undefined;
             return (
               <TreeRow
                 // Compose with isDir to disambiguate the rare case where a
@@ -176,7 +187,7 @@ export const KnowledgeTree = forwardRef<KnowledgeTreeHandle, KnowledgeTreeProps>
                 isExpanded={node.isDir ? expanded.has(node.key) : undefined}
                 isActive={isActive}
                 name={node.name}
-                title={node.key}
+                title={sourcePath ?? node.key}
                 leafIcon={FileText}
                 leafIconNode={
                   node.entry?.icon ? (
@@ -189,7 +200,19 @@ export const KnowledgeTree = forwardRef<KnowledgeTreeHandle, KnowledgeTreeProps>
                 }}
                 style={{ transform: `translateY(${virtualRow.start}px)` }}
                 trailing={
-                  !node.isDir && onDelete ? (
+                  sourcePath !== undefined ? (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onUnlinkSource(node.key);
+                      }}
+                      className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:text-text-primary text-text-tertiary transition-opacity"
+                      title="Unlink folder (files stay on disk)"
+                    >
+                      <Unlink size={11} />
+                    </button>
+                  ) : !node.isDir && onDelete ? (
                     <button
                       type="button"
                       onClick={(e) => {

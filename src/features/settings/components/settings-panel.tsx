@@ -38,6 +38,10 @@ import { updater } from "@/features/updater/lib/updater-api";
 import { useUpdaterStore } from "@/features/updater/stores/updater-store";
 import { useSettingsNav, type SettingsSection } from "../stores/settings-nav-store";
 import { openConfigFile } from "../lib/atlas-config-api";
+import type { AppSettings } from "../lib/app-settings";
+
+/** The terminal shell choice only means anything on Windows. */
+const isWindows = navigator.userAgent.includes("Windows");
 
 const SECTIONS: Array<{
   id: SettingsSection;
@@ -313,6 +317,72 @@ function GeneralSettings() {
           checked={settings.enterToSend}
           onChange={(next) => updateSettings({ enterToSend: next })}
         />
+      </SettingRow>
+      <SectionTitle title="Terminal" subtitle="Shell and font for the integrated terminal" />
+      {isWindows && (
+        <SettingRow
+          label="Shell"
+          description="The shell a new terminal opens with. Terminals already open keep their shell."
+        >
+          <select
+            value={settings.terminalShell}
+            onChange={(e) =>
+              updateSettings({ terminalShell: e.target.value as AppSettings["terminalShell"] })
+            }
+            className={FIELD_CLASS}
+          >
+            <option value="powershell">PowerShell</option>
+            <option value="cmd">Command Prompt (cmd)</option>
+          </select>
+        </SettingRow>
+      )}
+      <SettingRow
+        label="Font family"
+        description="A CSS font list, e.g. 'MesloLGS NF', Consolas. Prompt themes like oh-my-posh need a Nerd Font or their icons show as boxes. Empty uses the built-in font."
+      >
+        <CommitInput
+          value={settings.terminalFontFamily}
+          placeholder="Built-in"
+          className={cn(FIELD_CLASS, "w-48")}
+          onCommit={(v) => updateSettings({ terminalFontFamily: v.trim() })}
+        />
+      </SettingRow>
+      <SettingRow label="Font size" description="In pixels, 6–72.">
+        <CommitInput
+          value={String(settings.terminalFontSize)}
+          inputMode="numeric"
+          className={cn(FIELD_CLASS, "w-16")}
+          onCommit={(v) => {
+            const n = Math.round(Number(v));
+            if (Number.isFinite(n) && n >= 6 && n <= 72) updateSettings({ terminalFontSize: n });
+          }}
+        />
+      </SettingRow>
+      <SettingRow label="Line height" description="A multiple of the font size, 1.0–3.0.">
+        <CommitInput
+          value={String(settings.terminalLineHeight)}
+          inputMode="decimal"
+          className={cn(FIELD_CLASS, "w-16")}
+          onCommit={(v) => {
+            const n = Number(v);
+            if (Number.isFinite(n) && n >= 1 && n <= 3) updateSettings({ terminalLineHeight: n });
+          }}
+        />
+      </SettingRow>
+      <SettingRow label="Font weight" description="normal, bold, or a numeric weight.">
+        <select
+          value={settings.terminalFontWeight}
+          onChange={(e) => updateSettings({ terminalFontWeight: e.target.value })}
+          className={FIELD_CLASS}
+        >
+          {["normal", "bold", "100", "200", "300", "400", "500", "600", "700", "800", "900"].map(
+            (w) => (
+              <option key={w} value={w}>
+                {w}
+              </option>
+            ),
+          )}
+        </select>
       </SettingRow>
       <SectionTitle
         title="Terminal notifications"
@@ -733,6 +803,40 @@ function SectionTitle({ title, subtitle }: { title: string; subtitle: string }) 
       <h2 className="text-sm font-semibold text-text-primary">{title}</h2>
       <p className="text-[11px] text-text-tertiary mt-0.5">{subtitle}</p>
     </div>
+  );
+}
+
+const FIELD_CLASS =
+  "h-7 rounded-md border border-[var(--border-default)] bg-[var(--bg-elevated)] px-2 text-[11px] text-[var(--text-primary)] outline-none";
+
+/** Text field that saves on blur / Enter, not per keystroke — each save
+ *  rewrites config.toml, and a half-typed number would fail validation. An
+ *  invalid value the parent ignores snaps back to the stored one. */
+function CommitInput({
+  value,
+  onCommit,
+  ...rest
+}: {
+  value: string;
+  onCommit: (value: string) => void;
+} & Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange">) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+  const commit = () => {
+    if (draft !== value) onCommit(draft);
+    setDraft(value);
+  };
+  return (
+    <input
+      {...rest}
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur();
+        else if (e.key === "Escape") setDraft(value);
+      }}
+    />
   );
 }
 

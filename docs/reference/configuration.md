@@ -134,6 +134,27 @@ terminalNotifyNative = true
 
 # Play a short chime with terminal notifications. (default: false)
 terminalNotifySound = false
+
+# Shell a new terminal launches on Windows: "powershell" or "cmd".
+# Ignored on macOS/Linux, which use $SHELL. (default: "powershell")
+terminalShell = "powershell"
+
+# Terminal font stack, a CSS font-family list such as
+# "'MesloLGS NF', Consolas". Use a Nerd Font for prompt themes like
+# oh-my-posh / powerlevel10k. Empty = Atlas's built-in font; a platform
+# monospace is always appended as the fallback. (default: "")
+terminalFontFamily = ""
+
+# Terminal font size in pixels, 6–72. (default: 13)
+terminalFontSize = 13
+
+# Terminal line height as a multiple of the font size, 1.0–3.0.
+# (default: 1.4)
+terminalLineHeight = 1.4
+
+# Terminal font weight: "normal", "bold", or "100"–"900".
+# (default: "normal")
+terminalFontWeight = "normal"
 ```
 
 Note `updaterIgnoredVersion`: a key that serializes to nothing still gets its
@@ -168,6 +189,11 @@ wrote; `toml_edit` just preserves whatever comments are already there.
 | `terminalNotifyOnAttention` | boolean | `true` | — |
 | `terminalNotifyNative` | boolean | `true` | — |
 | `terminalNotifySound` | boolean | `false` | — |
+| `terminalShell` | `"powershell"` \| `"cmd"` | `"powershell"` | Windows only |
+| `terminalFontFamily` | string | `""` | — (empty = built-in font) |
+| `terminalFontSize` | integer | `13` | `6`–`72` inclusive |
+| `terminalLineHeight` | number | `1.4` | finite, `1.0`–`3.0` inclusive |
+| `terminalFontWeight` | string | `"normal"` | `normal`, `bold`, `100`–`900` |
 
 Any other key under `[settings]` is left on disk untouched and reported as an
 `unknownKeys` entry in `get_atlas_config_info` — never treated as an error,

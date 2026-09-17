@@ -85,6 +85,21 @@ impl Default for AdaptiveSuggestions {
     }
 }
 
+/// Shell the interactive terminal launches on Windows. Ignored elsewhere —
+/// unix terminals run the user's `$SHELL`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TerminalShell {
+    Powershell,
+    Cmd,
+}
+
+impl Default for TerminalShell {
+    fn default() -> Self {
+        Self::Powershell
+    }
+}
+
 /// User-facing toggles surfaced in Settings → General. Moved out of
 /// `state.json`'s `AppState.settings` (issue #64) into its own validated,
 /// human-editable `config.toml`.
@@ -182,6 +197,20 @@ pub struct AppSettings {
     /// Play a short chime with the notification.
     #[serde(default)]
     pub terminal_notify_sound: bool,
+    /// Windows terminal shell (`powershell` | `cmd`).
+    #[serde(default)]
+    pub terminal_shell: TerminalShell,
+    /// Terminal font stack (CSS list, e.g. `'MesloLGS NF', Consolas`). Empty =
+    /// Atlas's built-in choice. A platform mono is always appended as fallback.
+    #[serde(default)]
+    pub terminal_font_family: String,
+    #[serde(default = "default_terminal_font_size")]
+    pub terminal_font_size: u32,
+    #[serde(default = "default_terminal_line_height")]
+    pub terminal_line_height: f32,
+    /// `normal`, `bold`, or `100`–`900`.
+    #[serde(default = "default_terminal_font_weight")]
+    pub terminal_font_weight: String,
 }
 
 fn default_true() -> bool {
@@ -199,6 +228,25 @@ pub fn default_atlas_theme() -> String {
 pub fn default_embedding_model() -> String {
     "all-MiniLM-L6-v2".to_string()
 }
+
+pub fn default_terminal_font_size() -> u32 {
+    13
+}
+
+pub fn default_terminal_line_height() -> f32 {
+    1.4
+}
+
+pub fn default_terminal_font_weight() -> String {
+    "normal".to_string()
+}
+
+pub const MIN_TERMINAL_FONT_SIZE: u32 = 6;
+pub const MAX_TERMINAL_FONT_SIZE: u32 = 72;
+pub const MIN_TERMINAL_LINE_HEIGHT: f32 = 1.0;
+pub const MAX_TERMINAL_LINE_HEIGHT: f32 = 3.0;
+const TERMINAL_FONT_WEIGHTS: &[&str] =
+    &["normal", "bold", "100", "200", "300", "400", "500", "600", "700", "800", "900"];
 
 pub fn default_ui_scale() -> f32 {
     1.0
@@ -231,6 +279,11 @@ impl Default for AppSettings {
             terminal_notify_on_attention: true,
             terminal_notify_native: true,
             terminal_notify_sound: false,
+            terminal_shell: TerminalShell::default(),
+            terminal_font_family: String::new(),
+            terminal_font_size: default_terminal_font_size(),
+            terminal_line_height: default_terminal_line_height(),
+            terminal_font_weight: default_terminal_font_weight(),
         }
     }
 }
@@ -377,6 +430,32 @@ const SETTINGS_DOCS: &[(&str, &str)] = &[
         "terminalNotifySound",
         "# Play a short chime with terminal notifications. (default: false)",
     ),
+    (
+        "terminalShell",
+        "# Shell a new terminal launches on Windows: \"powershell\" or \"cmd\".\n\
+         # Ignored on macOS/Linux, which use $SHELL. (default: \"powershell\")",
+    ),
+    (
+        "terminalFontFamily",
+        "# Terminal font stack, a CSS font-family list such as\n\
+         # \"'MesloLGS NF', Consolas\". Use a Nerd Font for prompt themes like\n\
+         # oh-my-posh / powerlevel10k. Empty = Atlas's built-in font; a platform\n\
+         # monospace is always appended as the fallback. (default: \"\")",
+    ),
+    (
+        "terminalFontSize",
+        "# Terminal font size in pixels, 6–72. (default: 13)",
+    ),
+    (
+        "terminalLineHeight",
+        "# Terminal line height as a multiple of the font size, 1.0–3.0.\n\
+         # (default: 1.4)",
+    ),
+    (
+        "terminalFontWeight",
+        "# Terminal font weight: \"normal\", \"bold\", or \"100\"–\"900\".\n\
+         # (default: \"normal\")",
+    ),
 ];
 
 /// Every key Atlas recognizes under `[settings]`, in file order.
@@ -421,6 +500,36 @@ pub fn validate(settings: &AppSettings) -> Result<(), ValidationIssue> {
             message: format!(
                 "must be between 0 and {MAX_TERMINAL_NOTIFY_MS}, got {}",
                 settings.terminal_notify_min_duration_ms
+            ),
+        });
+    }
+    if !(MIN_TERMINAL_FONT_SIZE..=MAX_TERMINAL_FONT_SIZE).contains(&settings.terminal_font_size) {
+        return Err(ValidationIssue {
+            key: "terminalFontSize",
+            message: format!(
+                "must be between {MIN_TERMINAL_FONT_SIZE} and {MAX_TERMINAL_FONT_SIZE}, got {}",
+                settings.terminal_font_size
+            ),
+        });
+    }
+    if !settings.terminal_line_height.is_finite()
+        || !(MIN_TERMINAL_LINE_HEIGHT..=MAX_TERMINAL_LINE_HEIGHT)
+            .contains(&settings.terminal_line_height)
+    {
+        return Err(ValidationIssue {
+            key: "terminalLineHeight",
+            message: format!(
+                "must be a number between {MIN_TERMINAL_LINE_HEIGHT} and {MAX_TERMINAL_LINE_HEIGHT}, got {}",
+                settings.terminal_line_height
+            ),
+        });
+    }
+    if !TERMINAL_FONT_WEIGHTS.contains(&settings.terminal_font_weight.as_str()) {
+        return Err(ValidationIssue {
+            key: "terminalFontWeight",
+            message: format!(
+                "must be \"normal\", \"bold\" or \"100\"–\"900\", got {:?}",
+                settings.terminal_font_weight
             ),
         });
     }
@@ -648,6 +757,11 @@ pub struct SettingsPatch {
     pub terminal_notify_on_attention: Option<bool>,
     pub terminal_notify_native: Option<bool>,
     pub terminal_notify_sound: Option<bool>,
+    pub terminal_shell: Option<TerminalShell>,
+    pub terminal_font_family: Option<String>,
+    pub terminal_font_size: Option<u32>,
+    pub terminal_line_height: Option<f32>,
+    pub terminal_font_weight: Option<String>,
 }
 
 impl SettingsPatch {
@@ -712,6 +826,21 @@ impl SettingsPatch {
         if let Some(v) = self.terminal_notify_sound {
             settings.terminal_notify_sound = v;
         }
+        if let Some(v) = self.terminal_shell {
+            settings.terminal_shell = v;
+        }
+        if let Some(v) = &self.terminal_font_family {
+            settings.terminal_font_family = v.clone();
+        }
+        if let Some(v) = self.terminal_font_size {
+            settings.terminal_font_size = v;
+        }
+        if let Some(v) = self.terminal_line_height {
+            settings.terminal_line_height = v;
+        }
+        if let Some(v) = &self.terminal_font_weight {
+            settings.terminal_font_weight = v.clone();
+        }
     }
 
     /// Mutate only the touched keys of `doc["settings"]` — everything else
@@ -765,6 +894,25 @@ impl SettingsPatch {
                 AdaptiveSuggestions::Off => "off",
             };
             table["adaptiveSuggestions"] = toml_edit::value(s);
+        }
+        if let Some(v) = self.terminal_shell {
+            let s = match v {
+                TerminalShell::Powershell => "powershell",
+                TerminalShell::Cmd => "cmd",
+            };
+            table["terminalShell"] = toml_edit::value(s);
+        }
+        if let Some(v) = &self.terminal_font_family {
+            table["terminalFontFamily"] = toml_edit::value(v.as_str());
+        }
+        if let Some(v) = self.terminal_font_size {
+            table["terminalFontSize"] = toml_edit::value(i64::from(v));
+        }
+        if let Some(v) = self.terminal_line_height {
+            table["terminalLineHeight"] = toml_edit::value(f64::from(v));
+        }
+        if let Some(v) = &self.terminal_font_weight {
+            table["terminalFontWeight"] = toml_edit::value(v.as_str());
         }
         if let Some(inner) = &self.updater_ignored_version {
             match inner {

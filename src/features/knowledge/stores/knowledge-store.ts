@@ -12,8 +12,15 @@ interface KnowledgeEntry {
   updated_at: string;
 }
 
+/** An external folder (e.g. an Obsidian vault) mounted in place under `name/`. */
+export interface KnowledgeSource {
+  name: string;
+  path: string;
+}
+
 interface KnowledgeState {
   entries: KnowledgeEntry[];
+  sources: KnowledgeSource[];
   activeEntryId: string | null;
   editContent: string;
   loading: boolean;
@@ -37,12 +44,17 @@ interface KnowledgeState {
     createEntry: (projectPath: string) => Promise<void>;
     deleteEntry: (projectPath: string, id: string) => Promise<void>;
     createDir: (projectPath: string, dirName: string) => Promise<void>;
+    /** Mount a folder in place (no copy). Throws on failure. */
+    linkFolder: (projectPath: string, path: string) => Promise<KnowledgeSource>;
+    /** Remove a mount; the folder's files are untouched. */
+    unlinkFolder: (projectPath: string, name: string) => Promise<void>;
   };
 }
 
 export const useKnowledgeStore = createSelectors(
   create<KnowledgeState>()((set, get) => ({
     entries: [],
+    sources: [],
     activeEntryId: null,
     editContent: "",
     loading: false,
@@ -50,13 +62,15 @@ export const useKnowledgeStore = createSelectors(
     actions: {
       loadEntries: async (projectPath) => {
         try {
-          const newEntries = await invoke<KnowledgeEntry[]>("list_knowledge", {
-            projectPath,
-          });
+          const [newEntries, sources] = await Promise.all([
+            invoke<KnowledgeEntry[]>("list_knowledge", { projectPath }),
+            invoke<KnowledgeSource[]>("list_knowledge_sources", { projectPath }),
+          ]);
           const current = get();
 
           // Skip update if entries haven't changed (prevent unnecessary re-renders)
           const unchanged =
+            JSON.stringify(current.sources) === JSON.stringify(sources) &&
             current.entries.length === newEntries.length &&
             current.entries.every(
               (e, i) => e.id === newEntries[i]?.id && e.updated_at === newEntries[i]?.updated_at,
@@ -66,6 +80,7 @@ export const useKnowledgeStore = createSelectors(
           const activeStillExists = newEntries.find((e) => e.id === current.activeEntryId);
           set({
             entries: newEntries,
+            sources,
             loading: false,
             activeEntryId: activeStillExists ? current.activeEntryId : (newEntries[0]?.id ?? null),
             editContent: activeStillExists?.content ?? newEntries[0]?.content ?? "",
@@ -180,6 +195,32 @@ export const useKnowledgeStore = createSelectors(
         } catch (e) {
           console.error("Failed to create directory:", e);
         }
+      },
+      linkFolder: async (projectPath, path) => {
+        const source = await invoke<KnowledgeSource>("link_knowledge_folder", {
+          projectPath,
+          path,
+        });
+        await get().actions.loadEntries(projectPath);
+        logEvent({
+          source: "knowledge",
+          kind: "folder-link",
+          summary: source.name,
+          projectPath,
+          payload: { ...source },
+        });
+        return source;
+      },
+      unlinkFolder: async (projectPath, name) => {
+        await invoke("unlink_knowledge_folder", { projectPath, name });
+        await get().actions.loadEntries(projectPath);
+        logEvent({
+          source: "knowledge",
+          kind: "folder-unlink",
+          summary: name,
+          projectPath,
+          payload: { name },
+        });
       },
     },
   })),

@@ -81,6 +81,19 @@ export interface AppSettings {
   terminalNotifyNative: boolean;
   /** Play a short chime with the notification. */
   terminalNotifySound: boolean;
+  /** Shell a new terminal launches on Windows. Ignored on macOS/Linux, which
+   *  run `$SHELL`. */
+  terminalShell: "powershell" | "cmd";
+  /** Terminal font stack (CSS font-family list). Empty = built-in font; a
+   *  platform monospace is always appended. Use a Nerd Font for prompt themes
+   *  (oh-my-posh, powerlevel10k) or their icons render as boxes. */
+  terminalFontFamily: string;
+  /** Terminal font size in px, 6–72. */
+  terminalFontSize: number;
+  /** Terminal line height multiple, 1.0–3.0. */
+  terminalLineHeight: number;
+  /** `normal`, `bold`, or `100`–`900`. */
+  terminalFontWeight: string;
 }
 
 /** The terminal notifier's view of settings — flat keys on the wire (the
@@ -126,4 +139,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   terminalNotifyOnAttention: true,
   terminalNotifyNative: true,
   terminalNotifySound: false,
+  terminalShell: "powershell",
+  terminalFontFamily: "",
+  terminalFontSize: 13,
+  terminalLineHeight: 1.4,
+  terminalFontWeight: "normal",
 };

@@ -30,10 +30,11 @@
  */
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import type { Terminal } from "@xterm/xterm";
+import type { FontWeight, Terminal } from "@xterm/xterm";
 import type { FitAddon } from "@xterm/addon-fit";
 import type { WebglAddon } from "@xterm/addon-webgl";
 import { isScrollHot } from "@/lib/scroll-hot";
+import { useProjectStore } from "@/features/project/stores/project-store";
 import { BlockStreamParser, type TerminalBlock, type TerminalEvent } from "./block-parser";
 import { createTerminalEventSink } from "./terminal-notifier";
 import { createTerminalKeymap } from "./terminal-keymap";
@@ -116,8 +117,26 @@ const XTERM_THEME = {
   brightCyan: "#56b6c2",
   brightWhite: "#ffffff",
 };
-const FONT_SIZE = 13;
-const LINE_HEIGHT = 1.4;
+/** Font settings (Settings → Terminal), read fresh at each use. */
+function fontPrefs() {
+  const s = useProjectStore.getState().settings;
+  return {
+    family: s.terminalFontFamily,
+    size: s.terminalFontSize,
+    lineHeight: s.terminalLineHeight,
+    weight: s.terminalFontWeight as FontWeight,
+  };
+}
+/** Scrollback for the classic (always-xterm) surface. */
+const CLASSIC_SCROLLBACK = 10_000;
+
+/**
+ * Windows terminals are CLASSIC: xterm is the whole terminal, fed every byte,
+ * and you type straight into it. The block UI needs zsh's OSC 133 hooks, which
+ * PowerShell and cmd never emit, so there it could only show one undivided
+ * stream plus a detached input box.
+ */
+export const CLASSIC = typeof navigator !== "undefined" && navigator.userAgent.includes("Windows");
 
 // ── Module state (survives HMR via globalThis) ─────────────────────────────
 
@@ -144,6 +163,23 @@ const reg: Registry = (g.__atlasTerminalSessions ??= {
 function startGlobalListeners(): void {
   if (reg.listenersStarted) return;
   reg.listenersStarted = true;
+  // Font settings apply to open terminals without a restart.
+  useProjectStore.subscribe((state, prev) => {
+    const a = state.settings;
+    const b = prev.settings;
+    if (
+      a.terminalFontFamily === b.terminalFontFamily &&
+      a.terminalFontSize === b.terminalFontSize &&
+      a.terminalLineHeight === b.terminalLineHeight &&
+      a.terminalFontWeight === b.terminalFontWeight
+    ) {
+      return;
+    }
+    reg.cell = null;
+    void resolveTerminalFont(a.terminalFontSize, a.terminalFontFamily).then((family) => {
+      for (const s of reg.sessions.values()) s.applyFont(family);
+    });
+  });
   void listen<{ id: string; raw: boolean }>("terminal-mode", (evt) => {
     reg.byPty.get(evt.payload.id)?.onRawMode(evt.payload.raw);
   });
@@ -166,15 +202,16 @@ function startGlobalListeners(): void {
  */
 async function cellSize(): Promise<{ w: number; h: number }> {
   if (reg.cell) return reg.cell;
-  const fontFamily = await resolveTerminalFont(FONT_SIZE);
+  const font = fontPrefs();
+  const fontFamily = await resolveTerminalFont(font.size, font.family);
   const span = document.createElement("span");
   span.textContent = "W".repeat(20);
-  span.style.cssText = `position:absolute;visibility:hidden;white-space:pre;font:${FONT_SIZE}px ${fontFamily};line-height:${LINE_HEIGHT}`;
+  span.style.cssText = `position:absolute;visibility:hidden;white-space:pre;font:${font.weight} ${font.size}px ${fontFamily};line-height:${font.lineHeight}`;
   document.body.appendChild(span);
   const rect = span.getBoundingClientRect();
   span.remove();
-  const w = rect.width > 0 ? rect.width / 20 : FONT_SIZE * 0.6;
-  const h = Math.ceil(FONT_SIZE * LINE_HEIGHT);
+  const w = rect.width > 0 ? rect.width / 20 : font.size * 0.6;
+  const h = Math.ceil(font.size * font.lineHeight);
   reg.cell = { w, h };
   return reg.cell;
 }
@@ -184,6 +221,8 @@ async function cellSize(): Promise<{ w: number; h: number }> {
 export class TerminalSession {
   readonly key: string;
   readonly tabId: string;
+  /** xterm is the entire terminal (see `CLASSIC`). */
+  readonly classic = CLASSIC;
   /** The element xterm opens into. Views append it; it is never recreated. */
   readonly surfaceEl: HTMLDivElement;
 
@@ -288,6 +327,7 @@ export class TerminalSession {
         cols: size.cols,
         rows: size.rows,
         cwd,
+        shell: useProjectStore.getState().settings.terminalShell,
         onOutput: channel,
       });
     } catch (e) {
@@ -350,6 +390,7 @@ export class TerminalSession {
 
   /** @internal — registry listener. */
   onExited(): void {
+    if (this.classic) this.feedXterm("\r\n\x1b[2m[Process exited]\x1b[0m\r\n");
     this.publish({ exited: true });
   }
 
@@ -387,11 +428,15 @@ export class TerminalSession {
       bytes += u8.byteLength;
       const end = perfBegin("chunk");
       perfBytes(u8.byteLength);
-      this.parser.push(this.decoder.decode(u8, { stream: true }));
+      const text = this.decoder.decode(u8, { stream: true });
+      if (this.classic) this.feedXterm(text);
+      else this.parser.push(text);
       end();
       consumed++;
     }
-    if (consumed > 0) {
+    if (consumed > 0 && this.classic) {
+      void invoke("terminal_ack", { id: this.ptyId, count: consumed }).catch(() => {});
+    } else if (consumed > 0) {
       // Ack AFTER consumption, once: the credit window is then real
       // end-to-end backpressure (see terminal.rs).
       void invoke("terminal_ack", { id: this.ptyId, count: consumed }).catch(() => {});
@@ -471,7 +516,10 @@ export class TerminalSession {
   // ── xterm (lazy) ─────────────────────────────────────────────────────────
 
   private feedXterm(text: string): void {
-    if (this.xterm && this.visible) {
+    // Classic xterm IS the scrollback, so it takes output while hidden too — a
+    // ring that overflowed could only nudge a repaint, and a shell's history
+    // does not repaint.
+    if (this.xterm && (this.visible || this.classic)) {
       this.xterm.write(text);
       return;
     }
@@ -519,14 +567,16 @@ export class TerminalSession {
         import("@xterm/addon-fit"),
         import("@xterm/xterm/css/xterm.css"),
       ]);
-      const fontFamily = await resolveTerminalFont(FONT_SIZE);
+      const font = fontPrefs();
+      const fontFamily = await resolveTerminalFont(font.size, font.family);
       if (this.closed || !this.host) return;
       const term = new Terminal({
         fontFamily,
-        fontSize: FONT_SIZE,
-        lineHeight: LINE_HEIGHT,
+        fontSize: font.size,
+        lineHeight: font.lineHeight,
+        fontWeight: font.weight,
         // The alt screen has no scrollback — the block list owns history.
-        scrollback: 0,
+        scrollback: this.classic ? CLASSIC_SCROLLBACK : 0,
         cursorBlink: true,
         allowProposedApi: true,
         theme: XTERM_THEME,
@@ -562,9 +612,30 @@ export class TerminalSession {
 
       // Interactive-surface parity with a classic terminal: word/line
       // navigation + ⌘C/⌘V/⌘A copy-paste, and ⌘-click file paths.
-      const keymap = createTerminalKeymap(term);
+      // Classic (Windows) skips the readline keymap: PSReadLine and cmd bring
+      // their own word navigation and Shift+arrow selection.
+      const keymap = this.classic ? () => null : createTerminalKeymap(term);
       term.attachCustomKeyEventHandler((e) => {
         if (e.type !== "keydown") return true;
+        // Windows convention: Ctrl+C copies when there is a selection (else it
+        // is ^C), Ctrl+V pastes.
+        if (this.classic && e.ctrlKey && !e.shiftKey && !e.altKey) {
+          const k = e.key.toLowerCase();
+          if (k === "c" && term.hasSelection()) {
+            e.preventDefault();
+            void navigator.clipboard.writeText(term.getSelection()).catch(() => {});
+            term.clearSelection();
+            return false;
+          }
+          if (k === "v") {
+            e.preventDefault();
+            void navigator.clipboard
+              .readText()
+              .then((t) => t && term.paste(t))
+              .catch(() => {});
+            return false;
+          }
+        }
         const nav = keymap(e);
         if (nav === "handled") return false;
         if (typeof nav === "string") {
@@ -628,13 +699,24 @@ export class TerminalSession {
     this.xterm?.focus();
   }
 
+  /** Settings changed: restyle a live xterm in place, then refit the PTY. */
+  applyFont(fontFamily: string): void {
+    if (!this.xterm) return;
+    const font = fontPrefs();
+    this.xterm.options.fontFamily = fontFamily;
+    this.xterm.options.fontSize = font.size;
+    this.xterm.options.lineHeight = font.lineHeight;
+    this.xterm.options.fontWeight = font.weight;
+    this.requestFit();
+  }
+
   // ── View attachment + visibility ─────────────────────────────────────────
 
   /** Put the surface in the given host. Returns the detach function. */
   attach(host: HTMLElement): () => void {
     this.host = host;
     host.appendChild(this.surfaceEl);
-    if (this.parser.altScreen && this.visible) void this.ensureXterm();
+    if ((this.classic || this.parser.altScreen) && this.visible) void this.ensureXterm();
     if (this.fitPending) this.requestFit();
     return () => {
       if (this.host === host) this.host = null;
@@ -649,7 +731,7 @@ export class TerminalSession {
     // Through the parser, not straight to publish: `flushNow` syncs the live
     // block's resolved lines first, then calls back into `onParserChange`.
     if (this.dirtyWhileHidden) this.parser.flushNow();
-    if (this.parser.altScreen && this.host) void this.ensureXterm();
+    if ((this.classic || this.parser.altScreen) && this.host) void this.ensureXterm();
     else this.replayRing();
     if (this.fitPending) this.requestFit();
   }

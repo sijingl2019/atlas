@@ -55,6 +55,8 @@ pub async fn terminal_create(
     cols: u16,
     rows: u16,
     cwd: Option<String>,
+    // Windows shell from settings (`powershell` | `cmd`); ignored on unix.
+    shell: Option<String>,
     on_output: Channel<InvokeResponseBody>,
 ) -> Result<String, String> {
     let (tx, mut rx) = mpsc::channel::<atlas_terminal::TerminalOutput>(READ_QUEUE_CHUNKS);
@@ -62,7 +64,7 @@ pub async fn terminal_create(
     let (id, probe) = {
         let mut manager = state.manager.lock().await;
         let id = manager
-            .create_session(cols, rows, cwd.as_deref(), tx)
+            .create_session(cols, rows, cwd.as_deref(), shell.as_deref(), tx)
             .map_err(|e| e.to_string())?;
         let probe = manager.mode_probe(&id);
         (id, probe)

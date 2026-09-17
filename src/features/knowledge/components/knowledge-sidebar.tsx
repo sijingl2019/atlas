@@ -18,6 +18,7 @@ import {
   Folder,
 } from "lucide-react";
 import { KnowledgeTree, type KnowledgeTreeHandle } from "./knowledge-tree";
+import type { KnowledgeSource } from "../stores/knowledge-store";
 
 interface KnowledgeSidebarProps {
   projectPath: string;
@@ -34,8 +35,11 @@ interface KnowledgeSidebarProps {
   onNewNote: () => void;
   /** Import external `.md` files into the KB. */
   onImportFiles: () => void;
-  /** Import a folder (e.g. an Obsidian vault) into the KB. */
+  /** Link a folder (e.g. an Obsidian vault) into the KB in place. */
   onImportFolder: () => void;
+  /** Linked folders, mounted as top-level tree folders. */
+  sources: KnowledgeSource[];
+  onUnlinkSource: (name: string) => void;
   onOpenGraph: () => void;
   onSelectRepo: (name: string) => void;
   /** True while the inline folder-name input is open. Rendered just
@@ -62,6 +66,8 @@ export function KnowledgeSidebar({
   onNewNote,
   onImportFiles,
   onImportFolder,
+  sources,
+  onUnlinkSource,
   onOpenGraph,
   onSelectRepo,
   folderInputOpen,
@@ -184,7 +190,7 @@ export function KnowledgeSidebar({
           <DropdownMenu.Trigger asChild>
             <button
               className="p-1 rounded text-text-tertiary hover:bg-bg-hover hover:text-text-secondary transition-colors cursor-pointer outline-none"
-              title="Import notes / folder"
+              title="Import notes / link folder"
               style={{ width: 22, height: 22 }}
             >
               <Download size={12} />
@@ -206,7 +212,7 @@ export function KnowledgeSidebar({
                 onSelect={onImportFolder}
                 className="flex items-center gap-2 px-2.5 h-[28px] text-[11px] text-text-secondary hover:bg-bg-hover hover:text-text-primary cursor-pointer outline-none"
               >
-                <Folder size={13} /> Import folder…
+                <Folder size={13} /> Link folder…
               </DropdownMenu.Item>
             </DropdownMenu.Content>
           </DropdownMenu.Portal>
@@ -244,6 +250,8 @@ export function KnowledgeSidebar({
           activeEntryId={activeRepoName ? null : activeEntryId}
           onSelect={onSelectEntry}
           onDelete={onDeleteEntry}
+          sources={sources}
+          onUnlinkSource={onUnlinkSource}
           onExpandedCountChange={setTreeExpandedCount}
         />
 

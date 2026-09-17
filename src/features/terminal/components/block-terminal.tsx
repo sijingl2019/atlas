@@ -96,7 +96,7 @@ function renderHL(text: string, query: string): ReactNode {
   return nodes;
 }
 
-interface BlockTerminalProps {
+export interface BlockTerminalProps {
   /** This terminal owns keyboard focus (active in its pane, pane active). */
   isActive: boolean;
   /** This terminal is on screen: its tab is the active tab of its column and
