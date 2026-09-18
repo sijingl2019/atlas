@@ -24,9 +24,9 @@ const MAX_K = 2.4;
 const ZOOM_STEP = 0.0015;
 const COLLAPSE_LEAVES = 18;
 
-// Monochrome emphasis: a near-white highlight for the clicked decision path,
+// Monochrome emphasis: a near-contrast highlight for the clicked decision path,
 // muted grays for everything else (mirrors the Timeline's highlight-and-dim).
-const HL = "#fafafa";
+const HL = "color-mix(in srgb, var(--contrast) 98%, transparent)";
 
 function leafCount(t: TreeNode): number {
   if (t.children.length === 0) return 1;

@@ -9,9 +9,9 @@ import { cn } from "@/lib/utils";
 
 // Mermaid is heavy (~500KB) — load it on first diagram render only. The theme is
 // mapped to the *live* Atlas interface-theme tokens (read from CSS custom
-// properties), so a diagram matches whichever palette is active (Atlas Black,
-// Chyral, Mirage, …). We re-initialize whenever the palette changes so switching
-// themes re-skins subsequently-rendered diagrams too.
+// properties), so a diagram matches whichever palette is active (any interface
+// theme, light or dark). We re-initialize whenever the palette changes so
+// switching themes re-skins subsequently-rendered diagrams too.
 let counter = 0;
 let lastPaletteKey = "";
 
@@ -35,15 +35,18 @@ async function getMermaid() {
   const border = cssVar("--border-strong", "#3d3d3d");
   const line = cssVar("--text-tertiary", "#777777");
 
-  const paletteKey = [bg, raised, elevated, textPrimary, textSecondary, border, line].join("|");
+  const light = document.documentElement.dataset.mode === "light";
+  const paletteKey = [light, bg, raised, elevated, textPrimary, textSecondary, border, line].join(
+    "|",
+  );
   if (paletteKey !== lastPaletteKey) {
     lastPaletteKey = paletteKey;
     mermaid.initialize({
       startOnLoad: false,
       securityLevel: "strict",
-      theme: "dark",
+      theme: light ? "default" : "dark",
       themeVariables: {
-        darkMode: true,
+        darkMode: !light,
         background: bg,
         primaryColor: raised,
         primaryTextColor: textPrimary,

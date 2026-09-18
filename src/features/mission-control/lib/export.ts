@@ -8,13 +8,20 @@ async function htmlToImage() {
   return import("html-to-image");
 }
 
-/** Capture a DOM node to a PNG/JPEG data URL on the AMOLED background. */
+/** The interface base, so an export matches what is on screen. */
+function baseColor(): string {
+  return (
+    getComputedStyle(document.documentElement).getPropertyValue("--bg-base").trim() || "#000000"
+  );
+}
+
+/** Capture a DOM node to a PNG/JPEG data URL on the interface background. */
 async function capture(node: HTMLElement, kind: "png" | "jpeg"): Promise<string> {
   // Fonts must be ready or text renders as fallback in the capture.
   if (document.fonts?.ready) await document.fonts.ready;
   const { toPng, toJpeg } = await htmlToImage();
   const opts = {
-    backgroundColor: "#000000",
+    backgroundColor: baseColor(),
     pixelRatio: 2,
     // Skip anything explicitly marked non-exportable (e.g. interactive controls).
     filter: (el: HTMLElement) => !(el.dataset && el.dataset.noexport === "true"),
@@ -72,7 +79,7 @@ export async function exportPdf(node: HTMLElement): Promise<void> {
   let y = 0;
   // Paint the same scaled image shifted up each page so it tiles vertically.
   while (remaining > 0) {
-    pdf.setFillColor(0, 0, 0);
+    pdf.setFillColor(baseColor());
     pdf.rect(0, 0, pageW, pageH, "F");
     pdf.addImage(dataUrl, "PNG", 0, y, imgW, imgH);
     remaining -= pageH;

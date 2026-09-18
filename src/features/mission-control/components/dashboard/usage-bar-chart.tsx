@@ -47,7 +47,10 @@ export function UsageBarChart({ data }: { data: MissionControlUsage }) {
                 width={44}
                 tickFormatter={(v: number) => fmtTokens(v)}
               />
-              <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+              <Tooltip
+                content={<ChartTooltip />}
+                cursor={{ fill: "color-mix(in srgb, var(--contrast) 3%, transparent)" }}
+              />
               <Bar
                 dataKey="Agents"
                 fill={AGENT_COLOR.agents}

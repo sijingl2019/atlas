@@ -166,11 +166,11 @@ export function SessionStats({ sessions }: { sessions: BoardSession[] }) {
           className="absolute inset-0 block h-full w-full"
           aria-hidden
         >
-          <path d={`${line} L${VIEW_W},${VIEW_H} L0,${VIEW_H} Z`} fill="#141414" />
+          <path d={`${line} L${VIEW_W},${VIEW_H} L0,${VIEW_H} Z`} fill="var(--border-subtle)" />
           <path
             d={line}
             fill="none"
-            stroke="#8a8a8a"
+            stroke="color-mix(in srgb, var(--contrast) 54%, transparent)"
             strokeWidth={1.25}
             strokeLinejoin="round"
             // Essential: the non-uniform viewBox scale would otherwise stretch

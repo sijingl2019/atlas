@@ -1,30 +1,32 @@
-// Recharts theming for the AMOLED-black Mission Control dashboard. Recharts
-// takes color PROPS (not CSS classes), so we expose concrete hex values that
-// match the design tokens + a deterministic per-project palette.
+// Recharts theming. Recharts takes color PROPS, which land in SVG presentation
+// attributes and inline styles — both resolve CSS variables, so the chart
+// follows the interface theme and the appearance mode.
 
 export const CHART = {
-  grid: "rgba(255,255,255,0.06)",
-  axis: "#777777", // --text-tertiary
+  grid: "color-mix(in srgb, var(--contrast) 6%, transparent)",
+  axis: "var(--text-tertiary)",
   tickFont: 11,
-  tooltipBg: "#0f0f0f", // --bg-elevated
-  tooltipBorder: "#1e1e1e", // --border-default
+  tooltipBg: "var(--bg-elevated)",
+  tooltipBorder: "var(--border-default)",
 } as const;
 
-// Muted, desaturated tones that sit quietly on Atlas's AMOLED-black monochrome
-// theme (NO bright orange / saturated hues). Faint hue separation only.
+/** A series color: the light-mode token, or the dark grey that always shipped. */
+const series = (name: string, dark: string) => `var(--chart-${name}, ${dark})`;
+
+// Muted, desaturated tones — faint hue separation only. Light mode deepens
+// each to ≥ 3:1 (tokens.css `--chart-*`).
 export const AGENT_COLOR = {
   // One colour for every Atlas agent: the dashboard folds them into one
   // series rather than growing a column per agent (issue #17).
-  agents: "#b9b1a6", // warm gray
-  gpt: "#93a3ad", // muted slate
-  gemini: "#9aa6c0", // muted periwinkle-gray
-  byok: "#a89fb0", // muted mauve-gray
-  input: "#c9c9cf", // light gray
-  output: "#7f8088", // mid gray
+  agents: series("agents", "#b9b1a6"), // warm gray
+  gpt: series("gpt", "#93a3ad"), // muted slate
+  gemini: series("gemini", "#9aa6c0"), // muted periwinkle-gray
+  byok: series("byok", "#a89fb0"), // muted mauve-gray
+  input: series("input", "#c9c9cf"), // light gray
+  output: series("output", "#7f8088"), // mid gray
 } as const;
 
-// Per-project palette: low-saturation grays with a whisper of hue so adjacent
-// projects stay distinguishable without breaking the monochrome feel. Cycles.
+// Per-project palette: low-saturation grays with a whisper of hue. Cycles.
 const PROJECT_PALETTE = [
   "#cfcfd4", // light gray
   "#9aa3ad", // slate
@@ -36,7 +38,7 @@ const PROJECT_PALETTE = [
   "#9bb0aa", // muted teal-gray
   "#b0a6b3", // dusty lilac-gray
   "#878d92", // graphite
-] as const;
+].map((hex, i) => series(`project-${i}`, hex));
 
 export function projectColor(index: number): string {
   return PROJECT_PALETTE[index % PROJECT_PALETTE.length];

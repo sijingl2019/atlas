@@ -45,8 +45,6 @@ const COLORED_FILL = "white text/ring on a colored fill, not on the theme surfac
 const XTERM = "must match xterm's own canvas colors, which are set in JS";
 const CANVAS_2D =
   "drawn with Canvas 2D (fillStyle/strokeStyle), which needs a resolved color; a CSS variable does not work there";
-const SVG_PROP =
-  "SVG attribute or chart/React Flow color prop, where var() does resolve (usage-donut.tsx already relies on it); kept literal until the light-mode palette work";
 
 const ALLOWED: Allowed[] = [
   // ── fixed components ──
@@ -225,34 +223,9 @@ const ALLOWED: Allowed[] = [
     reason: CANVAS_2D,
   },
   {
-    file: "features/canvas/components/canvas-panel.tsx",
-    snippet: `color="rgba(255,255,255,0.18)"`,
-    reason: SVG_PROP,
-  },
-  {
-    file: "features/spaces/components/space-canvas.tsx",
-    snippet: `color="rgba(255,255,255,0.18)"`,
-    reason: SVG_PROP,
-  },
-  {
     file: "features/comms/components/comms-not-connected.tsx",
     snippet: `ctx.fillStyle = "rgba(255,255,255,0.16)"`,
     reason: CANVAS_2D,
-  },
-  {
-    file: "features/memory/components/memory-timeline-calendar.tsx",
-    snippet: `CONNECTOR = "rgba(255,255,255,0.55)"`,
-    reason: SVG_PROP,
-  },
-  {
-    file: "features/mission-control/components/dashboard/usage-bar-chart.tsx",
-    snippet: `fill: "rgba(255,255,255,0.03)"`,
-    reason: SVG_PROP,
-  },
-  {
-    file: "features/mission-control/lib/chart-theme.ts",
-    snippet: `grid: "rgba(255,255,255,0.06)"`,
-    reason: SVG_PROP,
   },
   {
     file: "ui/dither-field.tsx",
