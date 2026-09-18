@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useWorkspaceGitStore, type GitSummary } from "../stores/workspace-git-store";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
   FolderPlus,
@@ -8,6 +9,7 @@ import {
   FolderOpen,
   X,
   Pin,
+  Plus,
   PinOff,
   ChartPie,
   ChevronRight,
@@ -32,6 +34,7 @@ import {
   BookOpen,
   BrainCircuit,
   Ellipsis,
+  Archive,
 } from "lucide-react";
 import { toast } from "sonner";
 import { copyText } from "@/lib/clipboard";
@@ -43,10 +46,17 @@ import { openSettingsSection } from "@/features/settings/lib/open-settings";
 import { useWorkspaceStore, type Workspace, type WorkspaceGroup } from "../stores/workspace-store";
 import { useRunningChatKeys } from "../lib/agent-activity";
 import { openAgentSession, openNewAgentChat } from "@/features/chat/lib/open-agent-session";
-import { stripInjectedContext } from "@/features/chat/lib/atlas-context";
+import {
+  archiveThread,
+  onThreadsChanged,
+  threadProjects,
+  type ThreadProject,
+  type ThreadRow,
+} from "@/features/chat/lib/history-api";
 import { AtlasLoader } from "@/components/atlas-loader";
 import { AgentIcons } from "@/components/agent-icons";
-import { useRecentChatsStore, type RecentChat } from "../stores/recent-chats-store";
+import { useSessionPinsStore } from "../stores/session-pins-store";
+import { latestWorkspaceSession, workspaceSessions } from "../lib/sidebar-sessions";
 import { useProjectStore } from "@/features/project/stores/project-store";
 import { useOrgStore } from "@/features/organisations/stores/org-store";
 import { useActiveOrgWorkspaces, useActiveOrgGroups } from "../lib/org-scope";
@@ -60,6 +70,7 @@ import { useFullscreen } from "@/hooks/use-fullscreen";
 import { isMac } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 import { GitDot, NumStatPill } from "./git-summary";
+import { agentTypeFromPluginId } from "@/types/agent";
 
 // Slot heights (include the inter-row gap so the virtualizer spaces rows out);
 // the visible card is a few px shorter than its slot.
@@ -90,12 +101,16 @@ const WorkspaceRow = memo(function WorkspaceRow({
   summary,
   groups,
   indented,
+  expanded,
+  onToggleProject,
 }: {
   ws: Workspace;
   active: boolean;
   summary?: GitSummary;
   groups: WorkspaceGroup[];
   indented?: boolean;
+  expanded: boolean;
+  onToggleProject: (id: string) => void;
 }) {
   const {
     switchTo,
@@ -113,6 +128,7 @@ const WorkspaceRow = memo(function WorkspaceRow({
   // label (defaults to the directory name) — renaming only relabels the row,
   // it never touches the on-disk path.
   const editing = useWorkspaceStore.use.editingWorkspaceId() === ws.id;
+  const switching = useWorkspaceStore.use.switching();
   const [nameDraft, setNameDraft] = useState(ws.name);
   const nameInputRef = useRef<HTMLInputElement>(null);
   // Seed the field AND focus it whenever we enter edit mode. `autoFocus` alone
@@ -142,7 +158,14 @@ const WorkspaceRow = memo(function WorkspaceRow({
   return (
     <div
       data-hint
-      onClick={editing ? undefined : () => void switchTo(ws.id)}
+      onClick={
+        editing
+          ? undefined
+          : () => {
+              if (active || !expanded) onToggleProject(ws.id);
+              void switchTo(ws.id);
+            }
+      }
       style={{ height: WS_CARD, paddingLeft: indented ? 22 : 8 }}
       className={cn(
         // No `transition-colors`, and therefore no `transform-gpu` either.
@@ -161,10 +184,15 @@ const WorkspaceRow = memo(function WorkspaceRow({
       )}
       title={ws.path}
     >
+      {expanded ? (
+        <FolderOpen size={13} className="shrink-0 text-[var(--text-tertiary)]" />
+      ) : (
+        <Folder size={13} className="shrink-0 text-[var(--text-tertiary)]" />
+      )}
       <GitDot summary={summary} className="size-1.5" />
-      {/* `pr-14` clears the right slot (pill at rest, actions on hover) on both
+      {/* `pr-20` clears the right slot (pill at rest, actions on hover) on both
           lines, so neither can run under it. */}
-      <div className="flex-1 min-w-0 pr-14">
+      <div className="flex-1 min-w-0 pr-20">
         {editing ? (
           <input
             ref={nameInputRef}
@@ -211,6 +239,28 @@ const WorkspaceRow = memo(function WorkspaceRow({
           <NumStatPill summary={summary} />
         </span>
         <span className="absolute inset-y-0 right-0 flex items-center gap-0.5">
+          <button
+            type="button"
+            disabled={switching}
+            onClick={async (event) => {
+              event.stopPropagation();
+              try {
+                await switchTo(ws.id);
+                const state = useWorkspaceStore.getState();
+                if (state.switching || state.activeWorkspaceId !== ws.id) return;
+                openNewAgentChat();
+              } catch (error) {
+                toast.error(
+                  `Couldn't start session: ${error instanceof Error ? error.message : error}`,
+                );
+              }
+            }}
+            title="New session"
+            aria-label={`New session in ${ws.name}`}
+            className="flex size-5 items-center justify-center rounded text-[var(--text-tertiary)] opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)] disabled:cursor-wait cursor-pointer"
+          >
+            <Plus size={11} />
+          </button>
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -546,39 +596,55 @@ function relTime(ms: number): string {
   return `${Math.floor(s / 86400)}d`;
 }
 
-const ChatRow = memo(function ChatRow({
-  chat,
+interface WorkspaceSession {
+  workspace: Workspace;
+  thread: ThreadRow;
+}
+
+const SessionRow = memo(function SessionRow({
+  session,
+  pinned,
   running,
+  nested,
   onOpen,
+  onTogglePin,
+  onArchive,
 }: {
-  chat: RecentChat;
+  session: WorkspaceSession;
+  pinned: boolean;
   running: boolean;
-  /** Takes the chat so the parent can hand every row ONE stable callback. */
-  onOpen: (chat: RecentChat) => void;
+  nested: boolean;
+  onOpen: (session: WorkspaceSession) => void;
+  onTogglePin: (threadId: string) => void;
+  onArchive: (threadId: string) => void;
 }) {
   // Cersei (the Atlas native agent) gets its own brand mark — falling through
   // to the Claude icon mislabeled Atlas chats in this panel.
+  const agentType = agentTypeFromPluginId(session.thread.agentId);
   const AgentIcon =
-    chat.agentType === "codex"
+    agentType === "codex" || agentType === "codex-acp"
       ? AgentIcons.Codex
-      : chat.agentType === "opencode"
+      : agentType === "opencode"
         ? AgentIcons.OpenCode
-        : chat.agentType === "cursor"
+        : agentType === "cursor"
           ? AgentIcons.Cursor
-          : chat.agentType === "kilo"
+          : agentType === "kilo"
             ? AgentIcons.Kilo
             : AgentIcons.Claude;
   return (
     <div
       data-hint
-      onClick={() => onOpen(chat)}
-      style={{ height: CHAT_CARD, paddingLeft: 8 }}
-      className="group relative flex items-start gap-2.5 pr-2 pt-1.5 rounded-md cursor-pointer hover:bg-[var(--bg-hover)]"
-      title={`${chat.projectName} — ${chat.projectPath}`}
+      onClick={() => onOpen(session)}
+      style={{ height: nested ? ROW_CARD : CHAT_CARD, paddingLeft: nested ? 28 : 8 }}
+      className={cn(
+        "group relative flex gap-2.5 pr-2 rounded-md cursor-pointer hover:bg-[var(--bg-hover)]",
+        nested ? "items-center" : "items-start pt-1.5",
+      )}
+      title={`${session.workspace.name} — ${session.workspace.path}`}
     >
       {running ? (
         <AtlasLoader size={12} className="shrink-0 text-[var(--accent-primary)]" />
-      ) : chat.agentType === "cersei" ? (
+      ) : agentType === "cersei" ? (
         <AtlasIcon size={13} className="shrink-0" />
       ) : (
         <AgentIcon className="size-[13px] shrink-0 opacity-80" />
@@ -587,8 +653,8 @@ const ChatRow = memo(function ChatRow({
           the org, so a title alone cannot say which one a chat belongs to —
           and the titles are the user's own words, which rarely name it. The
           project goes on the second line, where the branch sits one section
-          up. `pr-9` keeps both lines clear of the timestamp. */}
-      <div className="min-w-0 flex-1 pr-9">
+          up. The permanent right padding keeps text clear of row actions. */}
+      <div className="min-w-0 flex-1 pr-12">
         <span
           className={cn(
             "block truncate text-[12px] leading-tight",
@@ -597,14 +663,45 @@ const ChatRow = memo(function ChatRow({
               : "text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]",
           )}
         >
-          {stripInjectedContext(chat.title) || chat.projectName}
+          {session.thread.title || session.workspace.name}
         </span>
-        <span className="mt-0.5 block truncate text-[10px] leading-tight text-[var(--text-tertiary)]">
-          {chat.projectName}
-        </span>
+        {!nested && (
+          <span className="mt-0.5 block truncate text-[10px] leading-tight text-[var(--text-tertiary)]">
+            {session.workspace.name}
+          </span>
+        )}
       </div>
-      <span className="absolute right-2 top-2 shrink-0 text-[10px] leading-none tabular-nums text-[var(--text-tertiary)]">
-        {relTime(chat.updatedAt)}
+      {!nested && (
+        <span className="absolute right-2 top-2 shrink-0 text-[10px] leading-none tabular-nums text-[var(--text-tertiary)] group-hover:opacity-0">
+          {relTime(Date.parse(session.thread.updatedAt))}
+        </span>
+      )}
+      <span className="absolute inset-y-0 right-1.5 flex items-center gap-0.5">
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onTogglePin(session.thread.threadId);
+          }}
+          className={cn(
+            "flex size-5 items-center justify-center rounded text-[var(--text-tertiary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]",
+            pinned ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+          )}
+          title={pinned ? "Unpin session" : "Pin session"}
+        >
+          {pinned ? <PinOff size={10} /> : <Pin size={10} />}
+        </button>
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onArchive(session.thread.threadId);
+          }}
+          className="flex size-5 items-center justify-center rounded text-[var(--text-tertiary)] opacity-0 group-hover:opacity-100 hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]"
+          title="Archive session"
+        >
+          <Archive size={10} />
+        </button>
       </span>
     </div>
   );
@@ -613,9 +710,10 @@ const ChatRow = memo(function ChatRow({
 type Row =
   | { kind: "section"; id: string; label: string; key: string }
   | { kind: "group"; group: WorkspaceGroup; count: number; key: string }
-  | { kind: "ws"; ws: Workspace; indented: boolean; key: string }
+  | { kind: "ws"; ws: Workspace; indented: boolean; expanded: boolean; key: string }
+  | { kind: "session"; session: WorkspaceSession; pinned: boolean; key: string }
   | { kind: "recent"; name: string; path: string; key: string }
-  | { kind: "chat"; chat: RecentChat; key: string };
+  | { kind: "chat"; session: WorkspaceSession; pinned: boolean; key: string };
 
 export function WorkspaceSidebar() {
   const allWorkspaces = useWorkspaceStore.use.workspaces();
@@ -686,20 +784,33 @@ export function WorkspaceSidebar() {
   }, []);
   const recentProjects = useProjectStore.use.recentProjects();
   const { clearRecents } = useProjectStore.use.actions();
-  const recentChats = useRecentChatsStore.use.items();
-  const { remove: removeChat } = useRecentChatsStore.use.actions();
+  const queryClient = useQueryClient();
+  const { data: sessionProjects = [] } = useQuery<ThreadProject[]>({
+    queryKey: ["thread-projects", ""],
+    queryFn: () => threadProjects(""),
+    staleTime: 30_000,
+  });
+  useEffect(() => {
+    const unlisten = onThreadsChanged(() => {
+      void queryClient.invalidateQueries({ queryKey: ["thread-projects"] });
+    });
+    return () => void unlisten.then((stop) => stop());
+  }, [queryClient]);
+  const pinnedThreadIds = useSessionPinsStore.use.pinnedThreadIds();
+  const { toggle: toggleSessionPin, remove: removeSessionPin } = useSessionPinsStore.use.actions();
+  const pinnedThreadSet = useMemo(() => new Set(pinnedThreadIds), [pinnedThreadIds]);
   const runningChatKeys = useRunningChatKeys();
-  const isChatRunning = useCallback(
-    (c: RecentChat) =>
-      runningChatKeys.has(c.tabId) || (!!c.acpSessionId && runningChatKeys.has(c.acpSessionId)),
-    [runningChatKeys],
-  );
   const fullscreen = useFullscreen();
 
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({});
   // Stable identities, all of them: every row below is memoised, and a fresh
   // closure per render would defeat that on every row of every render.
   const toggle = useCallback((id: string) => setCollapsed((c) => ({ ...c, [id]: !c[id] })), []);
+  const toggleProject = useCallback(
+    (id: string) => setExpandedProjects((current) => ({ ...current, [id]: !current[id] })),
+    [],
+  );
 
   // Pinned + Projects (STATIC registry order — clicking never reorders).
   const pinned = useMemo(() => workspaces.filter((w) => w.pinned), [workspaces]);
@@ -717,15 +828,13 @@ export function WorkspaceSidebar() {
     [recentProjects, openPaths],
   );
 
-  // Chats are recorded globally (no orgId), so scope the sidebar list to the
-  // active org by keeping only chats whose project belongs to an active-org
-  // workspace. `workspaces` is already org-filtered above; a project path maps
-  // to exactly one workspace (addWorkspace dedupes by path), so this is
-  // unambiguous. Chats for projects not open in this org are hidden.
-  const orgWorkspacePaths = useMemo(() => new Set(workspaces.map((w) => w.path)), [workspaces]);
-  const orgRecentChats = useMemo(
-    () => recentChats.filter((c) => orgWorkspacePaths.has(c.projectPath)),
-    [recentChats, orgWorkspacePaths],
+  const latestSessions = useMemo(
+    () =>
+      workspaces.flatMap((workspace) => {
+        const thread = latestWorkspaceSession(sessionProjects, workspace.path);
+        return thread ? [{ workspace, thread }] : [];
+      }),
+    [sessionProjects, workspaces],
   );
 
   // Section ids that currently exist (for collapse-all + the toggle button).
@@ -734,14 +843,27 @@ export function WorkspaceSidebar() {
     if (pinned.length) ids.push("sec:pinned");
     ids.push("sec:projects");
     if (recents.length) ids.push("sec:recent");
-    if (orgRecentChats.length) ids.push("sec:chats");
+    if (latestSessions.length) ids.push("sec:chats");
     return ids;
-  }, [pinned.length, recents.length, orgRecentChats.length]);
+  }, [pinned.length, recents.length, latestSessions.length]);
 
   // Flatten everything into one virtualized row list. Sections AND group
   // folders are collapsible; a collapsed section omits all its content rows.
   const rows = useMemo<Row[]>(() => {
     const out: Row[] = [];
+    const pushWorkspace = (ws: Workspace, indented: boolean) => {
+      const expanded = !!expandedProjects[ws.id];
+      out.push({ kind: "ws", ws, indented, expanded, key: ws.id });
+      if (!expanded) return;
+      for (const thread of workspaceSessions(sessionProjects, ws.path, pinnedThreadSet)) {
+        out.push({
+          kind: "session",
+          session: { workspace: ws, thread },
+          pinned: pinnedThreadSet.has(thread.threadId),
+          key: `session:${thread.threadId}`,
+        });
+      }
+    };
     if (pinned.length) {
       out.push({
         kind: "section",
@@ -749,8 +871,7 @@ export function WorkspaceSidebar() {
         label: "Pinned",
         key: "s:pinned",
       });
-      if (!collapsed["sec:pinned"])
-        for (const ws of pinned) out.push({ kind: "ws", ws, indented: false, key: ws.id });
+      if (!collapsed["sec:pinned"]) for (const ws of pinned) pushWorkspace(ws, false);
     }
     out.push({
       kind: "section",
@@ -768,11 +889,9 @@ export function WorkspaceSidebar() {
           count: members.length,
           key: `g:${g.id}`,
         });
-        if (!collapsed[g.id])
-          for (const ws of members) out.push({ kind: "ws", ws, indented: true, key: ws.id });
+        if (!collapsed[g.id]) for (const ws of members) pushWorkspace(ws, true);
       }
-      for (const ws of projects.filter((w) => !w.groupId))
-        out.push({ kind: "ws", ws, indented: false, key: ws.id });
+      for (const ws of projects.filter((w) => !w.groupId)) pushWorkspace(ws, false);
     }
     if (recents.length) {
       out.push({
@@ -790,24 +909,36 @@ export function WorkspaceSidebar() {
             key: `r:${r.path}`,
           });
     }
-    if (orgRecentChats.length) {
+    if (latestSessions.length) {
       out.push({
         kind: "section",
         id: "sec:chats",
         label: "Chats",
         key: "s:chats",
       });
-      // Active (live-running) chats float to the top of the stack; the rest keep
-      // their most-recent-first order. Capacity (15) is enforced by the store.
-      const ordered = [
-        ...orgRecentChats.filter(isChatRunning),
-        ...orgRecentChats.filter((c) => !isChatRunning(c)),
-      ];
       if (!collapsed["sec:chats"])
-        for (const c of ordered) out.push({ kind: "chat", chat: c, key: `c:${c.tabId}` });
+        for (const session of [...latestSessions].sort(
+          (a, b) => Date.parse(b.thread.updatedAt) - Date.parse(a.thread.updatedAt),
+        ))
+          out.push({
+            kind: "chat",
+            session,
+            pinned: pinnedThreadSet.has(session.thread.threadId),
+            key: `chat:${session.thread.threadId}`,
+          });
     }
     return out;
-  }, [pinned, projects, sortedGroups, collapsed, recents, orgRecentChats, isChatRunning]);
+  }, [
+    pinned,
+    projects,
+    sortedGroups,
+    collapsed,
+    expandedProjects,
+    recents,
+    latestSessions,
+    sessionProjects,
+    pinnedThreadSet,
+  ]);
 
   // Collapse-all / expand-all: collapses every section + group, or expands all.
   const allCollapsibleIds = useMemo(
@@ -837,41 +968,35 @@ export function WorkspaceSidebar() {
         clearRecents();
         return;
       }
-      if (id === "sec:chats") {
-        // Read the list at click time rather than closing over it — the
-        // callback has to stay stable, and the store is the truth anyway.
-        const paths = new Set(useWorkspaceStore.getState().workspaces.map((w) => w.path));
-        for (const c of useRecentChatsStore.getState().items) {
-          if (paths.has(c.projectPath)) removeChat(c.tabId);
-        }
-      }
     },
-    [clearRecents, removeChat],
+    [clearRecents],
   );
 
-  const openChat = useCallback(
-    async (chat: RecentChat) => {
-      // 1. Focus the chat's project workspace (register it if new). Prefer
-      //    the ACTIVE org's row — the same path can be a workspace in several
-      //    orgs, and switching to another org's twin would silently jump the
-      //    user across organisations. addWorkspace registers an org-scoped
-      //    row when this org has none.
-      const st = useWorkspaceStore.getState();
-      const orgId = useOrgStore.getState().activeOrganisationId;
-      const ws = st.workspaces.find((w) => w.path === chat.projectPath && w.orgId === orgId);
-      if (ws) await st.actions.switchTo(ws.id);
-      else await addWorkspace(chat.projectPath);
-      // 2. Open THIS session (by acp session id — not the tab id, which is reused
-      //    across many sessions). openAgentSession focuses it if already open,
-      //    else loads it into the agent chat.
-      await openAgentSession({
-        acpSessionId: chat.acpSessionId,
-        title: chat.title,
-        cwd: chat.projectPath,
-        agentType: chat.agentType,
-      });
+  const openSession = useCallback(async (session: WorkspaceSession) => {
+    // Focus the owning project before loading the selected session.
+    await useWorkspaceStore.getState().actions.switchTo(session.workspace.id);
+    await openAgentSession({
+      acpSessionId: session.thread.sessionId ?? undefined,
+      title: session.thread.title,
+      cwd: session.thread.folderPaths[0] ?? session.workspace.path,
+      agentType: agentTypeFromPluginId(session.thread.agentId),
+    });
+  }, []);
+
+  const archiveSession = useCallback(
+    (threadId: string) => {
+      void archiveThread(threadId)
+        .then(() => {
+          removeSessionPin(threadId);
+          return queryClient.invalidateQueries({ queryKey: ["thread-projects"] });
+        })
+        .catch((error) =>
+          toast.error(
+            `Couldn't archive session: ${error instanceof Error ? error.message : error}`,
+          ),
+        );
     },
-    [addWorkspace],
+    [queryClient, removeSessionPin],
   );
 
   return (
@@ -975,8 +1100,11 @@ export function WorkspaceSidebar() {
           activeId={displayActiveId}
           runningKeys={runningChatKeys}
           onToggle={toggle}
+          onToggleProject={toggleProject}
           onOpenRecent={openRecent}
-          onOpenChat={openChat}
+          onOpenSession={openSession}
+          onToggleSessionPin={toggleSessionPin}
+          onArchiveSession={archiveSession}
           onClearSection={clearSection}
         >
           {/* Navigation, in three bands. Organisation-wide destinations
@@ -1147,8 +1275,11 @@ interface RailRowCtx {
   activeId: string | null;
   runningKeys: Set<string>;
   onToggle: (id: string) => void;
+  onToggleProject: (id: string) => void;
   onOpenRecent: (path: string) => void;
-  onOpenChat: (chat: RecentChat) => void;
+  onOpenSession: (session: WorkspaceSession) => void;
+  onToggleSessionPin: (threadId: string) => void;
+  onArchiveSession: (threadId: string) => void;
   onClearSection: (id: string) => void;
 }
 
@@ -1164,7 +1295,7 @@ function renderRailRow(row: Row, ctx: RailRowCtx) {
           label={row.label}
           collapsed={!!ctx.collapsed[row.id]}
           onToggle={ctx.onToggle}
-          clearable={row.id === "sec:recent" || row.id === "sec:chats"}
+          clearable={row.id === "sec:recent"}
           onClear={ctx.onClearSection}
         />
       );
@@ -1184,19 +1315,38 @@ function renderRailRow(row: Row, ctx: RailRowCtx) {
           summary={ctx.summaries[row.ws.path]}
           groups={ctx.groups}
           indented={row.indented}
+          expanded={row.expanded}
+          onToggleProject={ctx.onToggleProject}
+        />
+      );
+    case "session":
+      return (
+        <SessionRow
+          session={row.session}
+          pinned={row.pinned}
+          running={
+            !!row.session.thread.sessionId && ctx.runningKeys.has(row.session.thread.sessionId)
+          }
+          nested
+          onOpen={ctx.onOpenSession}
+          onTogglePin={ctx.onToggleSessionPin}
+          onArchive={ctx.onArchiveSession}
         />
       );
     case "recent":
       return <RecentProjectRow name={row.name} path={row.path} onOpen={ctx.onOpenRecent} />;
     case "chat":
       return (
-        <ChatRow
-          chat={row.chat}
+        <SessionRow
+          session={row.session}
+          pinned={row.pinned}
           running={
-            ctx.runningKeys.has(row.chat.tabId) ||
-            (!!row.chat.acpSessionId && ctx.runningKeys.has(row.chat.acpSessionId))
+            !!row.session.thread.sessionId && ctx.runningKeys.has(row.session.thread.sessionId)
           }
-          onOpen={ctx.onOpenChat}
+          nested={false}
+          onOpen={ctx.onOpenSession}
+          onTogglePin={ctx.onToggleSessionPin}
+          onArchive={ctx.onArchiveSession}
         />
       );
   }
@@ -1321,6 +1471,7 @@ function VirtualRail({
     estimateSize: (i) => {
       const k = rows[i]?.kind;
       if (k === "ws") return WS_H;
+      if (k === "session") return ROW_H;
       if (k === "chat") return CHAT_H;
       if (k === "recent") return ROW_H;
       if (k === "section") return SECTION_H;
