@@ -237,12 +237,11 @@ describe("editor themes", () => {
       const max = Math.max(r, g, b);
       const min = Math.min(r, g, b);
       const d = max - min;
-      const hue =
-        max === r
-          ? 60 * (((g - b) / d) % 6)
-          : max === g
-            ? 60 * ((b - r) / d + 2)
-            : 60 * ((r - g) / d + 4);
+      // Sixths first, then wrapped into [0, 6): a grey has no hue, and JS's `%`
+      // keeps the sign, so a red-branch color with g < b would come out negative.
+      const sixths =
+        d === 0 ? 0 : max === r ? (g - b) / d : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+      const hue = 60 * (((sixths % 6) + 6) % 6);
       expect(hue).toBeGreaterThanOrEqual(45);
       expect(hue).toBeLessThanOrEqual(65);
     });
