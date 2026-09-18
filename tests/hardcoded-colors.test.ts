@@ -213,22 +213,7 @@ const ALLOWED: Allowed[] = [
 
   // ── the terminal ──
   {
-    file: "features/terminal/components/block-terminal.tsx",
-    snippet: "bg-[#000] px-1 py-1",
-    reason: XTERM,
-  },
-  {
-    file: "features/terminal/components/classic-terminal.tsx",
-    snippet: "bg-[#000] px-2 py-1",
-    reason: XTERM,
-  },
-  {
-    file: "features/terminal/components/terminal-panel.tsx",
-    snippet: `className="h-full bg-[#000] relative"`,
-    reason: XTERM,
-  },
-  {
-    file: "features/terminal/lib/terminal-session.ts",
+    file: "features/terminal/lib/terminal-palette.ts",
     snippet: `selectionInactiveBackground: "rgba(255,255,255,0.16)"`,
     reason: XTERM,
   },

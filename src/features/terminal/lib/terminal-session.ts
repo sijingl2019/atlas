@@ -35,6 +35,7 @@ import type { FitAddon } from "@xterm/addon-fit";
 import type { WebglAddon } from "@xterm/addon-webgl";
 import { isScrollHot } from "@/lib/scroll-hot";
 import { useProjectStore } from "@/features/project/stores/project-store";
+import { currentMode, subscribeMode } from "@/features/theme/mode";
 import { BlockStreamParser, type TerminalBlock, type TerminalEvent } from "./block-parser";
 import { createTerminalEventSink } from "./terminal-notifier";
 import { createTerminalKeymap } from "./terminal-keymap";
@@ -42,6 +43,7 @@ import { createPathLinkProvider } from "./path-link-provider";
 import { resolveTerminalFont } from "../utils/resolve-font";
 import { perfBegin, perfBlockDone, perfBytes } from "./term-perf";
 import { collectPanes, useTerminalStore } from "../stores/terminal-store";
+import { TERMINAL_PALETTES } from "./terminal-palette";
 
 // ── Public shapes ──────────────────────────────────────────────────────────
 
@@ -92,31 +94,6 @@ const MIN_ROWS = 3;
 // prompt markers break as root ("sudo -s behaves weirdly").
 const SUDO_SHELL_RE = /^sudo\s+(?:-s|-i|su(?:\s+-l?|\s+-)?)\s*$/;
 
-// ANSI palette for the interactive xterm surface — matches the block renderer
-// so blocks and the live surface look the same.
-const XTERM_THEME = {
-  background: "#000000",
-  foreground: "#cccccc",
-  cursor: "#b3b3b3",
-  selectionBackground: "rgba(97,175,239,0.35)",
-  selectionInactiveBackground: "rgba(255,255,255,0.16)",
-  black: "#1a1a1a",
-  red: "#e06c75",
-  green: "#98c379",
-  yellow: "#e5c07b",
-  blue: "#61afef",
-  magenta: "#c678dd",
-  cyan: "#56b6c2",
-  white: "#cccccc",
-  brightBlack: "#5c6370",
-  brightRed: "#e06c75",
-  brightGreen: "#98c379",
-  brightYellow: "#e5c07b",
-  brightBlue: "#61afef",
-  brightMagenta: "#c678dd",
-  brightCyan: "#56b6c2",
-  brightWhite: "#ffffff",
-};
 /** Font settings (Settings → Terminal), read fresh at each use. */
 function fontPrefs() {
   const s = useProjectStore.getState().settings;
@@ -179,6 +156,10 @@ function startGlobalListeners(): void {
     void resolveTerminalFont(a.terminalFontSize, a.terminalFontFamily).then((family) => {
       for (const s of reg.sessions.values()) s.applyFont(family);
     });
+  });
+  // Appearance mode: recolor live terminals in place.
+  subscribeMode(() => {
+    for (const s of reg.sessions.values()) s.applyTheme();
   });
   void listen<{ id: string; raw: boolean }>("terminal-mode", (evt) => {
     reg.byPty.get(evt.payload.id)?.onRawMode(evt.payload.raw);
@@ -579,7 +560,7 @@ export class TerminalSession {
         scrollback: this.classic ? CLASSIC_SCROLLBACK : 0,
         cursorBlink: true,
         allowProposedApi: true,
-        theme: XTERM_THEME,
+        theme: TERMINAL_PALETTES[currentMode()],
       });
       const fit = new FitAddon();
       term.loadAddon(fit);
@@ -708,6 +689,11 @@ export class TerminalSession {
     this.xterm.options.lineHeight = font.lineHeight;
     this.xterm.options.fontWeight = font.weight;
     this.requestFit();
+  }
+
+  /** Mode changed: swap the xterm palette in place. */
+  applyTheme(): void {
+    if (this.xterm) this.xterm.options.theme = TERMINAL_PALETTES[currentMode()];
   }
 
   // ── View attachment + visibility ─────────────────────────────────────────

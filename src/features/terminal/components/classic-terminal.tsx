@@ -69,7 +69,7 @@ export const ClassicTerminal = memo(function ClassicTerminal({
 
   return (
     <div
-      className="relative h-full w-full bg-[#000] px-2 py-1"
+      className="relative h-full w-full bg-[var(--term-bg,#000)] px-2 py-1"
       onClick={() => {
         onFocus();
         session.focusXterm();
