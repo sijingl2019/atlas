@@ -4,6 +4,32 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="dark" />
+    <script>
+      // Appearance head start. config.toml is the source of truth but arrives
+      // over async IPC; apply-theme-mode.ts caches the chosen mode here so a
+      // light-mode user's cold start paints light, not black-then-white. Any
+      // failure leaves dark — exactly the pre-light-mode behavior. In bundled
+      // builds Tauri nonces this inline script; verify it there, dev never
+      // exercises the CSP rewrite (see the CSP NOTE below).
+      (function () {
+        var mode = "dark";
+        try {
+          var cached = localStorage.getItem("atlas:theme-mode");
+          if (cached === "light") mode = "light";
+          else if (
+            cached === "system" &&
+            window.matchMedia &&
+            !window.matchMedia("(prefers-color-scheme: dark)").matches
+          )
+            mode = "light";
+        } catch (e) {}
+        var root = document.documentElement;
+        root.setAttribute("data-mode", mode);
+        root.style.setProperty("color-scheme", mode);
+        var meta = document.querySelector('meta[name="color-scheme"]');
+        if (meta) meta.setAttribute("content", mode);
+      })();
+    </script>
     <title>Atlas</title>
     <!-- CSP NOTE: this inline <style> is why `src-tauri/tauri.conf.json` sets
          `dangerousDisableAssetCspModification: ["style-src"]`. In a bundled
@@ -43,9 +69,10 @@
          window between the OS showing the window and React's first paint.
          Without this the WKWebView's default opaque-white background sits
          on top of our blurred window and we see a white flash.
-         The boot skeleton (`.atlas-boot`) is opaque #050505 and the real
-         app's `AppLayout` is opaque `bg-bg-base`, so the vibrancy is
-         only ever visible for that brief pre-paint moment. */
+         The boot skeleton (`.atlas-boot`) is opaque (#050505, or white in
+         light mode) and the real app's `AppLayout` is opaque `bg-bg-base`,
+         so the vibrancy is only ever visible for that brief pre-paint
+         moment. */
       html, body, #root {
         background: transparent;
         margin: 0;
@@ -53,7 +80,6 @@
         height: 100%;
         width: 100%;
         overflow: hidden;
-        color-scheme: dark;
       }
 
       /* ── Boot skeleton ────────────────────────────────────────────────
@@ -197,6 +223,20 @@
         border-radius: 10px;
         z-index: 99999;
       }
+
+      /* Light-mode skeleton — Atlas Light neutrals. */
+      :root[data-mode="light"] .atlas-boot { background: #ffffff; color: rgba(0, 0, 0, 0.35); }
+      :root[data-mode="light"] .atlas-boot-titlebar,
+      :root[data-mode="light"] .atlas-boot-sidebar {
+        background: #f7f7f7;
+        border-color: rgba(0, 0, 0, 0.06);
+      }
+      :root[data-mode="light"] .atlas-boot-search,
+      :root[data-mode="light"] .atlas-boot-row,
+      :root[data-mode="light"] .atlas-boot-avatar,
+      :root[data-mode="light"] .atlas-boot-bubble > div { background: rgba(0, 0, 0, 0.05); }
+      :root[data-mode="light"] .atlas-boot-input { background: #ffffff; border-color: rgba(0, 0, 0, 0.08); }
+      :root[data-mode="light"] .atlas-window-border { border-color: rgba(0, 0, 0, 0.12); }
     </style>
   </head>
   <body style="background:transparent">
