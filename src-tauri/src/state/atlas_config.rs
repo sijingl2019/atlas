@@ -171,8 +171,8 @@ pub struct AppSettings {
     /// Atlas interface-theme id (see `src/features/theme/themes`).
     #[serde(default = "default_atlas_theme")]
     pub atlas_theme: String,
-    /// Appearance mode. `atlas_theme` / `code_editor_theme` are the DARK
-    /// mode's picks; the `_light` fields below are light mode's.
+    /// Appearance mode. `atlas_theme` / `code_editor_theme` are **dark**
+    /// mode's picks; the `_light` fields below are **light** mode's.
     #[serde(default)]
     pub theme_mode: ThemeMode,
     /// Interface theme used while the resolved mode is light.
@@ -2342,12 +2342,26 @@ someFutureKey = \"left alone\"
 
     #[test]
     fn an_empty_light_theme_slot_is_rejected() {
-        let path = tmp_config_path();
-        let raw = "schemaVersion = 1\n\n[settings]\nenterToSend = true\n";
-        fs::write(&path, raw).unwrap();
-        let mut mgr = ConfigManager::from_raw(path, raw).unwrap();
-        let patch = SettingsPatch { atlas_theme_light: Some("  ".to_string()), ..Default::default() };
-        let err = mgr.apply_patch(&patch, None).expect_err("empty slot must be rejected");
-        assert!(matches!(err, ConfigError::Invalid(ref issue) if issue.key == "atlasThemeLight"));
+        let cases: &[(SettingsPatch, &str)] = &[
+            (
+                SettingsPatch { atlas_theme_light: Some("  ".to_string()), ..Default::default() },
+                "atlasThemeLight",
+            ),
+            (
+                SettingsPatch {
+                    code_editor_theme_light: Some("  ".to_string()),
+                    ..Default::default()
+                },
+                "codeEditorThemeLight",
+            ),
+        ];
+        for (patch, key) in cases {
+            let path = tmp_config_path();
+            let raw = "schemaVersion = 1\n\n[settings]\nenterToSend = true\n";
+            fs::write(&path, raw).unwrap();
+            let mut mgr = ConfigManager::from_raw(path, raw).unwrap();
+            let err = mgr.apply_patch(patch, None).expect_err("empty slot must be rejected");
+            assert!(matches!(err, ConfigError::Invalid(ref issue) if issue.key == *key));
+        }
     }
 }

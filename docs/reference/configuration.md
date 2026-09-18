@@ -204,8 +204,9 @@ never deleted.
 
 ### Non-goals for validation
 
-`codeEditorTheme`/`atlasTheme` and their `…Light` counterparts are checked for non-emptiness, not membership
-in the frontend's theme catalogs (`src/features/theme/themes.ts`,
+`codeEditorTheme`/`atlasTheme` and their `atlasThemeLight`/
+`codeEditorThemeLight` counterparts are checked for non-emptiness, not
+membership in the frontend's theme catalogs (`src/features/theme/themes.ts`,
 `src/features/editor/themes/themes.ts`). Duplicating that catalog into Rust
 would create a second list that has to stay in sync with the frontend one —
 trading one drift bug for another. An unrecognized-but-well-formed theme id
