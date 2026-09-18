@@ -13,8 +13,7 @@ import type { Organisation } from "@/features/organisations/types";
 import { registerFlush } from "@/features/workspaces/lib/flush-registry";
 import { persistHashOf } from "@/features/workspaces/lib/workspace-snapshot";
 import { applyUiScale } from "@/features/settings/lib/ui-scale";
-import { applyEditorTheme } from "@/features/editor/themes/apply-editor-theme";
-import { applyAtlasTheme } from "@/features/theme/apply-atlas-theme";
+import { applyThemeMode } from "@/features/theme/apply-theme-mode";
 import {
   updateSettings as updateAtlasConfig,
   resetConfig as resetAtlasConfig,
@@ -289,6 +288,15 @@ export async function loadProjectStores(path: string): Promise<void> {
   }
 }
 
+/** Settings that decide what the themes look like. */
+const THEME_KEYS = [
+  "themeMode",
+  "atlasTheme",
+  "atlasThemeLight",
+  "codeEditorTheme",
+  "codeEditorThemeLight",
+] as const;
+
 /** Re-apply every settings-driven side effect whose value actually changed
  *  between `previous` and `next`. Shared by `updateSettings` (both the
  *  optimistic apply and the reconciled result), `hydrate`, and the
@@ -305,8 +313,7 @@ function applySettingsSideEffects(next: AppSettings, previous: AppSettings): voi
     );
   }
   if (next.uiScale !== previous.uiScale) applyUiScale(next.uiScale);
-  if (next.codeEditorTheme !== previous.codeEditorTheme) applyEditorTheme(next.codeEditorTheme);
-  if (next.atlasTheme !== previous.atlasTheme) applyAtlasTheme(next.atlasTheme);
+  if (THEME_KEYS.some((k) => next[k] !== previous[k])) applyThemeMode(next);
 }
 
 /** How many times a settings write adopts the latest generation and retries
@@ -481,12 +488,9 @@ export const useProjectStore = createSelectors(
         // Re-apply the persisted interface zoom (needs the Tauri WebView API,
         // so it can only run here, not in the pre-mount boot path).
         applyUiScale(settings.uiScale);
-        // Re-apply the persisted code-editor theme (writes CSS custom
-        // properties consumed by the editor/diff surfaces).
-        applyEditorTheme(settings.codeEditorTheme);
-        // Re-apply the persisted Atlas interface theme (writes the palette CSS
-        // custom properties that re-skin the whole dark UI).
-        applyAtlasTheme(settings.atlasTheme);
+        // Re-apply the persisted appearance: mode, interface theme and editor
+        // theme (CSS custom properties on <html>).
+        applyThemeMode(settings);
 
         // Hand the Organisation layer to the org store FIRST — the workspace
         // sidebar filters by the active org, and new workspaces tag themselves
