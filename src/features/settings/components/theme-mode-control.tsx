@@ -19,7 +19,7 @@ export function ThemeModeControl() {
     <div
       role="radiogroup"
       aria-label="Appearance mode"
-      className="mx-auto flex items-center gap-0.5 rounded-md border border-border-default p-0.5"
+      className="ml-auto flex shrink-0 items-center gap-0.5 rounded-md border border-border-default p-0.5"
     >
       {OPTIONS.map(({ id, label, icon: Icon }) => (
         <button

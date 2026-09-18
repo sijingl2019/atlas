@@ -76,7 +76,11 @@ export function CodeEditorThemesSettings() {
                             ? { codeEditorThemeLight: t.id }
                             : { codeEditorTheme: t.id },
                         );
-                        toast.success(`Applied “${t.name}” editor theme`);
+                        toast.success(
+                          mode === resolved
+                            ? `Applied “${t.name}” editor theme`
+                            : `Saved “${t.name}” as your ${mode === "light" ? "Light" : "Dark"} editor theme`,
+                        );
                       }}
                       className={cn(
                         "group flex flex-col overflow-hidden rounded-lg border bg-bg-secondary text-left transition-colors outline-none",

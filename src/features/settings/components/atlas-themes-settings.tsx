@@ -73,7 +73,11 @@ export function AtlasThemesSettings() {
                         updateSettings(
                           mode === "light" ? { atlasThemeLight: t.id } : { atlasTheme: t.id },
                         );
-                        toast.success(`Applied “${t.name}” theme`);
+                        toast.success(
+                          mode === resolved
+                            ? `Applied “${t.name}” theme`
+                            : `Saved “${t.name}” as your ${mode === "light" ? "Light" : "Dark"} theme`,
+                        );
                       }}
                       className={cn(
                         "group flex flex-col overflow-hidden rounded-lg border bg-bg-secondary text-left transition-colors outline-none",
@@ -109,7 +113,7 @@ export function AtlasThemesSettings() {
 
         {sections.every((mode) => !themes.some((t) => t.mode === mode)) && (
           <div className="py-6 text-center text-[11px] text-text-tertiary">
-            No themes match “{query}”
+            No themes match “{query}”.
           </div>
         )}
       </ScrollArea>
