@@ -10,13 +10,16 @@
  *
  * Applied at runtime by `apply-atlas-theme.ts`, which writes each theme's tokens
  * as CSS custom properties on `document.documentElement` (same mechanism the old
- * accent picker used). The default **Atlas Black** clears all overrides so the
- * original AMOLED look is preserved byte-for-byte.
+ * accent picker used). Each mode's base theme — **Atlas Black** for dark,
+ * **Atlas Light** for light — clears all overrides instead, so that mode's
+ * block in tokens.css applies verbatim and the original AMOLED look is
+ * preserved byte-for-byte.
  *
  * The code-editor *syntax* theme ([[project_editor_themes]]) is independent and
  * composes on top — pick GitHub Dark chrome with One Dark syntax if you like.
  */
 import type { ResolvedMode } from "./mode";
+
 export type ThemeSpec = {
   /** --bg-base / --bg-surface — the main content background. */
   base: string;
