@@ -114,18 +114,14 @@ export const useKnowledgeStore = createSelectors(
             id,
             content,
           });
+          const title = get().entries.find((e) => e.id === id)?.title ?? id;
           // Update the entry's content in-place without a full reload. Match on
           // the saved `id` only — if the store has since been swapped to another
           // workspace (different `entries`), this is a harmless no-op rather
           // than a cross-workspace mutation.
-          const title =
-            content
-              .split("\n")[0]
-              ?.replace(/^#+\s*/, "")
-              .slice(0, 60) || "note";
           set({
             entries: get().entries.map((e) =>
-              e.id === id ? { ...e, content, title, updated_at: new Date().toISOString() } : e,
+              e.id === id ? { ...e, content, updated_at: new Date().toISOString() } : e,
             ),
           });
           invoke("log_interaction", {

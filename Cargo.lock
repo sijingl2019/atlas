@@ -829,6 +829,7 @@ dependencies = [
  "atlas-agent-servers",
  "atlas-process",
  "bzip2 0.4.4",
+ "dunce",
  "flate2",
  "futures",
  "percent-encoding",

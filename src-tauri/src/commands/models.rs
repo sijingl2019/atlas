@@ -32,7 +32,7 @@ pub enum ModelKind {
     Embedding,
 }
 
-/// One file to fetch from `https://huggingface.co/{repo}/resolve/{revision}/{file}`
+/// One file to fetch from `{hf_endpoint()}/{repo}/resolve/{revision}/{file}`
 /// into `dest` under the model's dir. Per-file repo so a model can mix sources.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileSpec {
@@ -103,7 +103,10 @@ pub fn builtin_catalog() -> Vec<ModelEntry> {
         embed_repo("bge-small-en-v1.5", "BGE-small-en v1.5", "BAAI/bge-small-en-v1.5", 384, 130, "Strong retrieval quality at 384-d; drop-in for MiniLM."),
         embed_repo("gte-small", "GTE-small", "thenlper/gte-small", 384, 70, "General Text Embeddings, small (384-d)."),
         embed_repo("e5-small-v2", "E5-small v2", "intfloat/e5-small-v2", 384, 130, "E5 retrieval embeddings (384-d)."),
+        embed_repo("multilingual-e5-small", "Multilingual E5-small", "intfloat/multilingual-e5-small", 384, 490, "Chinese + 100 languages at 384-d; big vocab, so the download is large."),
         embed_repo("mdbr-leaf-ir", "MDRB-leaf-ir", "MongoDB/mdbr-leaf-ir", 384, 86, "MongoDB's retrieval-focused distillate; #1 open model on BEIR under 100M."),
+        embed_repo("bge-small-zh-v1.5", "BGE-small-zh v1.5", "BAAI/bge-small-zh-v1.5", 512, 97, "Chinese retrieval embeddings, small (512-d, rebuilds the index)."),
+        embed_repo("m3e-base", "M3E-base", "moka-ai/m3e-base", 768, 410, "Chinese + English general embeddings (768-d, rebuilds the index)."),
         embed_repo("bge-base-en-v1.5", "BGE-base-en v1.5", "BAAI/bge-base-en-v1.5", 768, 440, "Higher-quality 768-d embeddings (rebuilds the index)."),
         embed_repo("gte-base", "GTE-base", "thenlper/gte-base", 768, 220, "General Text Embeddings, base (768-d, rebuilds the index)."),
     ]
@@ -161,6 +164,17 @@ pub struct DownloadProgress {
     pub total: u64,
 }
 
+/// Base URL model files are fetched from. `HF_ENDPOINT` (the same variable
+/// `huggingface_hub` honours) points this at a mirror such as
+/// `https://hf-mirror.com` for networks where huggingface.co is unreachable.
+fn hf_endpoint() -> String {
+    std::env::var("HF_ENDPOINT")
+        .ok()
+        .map(|v| v.trim().trim_end_matches('/').to_string())
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| "https://huggingface.co".to_string())
+}
+
 /// Download `files` into `dir`, emitting `{progress_event}` with throttled progress.
 /// Atomic per-file (`.part` → rename); already-present files are skipped. Caller
 /// emits the terminal "done" event.
@@ -185,10 +199,7 @@ pub async fn download_files(
         if dest_path.exists() {
             continue;
         }
-        let url = format!(
-            "https://huggingface.co/{}/resolve/main/{}",
-            spec.repo, spec.file
-        );
+        let url = format!("{}/{}/resolve/main/{}", hf_endpoint(), spec.repo, spec.file);
         let resp = client
             .get(&url)
             .send()
@@ -376,4 +387,38 @@ pub async fn model_select(
 
     let _ = app.emit("atlas:models-changed", ());
     Ok(SelectResult { needs_reindex })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn catalog_ids_are_unique_and_dirs_are_safe() {
+        let catalog = builtin_catalog();
+        let mut ids: Vec<&str> = catalog.iter().map(|e| e.id.as_str()).collect();
+        ids.sort_unstable();
+        let count = ids.len();
+        ids.dedup();
+        assert_eq!(ids.len(), count, "duplicate model id (would share a download dir)");
+        for e in &catalog {
+            assert!(
+                e.id.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '.' | '_')),
+                "bad catalog entry {}",
+                e.id
+            );
+        }
+    }
+
+    #[test]
+    fn hf_endpoint_defaults_and_honours_mirror() {
+        // Serialized by the shared process env — one test covers both branches.
+        std::env::remove_var("HF_ENDPOINT");
+        assert_eq!(hf_endpoint(), "https://huggingface.co");
+        std::env::set_var("HF_ENDPOINT", "https://hf-mirror.com/");
+        assert_eq!(hf_endpoint(), "https://hf-mirror.com");
+        std::env::set_var("HF_ENDPOINT", "  ");
+        assert_eq!(hf_endpoint(), "https://huggingface.co");
+        std::env::remove_var("HF_ENDPOINT");
+    }
 }

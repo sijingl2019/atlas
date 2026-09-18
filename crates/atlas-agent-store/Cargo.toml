@@ -13,6 +13,7 @@ atlas-agent-servers = { path = "../atlas-agent-servers" }
 atlas-acp-thread = { path = "../atlas-acp-thread" }
 anyhow = "1"
 bzip2 = "0.4"
+dunce.workspace = true
 flate2 = "1"
 futures = "0.3"
 percent-encoding = "2"

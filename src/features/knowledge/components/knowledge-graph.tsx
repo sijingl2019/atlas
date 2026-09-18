@@ -10,8 +10,9 @@ import {
 } from "pixi.js";
 import Matter from "matter-js";
 import { invoke } from "@tauri-apps/api/core";
-import { forceLayout } from "@/lib/graph-layout";
+import { forceLayout, usablePosition } from "@/lib/graph-layout";
 import { GraphRuler, type Viewport } from "@/components/graph-ruler";
+import { isMac } from "@/lib/platform";
 import { useProjectStore } from "@/features/project/stores/project-store";
 import { useKnowledgeStore } from "../stores/knowledge-store";
 import { useKnowledgeMetaStore } from "../stores/knowledge-meta-store";
@@ -281,8 +282,13 @@ function GraphCanvas({
         antialias: true,
         backgroundAlpha: 0,
         autoDensity: true,
-        // WKWebView's WebGL2 path is flaky; pin v1.
-        preferWebGLVersion: 1,
+        // WKWebView's WebGL2 path is flaky, so macOS pins v1. Nowhere else:
+        // pixi's `applyStyleParams` sets the sampler compare enums
+        // unconditionally, and on a v1 context those are `undefined` —
+        // WebView2 logs `INVALID_ENUM: texParameter` once per texture, then
+        // drops the context and leaves a white canvas. WebView2 is Chromium;
+        // its WebGL2 is the good path.
+        preferWebGLVersion: isMac ? 1 : 2,
       })
       .then(() => {
         if (disposed) {
@@ -431,7 +437,8 @@ function buildScene(
   graph.nodes.forEach((node) => {
     // Use the persisted position when one's on file; otherwise fall back
     // to the force-directed spider seed so the graph opens hub-and-spoke.
-    const saved = initialLayout.positions[node.id];
+    const stored = initialLayout.positions[node.id];
+    const saved = usablePosition(stored, width, height) ? stored : undefined;
     const seed = seedMap[node.id];
     const x = saved ? saved.x : seed ? seed.x : cx;
     const y = saved ? saved.y : seed ? seed.y : cy;

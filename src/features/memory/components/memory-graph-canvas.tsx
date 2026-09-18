@@ -10,8 +10,9 @@ import {
 } from "pixi.js";
 import Matter from "matter-js";
 import { invoke } from "@tauri-apps/api/core";
-import { forceLayout } from "@/lib/graph-layout";
+import { forceLayout, usablePosition } from "@/lib/graph-layout";
 import { GraphRuler, type Viewport } from "@/components/graph-ruler";
+import { isMac } from "@/lib/platform";
 
 /**
  * Force-directed memory graph — a self-contained sibling of the knowledge
@@ -282,7 +283,10 @@ function Scene({
         antialias: true,
         backgroundAlpha: 0,
         autoDensity: true,
-        preferWebGLVersion: 1,
+        // macOS only — see the note in `knowledge-graph.tsx`: a v1 context
+        // makes pixi feed `undefined` sampler enums to `texParameter` and
+        // WebView2 drops the context (white canvas).
+        preferWebGLVersion: isMac ? 1 : 2,
       })
       .then(() => {
         if (disposed) {
@@ -430,7 +434,8 @@ function buildScene(
   };
 
   graph.nodes.forEach((node) => {
-    const saved = initialLayout.positions[node.id];
+    const stored = initialLayout.positions[node.id];
+    const saved = usablePosition(stored, width, height) ? stored : undefined;
     const seed = seedMap[node.id];
     const x = saved ? saved.x : seed ? seed.x : cx;
     const y = saved ? saved.y : seed ? seed.y : cy;

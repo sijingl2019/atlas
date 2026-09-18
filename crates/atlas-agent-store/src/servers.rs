@@ -350,9 +350,17 @@ impl ExternalAgentServer for LocalRegistryNpxAgent {
                 // `~/Library`, `/tmp` on macOS) and every entry comes back as
                 // `../../real/path/node_modules/…`, which nothing below can
                 // match against the tree. Resolve once, up front.
-                let install_dir = tokio::fs::canonicalize(&install_dir)
-                    .await
-                    .with_context(|| format!("resolving {install_dir:?}"))?;
+                // …but hand the *verbatim* spelling Windows canonicalize
+                // returns to npm as `--prefix` and arborist's `realpathCached`
+                // recurses on `dirname` forever — `\\?\C:\` never reaches the
+                // fixed point its base case tests for, so the install dies with
+                // `RangeError: Maximum call stack size exceeded` before it
+                // resolves a single package.
+                let install_dir = node_facing_path(
+                    tokio::fs::canonicalize(&install_dir)
+                        .await
+                        .with_context(|| format!("resolving {install_dir:?}"))?,
+                );
 
                 // Node first, and through the status-aware path: this is the
                 // one step that can take minutes on a fresh machine, and every
@@ -408,7 +416,8 @@ impl ExternalAgentServer for LocalRegistryNpxAgent {
                 let env =
                     layered_env(base, &distribution_env, extra_env, &byok_env, &settings_env);
 
-                let mut command_args = vec![executable.to_string_lossy().into_owned()];
+                let mut command_args =
+                    vec![node_facing_path(executable).to_string_lossy().into_owned()];
                 command_args.extend(args);
                 command_args.extend(extra_args);
 
@@ -428,6 +437,14 @@ impl ExternalAgentServer for LocalRegistryNpxAgent {
             result
         })
     }
+}
+
+/// Neither node nor npm accepts the `\\?\` path spelling Windows
+/// `canonicalize` returns: node rejects it as an entry point, and npm walks it
+/// until the stack runs out. Every path that leaves for one of them goes
+/// through here.
+fn node_facing_path(path: PathBuf) -> PathBuf {
+    dunce::simplified(&path).to_path_buf()
 }
 
 /// `npm install` into a clean `install_dir`, verified against the platform
@@ -617,6 +634,15 @@ mod tests {
     use super::*;
 
     const PACKAGE: &str = "@scope/agent";
+
+    #[cfg(windows)]
+    #[test]
+    fn node_facing_paths_drop_the_windows_verbatim_prefix() {
+        assert_eq!(
+            node_facing_path(PathBuf::from(r"\\?\C:\atlas\agent\index.js")),
+            PathBuf::from(r"C:\atlas\agent\index.js")
+        );
+    }
 
     #[test]
     fn target_cmd_accepts_dot_relative_paths_and_bare_names() {

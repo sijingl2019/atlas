@@ -24,6 +24,23 @@ export interface ForceLayoutOpts {
   iterations?: number;
 }
 
+/**
+ * Whether a persisted node position can still be used as-is.
+ *
+ * Saved positions win over the seed, so a layout written before the
+ * fit-to-canvas rescale below — nodes thousands of px out, a blank graph —
+ * would survive the fix forever on any machine that had opened the graph once.
+ * The Matter walls pen live nodes inside the canvas anyway, so anything beyond
+ * it (or non-finite) is damage, not a user's arrangement: drop it and let the
+ * caller re-seed that node.
+ */
+export function usablePosition(p: Pt | undefined, width: number, height: number): boolean {
+  if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.y)) return false;
+  const slackX = width * 0.05;
+  const slackY = height * 0.05;
+  return p.x >= -slackX && p.x <= width + slackX && p.y >= -slackY && p.y <= height + slackY;
+}
+
 export function forceLayout(
   nodes: LayoutNode[],
   edges: LayoutEdge[],
@@ -125,8 +142,38 @@ export function forceLayout(
     temp = Math.max(temp - cool, 0);
   }
 
+  // Fit the finished layout into the canvas. FR's ideal edge length k grows as
+  // sqrt(area / n), so a SMALL graph repels itself apart until only the weak
+  // gravity balances it — at n = 2 that equilibrium sits ~4000px from centre,
+  // i.e. every node off a 1600x700 canvas and a blank graph view. Rescaling
+  // here fixes it for every n without hand-tuning k, gravity or the cooling
+  // schedule against each other. Shrink only: a graph that already fits keeps
+  // the spacing FR chose.
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const p of pos) {
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.y > maxY) maxY = p.y;
+  }
+  const spanX = maxX - minX;
+  const spanY = maxY - minY;
+  const fit = Math.min(
+    spanX > 0 ? (width * 0.8) / spanX : 1,
+    spanY > 0 ? (height * 0.8) / spanY : 1,
+    1,
+  );
+  const midX = (minX + maxX) / 2;
+  const midY = (minY + maxY) / 2;
+
   nodes.forEach((nd, i) => {
-    out[nd.id] = { x: pos[i].x, y: pos[i].y };
+    out[nd.id] = {
+      x: cx + (pos[i].x - midX) * fit,
+      y: cy + (pos[i].y - midY) * fit,
+    };
   });
   return out;
 }
