@@ -29,6 +29,7 @@ import { SkillsAndPacks } from "./skills-and-packs";
 import { AgentsMarketplace } from "./agents-marketplace/agents-marketplace";
 import { ModelsManager } from "./models-manager";
 import { KeybindingsSettings } from "./keybindings-settings";
+import { ThemeModeControl } from "./theme-mode-control";
 import { useActionShortcut } from "@/features/keybindings/lib/use-action-shortcut";
 import { useModelPricingStore } from "../stores/model-pricing-store";
 import { useProjectStore } from "@/features/project/stores/project-store";
@@ -599,7 +600,7 @@ function AppearanceSettings() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {/* Header — Skills-style underline tabs (no title), zoom on the right. */}
+      {/* Header — Skills-style underline tabs, the mode control, zoom on the right. */}
       <div className="flex h-[29px] shrink-0 items-center gap-1 border-b border-border-default px-2">
         {APPEARANCE_TABS.map((t) => (
           <UnderlineTab
@@ -609,6 +610,8 @@ function AppearanceSettings() {
             label={t.label}
           />
         ))}
+
+        <ThemeModeControl />
 
         {/* Interface zoom — right-aligned control (like Skills' scope control). */}
         <div
