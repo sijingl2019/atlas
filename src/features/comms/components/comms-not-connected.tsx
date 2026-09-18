@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import { Loader2, MessageCircle, Rss } from "lucide-react";
 import { useAuthStore } from "@/features/auth/stores/auth-store";
 import { useOrgStore } from "@/features/organisations/stores/org-store";
 import type { Organisation } from "@/features/organisations/types";
-import { inkRgb } from "@/features/theme/mode";
+import { inkRgb, useResolvedMode } from "@/features/theme/mode";
 
 /**
  * What the chat panel shows when the active organisation is local-only.
@@ -95,6 +95,9 @@ export function CommsNotConnected({ org }: { org: Organisation | null }) {
  */
 function DitherBackdrop() {
   const ref = useRef<HTMLCanvasElement>(null);
+  // The ink is read per draw, but the loop parks while the tab is hidden, so
+  // an appearance flip has to redraw the field itself.
+  const themeMode = useResolvedMode();
 
   useEffect(() => {
     const canvas = ref.current;
@@ -190,7 +193,7 @@ function DitherBackdrop() {
       document.removeEventListener("visibilitychange", onVisibility);
       ro?.disconnect();
     };
-  }, []);
+  }, [themeMode]);
 
   return (
     <canvas ref={ref} aria-hidden className="pointer-events-none absolute inset-0 h-full w-full" />

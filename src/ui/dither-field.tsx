@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
-import { inkRgb } from "@/features/theme/mode";
+import { inkRgb, useResolvedMode } from "@/features/theme/mode";
 
 /**
  * A retro ordered-dither noise field that drifts like slow cloud cover — the
@@ -40,6 +40,9 @@ export function DitherField({
   const ref = useRef<HTMLCanvasElement>(null);
   const hollowStart = hollow?.[0];
   const hollowSpan = hollow?.[1];
+  // The ink is read per draw, but under prefers-reduced-motion there is only
+  // ever one draw — so an appearance flip has to redraw the field itself.
+  const themeMode = useResolvedMode();
 
   useEffect(() => {
     const canvas = ref.current;
@@ -164,7 +167,7 @@ export function DitherField({
       io.disconnect();
       ro.disconnect();
     };
-  }, [mode, hollowStart, hollowSpan, ink]);
+  }, [mode, hollowStart, hollowSpan, ink, themeMode]);
 
   return (
     <canvas
