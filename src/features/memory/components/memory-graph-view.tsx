@@ -15,6 +15,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useProjectStore } from "@/features/project/stores/project-store";
+import { useResolvedMode } from "@/features/theme/mode";
+import { graphPalette } from "@/features/theme/graph-palette";
 import { useMemoryGraphStore } from "../stores/memory-graph-store";
 import { MemoryGraphCanvas } from "./memory-graph-canvas";
 import { MemoryTreeView } from "./memory-tree-view";
@@ -207,6 +209,7 @@ function GraphReady({
   onSelect: (id: string | null) => void;
   onReindex: () => void;
 }) {
+  const palette = graphPalette(useResolvedMode());
   const nodeById = useMemo(() => {
     const m = new Map<string, (typeof graph.nodes)[number]>();
     for (const n of graph.nodes) m.set(n.id, n);
@@ -408,10 +411,11 @@ function GraphReady({
           {selected && viewMode === "graph" && (
             <div className="absolute right-3 top-[26px] flex items-center gap-3 rounded-md border border-[var(--border-default)] bg-[var(--bg-elevated)]/90 backdrop-blur-sm px-2.5 h-7 text-[10px] text-[var(--text-tertiary)]">
               <span className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full" style={{ background: "#fafafa" }} /> impacted
+                <span className="w-2 h-2 rounded-full" style={{ background: palette.impact }} />{" "}
+                impacted
               </span>
               <span className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full" style={{ background: "#6796e6" }} />{" "}
+                <span className="w-2 h-2 rounded-full" style={{ background: palette.ancestor }} />{" "}
                 influenced by
               </span>
             </div>

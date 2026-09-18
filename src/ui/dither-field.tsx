@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
+import { inkRgb } from "@/features/theme/mode";
 
 /**
  * A retro ordered-dither noise field that drifts like slow cloud cover — the
@@ -16,7 +17,7 @@ import { cn } from "@/lib/utils";
  * layer sees a still element. Parks while the tab is hidden, while the
  * element is off screen, and entirely under prefers-reduced-motion (one
  * still frame). A 4×4 Bayer threshold turns intensity into density, and a
- * radial hollow keeps the middle calm so copy sits on black.
+ * radial hollow keeps the middle calm so copy sits on the base.
  */
 export function DitherField({
   mode = "glyphs",
@@ -101,9 +102,9 @@ export function DitherField({
       if (mode === "glyphs") {
         ctx.font = "11px ui-monospace, SFMono-Regular, Menlo, monospace";
         ctx.textBaseline = "top";
-        ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+        ctx.fillStyle = `rgba(${inkRgb()},${alpha})`;
       } else {
-        ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+        ctx.fillStyle = `rgba(${inkRgb()},${alpha})`;
       }
       for (let gy = 0; gy < h / CELL; gy++) {
         for (let gx = 0; gx < w / CELL; gx++) {

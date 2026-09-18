@@ -219,17 +219,7 @@ const ALLOWED: Allowed[] = [
   // ── colors handed to canvas, SVG and chart renderers ──
   {
     file: "components/graph-ruler.tsx",
-    snippet: `BORDER_COL = "rgba(255,255,255,0.06)"`,
-    reason: CANVAS_2D,
-  },
-  {
-    file: "features/comms/components/comms-not-connected.tsx",
-    snippet: `ctx.fillStyle = "rgba(255,255,255,0.16)"`,
-    reason: CANVAS_2D,
-  },
-  {
-    file: "ui/dither-field.tsx",
-    snippet: "ctx.fillStyle = `rgba(255,255,255,${alpha})`",
+    snippet: `border: "rgba(255,255,255,0.06)"`,
     reason: CANVAS_2D,
   },
 

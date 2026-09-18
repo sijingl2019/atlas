@@ -12,6 +12,7 @@ import Matter from "matter-js";
 import { invoke } from "@tauri-apps/api/core";
 import { forceLayout } from "@/lib/graph-layout";
 import { GraphRuler, type Viewport } from "@/components/graph-ruler";
+import { graphPalette, type GraphPalette } from "@/features/theme/graph-palette";
 
 /**
  * Force-directed memory graph — a self-contained sibling of the knowledge
@@ -46,15 +47,6 @@ interface GraphLayout {
 }
 
 const RESOLUTION = 2;
-const COLOR_PRIMARY = 0xfafafa;
-const COLOR_SECONDARY = 0xc4c4c4;
-const COLOR_MUTED = 0x5e5e5e;
-const COLOR_EDGE_DEFAULT = 0x333333;
-const COLOR_EDGE_SELECTED = 0xc4c4c4;
-const COLOR_EDGE_DIM = 0x262626;
-const COLOR_EDGE_LINK = 0x4a4a4a;
-const COLOR_ANCESTOR = 0x6796e6; // "influenced this" — cool tint, upstream in time
-const COLOR_IMPACT = 0xfafafa; // "this influenced" — bright, downstream in time
 const MIN_SCALE = 0.2;
 const MAX_SCALE = 4;
 const ZOOM_STEP = 0.004;
@@ -461,7 +453,10 @@ function buildScene(
     });
     nodeLayer.addChild(graphics);
 
-    const label = new Text({ text: node.summary || node.title, style: styleFor("#c4c4c4") });
+    const label = new Text({
+      text: node.summary || node.title,
+      style: styleFor(graphPalette().secondary),
+    });
     label.anchor.set(0.5, 0); // top-center: hangs below the disc
     labelLayer.addChild(label);
 
@@ -665,6 +660,7 @@ function buildScene(
   // scene object is unchanged (a static idle graph otherwise repaints every
   // node — incl. per-node Pixi text restyle — at up to 120 Hz).
   let lastScene: typeof sceneRef.current | null = null;
+  let lastPalette: GraphPalette | null = null;
   const tick = (ticker: Ticker) => {
     if (awake) {
       Matter.Engine.update(engine, ticker.deltaMS);
@@ -683,8 +679,11 @@ function buildScene(
     }
 
     const scene = sceneRef.current;
-    if (!awake && scene === lastScene) return;
+    // A mode flip is a redraw too — the scene object alone would not show it.
+    const P = graphPalette();
+    if (!awake && scene === lastScene && P === lastPalette) return;
     lastScene = scene;
+    lastPalette = P;
 
     const { selectedId, impact, ancestors, matched, draggingId, draggingNeighbors, cutoff, zoom } =
       scene;
@@ -697,7 +696,7 @@ function buildScene(
 
     for (const node of nodesById.values()) {
       const future = isFuture(node.ts);
-      let color = COLOR_SECONDARY;
+      let color = P.secondary;
       let alpha = 1;
       let drawRadius = node.radius;
       let ring = false;
@@ -706,54 +705,54 @@ function buildScene(
 
       if (future) {
         // Not yet "born" at the scrubber's instant.
-        color = COLOR_MUTED;
+        color = P.muted;
         alpha = 0.05;
         labelDim = true;
       } else if (hasSelection) {
         if (node.id === selectedId) {
-          color = COLOR_IMPACT;
+          color = P.impact;
           drawRadius = node.radius * 1.25;
           ring = true;
           lit = true;
         } else if (impact.has(node.id)) {
-          color = COLOR_IMPACT;
+          color = P.impact;
           lit = true;
         } else if (ancestors.has(node.id)) {
-          color = COLOR_ANCESTOR;
+          color = P.ancestor;
           alpha = 0.95;
           lit = true;
         } else {
-          color = COLOR_MUTED;
+          color = P.muted;
           alpha = 0.28;
           labelDim = true;
         }
       } else if (hasDrag) {
         if (node.id === draggingId) {
-          color = COLOR_PRIMARY;
+          color = P.primary;
           ring = true;
           lit = true;
         } else if (draggingNeighbors.has(node.id)) {
-          color = COLOR_PRIMARY;
+          color = P.primary;
           lit = true;
         } else {
-          color = COLOR_MUTED;
+          color = P.muted;
           alpha = 0.4;
           labelDim = true;
         }
       } else if (hasMatches) {
         if (matched.has(node.id)) {
-          color = COLOR_PRIMARY;
+          color = P.primary;
           drawRadius = node.radius * 1.15;
           ring = true;
           lit = true;
         } else {
-          color = COLOR_MUTED;
+          color = P.muted;
           alpha = 0.35;
           labelDim = true;
         }
       } else {
         // Neutral: brightness grades with recency (newer = brighter).
-        color = COLOR_SECONDARY;
+        color = P.secondary;
         alpha = 0.5 + 0.5 * node.recency;
       }
 
@@ -775,16 +774,16 @@ function buildScene(
       if (!showLabels || future) node.label.alpha = 0;
       else if (!hasSelection && !hasDrag && !hasMatches) {
         node.label.alpha = 0.85;
-        node.label.style = styleFor("#c4c4c4");
+        node.label.style = styleFor(P.secondary);
       } else if (lit) {
         node.label.alpha = 1;
-        node.label.style = styleFor("#fafafa");
+        node.label.style = styleFor(P.primary);
       } else if (labelDim) {
         node.label.alpha = 0.25;
-        node.label.style = styleFor("#5e5e5e");
+        node.label.style = styleFor(P.muted);
       } else {
         node.label.alpha = 0.6;
-        node.label.style = styleFor("#c4c4c4");
+        node.label.style = styleFor(P.secondary);
       }
     }
 
@@ -800,34 +799,34 @@ function buildScene(
         // One endpoint not born yet — keep faint.
         edge.graphics.moveTo(a.body.position.x, a.body.position.y);
         edge.graphics.lineTo(b.body.position.x, b.body.position.y);
-        edge.graphics.stroke({ width: 1 * inv, color: COLOR_EDGE_DIM, alpha: 0.04 });
+        edge.graphics.stroke({ width: 1 * inv, color: P.edgeDim, alpha: 0.04 });
         continue;
       }
 
-      let color = edge.kind === "link" ? COLOR_EDGE_LINK : COLOR_EDGE_DEFAULT;
+      let color = edge.kind === "link" ? P.edgeLink : P.edgeDefault;
       let alpha = edge.kind === "link" ? 0.5 : 0.3;
-      let arrow: number | null = null; // arrowhead color when on an influence path
+      let arrow: string | null = null; // arrowhead color when on an influence path
 
       if (hasSelection) {
         if (litFwd(edge.from) && litFwd(edge.to)) {
-          color = COLOR_IMPACT;
+          color = P.impact;
           alpha = 0.85;
-          arrow = COLOR_IMPACT;
+          arrow = P.impact;
         } else if (litBwd(edge.from) && litBwd(edge.to)) {
-          color = COLOR_ANCESTOR;
+          color = P.ancestor;
           alpha = 0.7;
-          arrow = COLOR_ANCESTOR;
+          arrow = P.ancestor;
         } else {
-          color = COLOR_EDGE_DIM;
+          color = P.edgeDim;
           alpha = 0.12;
         }
       } else if (hasDrag) {
         const touches = edge.from === draggingId || edge.to === draggingId;
         if (touches) {
-          color = COLOR_EDGE_SELECTED;
+          color = P.edgeSelected;
           alpha = 0.9;
         } else {
-          color = COLOR_EDGE_DIM;
+          color = P.edgeDim;
           alpha = 0.15;
         }
       } else if (hasMatches) {

@@ -3,6 +3,7 @@ import { Loader2, MessageCircle, Rss } from "lucide-react";
 import { useAuthStore } from "@/features/auth/stores/auth-store";
 import { useOrgStore } from "@/features/organisations/stores/org-store";
 import type { Organisation } from "@/features/organisations/types";
+import { inkRgb } from "@/features/theme/mode";
 
 /**
  * What the chat panel shows when the active organisation is local-only.
@@ -119,7 +120,7 @@ function DitherBackdrop() {
       if (!ctx) return;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, w, h);
-      ctx.fillStyle = "rgba(255,255,255,0.16)";
+      ctx.fillStyle = `rgba(${inkRgb()},0.16)`;
 
       // Wind: mostly sideways, a little lift, plus a slow phase evolution so
       // shapes morph rather than only translate.
