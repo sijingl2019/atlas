@@ -333,13 +333,14 @@ export function EditorPanel({ tabId, filePath, containerHeight }: EditorPanelPro
       const langExt = await loadLanguageExtension(buffer.language);
       if (cancelled) return;
 
+      const startMode = currentMode();
       const view = new EditorView({
         doc: originalContent,
         extensions: [
           themeCompartment.of(
             editorThemeExtensions(
-              editorThemeIdFor(useProjectStore.getState().settings, currentMode()),
-              currentMode(),
+              editorThemeIdFor(useProjectStore.getState().settings, startMode),
+              startMode,
             ),
           ),
           langExt,
