@@ -31,8 +31,13 @@ export type TerminalPalette = Record<AnsiKey, string> & {
 
 /**
  * Terminal colors per mode. Dark is the palette Atlas always shipped. Light is
- * One Light's hues, each held to ≥ 3:1 on white ("white" and "bright white"
- * become mid greys — a light terminal cannot draw white text on white).
+ * One Light's hues, each held to ≥ 3:1 on white.
+ *
+ * The four greys are the awkward part: a program prints bright white to
+ * EMPHASIZE, and on a white background emphasis has to get darker, not
+ * lighter. So the ramp is not monotonic — it is four distinguishable greys
+ * (black darkest, then bright white, then bright black, then white), which
+ * keeps every slot legible and keeps SGR 90 and SGR 97 telling apart.
  * The light values are mirrored as `--term-bg` and `--ansi-0` … `--ansi-15`
  * in tokens.css for the DOM block renderer (tests/terminal-palette.test.ts).
  */
@@ -81,6 +86,6 @@ export const TERMINAL_PALETTES: Record<ResolvedMode, TerminalPalette> = {
     brightBlue: "#2f5af3",
     brightMagenta: "#8b1f89",
     brightCyan: "#0e7aa6",
-    brightWhite: "#696c77",
+    brightWhite: "#4f5260",
   },
 };
