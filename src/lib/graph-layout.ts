@@ -18,6 +18,15 @@ export interface Pt {
   y: number;
 }
 
+/**
+ * Fraction of the canvas the seeded layout may span.
+ *
+ * Well under 1 on purpose: a handful of notes spread across a full-width
+ * canvas reads as a few lost dots rather than a shape, and the nodes are only
+ * ~3px each. A dense graph is unaffected — the fit below shrinks only.
+ */
+const SEED_SPAN = 0.53;
+
 export interface ForceLayoutOpts {
   /** Multiplier on the ideal edge length (k). Smaller = tighter clusters. */
   spacing?: number;
@@ -162,8 +171,8 @@ export function forceLayout(
   const spanX = maxX - minX;
   const spanY = maxY - minY;
   const fit = Math.min(
-    spanX > 0 ? (width * 0.8) / spanX : 1,
-    spanY > 0 ? (height * 0.8) / spanY : 1,
+    spanX > 0 ? (width * SEED_SPAN) / spanX : 1,
+    spanY > 0 ? (height * SEED_SPAN) / spanY : 1,
     1,
   );
   const midX = (minX + maxX) / 2;

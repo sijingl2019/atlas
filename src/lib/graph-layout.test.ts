@@ -33,6 +33,16 @@ describe("forceLayout", () => {
     expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeGreaterThan(50);
   });
 
+  // A sparse graph stretched across a full-width canvas reads as a few lost
+  // dots. The seed is deliberately allowed only part of the canvas.
+  it("keeps a sparse graph compact rather than canvas-wide", () => {
+    const points = Object.values(forceLayout(nodes(3), [], WIDTH, HEIGHT));
+    const xs = points.map((p) => p.x);
+    const ys = points.map((p) => p.y);
+    expect(Math.max(...xs) - Math.min(...xs)).toBeLessThanOrEqual(WIDTH * 0.55);
+    expect(Math.max(...ys) - Math.min(...ys)).toBeLessThanOrEqual(HEIGHT * 0.55);
+  });
+
   it("centres a single node", () => {
     expect(forceLayout(nodes(1), [], WIDTH, HEIGHT)).toEqual({
       n0: { x: WIDTH / 2, y: HEIGHT / 2 },

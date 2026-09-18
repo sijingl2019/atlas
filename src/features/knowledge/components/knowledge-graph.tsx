@@ -48,6 +48,8 @@ const HIDE_LABEL_BELOW = 0.5;
 const DOUBLE_CLICK_MS = 280;
 /** Constant screen-px gap between a node's disc and its label (counter-scaled). */
 const LABEL_GAP = 6;
+/** Screen-px breathing room around the content after a fit-to-content. */
+const FIT_PADDING = 60;
 
 function nodeRadiusForDegree(degree: number): number {
   return Math.min(3 + Math.sqrt(Math.max(0, degree)) * 1.6, 14);
@@ -396,7 +398,18 @@ function buildScene(
   const bgHit = new Graphics();
   bgHit.rect(-1e5, -1e5, 2e5, 2e5).fill({ color: 0x000000, alpha: 0 });
   bgHit.eventMode = "static";
-  bgHit.on("pointertap", () => onSelect(null));
+  // Single tap clears the selection; double tap fits every node on screen.
+  let lastBgTapAt = 0;
+  bgHit.on("pointertap", () => {
+    const now = performance.now();
+    if (now - lastBgTapAt < DOUBLE_CLICK_MS) {
+      lastBgTapAt = 0;
+      fitToContent();
+      return;
+    }
+    lastBgTapAt = now;
+    onSelect(null);
+  });
   viewport.addChild(bgHit);
 
   const edgeLayer = new Container();
@@ -512,6 +525,48 @@ function buildScene(
     onViewport({ x: viewport.position.x, y: viewport.position.y, scale: z });
   };
   syncMouseToViewport();
+
+  /**
+   * Pan + zoom so every node is on screen — double-click the background.
+   *
+   * The viewport is not persisted and opens at (0, 0, ×1), while node
+   * positions are: drag a node away, resize the window, or open a layout
+   * saved at a different canvas size, and there is otherwise no way back to
+   * the content except hunting for it by hand.
+   */
+  const fitToContent = () => {
+    if (nodesById.size === 0) return;
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const node of nodesById.values()) {
+      const { x, y } = node.body.position;
+      // Include the disc, so a node on the edge isn't half cut off.
+      if (x - node.radius < minX) minX = x - node.radius;
+      if (x + node.radius > maxX) maxX = x + node.radius;
+      if (y - node.radius < minY) minY = y - node.radius;
+      if (y + node.radius > maxY) maxY = y + node.radius;
+    }
+    const spanX = Math.max(maxX - minX, 1);
+    const spanY = Math.max(maxY - minY, 1);
+    const scale = Math.min(
+      MAX_SCALE,
+      Math.max(
+        MIN_SCALE,
+        Math.min((width - FIT_PADDING * 2) / spanX, (height - FIT_PADDING * 2) / spanY),
+      ),
+    );
+    viewport.scale.set(scale);
+    viewport.position.set(
+      width / 2 - ((minX + maxX) / 2) * scale,
+      height / 2 - ((minY + maxY) / 2) * scale,
+    );
+    // A fresh object so the draw loop's "nothing changed" early-out doesn't
+    // skip the counter-scale pass the new zoom needs.
+    sceneRef.current = { ...sceneRef.current, zoom: scale };
+    syncMouseToViewport();
+  };
 
   // While the user is dragging a node, light up its neighbours live.
   Matter.Events.on(mouseConstraint, "startdrag", (ev: Matter.IEvent<Matter.MouseConstraint>) => {
