@@ -9,7 +9,7 @@
  */
 import { useState } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { Folder, FolderOpen, Plus, Search, Trash2 } from "lucide-react";
+import { Ellipsis, Folder, FolderOpen, Search, Trash2 } from "lucide-react";
 import { useProjectStore } from "@/features/project/stores/project-store";
 import { useWorkspaceStore } from "../stores/workspace-store";
 import { pickAndAddWorkspace } from "../lib/pick-workspace";
@@ -36,7 +36,7 @@ export function AddProjectMenu() {
           title="Add project"
           aria-label="Add project"
         >
-          <Plus size={14} />
+          <Ellipsis size={14} />
         </button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
@@ -52,7 +52,7 @@ export function AddProjectMenu() {
             className="w-full flex items-center gap-2 px-3 h-[28px] text-[11px] outline-none hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] cursor-default shrink-0"
           >
             <FolderOpen size={13} className="text-[var(--text-tertiary)] shrink-0" />
-            <span className="flex-1 text-left">Open Folder…</span>
+            <span className="flex-1 text-left">New Project…</span>
           </DropdownMenu.Item>
           {recentProjects.length > 0 && (
             <>

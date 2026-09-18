@@ -70,6 +70,7 @@ import { useFullscreen } from "@/hooks/use-fullscreen";
 import { isMac } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 import { GitDot, NumStatPill } from "./git-summary";
+import { pickAndAddWorkspace } from "../lib/pick-workspace";
 import { agentTypeFromPluginId } from "@/types/agent";
 
 // Slot heights (include the inter-row gap so the virtualizer spaces rows out);
@@ -544,6 +545,20 @@ const SectionHeaderRow = memo(function SectionHeaderRow({
             )}
           />
         </span>
+        {id === "sec:projects" && (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              void pickAndAddWorkspace();
+            }}
+            title="New Project"
+            aria-label="New Project"
+            className="ml-auto flex size-6 items-center justify-center rounded-md text-[var(--text-tertiary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] outline-none cursor-pointer"
+          >
+            <Plus size={14} />
+          </button>
+        )}
         {clearable && onClear && (
           <button
             onClick={(e) => {
