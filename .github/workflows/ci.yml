@@ -170,6 +170,7 @@ jobs:
           - crate: atlas-native-agent
             clippy: true
             sandbox: true
+          - crate: atlas-process
           - crate: atlas-redact
             clippy: true
           - crate: atlas-terminal

@@ -116,14 +116,32 @@ describe("§4(a) and §4(d) — the licence and NOTICE reach recipients", () => 
     // The obligation is to recipients, and a repo file reaches none of them.
     // Tauri copies `bundle.resources` into the .app; without an entry here the
     // build succeeds and ships nothing.
+    //
+    // Matched by CONTENT, not by path: the app ships its own copies under
+    // `src-tauri/licenses/` (Tauri resolves `bundle.resources` relative to
+    // `src-tauri`, and reaching up into `vendor/` from there is awkward). What
+    // §4(a)/(d) require is that the recipient gets these bytes, so that is what
+    // this checks — and a copy that drifts from the vendored original stops
+    // satisfying it, which a path match would never notice.
     const conf = JSON.parse(read(path.join(REPO_ROOT, "src-tauri", "tauri.conf.json")));
     const resources = conf.bundle?.resources;
     expect(resources, "bundle.resources missing").toBeDefined();
 
     const entries = Array.isArray(resources) ? resources : Object.keys(resources);
-    const joined = entries.join("\n");
-    expect(joined, "vendored LICENSE not bundled").toMatch(/vendor\/codex\/LICENSE/);
-    expect(joined, "vendored NOTICE not bundled").toMatch(/vendor\/codex\/NOTICE/);
+    const shipped = entries
+      .filter((src: string) => !src.includes("*"))
+      .map((src: string) => path.resolve(REPO_ROOT, "src-tauri", src))
+      .filter((abs: string) => existsSync(abs))
+      .map((abs: string) => read(abs));
+
+    for (const file of ["LICENSE", "NOTICE"]) {
+      const vendored = read(path.join(VENDOR, file));
+      expect(
+        shipped.some((text: string) => text === vendored),
+        `no bundled resource carries the vendored ${file} verbatim — ` +
+          `the shipped copy is missing or has drifted from vendor/codex/${file}`,
+      ).toBe(true);
+    }
   });
 
   it("bundles paths that actually exist", () => {

@@ -51,6 +51,13 @@ const VENDOR = path.join(REPO_ROOT, "vendor", "codex");
  */
 const ALLOWED_CODEX_CONSUMERS = new Set<string>(["crates/atlas-native-agent/Cargo.toml"]);
 
+/** Repo-relative and POSIX-spelled, so the allowlist above reads the same on
+ *  Windows — where `path.relative` hands back backslashes and every entry
+ *  silently missed, reporting the one allowed consumer as a leak. */
+function repoPath(abs: string): string {
+  return path.relative(REPO_ROOT, abs).split(path.sep).join("/");
+}
+
 function read(file: string): string {
   return readFileSync(file, "utf8");
 }
@@ -142,7 +149,7 @@ describe("nothing that ships depends on the vendored engine", () => {
   it("no Atlas crate declares a codex dependency", () => {
     const offenders = atlasManifests()
       .filter((m) => CODEX_DEP.test(uncommented(read(m))))
-      .map((m) => path.relative(REPO_ROOT, m))
+      .map(repoPath)
       .filter((rel) => !ALLOWED_CODEX_CONSUMERS.has(rel));
     expect(
       offenders,
