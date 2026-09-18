@@ -5,6 +5,7 @@ export type ThemeMode = "light" | "dark" | "system";
 /** What is actually on screen. */
 export type ResolvedMode = "light" | "dark";
 
+/** What the user picked, against what the OS reports, is what renders. */
 export function resolveMode(mode: ThemeMode, systemDark: boolean): ResolvedMode {
   if (mode === "system") return systemDark ? "dark" : "light";
   return mode;
@@ -18,11 +19,14 @@ type ThemeSlots = {
 };
 
 /** Each mode remembers its own pick, so System can flip without resetting. */
-export const atlasThemeIdFor = (s: ThemeSlots, mode: ResolvedMode) =>
-  mode === "light" ? s.atlasThemeLight : s.atlasTheme;
+export function atlasThemeIdFor(s: ThemeSlots, mode: ResolvedMode): string {
+  return mode === "light" ? s.atlasThemeLight : s.atlasTheme;
+}
 
-export const editorThemeIdFor = (s: ThemeSlots, mode: ResolvedMode) =>
-  mode === "light" ? s.codeEditorThemeLight : s.codeEditorTheme;
+/** The editor theme for a mode — the same two-slot arrangement. */
+export function editorThemeIdFor(s: ThemeSlots, mode: ResolvedMode): string {
+  return mode === "light" ? s.codeEditorThemeLight : s.codeEditorTheme;
+}
 
 /** The theme groups a picker shows. Under System both slots are live, so both
  *  are settable without flipping the OS appearance. */
@@ -30,8 +34,9 @@ export function pickerModes(mode: ThemeMode, resolved: ResolvedMode): ResolvedMo
   return mode === "system" ? ["light", "dark"] : [resolved];
 }
 
-/** The mode currently on `<html data-mode>` (set by `applyThemeMode` and the
- *  boot script in index.html). Anything but "light" is dark. */
+/** The mode currently on `<html data-mode>`, which `applyThemeMode` and the
+ *  boot script in index.html will write (both land later in this feature).
+ *  Anything but "light" is dark. */
 export function currentMode(): ResolvedMode {
   if (typeof document === "undefined") return "dark";
   return document.documentElement.dataset.mode === "light" ? "light" : "dark";
