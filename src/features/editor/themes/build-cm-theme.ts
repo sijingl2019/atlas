@@ -2,6 +2,7 @@ import { EditorView } from "@codemirror/view";
 import type { Extension } from "@codemirror/state";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { tags } from "@lezer/highlight";
+import type { ResolvedMode } from "@/features/theme/mode";
 import type { EditorColorTheme } from "./types";
 import { getEditorTheme, resolveEditorColors } from "./themes";
 
@@ -173,7 +174,10 @@ export function buildHighlightStyle(theme: EditorColorTheme): HighlightStyle {
  * and reconfigure on a theme change without touching the document or its undo
  * history.
  */
-export function editorThemeExtensions(themeId: string | undefined | null): Extension {
-  const theme = getEditorTheme(themeId);
+export function editorThemeExtensions(
+  themeId: string | undefined | null,
+  mode: ResolvedMode = "dark",
+): Extension {
+  const theme = getEditorTheme(themeId, mode);
   return [buildEditorChromeTheme(theme), syntaxHighlighting(buildHighlightStyle(theme))];
 }
