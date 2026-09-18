@@ -1,4 +1,4 @@
-/**
+﻿/**
  * The Timeline header's action dock.
  *
  * One pill holding every icon control, in the shape the titlebar dock uses
@@ -32,7 +32,7 @@ import { cn } from "@/lib/utils";
  */
 export function HeaderDock({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex h-7 items-center gap-1.5 rounded-full border border-white/[0.07] bg-[#121212] p-1">
+    <div className="flex h-7 items-center gap-1.5 rounded-full border border-contrast/[0.07] bg-[var(--bg-raised)] p-1">
       {children}
     </div>
   );
@@ -47,11 +47,11 @@ export function HeaderDock({ children }: { children: React.ReactNode }) {
  */
 export const DOCK_TRIGGER =
   "relative flex size-5 cursor-pointer items-center justify-center rounded-full outline-none " +
-  "text-[var(--text-tertiary)] transition-colors duration-150 hover:bg-white/[0.08] hover:text-[var(--text-primary)] " +
-  "data-[state=open]:bg-white/[0.12] data-[state=open]:text-[var(--text-primary)]";
+  "text-[var(--text-tertiary)] transition-colors duration-150 hover:bg-contrast/[0.08] hover:text-[var(--text-primary)] " +
+  "data-[state=open]:bg-contrast/[0.12] data-[state=open]:text-[var(--text-primary)]";
 
 /** Applied on top of {@link DOCK_TRIGGER} when the control's mode is on. */
-export const DOCK_ACTIVE = "bg-white/[0.12] text-[var(--text-primary)]";
+export const DOCK_ACTIVE = "bg-contrast/[0.12] text-[var(--text-primary)]";
 
 /** A plain button inside the dock. */
 export function DockButton({

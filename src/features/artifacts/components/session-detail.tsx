@@ -819,7 +819,7 @@ function TokenMix({ spend, total }: { spend: TokenSpend; total: number }) {
             key={segment.label}
             style={{
               width: `${(segment.value / total) * 100}%`,
-              background: `rgba(255,255,255,${segment.tint})`,
+              background: `color-mix(in srgb, var(--contrast) ${segment.tint * 100}%, transparent)`,
             }}
           />
         ))}

@@ -1,15 +1,17 @@
+import type { ResolvedMode } from "@/features/theme/mode";
 import type { EditorColorTheme, EditorThemeColors } from "./types";
 
 /**
  * Built-in editor color themes. `atlas` is the default; `atlas-mono` keeps the
  * historical monochrome look for anyone who prefers it. The others are the
  * standard dark palettes (Dracula, One Dark, Monokai, Tokyo Night, Catppuccin
- * Frappé/Macchiato/Mocha, Vesper).
+ * Frappé/Macchiato/Mocha, Vesper), plus light counterparts (Atlas Light, One
+ * Light, Catppuccin Latte) shown when the appearance mode is light.
  *
  * Every theme renders on the interface base surface (see `resolveEditorColors`),
- * which is AMOLED black or near it in all three Atlas interface themes. Syntax
- * values are therefore chosen against black, and `themes.test.ts` holds them to
- * a contrast floor so a new palette can't ship illegible.
+ * which is near-black in dark mode and near-white in light mode. Syntax values
+ * are chosen against the bases of their own mode, and `themes.test.ts` holds
+ * them to a contrast floor so a new palette can't ship illegible.
  */
 
 /**
@@ -324,14 +326,12 @@ const tokyoNight: EditorColorTheme = {
 };
 
 /**
- * Catppuccin ships four flavors; Latte (light) is skipped because Atlas forces
- * every editor theme onto its own near-black interface base (see
- * `resolveEditorColors`), which would fight a light palette's whole premise.
- * The other three port scope-for-scope from catppuccin/vscode's own token
- * mapping (mauve keywords, blue functions/tags, green strings, peach
- * numbers/constants/booleans, yellow types/attributes, teal operators/
- * properties, pink regexp/escapes, rosewater caret, mauve accent on the active
- * line number) rather than inventing a new arrangement.
+ * Catppuccin ships four flavors; the three dark ones are here and Latte is the
+ * light counterpart further down. The three port scope-for-scope from
+ * catppuccin/vscode's own token mapping (mauve keywords, blue functions/tags,
+ * green strings, peach numbers/constants/booleans, yellow types/attributes,
+ * teal operators/properties, pink regexp/escapes, rosewater caret, mauve
+ * accent on the active line number) rather than inventing a new arrangement.
  */
 const catppuccinFrappe: EditorColorTheme = {
   id: "catppuccin-frappe",
@@ -525,6 +525,171 @@ const vesper: EditorColorTheme = {
   },
 };
 
+/** Light diff line backgrounds shared by the light themes. */
+const LIGHT_DIFF = {
+  addLineBg: "#e6ffec",
+  removeLineBg: "#ffebe9",
+  contextBg: "#ffffff",
+  addSideBg: "rgba(26,127,55,0.10)",
+  removeSideBg: "rgba(207,34,46,0.10)",
+  emphAddBg: "rgba(26,127,55,0.24)",
+  emphRemoveBg: "rgba(207,34,46,0.24)",
+};
+
+/**
+ * Atlas Light keeps every syntax role's HUE from the dark Atlas theme and only
+ * lowers lightness until it clears WCAG AA (4.5:1) on all light interface
+ * bases. The signature `#ffff00` would be 1.07:1 on white, so function names
+ * land on the same hue at a readable dark gold. Keywords sit darker than the
+ * floor so they stay a clear step away from comments.
+ */
+const atlasLight: EditorColorTheme = {
+  id: "atlas-light",
+  name: "Atlas Light",
+  description: "Clean white with the Atlas syntax hues, deepened for daylight.",
+  dark: false,
+  colors: {
+    bg: "#ffffff",
+    fg: "#303030",
+    caret: "#303030",
+    gutterBg: "#ffffff",
+    gutterFg: "#858585",
+    activeLineGutterFg: "#303030",
+    activeLineBg: "#0000000a",
+    selectionBg: "#d6d6d6",
+    matchBracketBg: "#e0e0e0",
+    matchBracketOutline: "#b0b0b0",
+    foldBg: "#f0f0f0",
+    foldBorder: "#d8d8d8",
+    foldFg: "#6f6f6f",
+
+    comment: "#6f6f6f",
+    keyword: "#6815c5",
+    string: "#487b33",
+    number: "#966421",
+    type: "#1a7893",
+    func: "#707000",
+    variable: "#292929",
+    operator: "#666666",
+    tagName: "#1a7893",
+    attributeName: "#8f6729",
+    constant: "#966421",
+    regexp: "#b25321",
+    escape: "#b25321",
+    definition: "#000000",
+    propertyName: "#434343",
+    bool: "#966421",
+    null: "#966421",
+
+    ...LIGHT_DIFF,
+  },
+};
+
+/**
+ * Atom One Light, from atom/atom packages/one-light-syntax (colors.less +
+ * syntax-variables.less, compiled with lessc), using the same role mapping as
+ * One Dark above. Two published values sit under the 3:1 floor on the light
+ * bases and are nudged to just clear it: comment mono-3 #a0a1a7 → #8c8d95,
+ * green hue-4 #50a14f → #4f9f4e.
+ */
+const oneLight: EditorColorTheme = {
+  id: "one-light",
+  name: "One Light",
+  description: "Atom's balanced light theme — purple keywords, blue functions.",
+  dark: false,
+  colors: {
+    bg: "#fafafa",
+    fg: "#383a42",
+    caret: "#526eff",
+    gutterBg: "#fafafa",
+    gutterFg: "#9d9d9f",
+    activeLineGutterFg: "#383a42",
+    activeLineBg: "#383a420d",
+    selectionBg: "#e5e5e6",
+    matchBracketBg: "#e5e5e6",
+    matchBracketOutline: "#526eff",
+    foldBg: "#eaeaeb",
+    foldBorder: "#dbdbdc",
+    foldFg: "#696c77",
+
+    comment: "#8c8d95",
+    keyword: "#a626a4",
+    string: "#4f9f4e",
+    number: "#b76b01",
+    type: "#cb7701",
+    func: "#4078f2",
+    variable: "#e45649",
+    operator: "#0184bc",
+    tagName: "#e45649",
+    attributeName: "#b76b01",
+    constant: "#b76b01",
+    regexp: "#4f9f4e",
+    escape: "#0184bc",
+    definition: "#4078f2",
+    propertyName: "#383a42",
+    bool: "#b76b01",
+    null: "#b76b01",
+
+    ...LIGHT_DIFF,
+  },
+};
+
+/**
+ * Catppuccin Latte from catppuccin/palette palette.json, mapped exactly like
+ * Mocha (mauve keywords, blue functions/tags, green strings, peach numbers,
+ * yellow types/attributes, teal operators/properties, pink regexp/escapes).
+ * Latte's peach, yellow and pink sit under the 3:1 floor on the light bases and
+ * are deepened just enough: #fe640b → #f45a01, #df8e1d → #c67e1a,
+ * #ea76cb → #e555be.
+ */
+const catppuccinLatte: EditorColorTheme = {
+  id: "catppuccin-latte",
+  name: "Catppuccin Latte",
+  description: "Catppuccin's light flavor: pastel hues on a soft cool white.",
+  dark: false,
+  colors: {
+    bg: "#eff1f5",
+    fg: "#4c4f69",
+    caret: "#dc8a78",
+    gutterBg: "#eff1f5",
+    gutterFg: "#8c8fa1",
+    activeLineGutterFg: "#8839ef",
+    activeLineBg: "#4c4f690a",
+    selectionBg: "#bcc0cc",
+    matchBracketBg: "#ccd0da",
+    matchBracketOutline: "#7c7f93",
+    foldBg: "#e6e9ef",
+    foldBorder: "#ccd0da",
+    foldFg: "#8c8fa1",
+
+    comment: "#7c7f93",
+    keyword: "#8839ef",
+    string: "#40a02b",
+    number: "#f45a01",
+    type: "#c67e1a",
+    func: "#1e66f5",
+    variable: "#4c4f69",
+    operator: "#179299",
+    tagName: "#1e66f5",
+    attributeName: "#c67e1a",
+    constant: "#f45a01",
+    regexp: "#e555be",
+    escape: "#e555be",
+    definition: "#1e66f5",
+    propertyName: "#179299",
+    bool: "#f45a01",
+    null: "#f45a01",
+
+    addLineBg: "#dcefd8",
+    removeLineBg: "#f5d9df",
+    contextBg: "#eff1f5",
+    addSideBg: "rgba(64,160,43,0.13)",
+    removeSideBg: "rgba(210,15,57,0.13)",
+    emphAddBg: "rgba(64,160,43,0.30)",
+    emphRemoveBg: "rgba(210,15,57,0.30)",
+  },
+};
+
 export const EDITOR_THEMES: EditorColorTheme[] = [
   atlas,
   atlasMono,
@@ -536,17 +701,31 @@ export const EDITOR_THEMES: EditorColorTheme[] = [
   catppuccinMacchiato,
   catppuccinMocha,
   vesper,
+  atlasLight,
+  oneLight,
+  catppuccinLatte,
 ];
 
 export const DEFAULT_EDITOR_THEME_ID = "atlas";
 
-export function getEditorTheme(id: string | undefined | null): EditorColorTheme {
-  return EDITOR_THEMES.find((t) => t.id === id) ?? atlas;
+export const BASE_EDITOR_THEME_ID: Record<ResolvedMode, string> = {
+  dark: DEFAULT_EDITOR_THEME_ID,
+  light: "atlas-light",
+};
+
+/** An unknown id, or a theme from the other mode, falls back to that mode's base. */
+export function getEditorTheme(
+  id: string | undefined | null,
+  mode: ResolvedMode = "dark",
+): EditorColorTheme {
+  const found = EDITOR_THEMES.find((t) => t.id === id);
+  if (found && found.dark === (mode === "dark")) return found;
+  return EDITOR_THEMES.find((t) => t.id === BASE_EDITOR_THEME_ID[mode]) ?? atlas;
 }
 
 /**
  * Atlas keeps ONE background across every editor theme: the interface base
- * surface (`--bg-base`, AMOLED black). A theme only recolors syntax and the
+ * surface (`--bg-base`). A theme only recolors syntax and the
  * diff add/remove signal — never the neutral background. So we always force the
  * editor chrome background, the gutter, and the diff *context* (unchanged-line)
  * background to `--bg-base`, ignoring whatever `bg`/`gutterBg`/`contextBg` a

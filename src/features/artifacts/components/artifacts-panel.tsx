@@ -603,7 +603,9 @@ export function ArtifactsPanel() {
             marginBottom: CARD_INSET,
             // On a near-black panel a shadow has almost nothing to darken, so
             // the ring carries the edge and the shadow only lifts the card.
-            boxShadow: "0 0 0 1px rgba(255,255,255,0.08), 0 10px 28px rgba(0,0,0,0.6)",
+            boxShadow:
+              "0 0 0 1px color-mix(in srgb, var(--contrast) 8%, transparent), " +
+              "0 10px 28px color-mix(in srgb, var(--shade) 60%, transparent)",
           }}
         >
           {/* The nav. Mounted only when shown, and its width is set directly —

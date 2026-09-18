@@ -29,6 +29,7 @@ import { SkillsAndPacks } from "./skills-and-packs";
 import { AgentsMarketplace } from "./agents-marketplace/agents-marketplace";
 import { ModelsManager } from "./models-manager";
 import { KeybindingsSettings } from "./keybindings-settings";
+import { ThemeModeControl } from "./theme-mode-control";
 import { useActionShortcut } from "@/features/keybindings/lib/use-action-shortcut";
 import { useModelPricingStore } from "../stores/model-pricing-store";
 import { useProjectStore } from "@/features/project/stores/project-store";
@@ -599,8 +600,11 @@ function AppearanceSettings() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {/* Header — Skills-style underline tabs (no title), zoom on the right. */}
-      <div className="flex h-[29px] shrink-0 items-center gap-1 border-b border-border-default px-2">
+      {/* Header — Skills-style underline tabs, the mode control, zoom on the right.
+          overflow-x-auto: at the window's 960px minWidth the nav (180px expanded)
+          can leave less room than these three blocks need at comfortable spacing
+          (~510px) — scroll rather than clip or overlap. */}
+      <div className="flex h-[29px] shrink-0 items-center gap-1 overflow-x-auto border-b border-border-default px-2">
         {APPEARANCE_TABS.map((t) => (
           <UnderlineTab
             key={t.id}
@@ -610,9 +614,11 @@ function AppearanceSettings() {
           />
         ))}
 
+        <ThemeModeControl />
+
         {/* Interface zoom — right-aligned control (like Skills' scope control). */}
         <div
-          className="ml-auto flex items-center gap-1 pr-0.5"
+          className="ml-auto flex shrink-0 items-center gap-1 pr-0.5"
           title={zoomHints.length ? `Interface zoom (${zoomHints.join(" / ")})` : "Interface zoom"}
         >
           <button
@@ -674,7 +680,7 @@ function UnderlineTab({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex h-[29px] items-center gap-1.5 px-2.5 text-[11px] font-medium transition-colors border-b-2 -mb-px cursor-pointer",
+        "flex h-[29px] shrink-0 items-center gap-1.5 px-2.5 text-[11px] font-medium transition-colors border-b-2 -mb-px cursor-pointer",
         active
           ? "text-text-primary border-b-[var(--accent-primary)]"
           : "text-text-secondary hover:text-text-primary border-b-transparent",

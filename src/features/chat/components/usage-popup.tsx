@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+﻿import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { fmtCost, fmtTokens } from "@/features/monitor/lib/usage-format";
 import type { MetricRow, RateLimitWindow, SessionUsageView } from "../lib/session-usage";
@@ -73,7 +73,7 @@ function Card({
   return (
     <section
       data-section={section}
-      className="atlas-usage-in rounded-lg border border-white/[0.06] bg-[var(--bg-elevated-2)] px-2.5 py-2"
+      className="atlas-usage-in rounded-lg border border-contrast/[0.06] bg-[var(--bg-elevated-2)] px-2.5 py-2"
       style={{ "--i": index } as CSSProperties}
     >
       {children}
@@ -87,7 +87,7 @@ function StatusPill({ status }: { status: "ok" | "warn" | "full" }) {
       ? "border-[var(--status-error)]/40 text-[var(--status-error)]"
       : status === "warn"
         ? "border-[var(--status-warning)]/40 text-[var(--status-warning)]"
-        : "border-white/[0.08] text-[var(--text-secondary)]";
+        : "border-contrast/[0.08] text-[var(--text-secondary)]";
   return (
     <span
       className={cn(
@@ -166,7 +166,7 @@ function Bar({
   color?: string;
 }) {
   return (
-    <span className="block h-[3px] w-full overflow-hidden rounded-full bg-white/[0.06]">
+    <span className="block h-[3px] w-full overflow-hidden rounded-full bg-contrast/[0.06]">
       <span
         className="block h-full rounded-full"
         style={{
@@ -211,7 +211,7 @@ function Cost({ cost, index }: { cost: NonNullable<SessionUsageView["cost"]>; in
             {fmtCost(cost.total)}
           </span>
           {cost.estimated ? (
-            <span className="rounded-full border border-white/[0.08] px-1 text-[8px] font-medium uppercase tracking-wider text-[var(--text-tertiary)]">
+            <span className="rounded-full border border-contrast/[0.08] px-1 text-[8px] font-medium uppercase tracking-wider text-[var(--text-tertiary)]">
               est.
             </span>
           ) : null}

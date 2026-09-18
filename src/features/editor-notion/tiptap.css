@@ -587,6 +587,31 @@
   color: #d97757;
 }
 
+/* Light mode: the same hues, deepened to AA on the light bases. */
+:root[data-mode="light"] .atlas-tiptap .hljs-keyword,
+:root[data-mode="light"] .atlas-tiptap .hljs-built_in,
+:root[data-mode="light"] .atlas-tiptap .hljs-tag .hljs-name {
+  color: #9632fa;
+}
+:root[data-mode="light"] .atlas-tiptap .hljs-title,
+:root[data-mode="light"] .atlas-tiptap .hljs-title.function_ {
+  color: #5554ff;
+}
+:root[data-mode="light"] .atlas-tiptap .hljs-string,
+:root[data-mode="light"] .atlas-tiptap .hljs-attr {
+  color: #2f7d52;
+}
+:root[data-mode="light"] .atlas-tiptap .hljs-number {
+  color: #936408;
+}
+:root[data-mode="light"] .atlas-tiptap .hljs-type,
+:root[data-mode="light"] .atlas-tiptap .hljs-class {
+  color: #0d65f3;
+}
+:root[data-mode="light"] .atlas-tiptap .hljs-meta {
+  color: #b74c29;
+}
+
 /* ── Inline mention chip ──────────────────────────────────────── */
 
 .atlas-tiptap .atlas-mention-chip {

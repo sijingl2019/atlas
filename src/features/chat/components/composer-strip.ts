@@ -1,4 +1,4 @@
-/**
+﻿/**
  * The strip tucked into the top of the chat composer — one construction for
  * every notice that explains the composer's state (no AI grant, agent
  * removed…), so they all read as part of the composer rather than as a stray
@@ -17,5 +17,5 @@ export const COMPOSER_STRIP =
 /** A text action on the strip's right: quiet until hovered. */
 export const COMPOSER_STRIP_ACTION =
   "flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 transition-colors " +
-  "text-[var(--text-secondary)] hover:bg-white/[0.05] hover:text-[var(--text-primary)] " +
+  "text-[var(--text-secondary)] hover:bg-contrast/[0.05] hover:text-[var(--text-primary)] " +
   "disabled:cursor-default disabled:text-[var(--text-tertiary)]/40 disabled:hover:bg-transparent";

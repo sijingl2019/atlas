@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ATLAS_THEMES } from "@/features/theme/themes";
 import {
+  BASE_EDITOR_THEME_ID,
   DEFAULT_EDITOR_THEME_ID,
   EDITOR_THEMES,
   getEditorTheme,
@@ -67,9 +68,11 @@ const SYNTAX_TOKENS = [
  * Every editor theme renders on the *interface* background, never its own
  * (`resolveEditorColors`), so the bar is contrast against whichever base the
  * user's interface theme is on. Testing all of them means a new interface
- * theme with a lighter base can't quietly undercut the editor.
+ * theme with a lighter base can't quietly undercut the editor. Each editor
+ * theme is only ever shown on bases of its own mode (the pickers filter by
+ * mode), so the matrix pairs by mode.
  */
-const INTERFACE_BASES = ATLAS_THEMES.map((t) => ({ id: t.id, base: t.spec.base }));
+const INTERFACE_BASES = ATLAS_THEMES.map((t) => ({ id: t.id, base: t.spec.base, mode: t.mode }));
 
 /** WCAG AA for body text. The bar for the themes Atlas itself authors. */
 const AA_TEXT = 4.5;
@@ -84,7 +87,7 @@ const AA_TEXT = 4.5;
 const FLOOR = 3;
 
 /** Themes Atlas authors, and therefore holds to AA. */
-const ATLAS_AUTHORED = ["atlas", "atlas-mono"];
+const ATLAS_AUTHORED = ["atlas", "atlas-mono", "atlas-light"];
 
 const byId = (id: string) => EDITOR_THEMES.find((t) => t.id === id) as EditorColorTheme;
 
@@ -116,11 +119,25 @@ describe("editor themes", () => {
         expect(resolved.contextBg).toBe("var(--bg-base)");
       }
     });
+
+    it("has a base theme per mode, in that mode", () => {
+      expect(getEditorTheme(BASE_EDITOR_THEME_ID.dark).dark).toBe(true);
+      expect(getEditorTheme(BASE_EDITOR_THEME_ID.light, "light").dark).toBe(false);
+      expect(BASE_EDITOR_THEME_ID.dark).toBe(DEFAULT_EDITOR_THEME_ID);
+    });
+
+    it("falls back to the mode's base for a theme from the other mode", () => {
+      expect(getEditorTheme("dracula", "light").id).toBe("atlas-light");
+      expect(getEditorTheme("catppuccin-latte", "dark").id).toBe("atlas");
+      expect(getEditorTheme("catppuccin-latte", "light").id).toBe("catppuccin-latte");
+    });
   });
 
   describe("syntax contrast", () => {
     const cases = EDITOR_THEMES.flatMap((theme) =>
-      INTERFACE_BASES.map((surface) => ({ theme, surface })),
+      INTERFACE_BASES.filter((surface) => (surface.mode === "dark") === theme.dark).map(
+        (surface) => ({ theme, surface }),
+      ),
     );
 
     it.each(cases)("$theme.id is readable on the $surface.id background", ({ theme, surface }) => {
@@ -192,6 +209,47 @@ describe("editor themes", () => {
     it("separates tokens by lightness, since it cannot use hue", () => {
       const steps = new Set(SYNTAX_TOKENS.map((t) => theme.colors[t]));
       expect(steps.size).toBeGreaterThanOrEqual(6);
+    });
+  });
+
+  describe("atlas-light", () => {
+    const theme = byId("atlas-light");
+    const white = "#ffffff";
+
+    it("draws comments subdued — dimmer than body text, still above AA", () => {
+      const comment = contrast(theme.colors.comment, white);
+      expect(comment).toBeGreaterThanOrEqual(AA_TEXT);
+      expect(comment).toBeLessThan(contrast(theme.colors.fg, white));
+    });
+
+    it("separates comments from keywords", () => {
+      expect(contrast(theme.colors.comment, theme.colors.keyword)).toBeGreaterThan(1.5);
+    });
+
+    it("gives each token family a distinguishable color", () => {
+      const c = theme.colors;
+      const families = [c.comment, c.keyword, c.string, c.number, c.type, c.func, c.variable];
+      expect(new Set(families).size).toBe(families.length);
+    });
+
+    it("keeps function names in the Atlas yellow's hue family", () => {
+      const [r, g, b] = [1, 3, 5].map((i) => parseInt(theme.colors.func.slice(i, i + 2), 16) / 255);
+      const max = Math.max(r, g, b);
+      const min = Math.min(r, g, b);
+      const d = max - min;
+      // Sixths first, then wrapped into [0, 6): a grey has no hue, and JS's `%`
+      // keeps the sign, so a red-branch color with g < b would come out negative.
+      const sixths =
+        d === 0 ? 0 : max === r ? (g - b) / d : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+      const hue = 60 * (((sixths % 6) + 6) % 6);
+      expect(hue).toBeGreaterThanOrEqual(45);
+      expect(hue).toBeLessThanOrEqual(65);
+    });
+
+    it("keeps line numbers visible without competing with the code", () => {
+      const gutter = contrast(theme.colors.gutterFg, white);
+      expect(gutter).toBeGreaterThanOrEqual(FLOOR);
+      expect(gutter).toBeLessThan(contrast(theme.colors.fg, white));
     });
   });
 });

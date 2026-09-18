@@ -41,10 +41,17 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const DIST = join(root, "dist");
 const NEXT = join(root, "dist-next");
 
-/** Environment for child processes: repo-local binaries first. */
+/** Environment for child processes: repo-local binaries first.
+ *
+ *  Windows spells the variable `Path`, and this is a plain `{...process.env}`
+ *  spread, so assigning `env.PATH` there would add a SECOND key holding only
+ *  `.bin` — which is how `tauri build` died with "bun is not installed in
+ *  %PATH%" while `bun run build` worked. Same bug, same fix as
+ *  `with-posthog-env.mjs` (tests/scripts-path-casing.test.ts). */
 function childEnv() {
   const env = { ...process.env };
-  env.PATH = `${join(root, "node_modules", ".bin")}${delimiter}${env.PATH ?? ""}`;
+  const pathKey = Object.keys(env).find((k) => k.toLowerCase() === "path") ?? "PATH";
+  env[pathKey] = `${join(root, "node_modules", ".bin")}${delimiter}${env[pathKey] ?? ""}`;
   return env;
 }
 

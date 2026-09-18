@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import type { MemoryTimeline } from "../lib/memory-timeline-api";
 
 /**
- * Apple-Calendar-style week view. The left panel (#141414) lists branches as a
+ * Apple-Calendar-style week view. The left panel (panel surface) lists branches as a
  * plain text list with dividers; the right grid lays out 7 day columns and
  * **stacks items as cards** by time. Hovering/selecting a branch draws smooth
  * bezier connectors from its row to each of its cards. Navigation skips empty
@@ -14,13 +14,13 @@ import type { MemoryTimeline } from "../lib/memory-timeline-api";
  *   id forms — "branch:<name>", "commit:<sha>", "session:<id>".
  */
 
-const PANEL = "#0E0F0E";
+const PANEL = "var(--panel-bg-2)";
 const GUTTER = 184;
 // Monochromatic — branches are disambiguated by the connector lines, not hue.
-const MONO = "#6b6b6b";
-const DOT_MEMORY = "#3fb950"; // has memory feeding into it
+const MONO = "color-mix(in srgb, var(--contrast) 42%, transparent)";
+const DOT_MEMORY = "var(--stat-added)"; // has memory feeding into it
 const DOT_PLAIN = "color-mix(in srgb, var(--contrast) 70%, transparent)"; // no linked memory
-const CONNECTOR = "rgba(255,255,255,0.55)";
+const CONNECTOR = "color-mix(in srgb, var(--contrast) 55%, transparent)";
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 interface CalItem {
@@ -229,7 +229,7 @@ export function MemoryTimelineCalendar({
 
   return (
     <div ref={containerRef} className="relative flex h-full w-full">
-      {/* ── Left branch list (#141414) ── */}
+      {/* ── Left branch list (panel surface) ── */}
       <div
         className="shrink-0 flex flex-col border-r border-[var(--border-default)]"
         style={{ width: GUTTER, background: PANEL }}

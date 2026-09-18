@@ -239,6 +239,146 @@
 }
 
 /* ==========================================================================
+   Light mode base — Atlas Light.
+   `<html data-mode="light">` is set by apply-theme-mode.ts (and by the boot
+   script in index.html before first paint). Specificity 0,2,0 beats the bare
+   :root above regardless of order. Other light themes override on top with
+   inline vars, exactly like the dark themes do over :root.
+   The theme-spec half of this block must equal the Atlas Light spec in
+   src/features/theme/themes.ts (tests/light-root-tokens.test.ts).
+   ========================================================================== */
+:root[data-mode="light"] {
+  /* Surfaces — from the Atlas Light spec via buildThemeVars. */
+  --bg-base: #ffffff;
+  --bg-surface: #ffffff;
+  --bg-sidebar: #f7f7f7;
+  --bg-rail: #f7f7f7;
+  --bg-canvas: #f7f7f7;
+  --bg-raised: #f3f3f3;
+  --bg-overlay: #ffffff;
+  --bg-input: #ffffff;
+  --bg-tab-active: #ececec;
+  --bg-elevated: #f3f3f3;
+  --bg-elevated-2: #ffffff;
+  --panel-rail-bg: #f7f7f7;
+  --panel-bg: #f7f7f7;
+  --panel-bg-2: #f3f3f3;
+
+  --text-primary: #000000;
+  --text-secondary: #555555;
+  --text-tertiary: #6e6e6e;
+  --text-ghost: #cccccc;
+  --text-muted: #949494;
+  --text-inverse: #ffffff;
+
+  --border-default: #e3e3e3;
+  --border-subtle: #ededed;
+  --border-strong: #c2c2c2;
+  --border-focus: #c2c2c2;
+  --border-variant: #ededed;
+
+  --accent-primary: #000000;
+  --accent-primary-hover: #333333;
+  --accent-primary-muted: color-mix(in srgb, #000000 14%, transparent);
+  --accent-secondary: #6e6e6e;
+  --primary-foreground: #ffffff;
+  --muted: #f3f3f3;
+  --accent: #f3f3f3;
+  --ring: #000000;
+
+  /* Washes — black at the same strengths the dark base uses white. */
+  --bg-hover: rgba(0, 0, 0, 0.04);
+  --bg-selected: rgba(0, 0, 0, 0.06);
+  --bg-active: rgba(0, 0, 0, 0.08);
+  --selection-bg: rgba(0, 0, 0, 0.14);
+
+  --comms-outer: #f3f3f3;
+  --comms-surface: #ffffff;
+  --comms-mention-bg: rgba(0, 0, 0, 0.12);
+  --comms-mention-text: #000000;
+  --comms-mention-other-bg: rgba(0, 0, 0, 0.06);
+  --comms-mention-other-text: #333333;
+  --comms-unread: #6e6e6e;
+  --comms-unread-deep: #555555;
+
+  /* The Atlas yellow cannot be read on white; same hue, AA-dark. */
+  --text-accent: #707000;
+
+  /* Status — each clears AA (4.5:1) on every light base. */
+  --status-success: #6e6e6e;
+  --status-success-muted: rgba(0, 0, 0, 0.06);
+  --status-warning: #976500;
+  --status-warning-muted: rgba(151, 101, 0, 0.12);
+  --status-error: #cf222e;
+  --status-error-muted: rgba(207, 34, 46, 0.1);
+  --status-info: #0969da;
+  --status-info-muted: rgba(9, 105, 218, 0.1);
+  --status-purple: #6e6e6e;
+  --status-orange: #976500;
+  --stat-added: #1a7f37;
+  --stat-removed: #cf222e;
+  --capture-live: #1a7f37;
+
+  --diff-added-bg: rgba(0, 0, 0, 0.04);
+  --diff-added-text: #1a7f37;
+  --diff-removed-bg: rgba(0, 0, 0, 0.04);
+  --diff-removed-text: #6e6e6e;
+  --diff-modified-bg: rgba(0, 0, 0, 0.06);
+
+  /* Mode-relative overlays. `--shade` is itself translucent here, so every
+     `color-mix(var(--shade) N%)` shadow lightens proportionally. */
+  --contrast: #000000;
+  --shade: rgba(0, 0, 0, 0.2);
+  /* Redeclared, not inherited: a custom property substitutes var() where it is
+     declared, so :root's copy would keep the dark values. */
+  --shadow-popover:
+    inset 0 1px 0 color-mix(in srgb, var(--contrast) 8%, transparent),
+    0 16px 48px color-mix(in srgb, var(--shade) 95%, transparent);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.1);
+  --shadow-overlay: 0 16px 48px rgba(0, 0, 0, 0.12);
+
+  /* Terminal — light-only; dark falls back to the literals in
+     terminal-palette.ts / line-emulator.ts (tests/terminal-palette.test.ts). */
+  --term-bg: #ffffff;
+  --ansi-0: #383a42;
+  --ansi-1: #e45649;
+  --ansi-2: #4f9f4e;
+  --ansi-3: #be8201;
+  --ansi-4: #4078f2;
+  --ansi-5: #a626a4;
+  --ansi-6: #0184bc;
+  --ansi-7: #8c8d95;
+  --ansi-8: #696c77;
+  --ansi-9: #ca1243;
+  --ansi-10: #3e953a;
+  --ansi-11: #986801;
+  --ansi-12: #2f5af3;
+  --ansi-13: #8b1f89;
+  --ansi-14: #0e7aa6;
+  --ansi-15: #4f5260;
+
+  /* Chart series — the dark greys, deepened to ≥ 3:1 (graphical objects). */
+  --chart-agents: #978b7b;
+  --chart-gpt: #7d909c;
+  --chart-gemini: #7f8eaf;
+  --chart-byok: #94899e;
+  --chart-input: #8c8c99;
+  --chart-output: #7f8088;
+  --chart-project-0: #8d8d99;
+  --chart-project-1: #838e9b;
+  --chart-project-2: #86917f;
+  --chart-project-3: #988c7c;
+  --chart-project-4: #908ba0;
+  --chart-project-5: #878e99;
+  --chart-project-6: #978c7a;
+  --chart-project-7: #77948c;
+  --chart-project-8: #96899a;
+  --chart-project-9: #878d92;
+}
+
+/* ==========================================================================
    Utility classes from the Claude Design handoff (atlas-tokens.css).
    Used by the knowledge panel chrome (eyebrows / mono tags / agent chips /
    keyboard hints / pill badges). Self-contained — no JS dependency.

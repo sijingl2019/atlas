@@ -667,17 +667,8 @@ function RunningPhase({ label, tail, url }: { label: string; tail: string[]; url
 function SignInDock({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div
-      className="flex items-center gap-2.5 rounded-full py-2 pl-3.5 pr-3"
-      // Same frosted-HUD treatment as the hint-nav dock (`hint-overlay.tsx`) —
-      // one element carries the blur, border and shadow together.
-      style={{
-        background: "linear-gradient(180deg, rgba(18,18,21,0.86) 0%, rgba(8,8,10,0.9) 100%)",
-        backdropFilter: "blur(22px) saturate(170%)",
-        WebkitBackdropFilter: "blur(22px) saturate(170%)",
-        border: "1px solid color-mix(in srgb, var(--contrast) 8%, transparent)",
-        boxShadow:
-          "inset 0 1px 0 color-mix(in srgb, var(--contrast) 10%, transparent), 0 8px 28px color-mix(in srgb, var(--shade) 55%, transparent)",
-      }}
+      className="atlas-hud-dock flex items-center gap-2.5 rounded-full py-2 pl-3.5 pr-3"
+      // Same frosted-HUD dock as the hint-nav bar (.atlas-hud-dock in globals.css).
     >
       {/* Radix requires both on every Content; the dock states carry their own
           visible copy, so these are for screen readers only. */}

@@ -10,6 +10,7 @@
 
 import { DEFAULT_SCALE } from "./ui-scale";
 import { DEFAULT_EDITOR_THEME_ID } from "@/features/editor/themes/themes";
+import type { ThemeMode } from "@/features/theme/mode";
 import { DEFAULT_ATLAS_THEME_ID } from "@/features/theme/themes";
 
 /**
@@ -42,11 +43,19 @@ export interface AppSettings {
   /** Code-editor color theme id (see src/features/editor/themes). Drives the
    *  CodeMirror editor, the diff viewer and the source-control diff views. */
   codeEditorTheme: string;
-  /** Atlas interface-theme id (see src/features/theme/themes). Swaps the whole
-   *  dark UI palette — background, panels, text, borders and accent — while
-   *  keeping dark-theme primitives. Independent of `codeEditorTheme` (which only
-   *  themes code syntax). Default "atlas-black" = original AMOLED look. */
+  /** Atlas interface-theme id (see src/features/theme/themes). The dark mode's
+   *  interface theme — swaps the whole UI palette — background, panels, text,
+   *  borders and accent — while keeping dark-theme primitives. Independent of
+   *  `codeEditorTheme` (which only themes code syntax). Default "atlas-black" =
+   *  original AMOLED look. */
   atlasTheme: string;
+  /** Light / Dark / System. `atlasTheme` and `codeEditorTheme` are the dark
+   *  mode's picks; the `…Light` fields are light mode's. Default "dark". */
+  themeMode: ThemeMode;
+  /** Interface theme id used in light mode. Default "atlas-light". */
+  atlasThemeLight: string;
+  /** Editor theme id used in light mode. Default "atlas-light". */
+  codeEditorThemeLight: string;
   /** Adaptive next-step suggestion chips in the agent chat's per-turn card.
    *  "agent" (default) asks the coding agent to end each reply with a hidden
    *  `<next_steps>` block (uses the live session context, no BYOK); "off"
@@ -132,6 +141,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   embeddingModelId: "all-MiniLM-L6-v2",
   codeEditorTheme: DEFAULT_EDITOR_THEME_ID,
   atlasTheme: DEFAULT_ATLAS_THEME_ID,
+  themeMode: "dark",
+  atlasThemeLight: "atlas-light",
+  codeEditorThemeLight: "atlas-light",
   adaptiveSuggestions: "agent",
   gitBlameInline: true,
   autoUpdate: true,

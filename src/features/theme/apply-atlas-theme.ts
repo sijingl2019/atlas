@@ -1,4 +1,5 @@
-import { DEFAULT_ATLAS_THEME_ID, buildThemeVars, getAtlasTheme } from "./themes";
+import { BASE_ATLAS_THEME_ID, buildThemeVars, getAtlasTheme } from "./themes";
+import type { ResolvedMode } from "./mode";
 
 // The full set of CSS custom properties a theme may override. Used to clear a
 // prior theme's inline overrides before applying the next (and to reset to the
@@ -11,17 +12,17 @@ const THEME_VARS = Object.keys(buildThemeVars(getAtlasTheme(null).spec));
  * both the Tailwind v4 `@theme` utilities and every direct `var(--…)` consumer,
  * so the whole UI reskins while staying dark.
  *
- * **Atlas Black** (default) clears all overrides → the pristine AMOLED tokens in
- * `tokens.css` apply verbatim (no regression to the signature look).
+ * A mode's base theme (Atlas Black, Atlas Light) clears all overrides so that
+ * mode's `tokens.css` block applies verbatim.
  *
  * Pure DOM, safe to call pre-mount. Mirrors `apply-editor-theme.ts`.
  */
-export function applyAtlasTheme(id: string | undefined | null): void {
+export function applyAtlasTheme(id: string | undefined | null, mode: ResolvedMode = "dark"): void {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
-  const theme = getAtlasTheme(id);
+  const theme = getAtlasTheme(id, mode);
 
-  if (theme.id === DEFAULT_ATLAS_THEME_ID) {
+  if (theme.id === BASE_ATLAS_THEME_ID[theme.mode]) {
     for (const k of THEME_VARS) root.style.removeProperty(k);
     return;
   }

@@ -29,6 +29,7 @@
  */
 import type { CSSProperties } from "react";
 import type { AnsiSegment } from "./ansi-to-segments";
+import { ANSI_KEYS, TERMINAL_PALETTES } from "./terminal-palette";
 
 export interface ResolvedLine {
   /** Stable for the lifetime of the row — the React key. */
@@ -55,24 +56,9 @@ interface HotRow {
 
 // ── SGR ────────────────────────────────────────────────────────────────────
 
-const PALETTE_16 = [
-  "#1a1a1a",
-  "#e06c75",
-  "#98c379",
-  "#e5c07b",
-  "#61afef",
-  "#c678dd",
-  "#56b6c2",
-  "#cccccc",
-  "#5c6370",
-  "#e06c75",
-  "#98c379",
-  "#e5c07b",
-  "#61afef",
-  "#c678dd",
-  "#56b6c2",
-  "#ffffff",
-];
+/** The block renderer's ANSI colors: light-mode CSS tokens with the dark
+ *  palette as the fallback, so committed lines recolor when the mode flips. */
+const PALETTE_16 = ANSI_KEYS.map((key, i) => `var(--ansi-${i}, ${TERMINAL_PALETTES.dark[key]})`);
 
 function color256(n: number): string {
   if (n < 16) return PALETTE_16[n];

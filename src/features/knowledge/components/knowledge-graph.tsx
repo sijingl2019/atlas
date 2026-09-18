@@ -13,6 +13,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { forceLayout, usablePosition } from "@/lib/graph-layout";
 import { GraphRuler, type Viewport } from "@/components/graph-ruler";
 import { isMac } from "@/lib/platform";
+import { graphPalette, type GraphPalette } from "@/features/theme/graph-palette";
 import { useProjectStore } from "@/features/project/stores/project-store";
 import { useKnowledgeStore } from "../stores/knowledge-store";
 import { useKnowledgeMetaStore } from "../stores/knowledge-meta-store";
@@ -33,13 +34,6 @@ import {
 
 const RESOLUTION = 2;
 const NODE_CAP = 1000;
-
-const COLOR_PRIMARY = 0xfafafa;
-const COLOR_SECONDARY = 0xc4c4c4;
-const COLOR_MUTED = 0x5e5e5e;
-const COLOR_EDGE_DEFAULT = 0x333333;
-const COLOR_EDGE_SELECTED = 0xc4c4c4;
-const COLOR_EDGE_DIM = 0x262626;
 
 const MIN_SCALE = 0.2;
 const MAX_SCALE = 4;
@@ -482,7 +476,7 @@ function buildScene(
     });
     nodeLayer.addChild(graphics);
 
-    const label = new Text({ text: node.title, style: styleFor("#c4c4c4") });
+    const label = new Text({ text: node.title, style: styleFor(graphPalette().secondary) });
     label.anchor.set(0.5, 0); // top-center: hangs below the disc
     labelLayer.addChild(label);
 
@@ -760,6 +754,7 @@ function buildScene(
   // So object identity is a complete dirty signal: skip the redraw when the
   // physics is asleep AND the scene object is unchanged.
   let lastScene: typeof sceneRef.current | null = null;
+  let lastPalette: GraphPalette | null = null;
   const tick = (ticker: Ticker) => {
     if (awake) {
       Matter.Engine.update(engine, ticker.deltaMS);
@@ -780,8 +775,11 @@ function buildScene(
     }
 
     const scene = sceneRef.current;
-    if (!awake && scene === lastScene) return;
+    // A mode flip is a redraw too — the scene object alone would not show it.
+    const P = graphPalette();
+    if (!awake && scene === lastScene && P === lastPalette) return;
     lastScene = scene;
+    lastPalette = P;
 
     const { selectedId, neighbors, draggingId, draggingNeighbors, zoom } = scene;
     // Drag-highlight uses the same visual treatment as selection.
@@ -795,24 +793,24 @@ function buildScene(
     for (const node of nodesById.values()) {
       const isFocused = focusId === node.id;
       const isNeighbor = focusNeighbors.has(node.id);
-      let color = COLOR_SECONDARY;
+      let color = P.secondary;
       let alpha = 1;
       let drawRadius = node.radius;
       if (hasFocus) {
         if (isFocused) {
-          color = COLOR_PRIMARY;
+          color = P.primary;
           drawRadius = node.radius * 1.2;
         } else if (isNeighbor) {
-          color = COLOR_PRIMARY;
+          color = P.primary;
         } else {
-          color = COLOR_MUTED;
+          color = P.muted;
           alpha = 0.4;
         }
       }
       node.graphics.clear();
       if (isFocused) {
         node.graphics.circle(node.body.position.x, node.body.position.y, drawRadius + 3 * inv);
-        node.graphics.stroke({ width: 2 * inv, color: COLOR_PRIMARY, alpha: 0.6 });
+        node.graphics.stroke({ width: 2 * inv, color: P.primary, alpha: 0.6 });
       }
       node.graphics.circle(node.body.position.x, node.body.position.y, drawRadius);
       node.graphics.fill({ color, alpha });
@@ -828,13 +826,13 @@ function buildScene(
         node.label.alpha = 0;
       } else if (!hasFocus) {
         node.label.alpha = 0.85;
-        node.label.style = styleFor("#c4c4c4");
+        node.label.style = styleFor(P.secondary);
       } else if (isFocused || isNeighbor) {
         node.label.alpha = 1;
-        node.label.style = styleFor("#fafafa");
+        node.label.style = styleFor(P.primary);
       } else {
         node.label.alpha = 0.3;
-        node.label.style = styleFor("#5e5e5e");
+        node.label.style = styleFor(P.muted);
       }
     }
 
@@ -844,14 +842,14 @@ function buildScene(
       edge.graphics.clear();
       if (!a || !b) continue;
       const touchesFocus = hasFocus && (focusId === edge.from || focusId === edge.to);
-      let color = COLOR_EDGE_DEFAULT;
+      let color = P.edgeDefault;
       let alpha = 0.3;
       if (hasFocus) {
         if (touchesFocus) {
-          color = COLOR_EDGE_SELECTED;
+          color = P.edgeSelected;
           alpha = 0.9;
         } else {
-          color = COLOR_EDGE_DIM;
+          color = P.edgeDim;
           alpha = 0.15;
         }
       }

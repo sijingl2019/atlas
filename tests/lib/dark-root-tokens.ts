@@ -1,15 +1,16 @@
 /**
- * Custom properties declared directly in the FIRST bare `:root { … }` block of
- * a stylesheet — the dark palette in `src/styles/tokens.css`. Later blocks
- * (`:root[data-mode="light"]`, utility classes) are not part of it.
+ * Custom properties declared directly in one `:root…{ … }` block of a
+ * stylesheet. `selector` is matched literally at the start of a line, so
+ * `:root` finds the bare dark palette and never `:root[data-mode="light"]`.
  *
  * Values are whitespace-normalized so a multi-line declaration compares equal
  * to its one-line form.
  */
-export function darkRootTokens(css: string): Record<string, string> {
+export function rootBlockTokens(css: string, selector: string): Record<string, string> {
   const noComments = css.replace(/\/\*[\s\S]*?\*\//g, "");
-  const match = /(^|\n)\s*:root\s*\{/.exec(noComments);
-  if (!match) throw new Error("no :root block");
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = new RegExp(`(^|\\n)\\s*${escaped}\\s*\\{`).exec(noComments);
+  if (!match) throw new Error(`no ${selector} block`);
   const open = noComments.indexOf("{", match.index);
   let depth = 0;
   let close = -1;
@@ -20,10 +21,13 @@ export function darkRootTokens(css: string): Record<string, string> {
       break;
     }
   }
-  if (close < 0) throw new Error("unterminated :root block");
+  if (close < 0) throw new Error(`unterminated ${selector} block`);
   const out: Record<string, string> = {};
   for (const m of noComments.slice(open + 1, close).matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) {
     out[m[1]] = m[2].replace(/\s+/g, " ").trim();
   }
   return out;
 }
+
+/** The dark palette: the first bare `:root { … }` block. */
+export const darkRootTokens = (css: string) => rootBlockTokens(css, ":root");

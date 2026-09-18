@@ -1,20 +1,25 @@
 /**
- * Atlas Themes — complete dark palettes for the whole UI.
+ * Atlas Themes — complete palettes for the whole UI, dark and light.
  *
  * This replaces the earlier "App Accent" picker: instead of only re-tinting the
- * accent over a fixed AMOLED-black base, a theme swaps the *entire* dark palette
+ * accent over a fixed AMOLED-black base, a theme swaps the *entire* palette
  * — background, elevations, text tiers, borders AND accent — so Atlas can wear
- * popular editor palettes (One Dark, GitHub Dark, …) as a full skin. Everything
- * stays dark (dark-theme primitives only); we just move `#000` off pure black.
+ * popular editor palettes (One Dark, GitHub Dark, …) as a full skin. A theme
+ * belongs to one mode; light themes render on the `:root[data-mode="light"]`
+ * base in tokens.css.
  *
  * Applied at runtime by `apply-atlas-theme.ts`, which writes each theme's tokens
  * as CSS custom properties on `document.documentElement` (same mechanism the old
- * accent picker used). The default **Atlas Black** clears all overrides so the
- * original AMOLED look is preserved byte-for-byte.
+ * accent picker used). Each mode's base theme — **Atlas Black** for dark,
+ * **Atlas Light** for light — clears all overrides instead, so that mode's
+ * block in tokens.css applies verbatim and the original AMOLED look is
+ * preserved byte-for-byte.
  *
  * The code-editor *syntax* theme ([[project_editor_themes]]) is independent and
  * composes on top — pick GitHub Dark chrome with One Dark syntax if you like.
  */
+import type { ResolvedMode } from "./mode";
+
 export type ThemeSpec = {
   /** --bg-base / --bg-surface — the main content background. */
   base: string;
@@ -50,16 +55,26 @@ export type AtlasTheme = {
   name: string;
   /** One-line character sketch shown beside the preview in the picker. */
   description: string;
+  mode: ResolvedMode;
   spec: ThemeSpec;
 };
 
 export const DEFAULT_ATLAS_THEME_ID = "atlas-black";
+
+/** The theme whose palette IS the CSS base for its mode (`:root` for dark,
+ *  `:root[data-mode="light"]` for light). Applying it clears every inline
+ *  override instead of writing one. */
+export const BASE_ATLAS_THEME_ID: Record<ResolvedMode, string> = {
+  dark: DEFAULT_ATLAS_THEME_ID,
+  light: "atlas-light",
+};
 
 export const ATLAS_THEMES: AtlasTheme[] = [
   {
     id: "atlas-black",
     name: "Atlas Black",
     description: "Pure AMOLED black — maximum contrast, zero glare.",
+    mode: "dark",
     // Preview only — the applier CLEARS overrides for this id so the original
     // AMOLED tokens in tokens.css apply verbatim.
     spec: {
@@ -87,6 +102,7 @@ export const ATLAS_THEMES: AtlasTheme[] = [
     id: "chyral",
     name: "Chyral",
     description: "Warm near-black with muted gold — cozy, low glare.",
+    mode: "dark",
     spec: {
       // Warm near-black base (darkest, like Atlas Black's #000) with a raised
       // surface ladder + bright warm borders, so panes/cards stay distinct.
@@ -114,6 +130,7 @@ export const ATLAS_THEMES: AtlasTheme[] = [
     id: "mirage",
     name: "Mirage",
     description: "Neutral graphite with soft periwinkle — clean, restrained.",
+    mode: "dark",
     spec: {
       // Cool graphite near-black base (darkest) with a raised surface ladder +
       // bright cool borders, mirroring Atlas Black's depth structure.
@@ -141,6 +158,7 @@ export const ATLAS_THEMES: AtlasTheme[] = [
     id: "rose-pine",
     name: "Rosé Pine",
     description: "AMOLED near-black with a soft rose accent — calm, focused.",
+    mode: "dark",
     spec: {
       // Keep the recognizable Rosé Pine warmth while pulling its surfaces
       // toward black for OLED displays and preserving Atlas's depth ladder.
@@ -168,6 +186,7 @@ export const ATLAS_THEMES: AtlasTheme[] = [
     id: "one-dark",
     name: "One Dark",
     description: "Deep blue-slate with Atom's cool blue accent — balanced, familiar.",
+    mode: "dark",
     spec: {
       base: "#0b0e14",
       panel: "#11151c",
@@ -193,6 +212,7 @@ export const ATLAS_THEMES: AtlasTheme[] = [
     id: "phosphor",
     name: "Phosphor",
     description: "Amber CRT phosphor glow — retro terminal warmth in the dark.",
+    mode: "dark",
     spec: {
       // Near-black warm-brown base (matching the depth ladder of the other
       // themes) lit up by a saturated amber phosphor accent + text tier.
@@ -215,15 +235,104 @@ export const ATLAS_THEMES: AtlasTheme[] = [
       accentForeground: "#170900",
     },
   },
+  {
+    id: "atlas-light",
+    name: "Atlas Light",
+    description: "Pure neutral white with a black accent — Atlas Black, inverted.",
+    mode: "light",
+    // Preview only — the applier CLEARS overrides for this id so the light
+    // block in tokens.css applies verbatim. Keep the two identical
+    // (tests/light-root-tokens.test.ts holds them together).
+    spec: {
+      base: "#ffffff",
+      panel: "#f7f7f7",
+      elevated: "#f3f3f3",
+      overlay: "#ffffff",
+      input: "#ffffff",
+      tabActive: "#ececec",
+      textPrimary: "#000000",
+      textSecondary: "#555555",
+      textTertiary: "#6e6e6e",
+      textGhost: "#cccccc",
+      textMuted: "#949494",
+      borderDefault: "#e3e3e3",
+      borderSubtle: "#ededed",
+      borderStrong: "#c2c2c2",
+      accent: "#000000",
+      accentHover: "#333333",
+      accentForeground: "#ffffff",
+    },
+  },
+  {
+    // Official One Light values (atom/atom packages/one-light-ui + one-light-syntax,
+    // compiled with lessc). Surfaces map onto Atlas's ladder: base = pane
+    // (@base-background-color), panel = @tool-panel-background-color, popovers
+    // lightest (@level-1-color). borderStrong is derived: @base-border-color − 8%.
+    id: "one-light",
+    name: "One Light",
+    description: "Atom's soft light grey with its cool blue accent — calm, familiar.",
+    mode: "light",
+    spec: {
+      base: "#fafafa",
+      panel: "#eaeaeb",
+      elevated: "#f2f2f2",
+      overlay: "#ffffff",
+      input: "#ffffff",
+      tabActive: "#dbdbdc",
+      textPrimary: "#232324",
+      textSecondary: "#424243",
+      textTertiary: "#8e8e90",
+      textGhost: "#dbdbdc",
+      textMuted: "#a0a1a7",
+      borderDefault: "#dbdbdc",
+      borderSubtle: "#eaeaeb",
+      borderStrong: "#c6c7c7",
+      accent: "#556de8",
+      accentHover: "#304ee2",
+      accentForeground: "#ffffff",
+    },
+  },
+  {
+    // Official Rosé Pine Dawn (rose-pine/palette palette.json, `dawn`): base,
+    // surface, overlay, text, subtle, muted, love, rose. Borders/ghost/tab are
+    // derived — `muted` mixed into `base` at 25/14/45/30/10% — because the
+    // palette publishes no border roles.
+    id: "rose-pine-dawn",
+    name: "Rosé Pine Dawn",
+    description: "Warm parchment with Rosé Pine's rose accent — soft, unhurried.",
+    mode: "light",
+    spec: {
+      base: "#faf4ed",
+      panel: "#f2e9e1",
+      elevated: "#fffaf3",
+      overlay: "#fffaf3",
+      input: "#fffaf3",
+      tabActive: "#f0eae6",
+      textPrimary: "#464261",
+      textSecondary: "#797593",
+      textTertiary: "#9893a5",
+      textGhost: "#ddd7d7",
+      textMuted: "#9893a5",
+      borderDefault: "#e2dcdb",
+      borderSubtle: "#ece6e3",
+      borderStrong: "#cec8cd",
+      accent: "#b4637a",
+      accentHover: "#d7827e",
+      accentForeground: "#ffffff",
+    },
+  },
 ];
 
-/** Look up a theme by id, falling back to the Atlas Black default. */
-export function getAtlasTheme(id: string | undefined | null): AtlasTheme {
-  return (
-    ATLAS_THEMES.find((t) => t.id === id) ??
-    ATLAS_THEMES.find((t) => t.id === DEFAULT_ATLAS_THEME_ID) ??
-    ATLAS_THEMES[0]
-  );
+/** Look up a theme for a mode. An unknown id, or one from the other mode (a
+ *  hand-edited config), falls back to that mode's base theme rather than
+ *  painting a dark palette over a light base. */
+export function getAtlasTheme(
+  id: string | undefined | null,
+  mode: ResolvedMode = "dark",
+): AtlasTheme {
+  const found = ATLAS_THEMES.find((t) => t.id === id);
+  if (found && found.mode === mode) return found;
+  return ATLAS_THEMES.find((t) => t.id === BASE_ATLAS_THEME_ID[mode]) ?? ATLAS_THEMES[0];
 }
 
 /** Expand a theme spec into the full CSS-custom-property map that reskins the

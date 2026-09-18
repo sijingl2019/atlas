@@ -45,8 +45,6 @@ const COLORED_FILL = "white text/ring on a colored fill, not on the theme surfac
 const XTERM = "must match xterm's own canvas colors, which are set in JS";
 const CANVAS_2D =
   "drawn with Canvas 2D (fillStyle/strokeStyle), which needs a resolved color; a CSS variable does not work there";
-const SVG_PROP =
-  "SVG attribute or chart/React Flow color prop, where var() does resolve (usage-donut.tsx already relies on it); kept literal until the light-mode palette work";
 
 const ALLOWED: Allowed[] = [
   // ── fixed components ──
@@ -63,11 +61,6 @@ const ALLOWED: Allowed[] = [
   {
     file: "features/hint-nav/components/hint-overlay.tsx",
     snippet: `"inset 0 1px 0 rgba(255,255,255,0.12), inset 0 -1px 0`,
-    reason: KEYCAP,
-  },
-  {
-    file: "features/hint-nav/components/hint-overlay.tsx",
-    snippet: `boxShadow: "inset 0 1px 0 rgba(255,255,255,0.1), 0 8px 28px`,
     reason: KEYCAP,
   },
   {
@@ -213,22 +206,7 @@ const ALLOWED: Allowed[] = [
 
   // ── the terminal ──
   {
-    file: "features/terminal/components/block-terminal.tsx",
-    snippet: "bg-[#000] px-1 py-1",
-    reason: XTERM,
-  },
-  {
-    file: "features/terminal/components/classic-terminal.tsx",
-    snippet: "bg-[#000] px-2 py-1",
-    reason: XTERM,
-  },
-  {
-    file: "features/terminal/components/terminal-panel.tsx",
-    snippet: `className="h-full bg-[#000] relative"`,
-    reason: XTERM,
-  },
-  {
-    file: "features/terminal/lib/terminal-session.ts",
+    file: "features/terminal/lib/terminal-palette.ts",
     snippet: `selectionInactiveBackground: "rgba(255,255,255,0.16)"`,
     reason: XTERM,
   },
@@ -236,42 +214,7 @@ const ALLOWED: Allowed[] = [
   // ── colors handed to canvas, SVG and chart renderers ──
   {
     file: "components/graph-ruler.tsx",
-    snippet: `BORDER_COL = "rgba(255,255,255,0.06)"`,
-    reason: CANVAS_2D,
-  },
-  {
-    file: "features/canvas/components/canvas-panel.tsx",
-    snippet: `color="rgba(255,255,255,0.18)"`,
-    reason: SVG_PROP,
-  },
-  {
-    file: "features/spaces/components/space-canvas.tsx",
-    snippet: `color="rgba(255,255,255,0.18)"`,
-    reason: SVG_PROP,
-  },
-  {
-    file: "features/comms/components/comms-not-connected.tsx",
-    snippet: `ctx.fillStyle = "rgba(255,255,255,0.16)"`,
-    reason: CANVAS_2D,
-  },
-  {
-    file: "features/memory/components/memory-timeline-calendar.tsx",
-    snippet: `CONNECTOR = "rgba(255,255,255,0.55)"`,
-    reason: SVG_PROP,
-  },
-  {
-    file: "features/mission-control/components/dashboard/usage-bar-chart.tsx",
-    snippet: `fill: "rgba(255,255,255,0.03)"`,
-    reason: SVG_PROP,
-  },
-  {
-    file: "features/mission-control/lib/chart-theme.ts",
-    snippet: `grid: "rgba(255,255,255,0.06)"`,
-    reason: SVG_PROP,
-  },
-  {
-    file: "ui/dither-field.tsx",
-    snippet: "ctx.fillStyle = `rgba(255,255,255,${alpha})`",
+    snippet: `border: "rgba(255,255,255,0.06)"`,
     reason: CANVAS_2D,
   },
 
@@ -285,6 +228,11 @@ const ALLOWED: Allowed[] = [
     file: "styles/globals.css",
     snippet: "var(--cm-active-line-bg, rgba(255, 255, 255, 0.04))",
     reason: "fallback pinned by css-fallbacks.test.ts",
+  },
+  {
+    file: "styles/globals.css",
+    snippet: "rgba(255, 255, 255, 0.86) 0%, rgba(246, 246, 246, 0.9) 100%",
+    reason: "light-mode HUD dock glass, only applied under data-mode=light",
   },
 ];
 

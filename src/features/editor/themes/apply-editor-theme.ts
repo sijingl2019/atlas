@@ -1,3 +1,4 @@
+import type { ResolvedMode } from "@/features/theme/mode";
 import { getEditorTheme, resolveEditorColors } from "./themes";
 import type { EditorThemeColors } from "./types";
 
@@ -59,9 +60,9 @@ export function editorThemeCssVars(c: EditorThemeColors): Record<string, string>
 
 /** Apply the given editor theme id by writing its tokens as CSS custom
  * properties onto `document.documentElement`. Pure DOM, safe pre-mount. */
-export function applyEditorTheme(id: string | undefined | null): void {
+export function applyEditorTheme(id: string | undefined | null, mode: ResolvedMode = "dark"): void {
   if (typeof document === "undefined") return;
-  const theme = getEditorTheme(id);
+  const theme = getEditorTheme(id, mode);
   const root = document.documentElement;
   const vars = editorThemeCssVars(resolveEditorColors(theme));
   for (const [k, v] of Object.entries(vars)) {

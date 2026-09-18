@@ -4,19 +4,21 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/ui/scroll-area";
 import { useProjectStore } from "@/features/project/stores/project-store";
-import { ATLAS_THEMES, type AtlasTheme } from "@/features/theme/themes";
+import { ATLAS_THEMES, getAtlasTheme, type AtlasTheme } from "@/features/theme/themes";
+import { pickerModes, useResolvedMode } from "@/features/theme/mode";
 
 /**
- * Settings → Appearance → Interface theme. A grid of complete dark palettes; the
- * active one is highlighted and clicking one applies + persists it immediately
- * (live-reskins the whole UI — background, panels, text, borders and accent).
- * Independent of the code-editor syntax theme. Mirrors
- * `code-editor-themes-settings.tsx`.
+ * Settings → Appearance → Interface theme. Grids of complete palettes for the
+ * active mode (both modes under System); the active one is highlighted and
+ * clicking one applies + persists it immediately (live-reskins the whole UI —
+ * background, panels, text, borders and accent). Independent of the
+ * code-editor syntax theme. Mirrors `code-editor-themes-settings.tsx`.
  */
 export function AtlasThemesSettings() {
   const settings = useProjectStore.use.settings();
   const { updateSettings } = useProjectStore.use.actions();
-  const active = settings.atlasTheme;
+  const resolved = useResolvedMode();
+  const sections = pickerModes(settings.themeMode, resolved);
   const [query, setQuery] = useState("");
 
   const themes = useMemo(() => {
@@ -49,44 +51,67 @@ export function AtlasThemesSettings() {
       </div>
 
       <ScrollArea className="flex-1 p-2">
-        <div className="grid grid-cols-2 gap-2">
-          {themes.map((t) => {
-            const selected = t.id === active;
-            return (
-              <button
-                key={t.id}
-                onClick={() => {
-                  updateSettings({ atlasTheme: t.id });
-                  toast.success(`Applied “${t.name}” theme`);
-                }}
-                className={cn(
-                  "group flex flex-col overflow-hidden rounded-lg border bg-bg-secondary text-left transition-colors outline-none",
-                  selected
-                    ? "border-[var(--border-strong)]"
-                    : "border-border-default hover:border-[var(--border-strong)]",
-                )}
-              >
-                <ThemePreview theme={t} />
-                <div className="flex flex-1 flex-col gap-1 px-2.5 py-2">
-                  <div className="flex items-center gap-1.5">
-                    <span className="truncate text-[12px] font-medium text-text-primary">
-                      {t.name}
-                    </span>
-                    {selected && (
-                      <span
-                        className="h-2 w-2 shrink-0 rounded-full bg-[var(--stat-added)]"
-                        title="Active"
-                      />
-                    )}
-                  </div>
-                  <p className="text-[10.5px] leading-snug text-text-tertiary">{t.description}</p>
-                </div>
-              </button>
-            );
-          })}
-        </div>
+        {sections.map((mode) => {
+          const list = themes.filter((t) => t.mode === mode);
+          if (list.length === 0) return null;
+          const activeId = getAtlasTheme(
+            mode === "light" ? settings.atlasThemeLight : settings.atlasTheme,
+            mode,
+          ).id;
+          return (
+            <section key={mode} className="mb-3 last:mb-0">
+              {sections.length > 1 && (
+                <h3 className="eyebrow mb-1.5 px-0.5">{mode === "light" ? "Light" : "Dark"}</h3>
+              )}
+              <div className="grid grid-cols-2 gap-2">
+                {list.map((t) => {
+                  const selected = t.id === activeId;
+                  return (
+                    <button
+                      key={t.id}
+                      onClick={() => {
+                        updateSettings(
+                          mode === "light" ? { atlasThemeLight: t.id } : { atlasTheme: t.id },
+                        );
+                        toast.success(
+                          mode === resolved
+                            ? `Applied “${t.name}” theme`
+                            : `Saved “${t.name}” as your ${mode === "light" ? "Light" : "Dark"} theme`,
+                        );
+                      }}
+                      className={cn(
+                        "group flex flex-col overflow-hidden rounded-lg border bg-bg-secondary text-left transition-colors outline-none",
+                        selected
+                          ? "border-[var(--border-strong)]"
+                          : "border-border-default hover:border-[var(--border-strong)]",
+                      )}
+                    >
+                      <ThemePreview theme={t} />
+                      <div className="flex flex-1 flex-col gap-1 px-2.5 py-2">
+                        <div className="flex items-center gap-1.5">
+                          <span className="truncate text-[12px] font-medium text-text-primary">
+                            {t.name}
+                          </span>
+                          {selected && (
+                            <span
+                              className="h-2 w-2 shrink-0 rounded-full bg-[var(--stat-added)]"
+                              title="Active"
+                            />
+                          )}
+                        </div>
+                        <p className="text-[10.5px] leading-snug text-text-tertiary">
+                          {t.description}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          );
+        })}
 
-        {themes.length === 0 && (
+        {sections.every((mode) => !themes.some((t) => t.mode === mode)) && (
           <div className="py-6 text-center text-[11px] text-text-tertiary">
             No themes match “{query}”.
           </div>

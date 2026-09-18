@@ -190,7 +190,7 @@ export function TerminalPanel({ tabId, workspaceId }: TerminalPanelProps) {
     : null;
 
   return (
-    <div ref={rootRef} className="h-full bg-[#000] relative">
+    <div ref={rootRef} className="h-full bg-[var(--term-bg,#000)] relative">
       {zoomed ? (
         <PaneView pane={zoomed} tabId={tabId} panelVisible={panelVisible} zoomed />
       ) : (

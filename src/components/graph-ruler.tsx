@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useResolvedMode } from "@/features/theme/mode";
 
 /**
  * Canvas/figma-style ruler overlay for the graph views. Draws a top + left
@@ -15,10 +16,21 @@ export interface Viewport {
 }
 
 const BAND = 18; // ruler thickness, CSS px
-const TICK_COL = "#343434";
-const LABEL_COL = "#777777";
-const BAND_BG = "rgba(10,10,10,0.72)";
-const BORDER_COL = "rgba(255,255,255,0.06)";
+
+const RULER_COLORS = {
+  dark: {
+    tick: "#343434",
+    label: "#777777",
+    band: "rgba(10,10,10,0.72)",
+    border: "rgba(255,255,255,0.06)",
+  },
+  light: {
+    tick: "#c8c8c8",
+    label: "#6e6e6e",
+    band: "rgba(250,250,250,0.72)",
+    border: "rgba(0,0,0,0.06)",
+  },
+} as const;
 
 /** Nearest "nice" step (1/2/5 × 10ⁿ) ≥ `raw`. */
 function niceStep(raw: number): number {
@@ -39,10 +51,17 @@ export function GraphRuler({
   viewport: Viewport;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const mode = useResolvedMode();
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || width === 0 || height === 0) return;
+    const {
+      tick: TICK_COL,
+      label: LABEL_COL,
+      band: BAND_BG,
+      border: BORDER_COL,
+    } = RULER_COLORS[mode];
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = Math.floor(width * dpr);
     canvas.height = Math.floor(height * dpr);
@@ -132,7 +151,7 @@ export function GraphRuler({
     ctx.moveTo(BAND + 0.5, 0);
     ctx.lineTo(BAND + 0.5, height);
     ctx.stroke();
-  }, [width, height, viewport]);
+  }, [width, height, viewport, mode]);
 
   return (
     <canvas

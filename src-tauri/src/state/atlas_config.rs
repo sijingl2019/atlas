@@ -100,6 +100,22 @@ impl Default for TerminalShell {
     }
 }
 
+/// Light / Dark / System appearance. `System` follows the OS appearance live.
+/// Defaults to `Dark` so upgrading never changes anyone's look.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ThemeMode {
+    Light,
+    Dark,
+    System,
+}
+
+impl Default for ThemeMode {
+    fn default() -> Self {
+        Self::Dark
+    }
+}
+
 /// User-facing toggles surfaced in Settings → General. Moved out of
 /// `state.json`'s `AppState.settings` (issue #64) into its own validated,
 /// human-editable `config.toml`.
@@ -155,6 +171,16 @@ pub struct AppSettings {
     /// Atlas interface-theme id (see `src/features/theme/themes`).
     #[serde(default = "default_atlas_theme")]
     pub atlas_theme: String,
+    /// Appearance mode. `atlas_theme` / `code_editor_theme` are **dark**
+    /// mode's picks; the `_light` fields below are **light** mode's.
+    #[serde(default)]
+    pub theme_mode: ThemeMode,
+    /// Interface theme used while the resolved mode is light.
+    #[serde(default = "default_atlas_theme_light")]
+    pub atlas_theme_light: String,
+    /// Editor theme used while the resolved mode is light.
+    #[serde(default = "default_code_editor_theme_light")]
+    pub code_editor_theme_light: String,
     /// "agent" (default) asks the coding agent to end each reply with a hidden
     /// `<next_steps>` block; "off" disables it.
     #[serde(default)]
@@ -232,6 +258,14 @@ pub fn default_atlas_theme() -> String {
     "atlas-black".to_string()
 }
 
+pub fn default_atlas_theme_light() -> String {
+    "atlas-light".to_string()
+}
+
+pub fn default_code_editor_theme_light() -> String {
+    "atlas-light".to_string()
+}
+
 pub fn default_embedding_model() -> String {
     "all-MiniLM-L6-v2".to_string()
 }
@@ -275,6 +309,9 @@ impl Default for AppSettings {
             embedding_model_id: default_embedding_model(),
             code_editor_theme: default_code_editor_theme(),
             atlas_theme: default_atlas_theme(),
+            theme_mode: ThemeMode::default(),
+            atlas_theme_light: default_atlas_theme_light(),
+            code_editor_theme_light: default_code_editor_theme_light(),
             adaptive_suggestions: AdaptiveSuggestions::default(),
             git_blame_inline: true,
             auto_update: true,
@@ -379,6 +416,22 @@ const SETTINGS_DOCS: &[(&str, &str)] = &[
         "atlasTheme",
         "# Atlas interface theme id — repaints the whole UI palette, separately\n\
          # from codeEditorTheme. Must not be empty. (default: \"atlas-black\")",
+    ),
+    (
+        "themeMode",
+        "# Appearance mode: \"light\", \"dark\", or \"system\" (follows the OS\n\
+         # appearance live). atlasTheme/codeEditorTheme apply in dark mode,\n\
+         # atlasThemeLight/codeEditorThemeLight in light mode. (default: \"dark\")",
+    ),
+    (
+        "atlasThemeLight",
+        "# Atlas interface theme id used in light mode. Must not be empty.\n\
+         # (default: \"atlas-light\")",
+    ),
+    (
+        "codeEditorThemeLight",
+        "# Code-editor colour theme id used in light mode. Must not be empty.\n\
+         # (default: \"atlas-light\")",
     ),
     (
         "adaptiveSuggestions",
@@ -562,6 +615,18 @@ pub fn validate(settings: &AppSettings) -> Result<(), ValidationIssue> {
     if settings.atlas_theme.trim().is_empty() {
         return Err(ValidationIssue {
             key: "atlasTheme",
+            message: "must not be empty".to_string(),
+        });
+    }
+    if settings.atlas_theme_light.trim().is_empty() {
+        return Err(ValidationIssue {
+            key: "atlasThemeLight",
+            message: "must not be empty".to_string(),
+        });
+    }
+    if settings.code_editor_theme_light.trim().is_empty() {
+        return Err(ValidationIssue {
+            key: "codeEditorThemeLight",
             message: "must not be empty".to_string(),
         });
     }
@@ -759,6 +824,9 @@ pub struct SettingsPatch {
     pub embedding_model_id: Option<String>,
     pub code_editor_theme: Option<String>,
     pub atlas_theme: Option<String>,
+    pub theme_mode: Option<ThemeMode>,
+    pub atlas_theme_light: Option<String>,
+    pub code_editor_theme_light: Option<String>,
     pub adaptive_suggestions: Option<AdaptiveSuggestions>,
     pub git_blame_inline: Option<bool>,
     pub auto_update: Option<bool>,
@@ -807,6 +875,15 @@ impl SettingsPatch {
         }
         if let Some(v) = &self.atlas_theme {
             settings.atlas_theme = v.clone();
+        }
+        if let Some(v) = self.theme_mode {
+            settings.theme_mode = v;
+        }
+        if let Some(v) = &self.atlas_theme_light {
+            settings.atlas_theme_light = v.clone();
+        }
+        if let Some(v) = &self.code_editor_theme_light {
+            settings.code_editor_theme_light = v.clone();
         }
         if let Some(v) = self.adaptive_suggestions {
             settings.adaptive_suggestions = v;
@@ -906,6 +983,20 @@ impl SettingsPatch {
         }
         if let Some(v) = &self.atlas_theme {
             table["atlasTheme"] = toml_edit::value(v.as_str());
+        }
+        if let Some(v) = self.theme_mode {
+            let s = match v {
+                ThemeMode::Light => "light",
+                ThemeMode::Dark => "dark",
+                ThemeMode::System => "system",
+            };
+            table["themeMode"] = toml_edit::value(s);
+        }
+        if let Some(v) = &self.atlas_theme_light {
+            table["atlasThemeLight"] = toml_edit::value(v.as_str());
+        }
+        if let Some(v) = &self.code_editor_theme_light {
+            table["codeEditorThemeLight"] = toml_edit::value(v.as_str());
         }
         if let Some(v) = self.adaptive_suggestions {
             let s = match v {
@@ -2220,5 +2311,77 @@ someFutureKey = \"left alone\"
         let mgr = ConfigManager::from_raw(path, &rendered).expect("the generated file parses");
         assert_eq!(mgr.effective(), &settings);
         assert!(mgr.unknown_keys().is_empty(), "comments must not read as unknown keys");
+    }
+
+    // ── theme mode (light themes) ──
+
+    /// A config written before light mode existed must keep its look: dark
+    /// mode, its dark theme untouched, and the light slots on their defaults.
+    #[test]
+    fn a_config_from_before_light_mode_loads_dark_with_default_light_slots() {
+        let path = tmp_config_path();
+        let raw = "schemaVersion = 1\n\n[settings]\natlasTheme = \"chyral\"\ncodeEditorTheme = \"dracula\"\n";
+        let mgr = ConfigManager::from_raw(path, raw).expect("old file parses");
+        let s = mgr.effective();
+        assert_eq!(s.theme_mode, ThemeMode::Dark);
+        assert_eq!(s.atlas_theme, "chyral");
+        assert_eq!(s.code_editor_theme, "dracula");
+        assert_eq!(s.atlas_theme_light, default_atlas_theme_light());
+        assert_eq!(s.code_editor_theme_light, default_code_editor_theme_light());
+    }
+
+    #[test]
+    fn theme_mode_and_light_slots_patch_through_to_disk() {
+        let path = tmp_config_path();
+        let raw = "schemaVersion = 1\n\n[settings]\nenterToSend = true\n";
+        fs::write(&path, raw).unwrap();
+        let mut mgr = ConfigManager::from_raw(path.clone(), raw).unwrap();
+
+        let patch = SettingsPatch {
+            theme_mode: Some(ThemeMode::System),
+            atlas_theme_light: Some("one-light".to_string()),
+            code_editor_theme_light: Some("catppuccin-latte".to_string()),
+            ..Default::default()
+        };
+        mgr.apply_patch(&patch, None).expect("patch applies");
+
+        assert_eq!(mgr.effective().theme_mode, ThemeMode::System);
+        let on_disk = fs::read_to_string(&path).unwrap();
+        assert!(on_disk.contains("themeMode = \"system\""), "{on_disk}");
+        assert!(on_disk.contains("atlasThemeLight = \"one-light\""), "{on_disk}");
+        assert!(on_disk.contains("codeEditorThemeLight = \"catppuccin-latte\""), "{on_disk}");
+    }
+
+    #[test]
+    fn an_unknown_theme_mode_is_rejected() {
+        let path = tmp_config_path();
+        let raw = "schemaVersion = 1\n\n[settings]\nthemeMode = \"sepia\"\n";
+        let err = ConfigManager::from_raw(path, raw).expect_err("unknown mode must not load");
+        assert!(matches!(err, ConfigError::Parse(_)), "{err:?}");
+    }
+
+    #[test]
+    fn an_empty_light_theme_slot_is_rejected() {
+        let cases: &[(SettingsPatch, &str)] = &[
+            (
+                SettingsPatch { atlas_theme_light: Some("  ".to_string()), ..Default::default() },
+                "atlasThemeLight",
+            ),
+            (
+                SettingsPatch {
+                    code_editor_theme_light: Some("  ".to_string()),
+                    ..Default::default()
+                },
+                "codeEditorThemeLight",
+            ),
+        ];
+        for (patch, key) in cases {
+            let path = tmp_config_path();
+            let raw = "schemaVersion = 1\n\n[settings]\nenterToSend = true\n";
+            fs::write(&path, raw).unwrap();
+            let mut mgr = ConfigManager::from_raw(path, raw).unwrap();
+            let err = mgr.apply_patch(patch, None).expect_err("empty slot must be rejected");
+            assert!(matches!(err, ConfigError::Invalid(ref issue) if issue.key == *key));
+        }
     }
 }

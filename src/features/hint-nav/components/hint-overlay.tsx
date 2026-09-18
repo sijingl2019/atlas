@@ -203,19 +203,7 @@ export function HintOverlay() {
 
       {/* Bottom HUD bar — native macOS frosted-glass dock */}
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
-        <div
-          className="flex items-center gap-3 rounded-2xl px-3.5 py-2.5"
-          style={{
-            // Matches the hint keycaps: dark translucent gradient over a heavy
-            // backdrop blur, hairline border, faint top highlight + soft drop
-            // shadow for the floating native-HUD feel.
-            background: "linear-gradient(180deg, rgba(18,18,21,0.86) 0%, rgba(8,8,10,0.9) 100%)",
-            backdropFilter: "blur(22px) saturate(170%)",
-            WebkitBackdropFilter: "blur(22px) saturate(170%)",
-            border: "1px solid rgba(255,255,255,0.08)",
-            boxShadow: "inset 0 1px 0 rgba(255,255,255,0.1), 0 8px 28px rgba(0,0,0,0.55)",
-          }}
-        >
+        <div className="atlas-hud-dock flex items-center gap-3 rounded-2xl px-3.5 py-2.5">
           <span className="font-mono text-[12px] text-[var(--text-primary)]">
             {typed ? (
               <span className="tracking-widest">{typed.toUpperCase()}</span>

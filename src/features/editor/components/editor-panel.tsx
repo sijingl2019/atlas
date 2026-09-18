@@ -13,6 +13,7 @@ import { searchKeymap, highlightSelectionMatches } from "@codemirror/search";
 import { editorThemeExtensions } from "../themes/build-cm-theme";
 import { useEditorStore } from "../stores/editor-store";
 import { useProjectStore } from "@/features/project/stores/project-store";
+import { currentMode, editorThemeIdFor, useResolvedMode } from "@/features/theme/mode";
 import { useLayoutStore } from "@/features/layout/stores/layout-store";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -30,8 +31,8 @@ const TOOLBAR_HEIGHT = 32;
 const DIRTY_CHECK_DEBOUNCE = 300; // ms — only check dirty state, not sync content
 
 // Editor theme — live-swappable via a Compartment. The concrete colors come
-// from the theme registry (src/features/editor/themes), keyed by the persisted
-// `settings.codeEditorTheme`.
+// from the theme registry (src/features/editor/themes), keyed by the active
+// mode's `settings.codeEditorTheme` / `codeEditorThemeLight`.
 const themeCompartment = new Compartment();
 
 // Inline git blame — live-toggleable via a Compartment so flipping the
@@ -332,11 +333,15 @@ export function EditorPanel({ tabId, filePath, containerHeight }: EditorPanelPro
       const langExt = await loadLanguageExtension(buffer.language);
       if (cancelled) return;
 
+      const startMode = currentMode();
       const view = new EditorView({
         doc: originalContent,
         extensions: [
           themeCompartment.of(
-            editorThemeExtensions(useProjectStore.getState().settings.codeEditorTheme),
+            editorThemeExtensions(
+              editorThemeIdFor(useProjectStore.getState().settings, startMode),
+              startMode,
+            ),
           ),
           langExt,
           lineNumbers(),
@@ -406,14 +411,15 @@ export function EditorPanel({ tabId, filePath, containerHeight }: EditorPanelPro
 
   // Live-reskin the editor when the persisted theme changes — reconfigure the
   // theme compartment in place so the buffer/undo history survive.
-  const codeEditorTheme = useProjectStore.use.settings().codeEditorTheme;
+  const mode = useResolvedMode();
+  const codeEditorTheme = useProjectStore((s) => editorThemeIdFor(s.settings, mode));
   useEffect(() => {
     const view = viewRef.current;
     if (!view) return;
     view.dispatch({
-      effects: themeCompartment.reconfigure(editorThemeExtensions(codeEditorTheme)),
+      effects: themeCompartment.reconfigure(editorThemeExtensions(codeEditorTheme, mode)),
     });
-  }, [codeEditorTheme]);
+  }, [codeEditorTheme, mode]);
 
   // Live-toggle inline blame: reconfigure the compartment in place; turning it
   // on also fetches a fresh snapshot (the extension starts empty).

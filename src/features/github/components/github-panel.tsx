@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import * as Popover from "@radix-ui/react-popover";
 import { useProjectStore } from "@/features/project/stores/project-store";
@@ -39,7 +39,8 @@ import { metaFromSearch, type ClonedRepo, type GithubRepo } from "@/features/git
  *  (`titlebar-dock.tsx`): a `#121212` pill with a hairline, 20px round cells. */
 const GROUP_BUTTON =
   "flex size-5 items-center justify-center rounded-full text-text-tertiary hover:text-text-primary hover:bg-bg-active cursor-pointer disabled:cursor-default disabled:opacity-50 disabled:hover:bg-transparent";
-const GROUP = "flex items-center gap-px rounded-full border border-white/[0.07] bg-[#121212] p-0.5";
+const GROUP =
+  "flex items-center gap-px rounded-full border border-contrast/[0.07] bg-[var(--bg-raised)] p-0.5";
 
 /** Top/bottom edge fades on a scroll container, only while there is more to scroll. */
 function useScrollEdges(ref: React.RefObject<HTMLDivElement | null>, deps: unknown[]) {

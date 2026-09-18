@@ -610,7 +610,7 @@ function SpaceSurface({
             variant={BackgroundVariant.Dots}
             gap={20}
             size={1.2}
-            color="rgba(255,255,255,0.18)"
+            color="color-mix(in srgb, var(--contrast) 18%, transparent)"
           />
           <SpaceCursors actors={actors} />
         </ReactFlow>
