@@ -6,6 +6,7 @@ import { Check, Copy, Download, Maximize2, Minus, Plus, X } from "lucide-react";
 
 import { copyText } from "@/lib/clipboard";
 import { cn } from "@/lib/utils";
+import { useResolvedMode } from "@/features/theme/mode";
 
 // Mermaid is heavy (~500KB) — load it on first diagram render only. The theme is
 // mapped to the *live* Atlas interface-theme tokens (read from CSS custom
@@ -155,6 +156,9 @@ export function MermaidBlock({ code, controls = false }: { code: string; control
   const [svg, setSvg] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const mountedRef = useRef(true);
+  // A diagram's colors are baked into its SVG at render time, so a mode flip
+  // has to redraw it — otherwise a dark diagram sits on a light page.
+  const mode = useResolvedMode();
 
   useEffect(() => {
     mountedRef.current = true;
@@ -183,7 +187,7 @@ export function MermaidBlock({ code, controls = false }: { code: string; control
     return () => {
       mountedRef.current = false;
     };
-  }, [code]);
+  }, [code, mode]);
 
   if (failed) {
     return (
