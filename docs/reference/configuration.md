@@ -178,6 +178,9 @@ wrote; `toml_edit` just preserves whatever comments are already there.
 | `embeddingModelId` | string | `"all-MiniLM-L6-v2"` | non-empty |
 | `codeEditorTheme` | string | `"atlas"` | non-empty (not checked against the frontend theme catalog — see [Non-goals](#non-goals-for-validation)) |
 | `atlasTheme` | string | `"atlas-black"` | non-empty (same caveat) |
+| `themeMode` | `"light"` \| `"dark"` \| `"system"` | `"dark"` | exactly one of these three strings |
+| `atlasThemeLight` | string | `"atlas-light"` | non-empty (same caveat as `atlasTheme`) |
+| `codeEditorThemeLight` | string | `"atlas-light"` | non-empty (same caveat) |
 | `adaptiveSuggestions` | `"agent"` \| `"off"` | `"agent"` | exactly one of these two strings |
 | `gitBlameInline` | boolean | `true` | — |
 | `autoUpdate` | boolean | `true` | — |
@@ -201,7 +204,7 @@ never deleted.
 
 ### Non-goals for validation
 
-`codeEditorTheme`/`atlasTheme` are checked for non-emptiness, not membership
+`codeEditorTheme`/`atlasTheme` and their `…Light` counterparts are checked for non-emptiness, not membership
 in the frontend's theme catalogs (`src/features/theme/themes.ts`,
 `src/features/editor/themes/themes.ts`). Duplicating that catalog into Rust
 would create a second list that has to stay in sync with the frontend one —
