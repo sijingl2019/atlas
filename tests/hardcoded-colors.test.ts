@@ -64,11 +64,6 @@ const ALLOWED: Allowed[] = [
     reason: KEYCAP,
   },
   {
-    file: "features/hint-nav/components/hint-overlay.tsx",
-    snippet: `boxShadow: "inset 0 1px 0 rgba(255,255,255,0.1), 0 8px 28px`,
-    reason: KEYCAP,
-  },
-  {
     file: "features/comms/components/comms-home.tsx",
     snippet: `ink="rgba(255,255,255,0.95)"`,
     reason: KEYCAP,
@@ -233,6 +228,11 @@ const ALLOWED: Allowed[] = [
     file: "styles/globals.css",
     snippet: "var(--cm-active-line-bg, rgba(255, 255, 255, 0.04))",
     reason: "fallback pinned by css-fallbacks.test.ts",
+  },
+  {
+    file: "styles/globals.css",
+    snippet: "rgba(255, 255, 255, 0.86) 0%, rgba(246, 246, 246, 0.9) 100%",
+    reason: "light-mode HUD dock glass, only applied under data-mode=light",
   },
 ];
 
