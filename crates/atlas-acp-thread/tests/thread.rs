@@ -156,6 +156,22 @@ fn status_of(thread: &AcpThread, id: &str) -> String {
     call.status.to_string()
 }
 
+#[test]
+fn fallback_title_ignores_atlas_injected_context() {
+    let (mut thread, _events, _conn) = new_thread();
+    thread.push_user_content_block(
+        Some(ClientUserMessageId::new()),
+        text_block(
+            "--- RELEVANT PROJECT MEMORY ---\nremember this\n--- END RELEVANT PROJECT MEMORY ---\n\nFix the sidebar title",
+        ),
+    );
+
+    assert_eq!(
+        thread.fallback_title().as_deref(),
+        Some("Fix the sidebar title")
+    );
+}
+
 // ------------------------------------------------------------- message chunks
 
 /// Adapted from `test_user_message_chunks_use_protocol_message_id_boundaries`.

@@ -1015,11 +1015,14 @@ impl AcpThread {
             AgentThreadEntry::UserMessage(message) => Some(message.content.to_text()),
             _ => None,
         })?;
-        let line = first.trim().lines().next()?.trim();
+        let clean = atlas_agent_transcript::strip_injected_context(&first);
+        let line = clean.trim().lines().next()?.trim();
         if line.is_empty() {
             return None;
         }
-        Some(Arc::from(line.chars().take(80).collect::<String>().as_str()))
+        Some(Arc::from(
+            line.chars().take(80).collect::<String>().as_str(),
+        ))
     }
 
     /// A thread is a draft until its first message is sent.

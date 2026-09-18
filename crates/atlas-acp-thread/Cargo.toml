@@ -19,6 +19,7 @@ edition = "2021"
 # `crates/*` package has its own lockfile, so a package that links neither this
 # crate nor those seven still resolves independently.
 agent-client-protocol = { version = "=2.0.0", features = ["unstable"] }
+atlas-agent-transcript = { path = "../atlas-agent-transcript" }
 atlas-terminal = { path = "../atlas-terminal" }
 anyhow = "1"
 chrono = "0.4"

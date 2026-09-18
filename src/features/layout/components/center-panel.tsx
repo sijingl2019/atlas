@@ -435,7 +435,7 @@ const TabColumn = memo(function TabColumn({
                   className={cn(
                     "group relative flex items-center gap-1.5 pl-3 h-full text-[12px] font-medium shrink-0 cursor-pointer select-none border-r border-border-default",
                     "transition-[padding-right,background-color,color] duration-150",
-                    tab.closable ? "pr-3 hover:pr-7" : "pr-3",
+                    tab.closable ? (isActive ? "pr-7" : "pr-3 hover:pr-7") : "pr-3",
                     isActive
                       ? "text-text-primary bg-bg-surface"
                       : "text-text-tertiary bg-bg-base hover:text-text-secondary hover:bg-bg-hover",
@@ -467,7 +467,8 @@ const TabColumn = memo(function TabColumn({
                       className={cn(
                         "absolute right-1.5 top-1/2 -translate-y-1/2",
                         "inline-flex items-center justify-center w-4 h-4 rounded-full",
-                        "text-text-tertiary opacity-0 group-hover:opacity-100",
+                        "text-text-tertiary",
+                        isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100",
                         "hover:bg-contrast/[0.133] hover:text-text-primary transition-opacity duration-150",
                       )}
                     >
@@ -792,7 +793,7 @@ function ProjectlessCenter() {
               className={cn(
                 "group relative flex shrink-0 cursor-pointer select-none items-center gap-1.5 border-r border-border-default pl-3 text-[12px] font-medium",
                 "transition-[padding-right,background-color,color] duration-150",
-                tab.closable ? "pr-3 hover:pr-7" : "pr-3",
+                tab.closable ? (isActive ? "pr-7" : "pr-3 hover:pr-7") : "pr-3",
                 isActive
                   ? "bg-bg-surface text-text-primary"
                   : "bg-bg-base text-text-tertiary hover:bg-bg-hover hover:text-text-secondary",
@@ -813,7 +814,8 @@ function ProjectlessCenter() {
                   className={cn(
                     "absolute right-1.5 top-1/2 -translate-y-1/2",
                     "inline-flex h-4 w-4 items-center justify-center rounded-full",
-                    "text-text-tertiary opacity-0 group-hover:opacity-100",
+                    "text-text-tertiary",
+                    isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100",
                     "transition-opacity duration-150 hover:bg-contrast/[0.133] hover:text-text-primary",
                   )}
                 >
