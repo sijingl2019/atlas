@@ -392,8 +392,13 @@ fn read_knowledge_docs(project_path: &str) -> Vec<MemoryDoc> {
     };
     entries
         .into_iter()
-        .filter(|e| !e.content.trim().is_empty())
-        .map(|e| {
+        .filter(|e| e.source == "file" || !e.content.trim().is_empty())
+        .map(|mut e| {
+            // Attachments participate in retrieval by filename only. Never read
+            // their bytes or include non-Markdown text in the memory corpus.
+            if e.source == "file" {
+                e.content = e.title.clone();
+            }
             let summary = e
                 .content
                 .lines()
@@ -489,6 +494,30 @@ fn shared_doc(seq: u64, agent: &str, kind: &str, text: &str, ts: i64) -> Option<
         aliases: Vec::new(),
         links: Vec::new(),
     })
+}
+
+#[cfg(test)]
+mod knowledge_file_tests {
+    #[test]
+    fn indexes_converted_attachment_content() {
+        let tmp = std::env::temp_dir().join(format!("atlas-kb-index-{}", uuid::Uuid::new_v4()));
+        let kb = tmp.join(".atlas/knowledge");
+        std::fs::create_dir_all(&kb).unwrap();
+        std::fs::write(kb.join("data.csv"), "name,value\nAtlas,42").unwrap();
+        std::fs::write(kb.join("photo.jpg"), [0xff, 0xd8]).unwrap();
+        let docs = super::read_knowledge_docs(&tmp.to_string_lossy());
+        assert_eq!(docs.len(), 2);
+        for name in ["data.csv", "photo.jpg"] {
+            let doc = docs.iter().find(|d| d.title == name).unwrap();
+            if name == "data.csv" {
+                assert!(doc.text.contains("Atlas"));
+                assert!(doc.text.contains("42"));
+            } else {
+                assert_eq!(doc.text, name);
+            }
+        }
+        std::fs::remove_dir_all(tmp).unwrap();
+    }
 }
 
 #[cfg(test)]

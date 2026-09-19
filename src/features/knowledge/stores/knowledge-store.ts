@@ -77,13 +77,16 @@ export const useKnowledgeStore = createSelectors(
             );
           if (unchanged && !current.loading) return;
 
-          const activeStillExists = newEntries.find((e) => e.id === current.activeEntryId);
+          const activeStillExists = newEntries.find(
+            (e) => e.id === current.activeEntryId && e.source !== "file",
+          );
+          const firstNote = newEntries.find((e) => e.source !== "file");
           set({
             entries: newEntries,
             sources,
             loading: false,
-            activeEntryId: activeStillExists ? current.activeEntryId : (newEntries[0]?.id ?? null),
-            editContent: activeStillExists?.content ?? newEntries[0]?.content ?? "",
+            activeEntryId: activeStillExists ? current.activeEntryId : (firstNote?.id ?? null),
+            editContent: activeStillExists?.content ?? firstNote?.content ?? "",
           });
           // Mirror the new entry set into the Rust mention cache so
           // the @-picker doesn't have to ship the full knowledge
@@ -98,7 +101,7 @@ export const useKnowledgeStore = createSelectors(
       },
       selectEntry: (id) => {
         const entry = get().entries.find((e) => e.id === id);
-        if (!entry) return;
+        if (!entry || entry.source === "file") return;
         set({
           activeEntryId: id,
           editContent: entry?.content ?? "",
@@ -108,7 +111,8 @@ export const useKnowledgeStore = createSelectors(
       consumePendingOpen: () => set({ pendingOpenId: null }),
       setEditContent: (content) => set({ editContent: content }),
       saveEntry: async (projectPath, id, content) => {
-        if (!id || !projectPath) return;
+        if (!id || !projectPath || get().entries.find((e) => e.id === id)?.source === "file")
+          return;
         try {
           await invoke("save_knowledge_note", {
             projectPath,

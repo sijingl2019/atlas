@@ -1,6 +1,6 @@
 import { Node } from "@tiptap/core";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
-import { useLayoutStore } from "@/features/layout/stores/layout-store";
+import { openFile } from "@/lib/open-file";
 import { useProjectStore } from "@/features/project/stores/project-store";
 import { useKnowledgeStore } from "@/features/knowledge/stores/knowledge-store";
 
@@ -100,15 +100,7 @@ export const WikiLink = Node.create({
             dom.onclick = (event) => {
               event.preventDefault();
               if (target.entryId) useKnowledgeStore.getState().actions.requestOpen(target.entryId);
-              else
-                useLayoutStore.getState().actions.addTab({
-                  id: `editor-${target.filePath}`,
-                  type: "editor",
-                  title: destination,
-                  closable: true,
-                  dirty: false,
-                  data: { filePath: target.filePath },
-                });
+              else void openFile(target.filePath);
             };
             if (node.attrs.embed && /\.(png|jpe?g|gif|webp|svg|bmp|avif)$/i.test(target.filePath)) {
               const img = document.createElement("img");

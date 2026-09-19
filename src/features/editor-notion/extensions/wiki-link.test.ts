@@ -16,8 +16,9 @@ vi.mock("@tauri-apps/api/core", () => ({
 vi.mock("@/features/project/stores/project-store", () => ({
   useProjectStore: { getState: () => ({ currentProject: { path: "/project" } }) },
 }));
+const { addTab } = vi.hoisted(() => ({ addTab: vi.fn() }));
 vi.mock("@/features/layout/stores/layout-store", () => ({
-  useLayoutStore: { getState: () => ({}) },
+  useLayoutStore: { getState: () => ({ actions: { addTab } }) },
 }));
 vi.mock("@/features/log/lib/log", () => ({ logEvent: vi.fn() }));
 import { WikiLink } from "./wiki-link";
@@ -79,5 +80,33 @@ it("leaves inline and fenced code containing wikilinks untouched", () => {
     if (node.type.name === "wikiLink") count++;
   });
   expect(count).toBe(0);
+  editor.destroy();
+});
+
+it("opens image attachment links in the media viewer", async () => {
+  useKnowledgeStore.setState({ activeEntryId: "Vault/Advance" });
+  vi.mocked(invoke).mockResolvedValue({ entryId: null, filePath: "/vault/Engelbart.jpg" });
+  addTab.mockClear();
+  const editor = new Editor({
+    extensions: [StarterKit, WikiLink, Markdown],
+    content: "[[Engelbart.jpg]]",
+  });
+  await vi.waitFor(() =>
+    expect(editor.view.dom.querySelector(".atlas-wiki-link")?.getAttribute("title")).toBeTruthy(),
+  );
+  await vi.waitFor(() =>
+    expect((editor.view.dom.querySelector(".atlas-wiki-link") as HTMLElement).onclick).toBeTypeOf(
+      "function",
+    ),
+  );
+  (editor.view.dom.querySelector(".atlas-wiki-link") as HTMLElement).click();
+  await vi.waitFor(() =>
+    expect(addTab).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "media",
+        data: { filePath: "/vault/Engelbart.jpg", fileKind: "image" },
+      }),
+    ),
+  );
   editor.destroy();
 });
