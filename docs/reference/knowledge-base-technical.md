@@ -361,7 +361,11 @@ Slash command 为保持 `/command` 位于 byte 0，不执行上述记忆注入�
 
 ### 9.1 语料映射
 
-`agent_memory::collect_corpus()` 调用 `read_knowledge_docs()`，后者复用 `list_knowledge_sync()`。每个非空笔记变成 `MemoryDoc`，再由 `to_corpus_doc()` 转成：
+`agent_memory::collect_corpus()` 调用 `read_knowledge_docs()`，后者复用 `list_knowledge_sync()`。Markdown 笔记使用原正文；其他文件先由 `knowledge_convert` 调用 Rust `markitdown = 0.1.11` 转成 Markdown，再进入相同的 `MemoryDoc` 和 embedding 流程。转换在 `spawn_blocking` 后台线程执行，无需 Python 或 Node.js。
+
+转换结果保存在项目 `.atlas/cache/knowledge-markdown/`，缓存按原文件路径隔离，并按修改时间、大小和转换器版本失效。原文件不会被覆盖，目录和预览仍指向原文件；缓存不会作为额外笔记显示。损坏的缓存自动重新转换。解析失败、不支持、空结果或超过 64 MiB 的文件回退到文件名索引，单个失败不会中断其余文件。正文最多保留 200 万字符。
+
+支持范围以 Rust 库为准，包括 PDF、DOCX、XLSX、PPTX、HTML、CSV 等；TXT/JSON/YAML 等 UTF-8 文本可直接作为 Markdown 文本使用。图片只提取库支持的元数据，不启用 LLM 或 OCR。每个有效条目由 `to_corpus_doc()` 转成：
 
 ```rust
 CorpusDoc {

@@ -34,6 +34,7 @@ pub mod git_stage_ops;
 pub mod git_watcher;
 pub mod github;
 pub mod knowledge;
+mod knowledge_convert;
 pub mod knowledge_export;
 pub mod knowledge_graph_layout;
 pub mod knowledge_links;

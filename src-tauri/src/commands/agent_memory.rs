@@ -281,7 +281,7 @@ pub async fn collect_corpus(project_path: &str) -> Vec<MemoryDoc> {
     // Fold the knowledge base in (source "note") so KB notes are retrievable by
     // every agent through the same embedding + the `search_memory` tool — they
     // were previously reachable ONLY via manual `~`/`@note` mentions.
-    docs.extend(read_knowledge_docs(&project_path));
+    docs.extend(read_knowledge_docs(&project_path).await);
     // Capture-backed sessions for every agent WITHOUT a dedicated reader above
     // (opencode / cursor / kilo / any future ACP plugin) — see the fn doc.
     let pp = project_path.clone();
@@ -382,54 +382,66 @@ fn read_capture_docs(project_path: &str) -> Vec<MemoryDoc> {
     out
 }
 
-/// Fold the project knowledge base (`.atlas/knowledge/**/*.md`) into the corpus
+/// Fold local and linked knowledge files into the corpus, converting attachments
 /// so KB notes rank alongside code + memory in retrieval. Tagged `source:"note"`
 /// so the Shared Context layer can weight / toggle them independently.
-fn read_knowledge_docs(project_path: &str) -> Vec<MemoryDoc> {
-    let entries = match crate::commands::knowledge::list_knowledge_sync(project_path) {
-        Ok(e) => e,
-        Err(_) => return Vec::new(),
-    };
-    entries
-        .into_iter()
-        .filter(|e| e.source == "file" || !e.content.trim().is_empty())
-        .map(|mut e| {
-            // Attachments participate in retrieval by filename only. Never read
-            // their bytes or include non-Markdown text in the memory corpus.
-            if e.source == "file" {
-                e.content = e.title.clone();
-            }
-            let summary = e
-                .content
-                .lines()
-                .map(|l| l.trim_start_matches('#').trim())
-                .find(|l| !l.is_empty())
-                .unwrap_or(&e.title)
-                .chars()
-                .take(200)
-                .collect::<String>();
-            let stem = e.id.rsplit('/').next().unwrap_or(&e.id).to_string();
-            let mut aliases = vec![stem];
-            if !e.title.is_empty() && !aliases.contains(&e.title) {
-                aliases.push(e.title.clone());
-            }
-            let timestamp_ms = chrono::DateTime::parse_from_rfc3339(&e.updated_at)
-                .map(|d| d.timestamp_millis())
-                .unwrap_or(0);
-            MemoryDoc {
-                id: format!("kb:{}", e.id),
-                title: e.title,
-                summary,
-                kind: "note".into(),
-                source: "note".into(),
-                file_path: Some(e.file_path),
-                timestamp_ms,
-                text: e.content,
-                aliases,
-                links: vec![],
-            }
-        })
-        .collect()
+async fn read_knowledge_docs(project_path: &str) -> Vec<MemoryDoc> {
+    let project = project_path.to_string();
+    let entries = tokio::task::spawn_blocking(move || {
+        crate::commands::knowledge::list_knowledge_sync(&project).unwrap_or_default()
+    })
+    .await
+    .unwrap_or_default();
+    let mut docs = Vec::new();
+    for mut e in entries {
+        if e.source == "file" {
+            e.content = match super::knowledge_convert::convert(
+                project_path,
+                Path::new(&e.file_path),
+            )
+            .await
+            {
+                Ok(markdown) => markdown,
+                Err(error) => {
+                    tracing::warn!(path = %e.file_path, %error, "Knowledge conversion skipped; indexing filename");
+                    e.title.clone()
+                }
+            };
+        }
+        if e.content.trim().is_empty() {
+            continue;
+        }
+        let summary = e
+            .content
+            .lines()
+            .map(|l| l.trim_start_matches('#').trim())
+            .find(|l| !l.is_empty())
+            .unwrap_or(&e.title)
+            .chars()
+            .take(200)
+            .collect::<String>();
+        let stem = e.id.rsplit('/').next().unwrap_or(&e.id).to_string();
+        let mut aliases = vec![stem];
+        if !e.title.is_empty() && !aliases.contains(&e.title) {
+            aliases.push(e.title.clone());
+        }
+        let timestamp_ms = chrono::DateTime::parse_from_rfc3339(&e.updated_at)
+            .map(|d| d.timestamp_millis())
+            .unwrap_or(0);
+        docs.push(MemoryDoc {
+            id: format!("kb:{}", e.id),
+            title: e.title,
+            summary,
+            kind: "note".into(),
+            source: "note".into(),
+            file_path: Some(e.file_path),
+            timestamp_ms,
+            text: e.content,
+            aliases,
+            links: vec![],
+        });
+    }
+    docs
 }
 
 /// Native session transcripts, for the memory corpus.
@@ -498,20 +510,22 @@ fn shared_doc(seq: u64, agent: &str, kind: &str, text: &str, ts: i64) -> Option<
 
 #[cfg(test)]
 mod knowledge_file_tests {
-    #[test]
-    fn indexes_converted_attachment_content() {
+    #[tokio::test]
+    async fn indexes_converted_content_and_falls_back_for_invalid_files() {
         let tmp = std::env::temp_dir().join(format!("atlas-kb-index-{}", uuid::Uuid::new_v4()));
         let kb = tmp.join(".atlas/knowledge");
         std::fs::create_dir_all(&kb).unwrap();
         std::fs::write(kb.join("data.csv"), "name,value\nAtlas,42").unwrap();
         std::fs::write(kb.join("photo.jpg"), [0xff, 0xd8]).unwrap();
-        let docs = super::read_knowledge_docs(&tmp.to_string_lossy());
-        assert_eq!(docs.len(), 2);
+        std::fs::write(kb.join("existing.md"), "# Existing note\nkeep content").unwrap();
+        let docs = super::read_knowledge_docs(&tmp.to_string_lossy()).await;
+        assert_eq!(docs.len(), 3);
+        assert_eq!(docs.iter().find(|d| d.title == "existing").unwrap().text, "# Existing note\nkeep content");
         for name in ["data.csv", "photo.jpg"] {
             let doc = docs.iter().find(|d| d.title == name).unwrap();
+            assert_eq!(doc.file_path.as_deref(), kb.join(name).to_str());
             if name == "data.csv" {
-                assert!(doc.text.contains("Atlas"));
-                assert!(doc.text.contains("42"));
+                assert!(doc.text.contains("Atlas,42"));
             } else {
                 assert_eq!(doc.text, name);
             }
