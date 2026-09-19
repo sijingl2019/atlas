@@ -98,6 +98,7 @@ export const useKnowledgeStore = createSelectors(
       },
       selectEntry: (id) => {
         const entry = get().entries.find((e) => e.id === id);
+        if (!entry) return;
         set({
           activeEntryId: id,
           editContent: entry?.content ?? "",

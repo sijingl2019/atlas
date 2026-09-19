@@ -349,6 +349,10 @@ export function KnowledgePanel() {
 
   const handleSelectEntry = useCallback(
     async (id: string) => {
+      if (!useKnowledgeStore.getState().entries.some((entry) => entry.id === id)) {
+        toast.error("Note not found. The link may be unresolved or ambiguous.");
+        return;
+      }
       // Always flush the outgoing note before swapping — unconditionally, not
       // gated on `isDirty` (which could be a stale `false` and drop the draft).
       // flushAndSave's content check makes the no-change case a cheap no-op.
@@ -368,9 +372,10 @@ export function KnowledgePanel() {
   // request is parked in the store until consumed here.
   useEffect(() => {
     if (!pendingOpenId) return;
+    if (entries.length === 0) return;
     void handleSelectEntry(pendingOpenId);
     consumePendingOpen();
-  }, [pendingOpenId, handleSelectEntry, consumePendingOpen]);
+  }, [pendingOpenId, entries, handleSelectEntry, consumePendingOpen]);
 
   const handleDeleteEntry = useCallback(
     (id: string) => {

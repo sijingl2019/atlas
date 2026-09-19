@@ -10,6 +10,7 @@ import {
 } from "pixi.js";
 import Matter from "matter-js";
 import { invoke } from "@tauri-apps/api/core";
+import { toast } from "sonner";
 import { forceLayout, usablePosition } from "@/lib/graph-layout";
 import { GraphRuler, type Viewport } from "@/components/graph-ruler";
 import { isMac } from "@/lib/platform";
@@ -84,7 +85,7 @@ export function KnowledgeGraph() {
   const currentProject = useProjectStore.use.currentProject();
   const { bind, unbind } = useKnowledgeGraphStore.use.actions();
   const { addTab } = useLayoutStore.use.actions();
-  const { selectEntry } = useKnowledgeStore.use.actions();
+  const { requestOpen } = useKnowledgeStore.use.actions();
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -180,7 +181,46 @@ export function KnowledgeGraph() {
           onSelect={setSelectedId}
           initialLayout={layout}
           projectPath={currentProject.path}
-          onActivate={(entryId) => {
+          onActivate={async (entryId) => {
+            if (useKnowledgeStore.getState().entries.length === 0) {
+              await useKnowledgeStore.getState().actions.loadEntries(currentProject.path);
+            }
+            if (!useKnowledgeStore.getState().entries.some((entry) => entry.id === entryId)) {
+              const fromId = graph.edges.find((edge) => edge.to === entryId)?.from;
+              if (!fromId) {
+                toast.error("Link target not found");
+                return;
+              }
+              void invoke<{ entryId: string | null; filePath: string }>("knowledge_resolve_link", {
+                projectPath: currentProject.path,
+                fromId,
+                target: entryId,
+              })
+                .then((target) => {
+                  if (target.entryId) {
+                    requestOpen(target.entryId);
+                    addTab({
+                      id: "knowledge",
+                      type: "knowledge",
+                      title: "Knowledge",
+                      closable: true,
+                      dirty: false,
+                      data: {},
+                    });
+                  } else {
+                    addTab({
+                      id: `editor-${target.filePath}`,
+                      type: "editor",
+                      title: entryId,
+                      closable: true,
+                      dirty: false,
+                      data: { filePath: target.filePath },
+                    });
+                  }
+                })
+                .catch(() => toast.error("Link target missing or ambiguous"));
+              return;
+            }
             addTab({
               id: "knowledge",
               type: "knowledge",
@@ -189,7 +229,7 @@ export function KnowledgeGraph() {
               dirty: false,
               data: {},
             });
-            selectEntry(entryId);
+            requestOpen(entryId);
           }}
         />
       ) : null}

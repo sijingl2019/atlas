@@ -20,6 +20,7 @@ import { Callout } from "../extensions/callout";
 import { Toggle } from "../extensions/toggle";
 import { buildAtlasCodeBlock } from "../extensions/code-block";
 import { AtlasMention } from "../extensions/mention";
+import { WikiLink } from "../extensions/wiki-link";
 
 const lowlight = createLowlight(common);
 
@@ -101,5 +102,6 @@ export function buildExtensions(opts: BuildExtensionsOpts = {}) {
     Toggle,
     // Inline @-mention chip wired to Atlas's mention_search Rust command.
     AtlasMention,
+    WikiLink,
   ];
 }

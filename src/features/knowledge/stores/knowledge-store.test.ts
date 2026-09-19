@@ -21,6 +21,13 @@ beforeEach(() => {
 });
 
 describe("saveEntry", () => {
+  it("does not clear the current note when a graph target does not exist", () => {
+    const id = useKnowledgeStore.getState().entries[0].id;
+    useKnowledgeStore.getState().actions.selectEntry(id);
+    useKnowledgeStore.getState().actions.selectEntry("Missing");
+    expect(useKnowledgeStore.getState().activeEntryId).toBe(id);
+    expect(useKnowledgeStore.getState().editContent).toBe("old");
+  });
   it("keeps the filename title when markdown starts with frontmatter", async () => {
     await useKnowledgeStore
       .getState()

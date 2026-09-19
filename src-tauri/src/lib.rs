@@ -595,6 +595,7 @@ pub fn run() {
             commands::knowledge_links::knowledge_link_counts,
             commands::knowledge_links::knowledge_links_invalidate,
             commands::knowledge_links::knowledge_links_graph,
+            commands::knowledge_links::knowledge_resolve_link,
             commands::knowledge_export::knowledge_export_note_md,
             commands::knowledge_export::knowledge_export_note_html,
             commands::knowledge_export::knowledge_export_workspace_md,

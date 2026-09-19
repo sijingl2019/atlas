@@ -28,6 +28,9 @@ use parking_lot::RwLock;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
 
+#[path = "knowledge_link_target.rs"]
+mod link_target;
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Backlink {
@@ -98,6 +101,50 @@ impl KnowledgeLinksState {
 
 const SNIPPET_RADIUS: usize = 90;
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LinkDestination {
+    entry_id: Option<String>,
+    file_path: String,
+}
+
+#[tauri::command]
+pub async fn knowledge_resolve_link(project_path: String, from_id: String, target: String) -> Result<LinkDestination, String> {
+    tokio::task::spawn_blocking(move || {
+        let sources = super::knowledge::load_sources(&project_path);
+        let source = sources.iter().find(|s| from_id.starts_with(&format!("{}/", s.name)));
+        let (root, prefix) = source.map(|s| (std::path::PathBuf::from(&s.path), s.name.clone()))
+            .unwrap_or((std::path::Path::new(&project_path).join(".atlas/knowledge"), String::new()));
+        let root = root.canonicalize().map_err(|e| e.to_string())?;
+        fn walk(root: &std::path::Path, dir: &std::path::Path, prefix: &str, out: &mut Vec<(String, std::path::PathBuf)>) {
+            let Ok(entries) = fs::read_dir(dir) else { return; };
+            for entry in entries.flatten() {
+                if entry.file_name().to_string_lossy().starts_with('.') { continue; }
+                // Do not follow symlinks outside the vault or into cycles.
+                let Ok(kind) = entry.file_type() else { continue; };
+                if kind.is_symlink() { continue; }
+                let path = entry.path();
+                if kind.is_dir() { walk(root, &path, prefix, out); }
+                else if kind.is_file() {
+                    let rel = path.strip_prefix(root).unwrap().to_string_lossy().replace('\\', "/");
+                    let rel = rel.strip_suffix(".md").unwrap_or(&rel);
+                    let id = if prefix.is_empty() { rel.to_string() } else { format!("{prefix}/{rel}") };
+                    out.push((id, path));
+                }
+            }
+        }
+        let mut files = Vec::new();
+        walk(&root, &root, &prefix, &mut files);
+        let ids = files.iter().map(|(id, _)| id.clone()).collect::<Vec<_>>();
+        let id = link_target::resolve(&target, &from_id, &ids, &prefix).ok_or("Link target missing or ambiguous")?;
+        let (_, path) = files.into_iter().find(|(key, _)| key == &id).ok_or("Link target missing")?;
+        Ok(LinkDestination {
+            entry_id: (path.extension().and_then(|s| s.to_str()) == Some("md")).then_some(id),
+            file_path: path.to_string_lossy().into_owned(),
+        })
+    }).await.map_err(|e| e.to_string())?
+}
+
 /// One-shot rebuild — walks every .md file, parses refs, builds the
 /// reverse index. Synchronous; callers route through spawn_blocking.
 fn build_graph(project_path: &str) -> LinkGraph {
@@ -113,6 +160,8 @@ fn build_graph(project_path: &str) -> LinkGraph {
         })
         .collect();
 
+    let ids: Vec<String> = docs.iter().map(|(id, _, _)| id.clone()).collect();
+    let sources = super::knowledge::load_sources(project_path);
     let mut graph = LinkGraph::default();
     for (from_id, from_title, body) in &docs {
         graph.notes.push(NoteSummary {
@@ -120,7 +169,11 @@ fn build_graph(project_path: &str) -> LinkGraph {
             title: from_title.clone(),
         });
         let mut targets: Vec<String> = Vec::new();
-        for hit in find_refs(body) {
+        for mut hit in find_refs(body) {
+            let root = sources.iter().find(|s| from_id.starts_with(&format!("{}/", s.name)))
+                .map(|s| s.name.as_str()).unwrap_or("");
+            hit.target = link_target::resolve(&hit.target, from_id, &ids, root)
+                .unwrap_or_else(|| link_target::target(&hit.target));
             // Skip self-references — a page can't backlink to itself.
             if hit.target == *from_id {
                 continue;
@@ -154,6 +207,21 @@ struct RefHit {
 /// the three kinds we treat as knowledge refs. Byte-offset-based so
 /// the snippet extractor can highlight the exact match later.
 fn find_refs(body: &str) -> Vec<RefHit> {
+    // Examples in code are not links. Keep byte offsets for snippets.
+    let mut filtered = body.as_bytes().to_vec();
+    let mut in_code = false;
+    for (event, range) in pulldown_cmark::Parser::new(body).into_offset_iter() {
+        match event {
+            pulldown_cmark::Event::Start(pulldown_cmark::Tag::CodeBlock(_)) => in_code = true,
+            pulldown_cmark::Event::End(pulldown_cmark::TagEnd::CodeBlock) => in_code = false,
+            _ => {},
+        }
+        if in_code || matches!(event, pulldown_cmark::Event::Code(_)) {
+            for byte in &mut filtered[range] { if *byte != b'\n' { *byte = b' '; } }
+        }
+    }
+    let filtered = String::from_utf8(filtered).expect("masked UTF-8 ranges");
+    let body = filtered.as_str();
     let mut out: Vec<RefHit> = Vec::new();
     let bytes = body.as_bytes();
     let n = bytes.len();
@@ -235,6 +303,25 @@ fn find_refs(body: &str) -> Vec<RefHit> {
     }
 
     out
+}
+
+#[cfg(test)]
+mod link_tests {
+    use super::*;
+    #[test]
+    fn ignores_examples_and_resolves_nested_vault_links() {
+        let hits = find_refs("[[Base]] `[[Example]]`\n\n```md\n[[Sample]]\n```\n![[image.jpg\\|100x145]]");
+        assert_eq!(hits.iter().map(|h| h.target.as_str()).collect::<Vec<_>>(), vec!["Base", "image.jpg\\|100x145"]);
+        let dir = std::env::temp_dir().join(format!("atlas-link-test-{}", uuid::Uuid::new_v4()));
+        let notes = dir.join(".atlas/knowledge/Vault/Hello");
+        fs::create_dir_all(&notes).unwrap();
+        fs::write(notes.join("Advance.md"), "[[Base]] [[Base#Heading|Alias]]").unwrap();
+        fs::write(notes.join("Base.md"), "Hello").unwrap();
+        let graph = build_graph(dir.to_str().unwrap());
+        assert_eq!(graph.forwardlinks["Vault/Hello/Advance"], vec!["Vault/Hello/Base"]);
+        assert!(!graph.backlinks.contains_key("Base"));
+        fs::remove_dir_all(dir).unwrap();
+    }
 }
 
 /// Read the value of `name="…"` or `name='…'` starting at the head of
