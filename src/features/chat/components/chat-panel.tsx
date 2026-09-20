@@ -915,8 +915,13 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
   // handlers are reassigned to the refs each render, so the wrappers always call
   // the latest logic while keeping a constant identity. This is the H1 fix:
   // ChatPanel still re-renders per chunk, but its heavy composer subtree bails.
+  // `attachments` MUST be forwarded: a wrapper declared with fewer parameters
+  // still type-checks against the 3-arg prop, so dropping it here silently ate
+  // every staged image — the bubble rendered without it and the agent never
+  // saw it.
   const onSendStable = useCallback(
-    (content: string, mentions: MentionData[]) => handleSendRef.current?.(content, mentions),
+    (content: string, mentions: MentionData[], attachments?: ImageAttachment[]) =>
+      handleSendRef.current?.(content, mentions, attachments),
     [],
   );
   const onStopStable = useCallback(() => handleStopRef.current?.(), []);
