@@ -734,19 +734,25 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
     // first bind), where acpSessionId alone wouldn't change.
   }, [tabId, !!session, session?.acpSessionId, session?.agentType]);
 
-  // Backfill the ACP model picker for ALREADY-bound sessions. The bind effect
-  // above returns early once `acpSessionId` is set, so a session that was bound
-  // before the model list existed (app update / HMR / resumed session) would
-  // never get its models. When we have a binding for a non-native agent but no
-  // models yet, fetch the snapshot once and seed them.
+  // Refresh the ACP model picker for ALREADY-bound sessions, once per binding.
+  // The bind effect above returns early once `acpSessionId` is set, so a session
+  // that was bound before the model list existed (app update / HMR / resumed
+  // session) would never get its models.
+  //
+  // Deliberately NOT gated on the list being empty: `createSession` and the
+  // resume path seed `acpAvailableModels` from the per-agent localStorage cache,
+  // so an emptiness gate never fired and the cached list outlived whatever
+  // changed it — models added or removed behind the agent's back (a swapped
+  // provider config) stayed invisible across every restart. The cache seed only
+  // keeps the pill from flickering; this fetch is what confirms it.
+  //
+  // The native agent is not excluded either: its models come from the seam's
+  // published catalogue via this same snapshot, exactly like an external
+  // agent's. The old exclusion existed because its picker was BYOK.
   useEffect(() => {
     const agentId = session?.acpAgentId;
     const acpSessionId = session?.acpSessionId;
     if (!agentId || !acpSessionId) return;
-    // The native agent is not excluded: its models come from the seam's
-    // published catalogue via this same snapshot, exactly like an external
-    // agent's. The old exclusion existed because its picker was BYOK.
-    if ((session?.acpAvailableModels?.length ?? 0) > 0) return;
     let cancelled = false;
     void (async () => {
       try {
@@ -805,13 +811,10 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
     return () => {
       cancelled = true;
     };
-  }, [
-    tabId,
-    session?.acpAgentId,
-    session?.acpSessionId,
-    session?.agentType,
-    session?.acpAvailableModels?.length,
-  ]);
+    // `acpAvailableModels.length` is NOT a dep: the fetch above writes it, so
+    // keeping it here would spend a second snapshot re-confirming what this run
+    // just landed. One fetch per binding is the whole contract.
+  }, [tabId, session?.acpAgentId, session?.acpSessionId, session?.agentType]);
 
   // The other-agent model prefetch is gone with `warm-acp-models`. It iterated
   // a STATIC list of five agent names to decide who to warm — the last such
