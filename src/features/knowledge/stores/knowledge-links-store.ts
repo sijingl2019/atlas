@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { useEffect, useMemo, useState } from "react";
 import { createSelectors } from "@/lib/create-selectors";
+import { ensureGlobalRoot } from "./kb-scope-store";
 
 export interface Backlink {
   fromEntryId: string;
@@ -56,11 +57,20 @@ const store = create<KnowledgeLinksState>()((set, get) => ({
     invalidate: async () => {
       const { projectPath } = get();
       if (!projectPath) return;
-      try {
-        await invoke("knowledge_links_invalidate", { projectPath });
-      } catch {
-        // ignore
-      }
+      // The global KB mounts workspace knowledge as subtrees, so a note saved
+      // under the panel's own root also changed the global root's graph — and
+      // Rust caches per root. The graph tab always reads the global root, so
+      // skipping this leaves it showing a pre-edit (or empty) graph.
+      const globalRoot = await ensureGlobalRoot().catch(() => null);
+      const roots =
+        globalRoot && globalRoot !== projectPath ? [projectPath, globalRoot] : [projectPath];
+      await Promise.all(
+        roots.map((root) =>
+          invoke("knowledge_links_invalidate", { projectPath: root }).catch(() => {
+            // ignore — a stale graph is not worth failing the save over
+          }),
+        ),
+      );
     },
   },
 }));

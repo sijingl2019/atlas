@@ -437,6 +437,22 @@ pub async fn knowledge_link_counts(
     .map_err(|e| e.to_string())?
 }
 
+/// Drop the cached graph for a KB root + emit `atlas:knowledge:links-changed`.
+///
+/// The cache is keyed by root and only ever dropped here, so anything that
+/// changes what `walk_kb` would see for a root — a note save, a delete, or a
+/// folder mounted into / unmounted from it — has to call this. Mounting in
+/// particular is easy to miss: no note changed, but the root gained a whole
+/// subtree of them, and a root whose graph was already built would otherwise
+/// keep serving the pre-mount (often empty) graph for the rest of the session.
+pub(crate) fn invalidate(state: &KnowledgeLinksState, app: &AppHandle, project_path: &str) {
+    state.by_project.write().remove(project_path);
+    let _ = app.emit(
+        "atlas:knowledge:links-changed",
+        serde_json::json!({ "projectPath": project_path }),
+    );
+}
+
 /// Drop the cached graph + emit `atlas:knowledge:links-changed` so the
 /// frontend re-pulls. Cheap — frontend calls after every save/delete.
 #[tauri::command]
@@ -445,14 +461,7 @@ pub async fn knowledge_links_invalidate(
     state: State<'_, Arc<KnowledgeLinksState>>,
     app: AppHandle,
 ) -> Result<(), String> {
-    {
-        let mut by_proj = state.by_project.write();
-        by_proj.remove(&project_path);
-    }
-    let _ = app.emit(
-        "atlas:knowledge:links-changed",
-        serde_json::json!({ "projectPath": project_path }),
-    );
+    invalidate(&state, &app, &project_path);
     Ok(())
 }
 

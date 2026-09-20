@@ -1,6 +1,10 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use tauri::{AppHandle, State};
+
+use super::knowledge_links::KnowledgeLinksState;
 
 #[derive(Debug, Serialize)]
 pub struct KnowledgeEntry {
@@ -380,10 +384,20 @@ pub async fn link_knowledge_folder(
     project_path: String,
     path: String,
     name: Option<String>,
+    state: State<'_, Arc<KnowledgeLinksState>>,
+    app: AppHandle,
 ) -> Result<KbSource, String> {
-    tokio::task::spawn_blocking(move || link_folder_sync(&project_path, &path, name.as_deref()))
-        .await
-        .map_err(|e| e.to_string())?
+    let state = Arc::clone(state.inner());
+    tokio::task::spawn_blocking(move || {
+        let src = link_folder_sync(&project_path, &path, name.as_deref())?;
+        // The root just gained every note under the mount — its cached link
+        // graph is stale (and, for a root linked into for the first time,
+        // empty).
+        super::knowledge_links::invalidate(&state, &app, &project_path);
+        Ok(src)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 fn link_folder_sync(project_path: &str, path: &str, name: Option<&str>) -> Result<KbSource, String> {
@@ -413,11 +427,19 @@ fn link_folder_sync(project_path: &str, path: &str, name: Option<&str>) -> Resul
 
 /// Remove a mount. Files in the linked folder are left untouched.
 #[tauri::command]
-pub async fn unlink_knowledge_folder(project_path: String, name: String) -> Result<(), String> {
+pub async fn unlink_knowledge_folder(
+    project_path: String,
+    name: String,
+    state: State<'_, Arc<KnowledgeLinksState>>,
+    app: AppHandle,
+) -> Result<(), String> {
+    let state = Arc::clone(state.inner());
     tokio::task::spawn_blocking(move || {
         let mut sources = load_sources(&project_path);
         sources.retain(|s| s.name != name);
-        save_sources(&project_path, &sources)
+        save_sources(&project_path, &sources)?;
+        super::knowledge_links::invalidate(&state, &app, &project_path);
+        Ok(())
     })
     .await
     .map_err(|e| e.to_string())?
