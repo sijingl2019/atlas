@@ -27,6 +27,8 @@ import {
 import { useKbScopeStore, ensureGlobalRoot, projectMountNames } from "../stores/kb-scope-store";
 import { projectKbSources } from "../lib/kb-root";
 import { KbScopeToggle } from "./kb-scope-toggle";
+import { KnowledgeGraph3D } from "./knowledge-graph-3d";
+import { GraphModeToggle, type GraphMode } from "./graph-mode-toggle";
 
 /**
  * Obsidian-style force-directed knowledge graph.
@@ -103,6 +105,11 @@ export function KnowledgeGraph() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // `null` = follow the Settings default (which may still be loading); once the
+  // user flips the toggle their pick wins for the rest of the session.
+  const [modeOverride, setModeOverride] = useState<GraphMode | null>(null);
+  const graphDefault3d = useProjectStore((s) => s.settings.graphDefault3d);
+  const mode: GraphMode = modeOverride ?? (graphDefault3d ? "3d" : "2d");
   const { graph: rawGraph, loading } = useProjectGraph();
   const metaPages = useKnowledgeMetaStore.use.pages();
   // Persisted positions — loaded once per project, then passed into
@@ -193,6 +200,57 @@ export function KnowledgeGraph() {
     );
   }, [graph.nodes, mountNames]);
 
+  // Opening a node — shared by both the flat and the 3D canvas.
+  const handleActivate = (entryId: string) => {
+    addTab({
+      id: "knowledge",
+      type: "knowledge",
+      title: "Knowledge",
+      closable: true,
+      dirty: false,
+      data: {},
+    });
+    // A node from another workspace isn't in the panel's current entry
+    // set — flip the panel to global scope and let it open the note once
+    // the global entries land, rather than showing a blank page.
+    const known = useKnowledgeStore.getState().entries.some((e) => e.id === entryId);
+    if (known) {
+      selectEntry(entryId);
+      return;
+    }
+    // Not a loaded entry — either it belongs to a workspace not yet
+    // mounted into view, or it's an unresolved wiki-link target (an
+    // alias, heading ref, or non-md attachment). Ask Rust to resolve
+    // it against the source note that linked to it.
+    const fromId = graph.edges.find((edge) => edge.to === entryId)?.from;
+    if (!fromId) {
+      setScope("global");
+      requestOpen(entryId);
+      return;
+    }
+    void invoke<{ entryId: string | null; filePath: string }>("knowledge_resolve_link", {
+      projectPath: globalRoot,
+      fromId,
+      target: entryId,
+    })
+      .then((target) => {
+        if (target.entryId) {
+          setScope("global");
+          requestOpen(target.entryId);
+        } else {
+          addTab({
+            id: `editor-${target.filePath}`,
+            type: "editor",
+            title: entryId,
+            closable: true,
+            dirty: false,
+            data: { filePath: target.filePath },
+          });
+        }
+      })
+      .catch(() => toast.error("Link target missing or ambiguous"));
+  };
+
   // No early return before the container renders: the ResizeObserver above
   // attaches to `containerRef` on mount, and a mount that skipped the container
   // never observes anything — the canvas would stay 0×0 forever.
@@ -210,6 +268,9 @@ export function KnowledgeGraph() {
           viewTitle="The global graph, with this workspace's knowledge lit up"
         />
       </div>
+      <div className="absolute right-3 top-3 z-10 flex items-center">
+        <GraphModeToggle mode={mode} onChange={setModeOverride} />
+      </div>
       {!globalRoot || loading ? (
         <LoadingState />
       ) : graph.nodes.length === 0 ? (
@@ -219,65 +280,29 @@ export function KnowledgeGraph() {
           Graph too large — {graph.nodes.length} nodes (cap {NODE_CAP}).
         </div>
       ) : size.width > 0 && size.height > 0 && layout !== undefined ? (
-        <GraphCanvas
-          graph={graph}
-          width={size.width}
-          height={size.height}
-          selectedId={selectedId}
-          onSelect={setSelectedId}
-          initialLayout={layout}
-          projectPath={globalRoot}
-          highlightIds={highlightIds}
-          onActivate={(entryId) => {
-            addTab({
-              id: "knowledge",
-              type: "knowledge",
-              title: "Knowledge",
-              closable: true,
-              dirty: false,
-              data: {},
-            });
-            // A node from another workspace isn't in the panel's current entry
-            // set — flip the panel to global scope and let it open the note once
-            // the global entries land, rather than showing a blank page.
-            const known = useKnowledgeStore.getState().entries.some((e) => e.id === entryId);
-            if (known) {
-              selectEntry(entryId);
-              return;
-            }
-            // Not a loaded entry — either it belongs to a workspace not yet
-            // mounted into view, or it's an unresolved wiki-link target (an
-            // alias, heading ref, or non-md attachment). Ask Rust to resolve
-            // it against the source note that linked to it.
-            const fromId = graph.edges.find((edge) => edge.to === entryId)?.from;
-            if (!fromId) {
-              setScope("global");
-              requestOpen(entryId);
-              return;
-            }
-            void invoke<{ entryId: string | null; filePath: string }>("knowledge_resolve_link", {
-              projectPath: globalRoot,
-              fromId,
-              target: entryId,
-            })
-              .then((target) => {
-                if (target.entryId) {
-                  setScope("global");
-                  requestOpen(target.entryId);
-                } else {
-                  addTab({
-                    id: `editor-${target.filePath}`,
-                    type: "editor",
-                    title: entryId,
-                    closable: true,
-                    dirty: false,
-                    data: { filePath: target.filePath },
-                  });
-                }
-              })
-              .catch(() => toast.error("Link target missing or ambiguous"));
-          }}
-        />
+        mode === "3d" ? (
+          <KnowledgeGraph3D
+            graph={graph}
+            width={size.width}
+            height={size.height}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            onActivate={handleActivate}
+            highlightIds={highlightIds}
+          />
+        ) : (
+          <GraphCanvas
+            graph={graph}
+            width={size.width}
+            height={size.height}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            initialLayout={layout}
+            projectPath={globalRoot}
+            highlightIds={highlightIds}
+            onActivate={handleActivate}
+          />
+        )
       ) : null}
     </div>
   );

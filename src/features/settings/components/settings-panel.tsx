@@ -319,6 +319,19 @@ function GeneralSettings() {
           onChange={(next) => updateSettings({ enterToSend: next })}
         />
       </SettingRow>
+      <SettingRow
+        label="Knowledge graph view"
+        description="Which view the Knowledge graph opens in. 3D is a solar-system layout — heavily-linked notes become stars and everything linking to them orbits in 3D, with the whole graph turning as one. The Flat / 3D toggle on the graph itself overrides this for the session."
+      >
+        <select
+          value={settings.graphDefault3d ? "3d" : "2d"}
+          onChange={(e) => updateSettings({ graphDefault3d: e.target.value === "3d" })}
+          className={FIELD_CLASS}
+        >
+          <option value="2d">Flat (2D)</option>
+          <option value="3d">Solar system (3D)</option>
+        </select>
+      </SettingRow>
       <SectionTitle title="Terminal" subtitle="Shell and font for the integrated terminal" />
       {isWindows && (
         <SettingRow

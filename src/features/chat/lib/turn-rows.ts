@@ -14,6 +14,7 @@
 // vocabulary of the transcript, not an ad-hoc branch in a render function.
 
 import type { ChatMessage, ToolCallDisplay, TurnFile } from "@/types/agent";
+import type { ImageAttachment } from "@/types/agents";
 import { isBashToolCall, bashCommandOf } from "./tool-calls";
 import {
   getFilePathFromInput,
@@ -59,7 +60,8 @@ export interface UserRow extends RowBase {
   /** Set once the user has expanded a clamped bubble. Expanding swaps the row
    *  for a taller one — a data change with a known new height, never a reflow. */
   expanded: boolean;
-  attachments: number;
+  /** Images the user attached to this message — rendered as thumbnails. */
+  attachments: ImageAttachment[];
   timestamp: string;
 }
 
@@ -506,7 +508,7 @@ export function projectRows(
         text,
         contextBlocks: derived.contextBlocks,
         expanded: opts.expanded.has(`u:${m.id}`),
-        attachments: m.attachments?.length ?? 0,
+        attachments: m.attachments ?? [],
         timestamp: m.timestamp,
       });
 

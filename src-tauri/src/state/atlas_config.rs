@@ -209,6 +209,11 @@ pub struct AppSettings {
     /// inserts a newline. Cmd/Ctrl+Enter always sends regardless.
     #[serde(default = "default_true")]
     pub enter_to_send: bool,
+    /// Knowledge graph opens in the 3D solar-system view instead of the flat
+    /// force-directed one. The in-graph Flat/3D toggle overrides it for the
+    /// session. Default OFF.
+    #[serde(default)]
+    pub graph_default_3d: bool,
     /// Terminal notifications master switch. A command that fails, runs
     /// longer than `terminal_notify_min_duration_ms`, or asks for input raises
     /// an in-app notification, a toast when its terminal is off screen and a
@@ -318,6 +323,7 @@ impl Default for AppSettings {
             curated_plugin_sync: false,
             updater_ignored_version: None,
             enter_to_send: true,
+            graph_default_3d: false,
             terminal_notifications: true,
             terminal_notify_min_duration_ms: default_terminal_notify_min_duration_ms(),
             terminal_notify_on_failure: true,
@@ -466,6 +472,12 @@ const SETTINGS_DOCS: &[(&str, &str)] = &[
         "# Chat composer send gesture. true = Enter sends and Shift+Enter\n\
          # inserts a newline; false = only Cmd/Ctrl+Enter sends. Cmd/Ctrl+Enter\n\
          # sends either way. (default: true)",
+    ),
+    (
+        "graphDefault3d",
+        "# Knowledge graph opens in the 3D solar-system view instead of the flat\n\
+         # force-directed one. The in-graph Flat/3D toggle overrides it for the\n\
+         # session. (default: false)",
     ),
     (
         "terminalNotifications",
@@ -834,6 +846,7 @@ pub struct SettingsPatch {
     #[serde(default, deserialize_with = "deserialize_double_option")]
     pub updater_ignored_version: Option<Option<String>>,
     pub enter_to_send: Option<bool>,
+    pub graph_default_3d: Option<bool>,
     pub terminal_notifications: Option<bool>,
     pub terminal_notify_min_duration_ms: Option<u32>,
     pub terminal_notify_on_failure: Option<bool>,
@@ -903,6 +916,9 @@ impl SettingsPatch {
         if let Some(v) = self.enter_to_send {
             settings.enter_to_send = v;
         }
+        if let Some(v) = self.graph_default_3d {
+            settings.graph_default_3d = v;
+        }
         if let Some(v) = self.terminal_notifications {
             settings.terminal_notifications = v;
         }
@@ -963,6 +979,7 @@ impl SettingsPatch {
         set_bool!(auto_update, "autoUpdate");
         set_bool!(curated_plugin_sync, "curatedPluginSync");
         set_bool!(enter_to_send, "enterToSend");
+        set_bool!(graph_default_3d, "graphDefault3d");
         set_bool!(terminal_notifications, "terminalNotifications");
         set_bool!(terminal_notify_on_failure, "terminalNotifyOnFailure");
         set_bool!(terminal_notify_on_attention, "terminalNotifyOnAttention");

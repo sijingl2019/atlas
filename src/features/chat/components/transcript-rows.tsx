@@ -107,6 +107,18 @@ export const UserRowView = memo(function UserRowView({
             Clamped by HEIGHT rather than `-webkit-line-clamp`: line-clamp needs
             inline content, and the moment the bubble holds block elements
             (paragraphs, a list, a fence) it stops clamping at all. */}
+        {row.attachments.length > 0 && (
+          <div className="mb-1.5 flex flex-wrap justify-end gap-2">
+            {row.attachments.map((img, i) => (
+              <img
+                key={i}
+                src={`data:${img.mimeType};base64,${img.dataBase64}`}
+                alt="attachment"
+                className="h-28 w-28 rounded-[14px] border border-[var(--border-default)] object-cover"
+              />
+            ))}
+          </div>
+        )}
         <div
           className={cn(
             // Apple-squircle read: one big continuous radius (no clipped

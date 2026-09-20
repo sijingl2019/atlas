@@ -79,6 +79,10 @@ export interface AppSettings {
    *  Cmd/Ctrl+Enter sends, bare Enter always inserts a newline (the old
    *  default). Cmd/Ctrl+Enter always sends regardless of this setting. */
   enterToSend: boolean;
+  /** Knowledge graph opens in the 3D solar-system view rather than the flat
+   *  force-directed one. The in-graph Flat/3D toggle overrides it for the
+   *  session. Default false. */
+  graphDefault3d: boolean;
   /** Terminal notifications master switch: a command finishing (failed, or
    *  longer than `terminalNotifyMinDurationMs`) or wanting input raises an
    *  in-app notification, a toast when the terminal is off screen, and a
@@ -150,6 +154,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   curatedPluginSync: false,
   updaterIgnoredVersion: null,
   enterToSend: true,
+  graphDefault3d: false,
   terminalNotifications: true,
   terminalNotifyMinDurationMs: 10_000,
   terminalNotifyOnFailure: true,

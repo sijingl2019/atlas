@@ -1750,7 +1750,12 @@ export function MessageInput({
       // strings and the agent will see whatever shortform text was in the
       // composer. Mentions are dropped here intentionally; promoting the
       // queue to a structured shape is a follow-up. Staged images likewise
-      // stay in the composer strip and ride the next direct send.
+      // stay in the composer strip and ride the next direct send — tell the
+      // user so a queued-while-busy send doesn't read as "the image vanished"
+      // (#71-adjacent: they saw it silently NOT go out with this message).
+      if (stagedImages.length > 0) {
+        toast.info("Image will be sent with your next message — the agent is still busy.");
+      }
       enqueueMessage(tabId, trimmed);
     } else {
       const images = stagedImages;

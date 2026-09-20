@@ -685,10 +685,11 @@ impl EngineConnection {
             title,
             events,
         );
-        // Text only for the tracer bullet. The engine accepts images and more,
-        // but advertising a capability before its path is wired is how an
-        // attachment gets silently dropped instead of degraded to a mention.
-        thread.set_prompt_capabilities(acp::PromptCapabilities::default());
+        // Images now ride the turn as `UserInput::Image` data URIs (see
+        // `prompt()` below), so the capability is safe to advertise — before
+        // that path existed, declaring this true was how an attachment got
+        // silently dropped instead of degraded to a mention.
+        thread.set_prompt_capabilities(acp::PromptCapabilities::new().image(true));
         // Publish the slash commands on EVERY thread this connection makes.
         // This used to happen in `new_session` only, which left a resumed
         // session — the restored tab a user actually types "/" into — with an
@@ -1306,6 +1307,22 @@ impl AgentConnection for EngineConnection {
 
     fn prompt(&self, params: acp::PromptRequest) -> BoxFuture<'static, Result<acp::PromptResponse>> {
         let mut text = crate::engine::sink::flatten_prompt(&params.prompt);
+        // `flatten_prompt` above keeps only the text-projectable blocks — image
+        // blocks have none, so they're pulled out here as their own
+        // `UserInput::Image` items (a data URI the engine forwards to the
+        // model) instead of being lost. Slash-command turns below don't touch
+        // these; whatever the user attached still rides with them.
+        let images: Vec<v2::UserInput> = params
+            .prompt
+            .iter()
+            .filter_map(|block| match block {
+                acp::ContentBlock::Image(img) => Some(v2::UserInput::Image {
+                    detail: None,
+                    url: format!("data:{};base64,{}", img.mime_type, img.data),
+                }),
+                _ => None,
+            })
+            .collect();
         let thread_id = params.session_id.to_string();
         let requests = self.requests.clone();
         let turns = self.turns.clone();
@@ -1604,10 +1621,12 @@ impl AgentConnection for EngineConnection {
                     params: v2::TurnStartParams {
                         thread_id: thread_id.clone(),
                         input: turn_input.unwrap_or_else(|| {
-                            vec![v2::UserInput::Text {
+                            let mut items = vec![v2::UserInput::Text {
                                 text,
                                 text_elements: Vec::new(),
-                            }]
+                            }];
+                            items.extend(images);
+                            items
                         }),
                         model: Some(model),
                         ..Default::default()
