@@ -23,55 +23,107 @@ const INJECTED_CORES = [
   "RECENT SESSION",
 ];
 
+// Keep this in sync with `NEXT_STEPS_MARKER` in `next-steps.ts`.
+const NEXT_STEPS_MARKER = "\u2550\u2550\u2550 Atlas next-steps \u2550\u2550\u2550";
+
 /** One Atlas-injected context block, recovered rather than discarded. */
 export interface InjectedBlock {
-  /** The marker's label — `SHARED MEMORY`, `RELEVANT PROJECT MEMORY`, … */
+  /** The marker's label - `SHARED MEMORY`, `RELEVANT PROJECT MEMORY`, ... */
   label: string;
   body: string;
 }
 
-/** Split Atlas-injected `--- LABEL ---` … `--- END LABEL ---` blocks out of a
- *  prompt, returning both halves. Line-based and position-agnostic; mirrors the
- *  Rust `strip_injected_context`.
+interface InjectedRange {
+  label: string;
+  start: number;
+  end: number;
+  body: string;
+}
+
+/** Find the next `--- LABEL ---` marker at or after `from`.
+ *
+ *  The old parser required the marker to occupy a whole line. Codex can
+ *  collapse the wire prompt (including the marker and its body) into one line
+ *  before reporting a session title, so the parser also needs to recognise a
+ *  marker followed by body text on the same line. */
+function findInjectedStart(
+  text: string,
+  from: number,
+): { label: string; start: number; markerEnd: number } | null {
+  let search = from;
+  while (true) {
+    const start = text.indexOf("--- ", search);
+    if (start < 0) return null;
+    const afterPrefix = start + 4;
+    const label = INJECTED_CORES.find((core) => text.startsWith(core, afterPrefix));
+    if (label) {
+      const afterCore = afterPrefix + label.length;
+      const close = text.indexOf("---", afterCore);
+      const newline = text.indexOf("\n", afterCore);
+      if (close >= 0 && (newline < 0 || close < newline)) {
+        const before = start > 0 ? text[start - 1] : "";
+        if (start === 0 || /\s/.test(before)) {
+          return { label, start, markerEnd: close + 3 };
+        }
+      }
+    }
+    search = start + 4;
+  }
+}
+
+function injectedRanges(text: string): InjectedRange[] {
+  const ranges: InjectedRange[] = [];
+  let cursor = 0;
+  while (true) {
+    const start = findInjectedStart(text, cursor);
+    if (!start) break;
+    const endMarker = `--- END ${start.label} ---`;
+    const endAt = text.indexOf(endMarker, start.markerEnd);
+    const bodyEnd = endAt >= 0 ? endAt : text.length;
+    const end = endAt >= 0 ? endAt + endMarker.length : text.length;
+    ranges.push({
+      label: start.label,
+      start: start.start,
+      end,
+      body: text.slice(start.markerEnd, bodyEnd).trim(),
+    });
+    cursor = end;
+  }
+  return ranges;
+}
+
+/** Split Atlas-injected `--- LABEL ---` ... `--- END LABEL ---` blocks out of a
+ *  prompt, returning both halves. Position-agnostic and tolerant of a marker
+ *  collapsed onto the same line as its body; mirrors the Rust
+ *  `strip_injected_context`.
  *
  *  The blocks are *kept* here because two callers want opposite things from the
  *  same parse: the chat renderer drops them (they are scaffolding the agent
  *  echoed back), while the Timeline's session detail renders them as their own
- *  cards — what Atlas contributed to a turn is a fact about the turn, and
+ *  cards - what Atlas contributed to a turn is a fact about the turn, and
  *  hiding it made every prompt look unassisted. One parser, so the two can
  *  never disagree about where a block ends. */
 export function extractInjectedContext(text: string): {
   prose: string;
   blocks: InjectedBlock[];
 } {
-  if (!text.includes("--- ")) return { prose: text, blocks: [] }; // fast path
-  const out: string[] = [];
+  const directiveAt = text.indexOf(NEXT_STEPS_MARKER);
+  const body = directiveAt >= 0 ? text.slice(0, directiveAt).replace(/\s+$/, "") : text;
+  if (!body.includes("--- ")) return { prose: body, blocks: [] }; // fast path
+
+  const ranges = injectedRanges(body);
+  if (ranges.length === 0) return { prose: body, blocks: [] };
+
   const blocks: InjectedBlock[] = [];
-  let open: { label: string; end: string; lines: string[] } | null = null;
-  for (const line of text.split("\n")) {
-    const l = line.trim();
-    if (open !== null) {
-      if (l === open.end) {
-        blocks.push({ label: open.label, body: open.lines.join("\n").trim() });
-        open = null;
-      } else {
-        open.lines.push(line);
-      }
-      continue;
-    }
-    if (l.startsWith("--- ") && l.endsWith("---") && !l.startsWith("--- END")) {
-      const core = INJECTED_CORES.find((c) => l.slice(4).startsWith(c));
-      if (core) {
-        open = { label: core, end: `--- END ${core} ---`, lines: [] };
-        continue;
-      }
-    }
-    out.push(line);
+  let prose = "";
+  let cursor = 0;
+  for (const range of ranges) {
+    prose += body.slice(cursor, range.start);
+    blocks.push({ label: range.label, body: range.body });
+    cursor = range.end;
   }
-  // An unterminated block is still a block — a truncated prompt preview cuts the
-  // closing marker off long before it runs out of body.
-  if (open) blocks.push({ label: open.label, body: open.lines.join("\n").trim() });
-  return { prose: out.join("\n").trim(), blocks };
+  prose += body.slice(cursor);
+  return { prose: prose.trim(), blocks };
 }
 
 /** Strip Atlas-injected context blocks, keeping only the prose. */

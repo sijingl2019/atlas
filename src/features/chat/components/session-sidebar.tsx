@@ -26,6 +26,7 @@ import { useActiveOrgWorkspaces } from "@/features/workspaces/lib/org-scope";
 import { useOrgStore } from "@/features/organisations/stores/org-store";
 import { useLayoutStore } from "@/features/layout/stores/layout-store";
 import { useChatStore } from "../stores/chat-store";
+import { stripInjectedContext } from "../lib/atlas-context";
 import { bumpLoadToken, isLoadStale } from "../lib/load-tokens";
 import {
   archiveThread,
@@ -69,13 +70,16 @@ export function sidebarAgentOf(agentType: string | undefined): SidebarAgent {
  *  by the history view handing a row back to be opened — one builder, so the
  *  two cannot disagree about what a row is. */
 function itemFromThread(thread: ThreadRow, projectName: string, isCurrent: boolean): SidebarItem {
+  // Rust cleans this boundary, but keep a display fallback for stale rows from
+  // an older build that still have the raw injected prompt in SQLite.
+  const title = stripInjectedContext(thread.title).trim() || "New Thread";
   return {
     // Never a draft: `threads_projects` lists only threads that have been sent
     // to, so the session id is always there.
     id: thread.sessionId ?? "",
     threadId: thread.threadId,
     kind: "agent",
-    title: thread.title,
+    title,
     projectHeading: null,
     projectName,
     lastUpdated: thread.updatedAt,

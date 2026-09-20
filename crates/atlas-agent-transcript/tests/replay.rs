@@ -53,3 +53,27 @@ fn prose_with_horizontal_rules_is_left_alone() {
     let text = "before\n--- NOT A MEMORY BLOCK ---\nafter";
     assert_eq!(strip_injected_context(text), text);
 }
+
+#[test]
+fn a_collapsed_memory_block_is_stripped_from_a_title() {
+    let text = "--- RELEVANT PROJECT MEMORY --- - AGENTS.md (codex): repo notes --- END RELEVANT PROJECT MEMORY --- abc";
+    assert_eq!(strip_injected_context(text), "abc");
+}
+
+#[test]
+fn a_title_that_is_only_injected_context_strips_to_empty() {
+    let text = "--- RELEVANT PROJECT MEMORY --- - AGENTS.md (codex): repo notes --- END RELEVANT PROJECT MEMORY --- --- RECENT SESSION --- User: abc";
+    assert_eq!(strip_injected_context(text), "");
+}
+
+#[test]
+fn prose_after_a_collapsed_block_survives() {
+    let text = "before --- PROJECT MEMORY --- facts --- END PROJECT MEMORY --- after";
+    assert_eq!(strip_injected_context(text), "before  after");
+}
+
+#[test]
+fn the_next_steps_directive_is_not_part_of_a_title() {
+    let text = "abc\n\n\u{2550}\u{2550}\u{2550} Atlas next-steps \u{2550}\u{2550}\u{2550}\nappend a block";
+    assert_eq!(strip_injected_context(text), "abc");
+}

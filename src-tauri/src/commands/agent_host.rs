@@ -2040,8 +2040,15 @@ fn snapshot_of(thread: &AcpThreadHandle) -> ThreadSnapshot {
         is_draft: thread.is_draft(),
         // The agent's title when it has produced one, else what the user
         // opened with. A row the user cannot recognise is a row they cannot
-        // use, and agents title threads late or not at all.
-        title: thread.title().cloned().or_else(|| thread.fallback_title()),
+        // use, and agents title threads late or not at all. Codex can report
+        // the whole injected wire prompt as its title, so clean the agent's
+        // value here too rather than trusting every upstream implementation.
+        title: thread
+            .title()
+            .map(|title| atlas_agent_transcript::strip_injected_context(title))
+            .filter(|title| !title.is_empty())
+            .map(Arc::<str>::from)
+            .or_else(|| thread.fallback_title()),
         work_dirs: thread.work_dirs().to_vec(),
     }
 }
@@ -2133,12 +2140,34 @@ fn thread_row(thread: &ThreadMetadata) -> ThreadRow {
         thread_id: thread.thread_id.to_key_string(),
         session_id: thread.session_id.as_ref().map(std::string::ToString::to_string),
         agent_id: thread.agent_id.to_string(),
-        title: thread.display_title().to_string(),
+        title: display_title(thread),
         updated_at: thread.updated_at.to_rfc3339(),
         created_at: thread.created_at.map(|at| at.to_rfc3339()),
         archived: thread.archived,
         project_name: project_name(thread.main_worktree_paths()),
         folder_paths: paths_of(thread.folder_paths()),
+    }
+}
+
+/// The row's title with Atlas's injected context taken out.
+///
+/// Rows recorded before the title boundary was cleaned may still carry the
+/// raw memory block in SQLite. Keep the user's explicit rename untouched, but
+/// sanitize an agent title on the way out and fall back to the default when
+/// nothing readable remains.
+fn display_title(thread: &ThreadMetadata) -> String {
+    if let Some(title) = thread.title_override.as_deref() {
+        return title.to_string();
+    }
+    let title = thread
+        .title
+        .as_deref()
+        .map(atlas_agent_transcript::strip_injected_context)
+        .unwrap_or_default();
+    if title.is_empty() {
+        atlas_thread_metadata::DEFAULT_THREAD_TITLE.to_string()
+    } else {
+        title
     }
 }
 

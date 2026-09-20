@@ -947,6 +947,18 @@ pub struct AcpThread {
     events: EventSink<AcpThreadEvent>,
 }
 
+/// Keep Atlas's wire scaffolding out of the agent's title.
+///
+/// A title is display metadata, not a transcript: there is no reason to
+/// preserve the raw prompt an agent echoed back. An injected-only title cleans
+/// to `None`, which lets [`AcpThread::fallback_title`] name the thread after
+/// the user's first real message instead.
+fn clean_agent_title(title: Option<Arc<str>>) -> Option<Arc<str>> {
+    let title = title?;
+    let clean = atlas_agent_transcript::strip_injected_context(&title);
+    (!clean.is_empty()).then(|| Arc::from(clean))
+}
+
 impl AcpThread {
     pub fn new(
         session_id: acp::SessionId,
@@ -959,7 +971,7 @@ impl AcpThread {
             session_id,
             work_dirs,
             parent_session_id: None,
-            title,
+            title: clean_agent_title(title),
             entries: Vec::new(),
             entry_created_at: Vec::new(),
             elicitations: ElicitationStore::default(),
@@ -1189,10 +1201,17 @@ impl AcpThread {
                 // affordance that is not ported, so that branch has no meaning
                 // here.
                 if let MaybeUndefined::Value(title) = info_update.title {
-                    let title: Arc<str> = title.into();
-                    if self.title.as_ref() != Some(&title) {
-                        self.title = Some(title);
-                        self.emit(AcpThreadEvent::TitleUpdated);
+                    // Codex can report the whole wire prompt (including the
+                    // injected memory blocks) as the session title. Clean it
+                    // at the protocol boundary so neither the delta nor the
+                    // history store ever sees scaffolding as a name.
+                    let title = atlas_agent_transcript::strip_injected_context(&title);
+                    if !title.is_empty() {
+                        let title: Arc<str> = title.into();
+                        if self.title.as_ref() != Some(&title) {
+                            self.title = Some(title);
+                            self.emit(AcpThreadEvent::TitleUpdated);
+                        }
                     }
                 }
             }

@@ -11,6 +11,7 @@ import type {
   SwitchableAgent,
   AgentType,
   PendingSend,
+  QueuedMessage,
 } from "@/types/agent";
 import { CLAUDE_PERMISSION_MODES, pluginIdForAgent } from "@/types/agent";
 import type { PendingPermission } from "@/types/acp";
@@ -21,7 +22,7 @@ import type {
   ImageAttachment,
   SessionModeInfo,
 } from "@/types/agents";
-import { splitAtlasContext } from "../lib/atlas-context";
+import { splitAtlasContext, stripInjectedContext } from "../lib/atlas-context";
 import { loadCachedAcpModes, saveCachedAcpModes } from "../lib/acp-modes-cache";
 import { loadLastModePref, saveLastModePref } from "../lib/last-mode-pref";
 import { modeSelectOf, modelSelectOf } from "../lib/acp-config-options";
@@ -327,7 +328,7 @@ interface ChatState {
    * Per-tab queue of pending user messages. Filled when the user types while
    * the agent is still streaming; auto-drained when the stream finishes.
    */
-  queues: Record<string, string[]>;
+  queues: Record<string, QueuedMessage[]>;
   /**
    * Per-tab composer draft. Mirrors the CodeMirror text body so a tab
    * switch (which unmounts MessageInput) doesn't drop what the user was
@@ -521,10 +522,10 @@ interface ChatActions {
     ) => void;
     /** Drop a draft (on submit, or when its tab closes). */
     clearDraft: (tabId: string) => void;
-    enqueueMessage: (sessionId: string, text: string) => void;
+    enqueueMessage: (sessionId: string, text: string, attachments?: ImageAttachment[]) => void;
     removeQueueItem: (sessionId: string, index: number) => void;
     editQueueItem: (sessionId: string, index: number, text: string) => void;
-    shiftQueue: (sessionId: string) => string | null;
+    shiftQueue: (sessionId: string) => QueuedMessage | null;
     clearQueue: (sessionId: string) => void;
     // ── ACP bindings ────────────────────────────────────────────────────
     setAcpBinding: (
@@ -1552,10 +1553,13 @@ export const useChatStore = createSelectors(
               chips: patch.chips ?? msg.suggestions?.chips ?? [],
             };
           }),
-        enqueueMessage: (sessionId, text) =>
+        enqueueMessage: (sessionId, text, attachments) =>
           set((s) => {
             const cur = s.queues[sessionId] ?? [];
-            s.queues[sessionId] = [...cur, text];
+            s.queues[sessionId] = [
+              ...cur,
+              { text, ...(attachments?.length ? { attachments } : {}) },
+            ];
           }),
         removeQueueItem: (sessionId, index) =>
           set((s) => {
@@ -1570,11 +1574,12 @@ export const useChatStore = createSelectors(
             const cur = s.queues[sessionId];
             if (!cur || index < 0 || index >= cur.length) return;
             const next = [...cur];
-            next[index] = text;
+            // Text edit only — whatever was attached stays attached.
+            next[index] = { ...next[index], text };
             s.queues[sessionId] = next;
           }),
         shiftQueue: (sessionId) => {
-          let head: string | null = null;
+          let head: QueuedMessage | null = null;
           set((s) => {
             const cur = s.queues[sessionId];
             if (!cur || cur.length === 0) return;
@@ -1704,7 +1709,13 @@ export const useChatStore = createSelectors(
               const held = session.pendingSend;
               if (held) {
                 session.pendingSend = undefined;
-                s.queues[tabId] = [...(s.queues[tabId] ?? []), held.content];
+                s.queues[tabId] = [
+                  ...(s.queues[tabId] ?? []),
+                  {
+                    text: held.content,
+                    ...(held.attachments?.length ? { attachments: held.attachments } : {}),
+                  },
+                ];
               }
               session.status = "idle";
               session.stopping = undefined;
@@ -1723,7 +1734,13 @@ export const useChatStore = createSelectors(
               const held = session.pendingSend;
               if (held) {
                 session.pendingSend = undefined;
-                s.queues[tabId] = [...(s.queues[tabId] ?? []), held.content];
+                s.queues[tabId] = [
+                  ...(s.queues[tabId] ?? []),
+                  {
+                    text: held.content,
+                    ...(held.attachments?.length ? { attachments: held.attachments } : {}),
+                  },
+                ];
               }
               session.status = "idle";
               session.stopping = undefined;
@@ -2314,8 +2331,9 @@ function applyDeltaToDraft(s: ChatDraft, env: AgentDelta): void {
     case "title_updated": {
       // The agent summarised this session better than the first 40 characters
       // of the prompt Atlas titled it with (Codex and Kilo both do, once they
-      // have seen a turn).
-      session.title = env.title;
+      // have seen a turn). Codex can include the injected wire prompt in that
+      // title, so keep the scaffolding out of the live session too.
+      session.title = stripInjectedContext(env.title).trim();
       return;
     }
     case "config_options_updated": {

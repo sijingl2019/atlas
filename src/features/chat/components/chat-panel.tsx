@@ -628,7 +628,7 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
             const actions = useChatStore.getState().actions;
             actions.setPendingSend(tabId, undefined);
             actions.updateSessionStatus(tabId, "idle");
-            actions.enqueueMessage(tabId, held.content);
+            actions.enqueueMessage(tabId, held.content, held.attachments);
           }
           // A message is sitting in the queue waiting on this bind: the user
           // is watching, so the failure is reported even if an earlier one
@@ -1014,8 +1014,10 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
       if (next && handleSendRef.current) {
         // Defer one microtask so the React commit completes first.
         // Queued messages don't carry their original mentions yet — empty
-        // array here is intentional (see MessageInput.submit).
-        Promise.resolve().then(() => handleSendRef.current?.(next, []));
+        // array here is intentional (see MessageInput.submit). Attachments
+        // DO ride along, so an image staged during a turn still reaches the
+        // agent when the queue drains.
+        Promise.resolve().then(() => handleSendRef.current?.(next.text, [], next.attachments));
       }
     }
     // Next-step chips are extracted from the agent's own `<next_steps>` block in
@@ -1225,7 +1227,7 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
         bindControlRef.current?.kick();
         return;
       }
-      cs.actions.enqueueMessage(tabId, actualContent);
+      cs.actions.enqueueMessage(tabId, actualContent, attachments);
       return;
     }
 

@@ -172,6 +172,36 @@ fn fallback_title_ignores_atlas_injected_context() {
     );
 }
 
+#[test]
+fn agent_title_ignores_atlas_injected_context() {
+    let (mut thread, _events, _conn) = new_thread();
+    thread
+        .handle_session_update(acp::SessionUpdate::SessionInfoUpdate(
+            acp::SessionInfoUpdate::new().title(
+                "--- RELEVANT PROJECT MEMORY --- - AGENTS.md --- END RELEVANT PROJECT MEMORY --- abc"
+                    .to_string(),
+            ),
+        ))
+        .unwrap();
+
+    assert_eq!(thread.title().map(|title| title.as_ref()), Some("abc"));
+}
+
+#[test]
+fn an_injected_only_agent_title_is_ignored() {
+    let (mut thread, _events, _conn) = new_thread();
+    thread
+        .handle_session_update(acp::SessionUpdate::SessionInfoUpdate(
+            acp::SessionInfoUpdate::new().title(
+                "--- RELEVANT PROJECT MEMORY --- notes --- END RELEVANT PROJECT MEMORY ---"
+                    .to_string(),
+            ),
+        ))
+        .unwrap();
+
+    assert!(thread.title().is_none());
+}
+
 // ------------------------------------------------------------- message chunks
 
 /// Adapted from `test_user_message_chunks_use_protocol_message_id_boundaries`.

@@ -74,41 +74,99 @@ pub fn is_injected_user_text(t: &str) -> bool {
     false
 }
 
-/// Strip the Atlas-injected context blocks that `agents_send` prepends to the
-/// wire prompt (shared cross-agent memory, retrieved long-term memory, recent-
-/// session recap). The coding agent records the prompt it received in its
-/// transcript, so a resumed session would otherwise surface the raw
-/// `--- SHARED MEMORY ---` / `--- RELEVANT PROJECT MEMORY ---` scaffolding as
-/// the user's message and chat title. Line-based: drop everything from a known
-/// block start marker through its matching `--- END <LABEL> ---`.
-pub fn strip_injected_context(text: &str) -> String {
-    // Block START labels (the END marker is always `--- END <CORE> ---`). The
-    // SHARED MEMORY block's start line may carry a suffix
-    // ("— UPDATES SINCE LAST TURN"), so we match by prefix.
-    const CORES: [&str; 4] = [
-        "SHARED MEMORY",
-        "RELEVANT PROJECT MEMORY",
-        "PROJECT MEMORY",
-        "RECENT SESSION",
-    ];
-    let mut out: Vec<&str> = Vec::new();
-    let mut skip_until: Option<String> = None;
-    for line in text.lines() {
-        let l = line.trim();
-        if let Some(end) = &skip_until {
-            if l == end {
-                skip_until = None;
-            }
+/// Block START labels Atlas injects into the wire prompt. The END marker is
+/// always `--- END <CORE> ---`.
+const INJECTED_CONTEXT_CORES: [&str; 4] = [
+    "SHARED MEMORY",
+    "RELEVANT PROJECT MEMORY",
+    "PROJECT MEMORY",
+    "RECENT SESSION",
+];
+
+/// The hidden directive Atlas appends to the wire prompt. It is not a memory
+/// block, but it is the same kind of host machinery and must not become a
+/// title. Keep this in sync with `NEXT_STEPS_MARKER` in
+/// `src/features/chat/lib/next-steps.ts`.
+const NEXT_STEPS_MARKER: &str = "\u{2550}\u{2550}\u{2550} Atlas next-steps \u{2550}\u{2550}\u{2550}";
+
+struct InjectedStart {
+    core: &'static str,
+    start: usize,
+    marker_end: usize,
+}
+
+/// Find the next injected block marker at or after `from`.
+///
+/// Most blocks are written on their own line, but Codex may collapse the wire
+/// prompt into one line before reporting a session title. That turns
+/// `--- RELEVANT PROJECT MEMORY ---` plus its body into a single string, so
+/// matching whole lines is not enough. A marker still has the same shape:
+/// `--- <CORE>` followed by a closing `---` on the same line, then the body.
+fn find_injected_start(text: &str, from: usize) -> Option<InjectedStart> {
+    let mut search = from;
+    while let Some(rel) = text[search..].find("--- ") {
+        let start = search + rel;
+        let after_prefix = start + 4;
+        let Some(core) = INJECTED_CONTEXT_CORES
+            .iter()
+            .copied()
+            .find(|core| text[after_prefix..].starts_with(core))
+        else {
+            search = after_prefix;
+            continue;
+        };
+        let after_core = after_prefix + core.len();
+        let Some(close_rel) = text[after_core..].find("---") else {
+            search = after_core;
+            continue;
+        };
+        let close = after_core + close_rel;
+        let newline = text[after_core..].find('\n').map(|at| after_core + at);
+        if newline.is_some_and(|at| at < close) {
+            search = after_core;
             continue;
         }
-        if l.starts_with("--- ") && l.ends_with("---") && !l.starts_with("--- END") {
-            let inner = l.trim_start_matches("--- ");
-            if let Some(core) = CORES.iter().find(|c| inner.starts_with(**c)) {
-                skip_until = Some(format!("--- END {core} ---"));
-                continue;
-            }
+        let starts_a_word = start > 0
+            && !text[..start]
+                .chars()
+                .next_back()
+                .is_some_and(char::is_whitespace);
+        if !starts_a_word {
+            return Some(InjectedStart {
+                core,
+                start,
+                marker_end: close + 3,
+            });
         }
-        out.push(line);
+        search = after_core;
     }
-    out.join("\n").trim().to_string()
+    None
+}
+
+/// Strip the Atlas-injected context blocks that `agents_send` prepends to the
+/// wire prompt (shared cross-agent memory, retrieved long-term memory, recent-
+/// session recap) and the hidden next-steps directive it appends.
+///
+/// The coding agent records the prompt it received in its transcript, so a
+/// resumed session would otherwise surface the raw `--- SHARED MEMORY ---` /
+/// `--- RELEVANT PROJECT MEMORY ---` scaffolding as the user's message and
+/// chat title. The parser accepts both normal multi-line blocks and blocks
+/// collapsed onto one line by an agent's title summariser.
+pub fn strip_injected_context(text: &str) -> String {
+    let text = text
+        .find(NEXT_STEPS_MARKER)
+        .map_or(text, |at| &text[..at]);
+
+    let mut out = String::with_capacity(text.len());
+    let mut cursor = 0;
+    while let Some(start) = find_injected_start(text, cursor) {
+        out.push_str(&text[cursor..start.start]);
+        let end_marker = format!("--- END {} ---", start.core);
+        let end = text[start.marker_end..]
+            .find(&end_marker)
+            .map_or(text.len(), |at| start.marker_end + at + end_marker.len());
+        cursor = end;
+    }
+    out.push_str(&text[cursor..]);
+    out.trim().to_string()
 }

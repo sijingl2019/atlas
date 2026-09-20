@@ -26,6 +26,7 @@ import {
   type ClaudePermissionMode,
   agentTypeFromPluginId,
   type SwitchableAgent,
+  type QueuedMessage,
 } from "@/types/agent";
 import {
   agentMeta,
@@ -114,7 +115,7 @@ const slashCommandPickerPromise: Promise<typeof import("./slash-command-picker")
 
 // Module-level frozen empty array so selectors that return a "default empty
 // queue" hand back a stable reference instead of allocating per render.
-const EMPTY_QUEUE: readonly string[] = Object.freeze([]);
+const EMPTY_QUEUE: readonly QueuedMessage[] = Object.freeze([]);
 
 /** Read an image `File` (clipboard paste) into a base64 attachment. Returns
  *  null for non-images. The `data:` URI prefix is stripped — the wire shape
@@ -1739,29 +1740,26 @@ export function MessageInput({
     }
     if (trimmed === "/queue" || trimmed.startsWith("/queue ")) {
       const queued = trimmed.slice("/queue".length).trim();
-      if (queued) enqueueMessage(tabId, queued);
+      if (queued) {
+        enqueueMessage(tabId, queued, stagedImages.length ? stagedImages : undefined);
+        if (stagedImages.length) setStagedImages([]);
+      }
       inputRef.current?.clear();
       setValue("");
       return;
     }
     const mentions = inputRef.current?.getMentions() ?? [];
+    const images = stagedImages;
     if (running) {
-      // Queued messages don't carry mentions yet — the queue holds raw
-      // strings and the agent will see whatever shortform text was in the
-      // composer. Mentions are dropped here intentionally; promoting the
-      // queue to a structured shape is a follow-up. Staged images likewise
-      // stay in the composer strip and ride the next direct send — tell the
-      // user so a queued-while-busy send doesn't read as "the image vanished"
-      // (#71-adjacent: they saw it silently NOT go out with this message).
-      if (stagedImages.length > 0) {
-        toast.info("Image will be sent with your next message — the agent is still busy.");
-      }
-      enqueueMessage(tabId, trimmed);
+      // Queued messages still don't carry mentions — the agent sees whatever
+      // shortform text was in the composer. Attachments DO ride along, so a
+      // screenshot pasted mid-turn reaches the agent with the message it was
+      // attached to instead of being stranded in the composer.
+      enqueueMessage(tabId, trimmed, images.length ? images : undefined);
     } else {
-      const images = stagedImages;
       onSend(trimmed, mentions, images.length ? images : undefined);
-      if (images.length) setStagedImages([]);
     }
+    if (images.length) setStagedImages([]);
     inputRef.current?.clear();
     setValue("");
     // The debounced draft mirror will collapse the empty value into a
@@ -1808,12 +1806,19 @@ export function MessageInput({
               {queue.map((q, i) => (
                 <QueueChip
                   key={i}
-                  text={q}
+                  text={q.text}
                   onEdit={() => {
                     const cur = inputRef.current?.getValue() ?? "";
-                    const merged = cur.trim() ? `${cur}\n${q}` : q;
+                    const merged = cur.trim() ? `${cur}\n${q.text}` : q.text;
                     inputRef.current?.setValue(merged);
                     setValue(merged);
+                    // Pulling the message back into the composer has to bring
+                    // its images with it, or editing a queued message is a way
+                    // to lose them.
+                    if (q.attachments?.length) {
+                      const restored = q.attachments;
+                      setStagedImages((prev) => [...prev, ...restored]);
+                    }
                     removeQueueItem(tabId, i);
                     requestAnimationFrame(() => inputRef.current?.focus());
                   }}

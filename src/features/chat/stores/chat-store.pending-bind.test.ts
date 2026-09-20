@@ -59,7 +59,7 @@ describe("failPendingBinds", () => {
 
     const s = useChatStore.getState();
     expect(s.sessions[STARTING].pendingSend).toBeUndefined();
-    expect(s.queues[STARTING]).toEqual(["first"]);
+    expect(s.queues[STARTING]).toEqual([{ text: "first" }]);
     expect(s.sessions[STARTING].status).toBe("idle");
     expect(s.sessions[STARTING].disconnected).toBe(true);
     expect(s.sessions[STARTING].bindError).toBe("exited with code 1");
@@ -71,6 +71,24 @@ describe("failPendingBinds", () => {
     // Different plugin: untouched.
     expect(s.sessions[OTHER].pendingSend?.content).toBe("other");
     expect(s.sessions[OTHER].status).toBe("running");
+  });
+
+  it("carries the held message's attachments into the queue", () => {
+    // The demotion used to push `held.content` alone. The composer has already
+    // cleared its staged images by this point, so dropping them here lost the
+    // user's screenshot outright — no warning, nowhere to get it back.
+    const image = { mimeType: "image/png", dataBase64: "aaa" };
+    const { actions } = useChatStore.getState();
+    actions.setPendingSend(STARTING, {
+      content: "look at this",
+      mentions: [],
+      attachments: [image],
+    });
+    actions.failPendingBinds(pluginIdForAgent("codex"), "exited with code 1");
+
+    expect(useChatStore.getState().queues[STARTING]).toEqual([
+      { text: "look at this", attachments: [image] },
+    ]);
   });
 
   it("a later bind clears the recorded reason", () => {
@@ -95,7 +113,7 @@ describe("failPendingBinds", () => {
     }
     expect(s.sessions[BOUND].acpSessionId).toBe("acp-1");
     expect(s.sessions[STARTING].pendingSend).toBeUndefined();
-    expect(s.queues[STARTING]).toEqual(["first"]);
+    expect(s.queues[STARTING]).toEqual([{ text: "first" }]);
     expect(s.sessions[OTHER].status).toBe("running");
     expect(s.sessions[OTHER].disconnected).toBeFalsy();
     expect(pluginIdForAgent("codex") in s.agentStartingStatus).toBe(false);

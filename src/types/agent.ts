@@ -353,10 +353,21 @@ export interface ChatSession {
 }
 
 /** See `ChatSession.pendingSend`. Mentions are kept as sent — unlike the
- *  string queue, this path loses nothing. */
+ *  queue, this path loses nothing. */
 export interface PendingSend {
   content: string;
   mentions: MentionData[];
+  attachments?: ImageAttachment[];
+}
+
+/** One message parked in a tab's send queue.
+ *
+ *  Carries its attachments so an image staged while the agent was busy rides
+ *  the send it was attached to, instead of being stranded in the composer (or
+ *  silently dropped when a held send is demoted into the queue). Mentions are
+ *  still lost here — the agent sees whatever shortform text was typed. */
+export interface QueuedMessage {
+  text: string;
   attachments?: ImageAttachment[];
 }
 
