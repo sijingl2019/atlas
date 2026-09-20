@@ -23,6 +23,9 @@ import {
   useProjectGraph,
   type ProjectGraph,
 } from "../stores/knowledge-graph-store";
+import { useKbScopeStore, ensureGlobalRoot, projectMountNames } from "../stores/kb-scope-store";
+import { projectKbSources } from "../lib/kb-root";
+import { KbScopeToggle } from "./kb-scope-toggle";
 
 /**
  * Obsidian-style force-directed knowledge graph.
@@ -66,6 +69,9 @@ interface EdgeView {
 interface SceneState {
   selectedId: string | null;
   neighbors: Set<string>;
+  /** Nodes belonging to the current workspace, lit while nothing is selected
+   *  ("view" scope). Empty in "global" scope — then every node reads alike. */
+  highlightIds: Set<string>;
   /** Body the user is currently dragging — treated as a transient
    *  highlight so edges + neighbours light up live, not on release. */
   draggingId: string | null;
@@ -82,9 +88,17 @@ interface GraphLayout {
 
 export function KnowledgeGraph() {
   const currentProject = useProjectStore.use.currentProject();
+  // BOTH scopes draw the same graph — the GLOBAL one. "view" only differs in
+  // what it highlights, so switching never re-lays-out the scene.
+  const graphScope = useKbScopeStore.use.graphScope();
+  const globalRoot = useKbScopeStore.use.globalRoot();
+  const { setGraphScope, setScope } = useKbScopeStore.use.actions();
+  useEffect(() => {
+    void ensureGlobalRoot().catch(() => {});
+  }, []);
   const { bind, unbind } = useKnowledgeGraphStore.use.actions();
   const { addTab } = useLayoutStore.use.actions();
-  const { selectEntry } = useKnowledgeStore.use.actions();
+  const { selectEntry, requestOpen } = useKnowledgeStore.use.actions();
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -95,10 +109,10 @@ export function KnowledgeGraph() {
   // flight; `{}` (empty positions) when none on disk.
   const [layout, setLayout] = useState<GraphLayout | undefined>(undefined);
   useEffect(() => {
-    if (!currentProject) return;
+    if (!globalRoot) return;
     let cancelled = false;
     void invoke<GraphLayout>("knowledge_graph_layout_load", {
-      projectPath: currentProject.path,
+      projectPath: globalRoot,
     })
       .then((l) => {
         if (!cancelled) setLayout(l ?? { positions: {} });
@@ -109,7 +123,7 @@ export function KnowledgeGraph() {
     return () => {
       cancelled = true;
     };
-  }, [currentProject?.path]);
+  }, [globalRoot]);
 
   // Override node titles with `meta.title` when set — the wire-side
   // title from Rust is the filename, so this is the user-edited
@@ -145,25 +159,57 @@ export function KnowledgeGraph() {
   }, []);
 
   useEffect(() => {
-    if (currentProject) void bind(currentProject.path);
+    if (globalRoot) void bind(globalRoot);
     return () => unbind();
-  }, [currentProject?.path, bind, unbind]);
+  }, [globalRoot, bind, unbind]);
 
-  if (!currentProject) {
-    return (
-      <div className="h-full flex items-center justify-center text-text-tertiary text-sm">
-        Open a project first
-      </div>
+  // Which top-level mounts in the global KB are this workspace's knowledge. A
+  // project reaches the global KB as mounted subtrees, so its nodes are
+  // `<mount>/…` there — never the bare ids the project's own graph uses.
+  const [mountNames, setMountNames] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    const project = currentProject?.path;
+    if (graphScope !== "view" || !project || !globalRoot) {
+      setMountNames(new Set());
+      return;
+    }
+    let cancelled = false;
+    void Promise.all([projectKbSources(globalRoot), projectKbSources(project)]).then(
+      ([globalSources, projectSources]) => {
+        if (cancelled) return;
+        setMountNames(projectMountNames(globalSources, projectSources, project));
+      },
     );
-  }
+    return () => {
+      cancelled = true;
+    };
+  }, [graphScope, currentProject?.path, globalRoot]);
 
+  const highlightIds = useMemo(() => {
+    if (!mountNames.size) return new Set<string>();
+    return new Set(
+      graph.nodes.filter((n) => mountNames.has(n.id.split("/")[0] ?? "")).map((n) => n.id),
+    );
+  }, [graph.nodes, mountNames]);
+
+  // No early return before the container renders: the ResizeObserver above
+  // attaches to `containerRef` on mount, and a mount that skipped the container
+  // never observes anything — the canvas would stay 0×0 forever.
   return (
     <div
       ref={containerRef}
       className="h-full w-full relative"
       style={{ background: "var(--bg-canvas)" }}
     >
-      {loading ? (
+      <div className="absolute left-3 top-3 z-10 flex items-center">
+        <KbScopeToggle
+          scope={graphScope}
+          onChange={setGraphScope}
+          globalTitle="The whole global knowledge graph"
+          viewTitle="The global graph, with this workspace's knowledge lit up"
+        />
+      </div>
+      {!globalRoot || loading ? (
         <LoadingState />
       ) : graph.nodes.length === 0 ? (
         <EmptyState />
@@ -179,7 +225,8 @@ export function KnowledgeGraph() {
           selectedId={selectedId}
           onSelect={setSelectedId}
           initialLayout={layout}
-          projectPath={currentProject.path}
+          projectPath={globalRoot}
+          highlightIds={highlightIds}
           onActivate={(entryId) => {
             addTab({
               id: "knowledge",
@@ -189,7 +236,16 @@ export function KnowledgeGraph() {
               dirty: false,
               data: {},
             });
-            selectEntry(entryId);
+            // A node from another workspace isn't in the panel's current entry
+            // set — flip the panel to global scope and let it open the note once
+            // the global entries land, rather than showing a blank page.
+            const known = useKnowledgeStore.getState().entries.some((e) => e.id === entryId);
+            if (known) {
+              selectEntry(entryId);
+            } else {
+              setScope("global");
+              requestOpen(entryId);
+            }
           }}
         />
       ) : null}
@@ -206,6 +262,7 @@ function GraphCanvas({
   onActivate,
   initialLayout,
   projectPath,
+  highlightIds,
 }: {
   graph: ProjectGraph;
   width: number;
@@ -215,6 +272,7 @@ function GraphCanvas({
   onActivate: (id: string) => void;
   initialLayout: GraphLayout;
   projectPath: string;
+  highlightIds: Set<string>;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState<Viewport>({ x: 0, y: 0, scale: 1 });
@@ -225,10 +283,17 @@ function GraphCanvas({
   const sceneRef = useRef<SceneState>({
     selectedId,
     neighbors: new Set(),
+    highlightIds,
     draggingId: null,
     draggingNeighbors: new Set(),
     zoom: 1,
   });
+
+  // Pushed in by ref like the selection, so flipping the graph scope repaints
+  // without tearing down the Pixi scene (and losing every node position).
+  useEffect(() => {
+    sceneRef.current = { ...sceneRef.current, highlightIds };
+  }, [highlightIds]);
 
   useEffect(() => {
     const neighbors = new Set<string>();
@@ -781,12 +846,16 @@ function buildScene(
     lastScene = scene;
     lastPalette = P;
 
-    const { selectedId, neighbors, draggingId, draggingNeighbors, zoom } = scene;
+    const { selectedId, neighbors, highlightIds, draggingId, draggingNeighbors, zoom } = scene;
     // Drag-highlight uses the same visual treatment as selection.
     // Selection wins if both are active.
     const focusId = selectedId ?? draggingId;
     const focusNeighbors = selectedId ? neighbors : draggingNeighbors;
     const hasFocus = focusId !== null;
+    // Workspace highlight only reads while nothing is selected — a selection is
+    // the user's own focus and always wins, so nodes from any workspace stay
+    // selectable and light up their neighbours normally.
+    const hasHighlight = !hasFocus && highlightIds.size > 0;
     const showLabels = zoom >= HIDE_LABEL_BELOW;
     const inv = 1 / zoom; // counter-scale for constant screen-space sizes
 
@@ -796,6 +865,7 @@ function buildScene(
       let color = P.secondary;
       let alpha = 1;
       let drawRadius = node.radius;
+      const isHighlighted = hasHighlight && highlightIds.has(node.id);
       if (hasFocus) {
         if (isFocused) {
           color = P.primary;
@@ -805,6 +875,13 @@ function buildScene(
         } else {
           color = P.muted;
           alpha = 0.4;
+        }
+      } else if (hasHighlight) {
+        if (isHighlighted) {
+          color = P.primary;
+        } else {
+          color = P.muted;
+          alpha = 0.45;
         }
       }
       node.graphics.clear();
@@ -824,6 +901,9 @@ function buildScene(
       );
       if (!showLabels) {
         node.label.alpha = 0;
+      } else if (hasHighlight) {
+        node.label.alpha = isHighlighted ? 1 : 0.35;
+        node.label.style = styleFor(isHighlighted ? P.primary : P.muted);
       } else if (!hasFocus) {
         node.label.alpha = 0.85;
         node.label.style = styleFor(P.secondary);
@@ -852,6 +932,10 @@ function buildScene(
           color = P.edgeDim;
           alpha = 0.15;
         }
+      } else if (hasHighlight) {
+        const inWorkspace = highlightIds.has(edge.from) && highlightIds.has(edge.to);
+        color = inWorkspace ? P.edgeSelected : P.edgeDim;
+        alpha = inWorkspace ? 0.6 : 0.15;
       }
       edge.graphics.moveTo(a.body.position.x, a.body.position.y);
       edge.graphics.lineTo(b.body.position.x, b.body.position.y);

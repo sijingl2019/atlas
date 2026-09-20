@@ -519,7 +519,12 @@ export function BrowserPanel({ tabId, initialUrl, groupId }: BrowserPanelProps) 
         content: `# ${page.title}\n\nSource: ${page.url}\n\n${textContent.slice(0, 50000)}`,
       });
       const { useKnowledgeStore } = await import("@/features/knowledge/stores/knowledge-store");
-      useKnowledgeStore.getState().actions.loadEntries(currentProject.path);
+      // The clip lands in THIS project's KB, but the panel may be showing the
+      // global one — reload whichever root it is actually on, and make sure the
+      // project's KB is mounted globally so the clip is reachable from there.
+      const kb = await import("@/features/knowledge/lib/kb-root");
+      await kb.ensureProjectKbLinkedGlobally(currentProject.path);
+      useKnowledgeStore.getState().actions.loadEntries(kb.kbRootPath() ?? currentProject.path);
     } catch {}
   };
 

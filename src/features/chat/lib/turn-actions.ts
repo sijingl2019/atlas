@@ -64,7 +64,11 @@ export async function saveThreadToKb(tabId: string): Promise<void> {
       entryId: id,
       patch: { title },
     }).catch(() => {});
-    await useKnowledgeStore.getState().actions.loadEntries(project.path);
+    // Saved into THIS project's KB; mirror it into the global KB and reload
+    // whichever root the panel is currently showing.
+    const kb = await import("@/features/knowledge/lib/kb-root");
+    await kb.ensureProjectKbLinkedGlobally(project.path);
+    await useKnowledgeStore.getState().actions.loadEntries(kb.kbRootPath() ?? project.path);
     toast.success(`Saved “${title}” to knowledge base`);
   } catch (e) {
     toast.error(`Failed to save: ${e}`);

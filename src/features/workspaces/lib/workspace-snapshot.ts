@@ -18,6 +18,7 @@ import { useLayoutStore } from "@/features/layout/stores/layout-store";
 import { useExplorerStore } from "@/features/explorer/stores/explorer-store";
 import { useGitStore } from "@/features/git/stores/git-store";
 import { useKnowledgeStore } from "@/features/knowledge/stores/knowledge-store";
+import { useKbScopeStore } from "@/features/knowledge/stores/kb-scope-store";
 import { useKnowledgeMetaStore } from "@/features/knowledge/stores/knowledge-meta-store";
 
 /** Max number of workspace snapshots kept warm in RAM. Beyond this we evict
@@ -30,8 +31,9 @@ const LRU_CAP = 8;
 interface Snapshot {
   explorer: Record<string, unknown>;
   git: Record<string, unknown>;
-  knowledge: Record<string, unknown>;
-  knowledgeMeta: Record<string, unknown>;
+  /** Null when captured in global KB scope — see `captureSnapshot`. */
+  knowledge: Record<string, unknown> | null;
+  knowledgeMeta: Record<string, unknown> | null;
   /** Hash of the persist-relevant slices, for write dedup. */
   persistHash: string;
   /** Monotonic touch counter for LRU. */
@@ -103,6 +105,10 @@ export function captureSnapshot(workspaceId: string): void {
   // back on the switch critical path that `loadProjectStores` deliberately
   // moved it off of: on a large vault the deep clone was the dominant
   // synchronous cost of switching away.
+  // Knowledge is only per-workspace state while the panel is in "view" scope.
+  // In "global" scope every workspace shows the same home KB, so snapshotting it
+  // under a workspace id would restore one workspace's view over another's.
+  const scoped = useKbScopeStore.getState().scope === "view";
   const knowledge = refSlice(useKnowledgeStore.getState());
   const knowledgeMeta = dataSlice(useKnowledgeMetaStore.getState());
 
@@ -123,8 +129,8 @@ export function captureSnapshot(workspaceId: string): void {
   const snapshot: Snapshot = {
     explorer,
     git,
-    knowledge,
-    knowledgeMeta,
+    knowledge: scoped ? knowledge : null,
+    knowledgeMeta: scoped ? knowledgeMeta : null,
     persistHash: hashString(JSON.stringify(layoutForHash)),
     touchedAt: ++clock,
   };
@@ -147,8 +153,11 @@ export function restoreSnapshot(workspaceId: string): boolean {
   // own stores and are restored via `loadWorkspaceView`, not here.
   useExplorerStore.setState(snap.explorer);
   useGitStore.setState(snap.git);
-  useKnowledgeStore.setState(snap.knowledge);
-  useKnowledgeMetaStore.setState(snap.knowledgeMeta);
+  // See `captureSnapshot` — a global-scope KB is not this workspace's to restore.
+  if (useKbScopeStore.getState().scope === "view" && snap.knowledge && snap.knowledgeMeta) {
+    useKnowledgeStore.setState(snap.knowledge);
+    useKnowledgeMetaStore.setState(snap.knowledgeMeta);
+  }
 
   snap.touchedAt = ++clock;
   return true;

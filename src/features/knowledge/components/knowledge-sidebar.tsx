@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import { KnowledgeTree, type KnowledgeTreeHandle } from "./knowledge-tree";
 import type { KnowledgeSource } from "../stores/knowledge-store";
+import { useKbScopeStore } from "../stores/kb-scope-store";
+import { KbScopeToggle } from "./kb-scope-toggle";
 
 interface KnowledgeSidebarProps {
   projectPath: string;
@@ -80,6 +82,8 @@ export function KnowledgeSidebar({
   const [clonedRepos, setClonedRepos] = useState<
     Array<{ name: string; display_name: string; path: string; has_readme: boolean }>
   >([]);
+  const scope = useKbScopeStore.use.scope();
+  const { setScope } = useKbScopeStore.use.actions();
 
   // Imperative handle on the KnowledgeTree so the header can drive
   // collapse-all / expand-all without lifting the tree's expanded set
@@ -152,6 +156,7 @@ export function KnowledgeSidebar({
         <span className="text-[10px] font-semibold text-text-tertiary uppercase tracking-wider truncate flex-1">
           Knowledge
         </span>
+        <KbScopeToggle scope={scope} onChange={setScope} />
         <button
           onClick={() =>
             treeExpandedCount > 0 ? treeRef.current?.collapseAll() : treeRef.current?.expandAll()

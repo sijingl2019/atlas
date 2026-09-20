@@ -350,16 +350,26 @@ pub async fn list_knowledge_sources(project_path: String) -> Result<Vec<KbSource
 }
 
 /// Mount an external folder into the KB in place (no copy). Idempotent per
-/// path. The mount name is the folder name, suffixed `-2`, `-3`, … if it would
-/// collide with another link or shadow a real folder in `.atlas/knowledge`.
+/// path. The mount name is `name` when given (the folder name otherwise),
+/// suffixed `-2`, `-3`, … if it would collide with another link or shadow a
+/// real folder in `.atlas/knowledge`.
+///
+/// `name` exists for the global KB: every project's knowledge dir is called
+/// `knowledge`, so mounting them all by folder name would give a home KB full
+/// of `knowledge`, `knowledge-2`, `knowledge-3`. The renderer passes the
+/// project name instead.
 #[tauri::command]
-pub async fn link_knowledge_folder(project_path: String, path: String) -> Result<KbSource, String> {
-    tokio::task::spawn_blocking(move || link_folder_sync(&project_path, &path))
+pub async fn link_knowledge_folder(
+    project_path: String,
+    path: String,
+    name: Option<String>,
+) -> Result<KbSource, String> {
+    tokio::task::spawn_blocking(move || link_folder_sync(&project_path, &path, name.as_deref()))
         .await
         .map_err(|e| e.to_string())?
 }
 
-fn link_folder_sync(project_path: &str, path: &str) -> Result<KbSource, String> {
+fn link_folder_sync(project_path: &str, path: &str, name: Option<&str>) -> Result<KbSource, String> {
     let dir = Path::new(path);
     if !dir.is_dir() {
         return Err(format!("not a folder: {path}"));
@@ -368,17 +378,17 @@ fn link_folder_sync(project_path: &str, path: &str) -> Result<KbSource, String> 
     if let Some(existing) = sources.iter().find(|s| Path::new(&s.path) == dir) {
         return Ok(existing.clone());
     }
-    let base = dir
-        .file_name()
-        .map(|n| n.to_string_lossy().to_string())
+    let base = name
+        .map(str::to_string)
+        .or_else(|| dir.file_name().map(|n| n.to_string_lossy().to_string()))
         .ok_or_else(|| format!("cannot link a drive root: {path}"))?;
     kb_rel(&base)?;
     let taken = |n: &str| sources.iter().any(|s| s.name == n) || kb_dir(project_path).join(n).exists();
-    let name = (1..)
+    let mount = (1..)
         .map(|i| if i == 1 { base.clone() } else { format!("{base}-{i}") })
         .find(|n| !taken(n))
         .unwrap_or(base);
-    let src = KbSource { name, path: path.to_string() };
+    let src = KbSource { name: mount, path: path.to_string() };
     sources.push(src.clone());
     save_sources(project_path, &sources)?;
     Ok(src)
@@ -840,9 +850,9 @@ mod linked_source_tests {
         let p = project.to_string_lossy().to_string();
         let v = vault.to_string_lossy().to_string();
 
-        let src = link_folder_sync(&p, &v).unwrap();
+        let src = link_folder_sync(&p, &v, None).unwrap();
         assert_eq!(src.name, "Vault");
-        assert_eq!(link_folder_sync(&p, &v).unwrap(), src, "relinking the same path is a no-op");
+        assert_eq!(link_folder_sync(&p, &v, None).unwrap(), src, "relinking the same path is a no-op");
 
         // Ids use `/` on every OS; hidden dirs are skipped.
         let mut ids: Vec<String> = walk_kb(&p).into_iter().map(|(id, _)| id).collect();
@@ -863,7 +873,7 @@ mod linked_source_tests {
         // A name that would shadow a local KB folder gets a suffix.
         let other = tmp.join("x").join("sub");
         fs::create_dir_all(&other).unwrap();
-        assert_eq!(link_folder_sync(&p, &other.to_string_lossy()).unwrap().name, "sub-2");
+        assert_eq!(link_folder_sync(&p, &other.to_string_lossy(), None).unwrap().name, "sub-2");
 
         // Unlinking leaves the vault's files alone.
         let mut sources = load_sources(&p);

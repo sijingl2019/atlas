@@ -277,8 +277,19 @@ export async function loadProjectStores(path: string): Promise<void> {
   // while still warming the @-/~ mention cache shortly after open. Fire-and-
   // forget; a stale project is harmless (entries are keyed by path).
   const warmEntries = () => {
-    void import("@/features/knowledge/stores/knowledge-store")
-      .then((m) => m.useKnowledgeStore.getState().actions.loadEntries(path))
+    void Promise.all([
+      import("@/features/knowledge/stores/knowledge-store"),
+      // `kb-scope-store`, NOT `lib/kb-root` — the latter imports this module
+      // back and the cycle breaks anything that imports the project store.
+      import("@/features/knowledge/stores/kb-scope-store"),
+    ])
+      // In global KB scope the panel is not on `path` at all — warm the root it
+      // is actually reading, or its entries get clobbered by this project's.
+      .then(([m, s]) => {
+        const { scope, globalRoot } = s.useKbScopeStore.getState();
+        const root = scope === "global" ? globalRoot : path;
+        if (root) void m.useKnowledgeStore.getState().actions.loadEntries(root);
+      })
       .catch((e) => console.error("Knowledge entries load failed:", e));
   };
   if (typeof requestIdleCallback === "function") {

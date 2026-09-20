@@ -10,7 +10,8 @@ import {
   useBacklinks,
   useReferencesLabel,
 } from "../stores/knowledge-links-store";
-import { useProjectStore } from "@/features/project/stores/project-store";
+import { useKbScopeStore, defaultLinkDir, ensureLinkedGlobally } from "../stores/kb-scope-store";
+import { useKbRoot, kbRootPath, ensureProjectKbLinkedGlobally } from "../lib/kb-root";
 import { useLayoutStore } from "@/features/layout/stores/layout-store";
 import { useWorkspaceStore } from "@/features/workspaces/stores/workspace-store";
 import { registerFlush } from "@/features/workspaces/lib/flush-registry";
@@ -57,7 +58,10 @@ export function KnowledgePanel() {
     linkFolder,
     unlinkFolder,
   } = useKnowledgeStore.use.actions();
-  const currentProject = useProjectStore.use.currentProject();
+  // Every KB read/write goes through the SCOPED root — the workspace path in
+  // "view" mode, the home dir in "global" mode.
+  const kbRoot = useKbRoot();
+  const scope = useKbScopeStore.use.scope();
 
   const editorRef = useRef<TiptapEditorHandle>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -132,7 +136,7 @@ export function KnowledgePanel() {
   // which can collide across projects).
   useEffect(() => {
     clearDocCache();
-  }, [currentProject?.path]);
+  }, [kbRoot]);
 
   const {
     bind: bindMeta,
@@ -148,13 +152,13 @@ export function KnowledgePanel() {
   const backlinksFooter = useBacklinks(activeEntryId);
 
   useEffect(() => {
-    if (currentProject) {
-      loadEntries(currentProject.path);
-      void bindMeta(currentProject.path);
-      void bindLinks(currentProject.path);
+    if (kbRoot) {
+      loadEntries(kbRoot);
+      void bindMeta(kbRoot);
+      void bindLinks(kbRoot);
       invoke<Array<{ name: string; display_name: string; path: string; has_readme: boolean }>>(
         "list_cloned_repos",
-        { projectPath: currentProject.path },
+        { projectPath: kbRoot },
       )
         .then(setClonedRepos)
         .catch(() => {});
@@ -162,7 +166,7 @@ export function KnowledgePanel() {
       unbindMeta();
       unbindLinks();
     }
-  }, [currentProject?.path, loadEntries, bindMeta, unbindMeta, bindLinks, unbindLinks]);
+  }, [kbRoot, loadEntries, bindMeta, unbindMeta, bindLinks, unbindLinks]);
 
   useEffect(() => {
     setIsDirty(false);
@@ -178,13 +182,13 @@ export function KnowledgePanel() {
   }, [activeEntryId]);
 
   const flushAndSave = useCallback(async () => {
-    if (!currentProject || !editorRef.current) return;
+    if (!kbRoot || !editorRef.current) return;
     // Capture the (workspace path, note id) this content belongs to BEFORE the
     // async flush. The KB panel is resident across workspace switches, so a
     // switch (or note change) can land mid-flush; binding the triple here and
     // re-checking it after lets us abort rather than write one workspace's
     // content into another's file (the cross-workspace data-loss bug).
-    const proj = currentProject.path;
+    const proj = kbRoot;
     const id = useKnowledgeStore.getState().activeEntryId;
     if (!id) return;
     // Gate on the EDITOR's own dirty ref — the single race-free source of truth
@@ -195,9 +199,9 @@ export function KnowledgePanel() {
     if (!editorRef.current.isDirty()) return;
     const md = await editorRef.current.flush();
     if (md === null) return;
-    // Workspace switched or the active note changed while flushing → abort.
-    const live = useProjectStore.getState().currentProject;
-    if (!live || live.path !== proj) return;
+    // The KB root (workspace OR scope) changed, or the active note changed,
+    // while flushing → abort.
+    if (kbRootPath() !== proj) return;
     if (useKnowledgeStore.getState().activeEntryId !== id) return;
     setEditContent(md);
     await saveEntry(proj, id, md);
@@ -206,7 +210,7 @@ export function KnowledgePanel() {
     // invalidate Rust's link graph so the inspector + footer reflect
     // the new state.
     void invalidateLinks();
-  }, [currentProject, setEditContent, saveEntry, invalidateLinks]);
+  }, [kbRoot, setEditContent, saveEntry, invalidateLinks]);
 
   // Coordinate with workspace switching: the switch awaits `flushAll()` BEFORE
   // it snapshots/swaps the active workspace, so register a flush that writes the
@@ -216,12 +220,17 @@ export function KnowledgePanel() {
   // we leave it, closing the window where a stale save could clobber it.
   useEffect(() => {
     return registerFlush("knowledge", async (ctx) => {
-      if (!ctx.path || !editorRef.current) return;
+      // In global scope the open note belongs to the home KB, not to the
+      // workspace we're leaving — writing it to `ctx.path` would land one KB's
+      // content in another's file.
+      const { scope: s, globalRoot } = useKbScopeStore.getState();
+      const root = s === "global" ? globalRoot : ctx.path;
+      if (!root || !editorRef.current) return;
       const id = useKnowledgeStore.getState().activeEntryId;
       if (!id || !editorRef.current.isDirty()) return;
       const md = await editorRef.current.flush();
       if (md === null) return;
-      await saveEntry(ctx.path, id, md);
+      await saveEntry(root, id, md);
     });
   }, [saveEntry]);
 
@@ -261,7 +270,7 @@ export function KnowledgePanel() {
         }
         // Always flush — never gate on the stale `isDirty` flag (the content
         // check inside flushAndSave decides whether a write is needed).
-        if (currentProject) {
+        if (kbRoot) {
           void flushAndSave();
         }
       },
@@ -295,7 +304,7 @@ export function KnowledgePanel() {
   // Import external .md files (Obsidian-style). .md → KB notes; any non-.md
   // files picked directly open in the CodeMirror editor instead.
   const handleImportFiles = useCallback(async () => {
-    if (!currentProject) return;
+    if (!kbRoot) return;
     const { open } = await import("@tauri-apps/plugin-dialog");
     const sel = await open({ multiple: true });
     const paths = Array.isArray(sel) ? sel : sel ? [sel] : [];
@@ -306,45 +315,52 @@ export function KnowledgePanel() {
       try {
         const res = await invoke<{ notes_imported: number; files_copied: number }>(
           "import_into_knowledge",
-          { projectPath: currentProject.path, sources: md },
+          { projectPath: kbRoot, sources: md },
         );
-        await loadEntries(currentProject.path);
+        if (scope === "view") await ensureProjectKbLinkedGlobally(kbRoot);
+        await loadEntries(kbRoot);
         toast.success(`Imported ${res.notes_imported} note${res.notes_imported === 1 ? "" : "s"}`);
       } catch (e) {
         toast.error(`Import failed: ${e instanceof Error ? e.message : String(e)}`);
       }
     }
     other.forEach(openInCodeMirror);
-  }, [currentProject, loadEntries, openInCodeMirror]);
+  }, [kbRoot, scope, loadEntries, openInCodeMirror]);
 
   // Link a whole folder (e.g. an Obsidian vault) in place: no copy — notes are
   // read and written in the original folder, mounted under its name.
   const handleImportFolder = useCallback(async () => {
-    if (!currentProject) return;
+    if (!kbRoot) return;
     const { open } = await import("@tauri-apps/plugin-dialog");
-    const dir = await open({ directory: true });
+    // View mode opens the picker on the global KB's first linked folder, so the
+    // shared vault is one click away rather than wherever the OS last was.
+    const defaultPath = scope === "view" ? await defaultLinkDir() : undefined;
+    const dir = await open({ directory: true, defaultPath });
     if (!dir || Array.isArray(dir)) return;
     try {
-      const source = await linkFolder(currentProject.path, dir);
+      const source = await linkFolder(kbRoot, dir);
+      // A folder linked into a workspace KB also joins the global KB, unless it
+      // already lives under one of the global KB's folders.
+      if (scope === "view") await ensureLinkedGlobally(dir);
       toast.success(`Linked ${source.name}`);
     } catch (e) {
       toast.error(`Link failed: ${e instanceof Error ? e.message : String(e)}`);
     }
-  }, [currentProject, linkFolder]);
+  }, [kbRoot, scope, linkFolder]);
 
   const handleUnlinkFolder = useCallback(
     async (name: string) => {
-      if (!currentProject) return;
+      if (!kbRoot) return;
       if (activeEntryId?.startsWith(`${name}/`)) await flushAndSave();
       try {
-        await unlinkFolder(currentProject.path, name);
+        await unlinkFolder(kbRoot, name);
         void invalidateLinks();
         toast.success(`Unlinked ${name}`);
       } catch (e) {
         toast.error(`Unlink failed: ${e instanceof Error ? e.message : String(e)}`);
       }
     },
-    [currentProject, activeEntryId, flushAndSave, unlinkFolder, invalidateLinks],
+    [kbRoot, activeEntryId, flushAndSave, unlinkFolder, invalidateLinks],
   );
 
   const handleSelectEntry = useCallback(
@@ -374,23 +390,23 @@ export function KnowledgePanel() {
 
   const handleDeleteEntry = useCallback(
     (id: string) => {
-      if (!currentProject) return;
+      if (!kbRoot) return;
       editorRef.current?.evict(id);
       void dropMeta(id);
-      deleteEntry(currentProject.path, id);
+      deleteEntry(kbRoot, id);
       void invalidateLinks();
     },
-    [currentProject, deleteEntry, dropMeta, invalidateLinks],
+    [kbRoot, deleteEntry, dropMeta, invalidateLinks],
   );
 
   const handleSelectRepo = useCallback(
     async (name: string) => {
-      if (!currentProject) return;
+      if (!kbRoot) return;
       setActiveRepoName(name);
       selectEntry("");
       try {
         const readme = await invoke<string>("read_repo_readme", {
-          projectPath: currentProject.path,
+          projectPath: kbRoot,
           repoName: name,
         });
         setRepoReadme(readme);
@@ -398,22 +414,33 @@ export function KnowledgePanel() {
         setRepoReadme(null);
       }
     },
-    [currentProject, selectEntry],
+    [kbRoot, selectEntry],
   );
 
+  // New note in view mode also mounts the workspace KB into the global KB, so
+  // knowledge created here shows up in the global library and graph.
+  const handleNewNote = useCallback(async () => {
+    if (!kbRoot) return;
+    await createEntry(kbRoot);
+    if (scope === "view") await ensureProjectKbLinkedGlobally(kbRoot);
+  }, [kbRoot, scope, createEntry]);
+
   const handleCreateFolder = useCallback(async () => {
-    if (!newFolderName.trim() || !currentProject) return;
+    if (!newFolderName.trim() || !kbRoot) return;
     const name = newFolderName.trim();
-    await createDir(currentProject.path, name);
+    await createDir(kbRoot, name);
     await invoke("save_knowledge_note", {
-      projectPath: currentProject.path,
+      projectPath: kbRoot,
       id: `${name}/note-${Date.now()}`,
       content: `# ${name}\n\n`,
     });
-    await loadEntries(currentProject.path);
+    // Knowledge created in a workspace is global knowledge too. Mirror AFTER the
+    // write — Rust refuses to link a folder that doesn't exist yet.
+    if (scope === "view") await ensureProjectKbLinkedGlobally(kbRoot);
+    await loadEntries(kbRoot);
     setNewFolderName("");
     setShowFolderInput(false);
-  }, [newFolderName, currentProject, createDir, loadEntries]);
+  }, [newFolderName, kbRoot, scope, createDir, loadEntries]);
 
   // Title is now owned by page metadata (set via the input next to
   // the icon), not derived from the body. Falls back to the filename
@@ -470,7 +497,7 @@ export function KnowledgePanel() {
     ];
   }, [wordCount, charCount, outline.length]);
 
-  if (!currentProject) {
+  if (!kbRoot) {
     return (
       <div className="h-full flex items-center justify-center text-text-tertiary text-sm">
         Open a project first
@@ -507,7 +534,7 @@ export function KnowledgePanel() {
       {showSidebar && (
         <>
           <KnowledgeSidebar
-            projectPath={currentProject.path}
+            projectPath={kbRoot}
             entries={sidebarEntries}
             activeEntryId={activeEntryId}
             activeRepoName={activeRepoName}
@@ -516,7 +543,7 @@ export function KnowledgePanel() {
             onSelectEntry={handleSelectEntry}
             onDeleteEntry={handleDeleteEntry}
             onNewFolder={() => setShowFolderInput((v) => !v)}
-            onNewNote={() => createEntry(currentProject.path)}
+            onNewNote={() => void handleNewNote()}
             onImportFiles={handleImportFiles}
             onImportFolder={handleImportFolder}
             sources={sources}
@@ -611,7 +638,7 @@ export function KnowledgePanel() {
               >
                 <PageHeaderWithIcon
                   entryId={activeEntryId ?? ""}
-                  projectPath={currentProject.path}
+                  projectPath={kbRoot}
                   title={pageTitle}
                 />
                 {activeEntryId && (
@@ -717,7 +744,7 @@ export function KnowledgePanel() {
             <EditorFooter
               wordCount={wordCount}
               charCount={charCount}
-              projectPath={currentProject.path}
+              projectPath={kbRoot}
               entryId={activeEntryId}
             />
           </>
