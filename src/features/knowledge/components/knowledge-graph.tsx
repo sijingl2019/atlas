@@ -10,6 +10,7 @@ import {
 } from "pixi.js";
 import Matter from "matter-js";
 import { invoke } from "@tauri-apps/api/core";
+import { toast } from "sonner";
 import { forceLayout, usablePosition } from "@/lib/graph-layout";
 import { GraphRuler, type Viewport } from "@/components/graph-ruler";
 import { isMac } from "@/lib/platform";
@@ -242,10 +243,39 @@ export function KnowledgeGraph() {
             const known = useKnowledgeStore.getState().entries.some((e) => e.id === entryId);
             if (known) {
               selectEntry(entryId);
-            } else {
+              return;
+            }
+            // Not a loaded entry — either it belongs to a workspace not yet
+            // mounted into view, or it's an unresolved wiki-link target (an
+            // alias, heading ref, or non-md attachment). Ask Rust to resolve
+            // it against the source note that linked to it.
+            const fromId = graph.edges.find((edge) => edge.to === entryId)?.from;
+            if (!fromId) {
               setScope("global");
               requestOpen(entryId);
+              return;
             }
+            void invoke<{ entryId: string | null; filePath: string }>("knowledge_resolve_link", {
+              projectPath: globalRoot,
+              fromId,
+              target: entryId,
+            })
+              .then((target) => {
+                if (target.entryId) {
+                  setScope("global");
+                  requestOpen(target.entryId);
+                } else {
+                  addTab({
+                    id: `editor-${target.filePath}`,
+                    type: "editor",
+                    title: entryId,
+                    closable: true,
+                    dirty: false,
+                    data: { filePath: target.filePath },
+                  });
+                }
+              })
+              .catch(() => toast.error("Link target missing or ambiguous"));
           }}
         />
       ) : null}

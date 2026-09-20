@@ -7,7 +7,7 @@ pub struct KnowledgeEntry {
     pub id: String,
     pub title: String,
     pub content: String,
-    pub source: String, // "note", "paper", "chat", "interaction"
+    pub source: String, // "note", "paper", "chat", "interaction", "file"
     pub file_path: String,
     pub updated_at: String,
 }
@@ -29,7 +29,7 @@ pub async fn list_knowledge(project_path: String) -> Result<Vec<KnowledgeEntry>,
 
 pub(crate) fn list_knowledge_sync(project_path: &str) -> Result<Vec<KnowledgeEntry>, String> {
     let mut entries = Vec::new();
-    for (id, path) in walk_kb(project_path) {
+    for (id, path) in walk_kb_files(project_path) {
         if let Some(e) = read_entry(id, &path) {
             entries.push(e);
         }
@@ -103,15 +103,25 @@ fn linked_source_for(project_path: &str, path: &Path) -> Option<(PathBuf, PathBu
 /// (never the OS separator — on Windows `\` broke the tree and `kb_rel`).
 /// Hidden entries (`.obsidian`, `.trash`, `.git`, …) are skipped.
 pub(crate) fn walk_kb(project_path: &str) -> Vec<(String, PathBuf)> {
+    walk_kb_files(project_path).into_iter()
+        .filter(|(_, path)| path.extension().and_then(|e| e.to_str()) == Some("md"))
+        .collect()
+}
+
+/// Include attachments without reading their bodies. Note-only consumers (graph,
+/// export) keep using `walk_kb`.
+fn walk_kb_files(project_path: &str) -> Vec<(String, PathBuf)> {
     let mut out = Vec::new();
-    walk_md(&kb_dir(project_path), "", &mut out);
+    walk_files(&kb_dir(project_path), "", &mut out);
+    let meta = kb_dir(project_path).join("_meta.json");
+    out.retain(|(_, path)| path != &meta);
     for s in load_sources(project_path) {
-        walk_md(Path::new(&s.path), &s.name, &mut out);
+        walk_files(Path::new(&s.path), &s.name, &mut out);
     }
     out
 }
 
-fn walk_md(dir: &Path, prefix: &str, out: &mut Vec<(String, PathBuf)>) {
+fn walk_files(dir: &Path, prefix: &str, out: &mut Vec<(String, PathBuf)>) {
     let Ok(read) = fs::read_dir(dir) else { return };
     for entry in read.flatten() {
         let name = entry.file_name().to_string_lossy().to_string();
@@ -121,8 +131,8 @@ fn walk_md(dir: &Path, prefix: &str, out: &mut Vec<(String, PathBuf)>) {
         let path = entry.path();
         let id_part = if prefix.is_empty() { name.clone() } else { format!("{prefix}/{name}") };
         if path.is_dir() {
-            walk_md(&path, &id_part, out);
-        } else if path.extension().and_then(|e| e.to_str()) == Some("md") {
+            walk_files(&path, &id_part, out);
+        } else if path.is_file() {
             let id = id_part.strip_suffix(".md").unwrap_or(&id_part).to_string();
             out.push((id, path));
         }
@@ -137,9 +147,11 @@ pub(crate) fn note_file(project_path: &str, id: &str) -> Result<PathBuf, String>
 }
 
 fn read_entry(id: String, path: &Path) -> Option<KnowledgeEntry> {
-    let content = fs::read_to_string(path).ok()?;
+    let is_note = path.extension().and_then(|e| e.to_str()) == Some("md");
+    let content = if is_note { fs::read_to_string(path).ok()? } else { String::new() };
 
-    let filename = path.file_stem().unwrap_or_default().to_string_lossy().to_string();
+    let filename = if is_note { path.file_stem() } else { path.file_name() }
+        .unwrap_or_default().to_string_lossy().to_string();
 
     // Use only the filename as the wire-side title fallback. The
     // user-edited page-header title lives in `_meta.json` and is
@@ -149,7 +161,8 @@ fn read_entry(id: String, path: &Path) -> Option<KnowledgeEntry> {
     // which was confusing and inconsistent with the page header.
     let title = filename.clone();
 
-    let source = if filename.starts_with("paper-") { "paper" }
+    let source = if !is_note { "file" }
+        else if filename.starts_with("paper-") { "paper" }
         else if filename.starts_with("chat-") { "chat" }
         else { "note" };
 
@@ -314,7 +327,11 @@ pub async fn delete_knowledge_note(
 /// Notes inside a linked folder go to `<root>/.trash/` (Obsidian's own
 /// convention, recoverable) — never hard-deleted from the user's vault.
 fn delete_note_sync(project_path: &str, id: &str) -> Result<(), String> {
-    let filepath = note_file(project_path, id)?;
+    kb_rel(id)?;
+    let filepath = walk_kb_files(project_path).into_iter()
+        .find(|(entry_id, _)| entry_id == id)
+        .map(|(_, path)| path)
+        .unwrap_or(note_file(project_path, id)?);
     if !filepath.exists() {
         return Ok(());
     }
@@ -837,6 +854,29 @@ mod linked_source_tests {
     use super::*;
 
     #[test]
+    fn lists_attachments_by_filename_without_reading_their_contents() {
+        let tmp = std::env::temp_dir().join(format!("atlas-kb-files-{}", uuid::Uuid::new_v4()));
+        let kb = tmp.join(".atlas/knowledge");
+        fs::create_dir_all(&kb).unwrap();
+        fs::write(kb.join("note.md"), "# Searchable body").unwrap();
+        fs::write(kb.join("photo.jpg"), [0xff, 0xd8, 0xff]).unwrap();
+        fs::write(kb.join("data.csv"), "private body,not indexed").unwrap();
+        fs::write(kb.join("LICENSE"), "not indexed either").unwrap();
+        fs::write(kb.join("_meta.json"), "{}").unwrap();
+        let entries = list_knowledge_sync(&tmp.to_string_lossy()).unwrap();
+        assert_eq!(entries.len(), 4);
+        for name in ["photo.jpg", "data.csv", "LICENSE"] {
+            let entry = entries.iter().find(|e| e.title == name).unwrap();
+            assert_eq!(entry.id, name);
+            assert_eq!(entry.source, "file");
+            assert!(entry.content.is_empty());
+        }
+        assert_eq!(entries.iter().find(|e| e.id == "note").unwrap().content, "# Searchable body");
+        assert_eq!(walk_kb(&tmp.to_string_lossy()).len(), 1);
+        fs::remove_dir_all(tmp).unwrap();
+    }
+
+    #[test]
     fn linked_vault_is_read_and_written_in_place() {
         let tmp = std::env::temp_dir().join(format!("atlas-kb-link-{}", uuid::Uuid::new_v4()));
         let project = tmp.join("proj");
@@ -846,6 +886,7 @@ mod linked_source_tests {
         fs::create_dir_all(vault.join("sub")).unwrap();
         fs::create_dir_all(vault.join(".obsidian")).unwrap();
         fs::write(vault.join("sub/note.md"), "n").unwrap();
+        fs::write(vault.join("sub/photo.jpg"), [0xff, 0xd8]).unwrap();
         fs::write(vault.join(".obsidian/hidden.md"), "h").unwrap();
         let p = project.to_string_lossy().to_string();
         let v = vault.to_string_lossy().to_string();
@@ -858,6 +899,12 @@ mod linked_source_tests {
         let mut ids: Vec<String> = walk_kb(&p).into_iter().map(|(id, _)| id).collect();
         ids.sort();
         assert_eq!(ids, ["Vault/sub/note", "sub/local"]);
+
+        let files = list_knowledge_sync(&p).unwrap();
+        assert!(files.iter().any(|e| e.id == "Vault/sub/photo.jpg" && e.content.is_empty()));
+        delete_note_sync(&p, "Vault/sub/photo.jpg").unwrap();
+        assert!(!vault.join("sub/photo.jpg").exists());
+        assert!(vault.join(".trash/sub/photo.jpg").exists());
 
         // Writes land in the vault, not a copy.
         assert_eq!(note_file(&p, "Vault/sub/x").unwrap(), vault.join("sub").join("x.md"));

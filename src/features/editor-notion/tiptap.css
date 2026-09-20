@@ -675,3 +675,12 @@
 .atlas-block-handle-btn.drag:active {
   cursor: grabbing;
 }
+.atlas-wiki-link {
+  color: var(--text-primary);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.atlas-wiki-link.is-unresolved {
+  opacity: 0.6;
+  text-decoration-style: dashed;
+}

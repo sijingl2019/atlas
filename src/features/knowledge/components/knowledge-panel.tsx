@@ -3,6 +3,7 @@ import { useScopedHotkeys } from "@/features/keybindings/lib/use-scoped-hotkeys"
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { openFile } from "@/lib/open-file";
 import { useKnowledgeStore } from "../stores/knowledge-store";
 import { useKnowledgeMetaStore, usePageMeta } from "../stores/knowledge-meta-store";
 import {
@@ -365,11 +366,20 @@ export function KnowledgePanel() {
 
   const handleSelectEntry = useCallback(
     async (id: string) => {
+      const entry = useKnowledgeStore.getState().entries.find((entry) => entry.id === id);
+      if (!entry) {
+        toast.error("Note not found. The link may be unresolved or ambiguous.");
+        return;
+      }
       // Always flush the outgoing note before swapping — unconditionally, not
       // gated on `isDirty` (which could be a stale `false` and drop the draft).
       // flushAndSave's content check makes the no-change case a cheap no-op.
       if (activeEntryId && id !== activeEntryId) {
         await flushAndSave();
+      }
+      if (entry.source === "file") {
+        await openFile(entry.file_path);
+        return;
       }
       selectEntry(id);
       setActiveRepoName(null);
@@ -384,9 +394,10 @@ export function KnowledgePanel() {
   // request is parked in the store until consumed here.
   useEffect(() => {
     if (!pendingOpenId) return;
+    if (entries.length === 0) return;
     void handleSelectEntry(pendingOpenId);
     consumePendingOpen();
-  }, [pendingOpenId, handleSelectEntry, consumePendingOpen]);
+  }, [pendingOpenId, entries, handleSelectEntry, consumePendingOpen]);
 
   const handleDeleteEntry = useCallback(
     (id: string) => {
