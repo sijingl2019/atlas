@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { modeSelectOf, modelSelectOf, parseConfigOptions } from "./acp-config-options";
+import {
+  collaborationModeOf,
+  modeSelectOf,
+  modelSelectOf,
+  parseConfigOptions,
+} from "./acp-config-options";
 
 describe("modeSelectOf", () => {
   // The official Claude adapter's only live mode signal: `config_option_update`
@@ -243,5 +248,112 @@ describe("modelSelectOf", () => {
   /// An empty list is a dead picker, same rule as the generic knobs.
   it("is null when the model select offers nothing", () => {
     expect(modelSelectOf([{ ...modelOption, currentValue: "", options: [] }])).toBeNull();
+  });
+});
+
+describe("collaborationModeOf", () => {
+  /** The shape the Codex adapter advertises: a category-keyed select whose
+   *  choices are `default` and `plan`. This is what the composer's Plan pill
+   *  reads, and why `/plan` can be a host-side config write. */
+  const codexOption = {
+    id: "collaboration_mode",
+    name: "Collaboration mode",
+    category: "collaboration_mode",
+    type: "select",
+    currentValue: "default",
+    options: [
+      { value: "default", name: "Default" },
+      { value: "plan", name: "Plan" },
+    ],
+  };
+
+  it("projects the Codex collaboration-mode select", () => {
+    expect(collaborationModeOf([codexOption])).toEqual({
+      id: "collaboration_mode",
+      currentValue: "default",
+      planValue: "plan",
+      defaultValue: "default",
+    });
+  });
+
+  it("tracks the current value when plan is on", () => {
+    expect(collaborationModeOf([{ ...codexOption, currentValue: "plan" }])?.currentValue).toBe(
+      "plan",
+    );
+  });
+
+  it("falls back to a value-keyed select and a Plan label", () => {
+    // An adapter that keys the choice differently still gets a pill: the label
+    // is the fallback signal, and the first non-plan choice is the off value.
+    const got = collaborationModeOf([
+      {
+        id: "collab",
+        category: "collaboration_mode",
+        type: "select",
+        currentValue: "normal",
+        options: [
+          { value: "normal", name: "Normal" },
+          { value: "planning", name: "Plan" },
+        ],
+      },
+    ]);
+    expect(got).toEqual({
+      id: "collab",
+      currentValue: "normal",
+      planValue: "planning",
+      defaultValue: "normal",
+    });
+  });
+
+  it("defaults the off value when the option offers only plan", () => {
+    expect(
+      collaborationModeOf([{ ...codexOption, options: [{ value: "plan", name: "Plan" }] }])
+        ?.defaultValue,
+    ).toBe("default");
+  });
+
+  it("is null when the option has no plan choice", () => {
+    expect(
+      collaborationModeOf([
+        {
+          ...codexOption,
+          options: [
+            { value: "default", name: "Default" },
+            { value: "fast", name: "Fast" },
+          ],
+        },
+      ]),
+    ).toBeNull();
+  });
+
+  it("is null for a non-select collaboration_mode knob", () => {
+    expect(
+      collaborationModeOf([
+        {
+          id: "collaboration_mode",
+          category: "collaboration_mode",
+          type: "boolean",
+          currentValue: true,
+        },
+      ]),
+    ).toBeNull();
+  });
+
+  it("is null when nothing advertises the category", () => {
+    // Claude Code is the case that matters: its plan mode is the ACP `mode`
+    // select, which the composer's mode pill already shows. No second pill.
+    expect(collaborationModeOf(undefined)).toBeNull();
+    expect(collaborationModeOf([])).toBeNull();
+    expect(
+      collaborationModeOf([
+        {
+          id: "mode",
+          name: "Mode",
+          type: "select",
+          currentValue: "plan",
+          options: [{ value: "plan", name: "Plan" }],
+        },
+      ]),
+    ).toBeNull();
   });
 });

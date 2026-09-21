@@ -171,6 +171,51 @@ export function modeSelectOf(
   return null;
 }
 
+/** The collaboration-mode select an agent advertises, if any.
+ *
+ *  Codex's adapter spells its plan toggle as a `category: "collaboration_mode"`
+ *  select (`default` | `plan`) rather than an ACP session mode, so it arrives
+ *  here as a generic knob and the composer's dedicated Plan pill reads it from
+ *  this one place. Gating is on the advertised option, never on which agent
+ *  this is (ADR-0002): an agent that offers no plan choice gets no pill -- and
+ *  Claude Code is exactly that agent, since its plan mode is the `mode`
+ *  select {@link modeSelectOf} already feeds to the mode pill.
+ *
+ *  `null` means this agent has no plan toggle, which is a real answer. */
+export function collaborationModeOf(raw: unknown): {
+  id: string;
+  currentValue: string;
+  planValue: string;
+  defaultValue: string;
+} | null {
+  if (!Array.isArray(raw)) return null;
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const o = item as Record<string, unknown>;
+    const id = str(o.id);
+    if (str(o.category) !== "collaboration_mode" && id !== "collaboration_mode") continue;
+    const select = selectOf(o);
+    if (!select) continue;
+    // The adapter names the choice "Plan"; match the id it uses, then fall
+    // back to the label so an adapter that keys the value differently still
+    // gets a pill rather than silently nothing.
+    const plan = select.choices.find(
+      (c) => c.id === "plan" || c.name.trim().toLowerCase() === "plan",
+    );
+    if (!plan) continue;
+    const other = select.choices.find((c) => c.id !== plan.id);
+    return {
+      id: id ?? "collaboration_mode",
+      currentValue: select.currentValue,
+      planValue: plan.id,
+      // The option's own "off" value when it has one; `default` is the
+      // adapter's spelling and the only sane fallback.
+      defaultValue: other?.id ?? "default",
+    };
+  }
+  return null;
+}
+
 export function modelSelectOf(
   raw: unknown,
 ): { currentModel: string | null; availableModels: SessionModeInfo[] } | null {

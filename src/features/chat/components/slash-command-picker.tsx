@@ -13,30 +13,31 @@ import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState }
 import { createPortal } from "react-dom";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { SlashConfigAction } from "../lib/slash-command-action";
 
 // ── Public API ──────────────────────────────────────────────────────────────
 
 /** Where the command is dispatched.
  *
- * - `atlas-login` / `codex-login` — opens Atlas's own sign-in dialog for the
- *   bound agent (the ACP adapter filters `/login` from its slash list, so
- *   sending it as text is a no-op; we drive a host-side OAuth flow instead).
- * - `open-settings` — host-handled, opens Settings on a fixed section
- *   (currently only `/skills`).
- * - `unavailable` — host-handled guard row for a command the agent doesn't
- *   support (e.g. `/clear`/`/logout`, blocklisted by the ACP adapter).
- *   Selecting it just closes the picker.
- * - `passthrough` — sent verbatim as the user's next prompt. The agent
- *   (claude-agent-acp's SDK) processes it locally and emits the response
- *   as `<local-command-stdout>…</local-command-stdout>` blocks which flow
- *   through the normal `agent_message_chunk` pipeline and render in the
- *   chat thread alongside regular assistant output. */
-/** Exactly two outcomes (S1): `/login` — the one command Atlas synthesizes —
- *  and passthrough for everything the agent advertises itself. The former
- *  per-agent login handlers, the `/skills` settings row and the dimmed
- *  "unavailable" guard rows are gone; Atlas renders what ACP gives, nothing
- *  else. */
-export type SlashCommandHandler = "agent-login" | "fork" | "queue" | "passthrough";
+ * - `agent-login` - opens Atlas's own sign-in dialog for the bound agent (the
+ *   ACP adapter filters `/login` from its slash list, so sending it as text is
+ *   a no-op; we drive a host-side OAuth flow instead).
+ * - `fork` / `queue` - Atlas-surface affordances (a new tab, the send queue).
+ * - `acp-config` - the agent advertised a host-side action for this command
+ *   (`_meta.commandAction`, a Codex-adapter extension). The composer runs it
+ *   itself and never sends the command as a prompt: sending `/plan` to Codex
+ *   makes the adapter flip the option server-side and answer with nothing,
+ *   which renders as an empty assistant turn. See `slash-command-action.ts`.
+ * - `passthrough` - sent verbatim as the user's next prompt. The agent
+ *   (claude-agent-acp's SDK) processes it locally and emits the response as
+ *   `<local-command-stdout>...</local-command-stdout>` blocks which flow through
+ *   the normal `agent_message_chunk` pipeline and render in the chat thread
+ *   alongside regular assistant output.
+ *
+ * Per ADR 0003 Atlas renders what ACP gives it and nothing else: `/login` is
+ * the only synthesized row, and every other row - passthrough or host-handled -
+ * comes from the agent's own `available_commands_update`. */
+export type SlashCommandHandler = "agent-login" | "fork" | "queue" | "acp-config" | "passthrough";
 
 export interface SlashCommand {
   /** Unique slug used both as the visible command name and matched query. */
@@ -45,9 +46,12 @@ export interface SlashCommand {
   signature: string;
   description: string;
   handler: SlashCommandHandler;
+  /** Set when `handler` is `acp-config`: the config option this command
+   *  switches, parsed from the agent's `_meta.commandAction`. */
+  configAction?: SlashConfigAction;
 }
 
-/** True if the signature contains `<…>` (required args). The picker uses
+/** True if the signature contains `<...>` (required args). The picker uses
  *  this to decide whether to auto-send the command or just insert it into
  *  the composer and let the user type arguments before pressing Enter. */
 export function commandRequiresArgs(cmd: SlashCommand): boolean {

@@ -63,7 +63,9 @@ import type {
   SlashCommand,
 } from "./slash-command-picker";
 import { commandRequiresArgs } from "./slash-command-picker";
+import { configActionOf, resolveSlashSubmission } from "../lib/slash-command-action";
 import { PlanTasksPill } from "./plan-tasks-pill";
+import { PlanModePill } from "./plan-mode-pill";
 import { openSettingsSection } from "@/features/settings/lib/open-settings";
 import { ComposerOptionsPill } from "./composer-options-pill";
 import { UsagePill } from "./usage-pill";
@@ -808,8 +810,14 @@ export function MessageInput({
   disabled: disabledProp = false,
   placeholder = "Message Atlas... (@ to mention, / for commands)",
 }: MessageInputProps) {
-  const { enqueueMessage, removeQueueItem, setAcpModes, setAcpModesPending, setCerseiEffort } =
-    useChatStore.use.actions();
+  const {
+    enqueueMessage,
+    removeQueueItem,
+    setAcpModes,
+    setAcpModesPending,
+    setAcpConfigOption,
+    setCerseiEffort,
+  } = useChatStore.use.actions();
   // Show the picker as soon as the agent is non-Claude — even before its modes
   // load — so the composer can render a loading pill instead of nothing during
   // the agent spawn + new_session boot.
@@ -952,11 +960,19 @@ export function MessageInput({
         };
         const name = (o.name ?? "").replace(/^\//, "");
         const hint = typeof o.input?.hint === "string" ? o.input.hint : null;
+        // A command may carry a host-side action in the agent's own `_meta`
+        // (a Codex-adapter extension). Recognising it is what keeps `/plan`
+        // off the wire: sent as a prompt the adapter would flip the option
+        // itself and answer with nothing, leaving an empty assistant turn.
+        // Anything unrecognised -- a `prefixPrompt`, a malformed block, no
+        // meta at all -- stays passthrough, per ADR 0003.
+        const action = configActionOf(o);
         return {
           name,
           signature: o.input != null ? `/${name} <${hint || "args"}>` : `/${name}`,
           description: o.description ?? "",
-          handler: "passthrough" as const,
+          handler: action ? ("acp-config" as const) : ("passthrough" as const),
+          configAction: action ?? undefined,
         };
       })
       .filter((c) => c.name && c.name !== "login");
@@ -1501,6 +1517,21 @@ export function MessageInput({
         setSlashTrigger(null);
         return;
       }
+      if (cmd.handler === "acp-config") {
+        // The agent advertised a host-side action for this command (e.g.
+        // Codex's `/plan` -> `collaboration_mode = plan`). Run it against the
+        // bound session and stop: the command was never a prompt, so there is
+        // nothing to send and no user bubble to show. It sits after the
+        // `disabled` gate -- setting a config option needs a live binding --
+        // and never calls `submitRef`, so it cannot fall through to `onSend`.
+        clearSlashRange(view, t.from, t.to);
+        setSlashTrigger(null);
+        if (cmd.configAction) {
+          void setAcpConfigOption(tabId, cmd.configAction.configId, cmd.configAction.value);
+        }
+        inputRef.current?.focus();
+        return;
+      }
       if (commandRequiresArgs(cmd)) {
         // Drop `/<name> ` into the composer and put the caret at the
         // end so the user can fill in the required args. Don't send
@@ -1538,7 +1569,7 @@ export function MessageInput({
       // submit path — trim/mentions/queueing behave exactly like a typed Enter.
       submitRef.current();
     },
-    [disabled, agentType, tabId],
+    [disabled, agentType, tabId, setAcpConfigOption],
   );
 
   // Forward Up/Down/Enter/Esc/Backspace/Tab from CodeMirror to whichever
@@ -1572,12 +1603,12 @@ export function MessageInput({
             if (!active) return true;
             // Only real passthrough commands get "complete without sending"
             // — that's for filling in args before Enter. Host-handled rows
-            // (login, open-settings, unavailable guards) take no args, so
-            // completing them into plain text would let a guard row like
-            // dimmed `/clear` slip past its own handler on the next Enter
-            // and get sent to the agent as literal passthrough text — the
-            // exact silent no-op these guard rows exist to prevent. Those
-            // run through the normal commit path instead, same as Enter.
+            // (login, fork, acp-config such as `/plan`) take no args, so
+            // completing them into plain text would let them slip past their
+            // own handler on the next Enter and get sent to the agent as
+            // literal passthrough text. Those run through the normal commit
+            // path instead, so Tab and Enter behave identically: `/plan` +
+            // Tab switches the mode just like `/plan` + Enter.
             if (active.handler !== "passthrough") {
               return sp.commit();
             }
@@ -1748,6 +1779,19 @@ export function MessageInput({
       setValue("");
       return;
     }
+    // Agent-advertised host-side commands (`_meta.commandAction`). The
+    // picker's Enter/Tab goes through `handleSlashSelect`, but a user can
+    // also type the command out with the picker closed and press Enter --
+    // this is the backstop that keeps that path off the wire too. Exact
+    // match only: `/plan do the thing` is left to the agent's own usage
+    // reply rather than guessed at.
+    const slashAction = resolveSlashSubmission(trimmed, agentSlashCommands);
+    if (slashAction) {
+      void setAcpConfigOption(tabId, slashAction.configId, slashAction.value);
+      inputRef.current?.clear();
+      setValue("");
+      return;
+    }
     const mentions = inputRef.current?.getMentions() ?? [];
     const images = stagedImages;
     if (running) {
@@ -1770,6 +1814,8 @@ export function MessageInput({
     onSend,
     onStop,
     enqueueMessage,
+    setAcpConfigOption,
+    agentSlashCommands,
     tabId,
     agentType,
     disabled,
@@ -2059,6 +2105,12 @@ export function MessageInput({
                 currentAgent={switchableAgent}
                 onSwitchAgent={handleSwitchAgent}
               />
+              {/* The agent's plan mode, when it advertises one as a config
+                  option rather than an ACP session mode (Codex). Sits right
+                  after the grouped agent/mode/model pills so the current
+                  collaboration mode is always on screen, not buried in
+                  Options. Renders nothing for agents without the option. */}
+              <PlanModePill tabId={tabId} />
               {/* The BYOK ProviderModelPills used to render here for the
                   native agent — the user's own provider keys, which the
                   gateway agent cannot use. Model choice now goes through the

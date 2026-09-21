@@ -195,6 +195,47 @@ describe("the model pill's live path", () => {
     expect(session().acpAvailableModels ?? []).toEqual([]);
     expect(session().acpCurrentModel).toBeUndefined();
   });
+
+  /// The Plan pill reads the same blob as the mode/model pills. A delta that
+  /// carries a `collaboration_mode` select alongside them must not disturb
+  /// either: the three surfaces are projections of one list, and Codex sends
+  /// the plan toggle in the same `config_options_updated` as everything else.
+  it("keeps the mode and model pills intact when plan mode arrives", () => {
+    const session = boundSession();
+    const { applyAgentDelta } = useChatStore.getState().actions;
+    applyAgentDelta(configOptionsDelta([modelOption("sonnet")]));
+
+    applyAgentDelta(
+      configOptionsDelta([
+        modelOption("opus"),
+        {
+          id: "mode",
+          name: "Mode",
+          type: "select",
+          currentValue: "full-access",
+          options: [
+            { value: "read-only", name: "Read only" },
+            { value: "full-access", name: "Full access" },
+          ],
+        },
+        {
+          id: "collaboration_mode",
+          name: "Collaboration mode",
+          category: "collaboration_mode",
+          type: "select",
+          currentValue: "plan",
+          options: [
+            { value: "default", name: "Default" },
+            { value: "plan", name: "Plan" },
+          ],
+        },
+      ]),
+    );
+
+    expect(session().acpCurrentModel).toBe("opus");
+    expect(session().acpCurrentMode).toBe("full-access");
+    expect(session().acpConfigOptions).toHaveLength(3);
+  });
 });
 
 // ── The knob cache the Options pill renders from on a cold start ─────────────

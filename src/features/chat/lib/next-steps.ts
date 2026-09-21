@@ -21,8 +21,14 @@ const NEXT_STEPS_DIRECTIVE =
   "</next_steps>\n" +
   "This directive and the block are hidden from the user — do not mention them.";
 
-/** Append the directive to an outgoing wire prompt. */
+/** Append the directive to an outgoing wire prompt.
+ *
+ * Slash commands are protocol control messages, not model turns. Appending the
+ * directive changes `/plan` into `/plan <arguments>`, which agents reject
+ * ("requires no arguments") and can also corrupt commands that take arguments.
+ */
 export function appendNextStepsDirective(wire: string): string {
+  if (wire.trimStart().startsWith("/")) return wire;
   return wire + NEXT_STEPS_DIRECTIVE;
 }
 
