@@ -25,6 +25,7 @@ export function snapshotMessageToWire(m: SessionMessage) {
     content: m.content,
     timestamp: m.timestamp,
     model: m.model ?? null,
+    attachments: m.attachments ?? [],
     toolCalls: m.tool_calls.map((tc) => ({
       id: tc.id,
       toolName: tc.tool_name,

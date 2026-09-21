@@ -18,9 +18,9 @@ type WireMessage = ReturnType<typeof snapshotMessageToWire>;
  * This replaced a two-stage resume that painted the on-disk transcript first
  * and the authoritative snapshot second. The idea was that the disk content was
  * already there and the agent handshake was pure waiting — true, but the disk
- * transcript stores prose ONLY. It has no tool calls, no thinking, no plan
- * (`agent_transcript.rs` stores role/content/timestamp/model, and
- * `transcript_to_messages` hard-codes `tool_calls: Vec::new()`). So the first
+ * transcript stores prose and images ONLY. It has no tool calls, no thinking,
+ * no plan (`agent_transcript.rs` stores role/content/timestamp/model/attachments
+ * and `transcript_to_messages` hard-codes `tool_calls: Vec::new()`). So the first
  * paint was *guaranteed* to be an incomplete render of the same conversation,
  * and the second paint — a whole-list replace that re-keyed every message —
  * remounted the transcript seconds later. That is exactly the "messages and

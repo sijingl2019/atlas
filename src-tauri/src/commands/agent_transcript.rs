@@ -26,6 +26,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
+use atlas_agent_wire::ImageAttachment;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 
@@ -39,6 +40,10 @@ pub struct StoredMessage {
     pub timestamp: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
+    /// Images attached to this user message. Persisted so reopening a session
+    /// can repaint the thumbnails instead of showing an empty bubble.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub attachments: Vec<ImageAttachment>,
     /// The delta stream's message id, while the session is live — the address
     /// `TextChunk` growth is delivered to. In-memory only: ids are minted per
     /// process, so a persisted one would be meaningless on reload.
@@ -113,12 +118,17 @@ impl TranscriptState {
     /// a session, send one message, and the file was left holding that message
     /// alone. The buffer lives for the
     /// process, so re-seeding here is the one place that can happen.
+    ///
+    /// `attachments` are the images staged with this prompt. They are stored
+    /// with it so reopening the session repaints the thumbnails the live view
+    /// showed; the delta stream never carries a user message.
     pub fn note_prompt(
         &self,
         session_id: &str,
         cwd: &str,
         plugin_id: &str,
         text: &str,
+        attachments: Vec<ImageAttachment>,
         now: String,
     ) {
         // Read off-lock: this is a filesystem hit, and it only happens on the
@@ -145,6 +155,7 @@ impl TranscriptState {
             content: text.to_string(),
             timestamp: now,
             model: None,
+            attachments,
             live_id: None,
         });
     }
@@ -179,6 +190,7 @@ impl TranscriptState {
             content: content.to_string(),
             timestamp: now,
             model: model.map(str::to_string),
+            attachments: Vec::new(),
             live_id: live_id.map(str::to_string),
         });
     }
@@ -215,6 +227,7 @@ impl TranscriptState {
                 content: delta.to_string(),
                 timestamp: now,
                 model: None,
+                attachments: Vec::new(),
                 live_id: Some(live_id.to_string()),
             }),
         }
@@ -248,6 +261,7 @@ impl TranscriptState {
             content: content.to_string(),
             timestamp: now,
             model: None,
+            attachments: Vec::new(),
             live_id: None,
         });
     }
@@ -291,7 +305,9 @@ pub fn save(config_dir: &Path, t: &StoredTranscript) -> std::io::Result<()> {
     let path = dir.join(format!("{}.json", sanitize_id(&t.id)));
     let tmp = path.with_extension("json.tmp");
     let mut filtered = t.clone();
-    filtered.messages.retain(|m| !m.content.trim().is_empty());
+    filtered
+        .messages
+        .retain(|m| !m.content.trim().is_empty() || !m.attachments.is_empty());
     std::fs::write(&tmp, serde_json::to_vec_pretty(&filtered)?)?;
     std::fs::rename(&tmp, &path)
 }
@@ -364,7 +380,7 @@ mod tests {
 
     fn state_with_turn() -> (TranscriptState, StoredTranscript) {
         let st = TranscriptState::new(tmp());
-        st.note_prompt("ses_1", "/w", "opencode", "hello there", "2026-01-01T00:00:00Z".into());
+        st.note_prompt("ses_1", "/w", "opencode", "hello there", Vec::new(), "2026-01-01T00:00:00Z".into());
         st.note_message("ses_1", "assistant", "hi back", Some("gpt-x"), None, "2026-01-01T00:00:01Z".into());
         let t = st.snapshot("ses_1").unwrap();
         (st, t)
@@ -380,6 +396,40 @@ mod tests {
         assert_eq!(back.messages.len(), 2);
         assert_eq!(back.messages[0].content, "hello there");
         assert_eq!(back.messages[1].model.as_deref(), Some("gpt-x"));
+    }
+
+    /// `save` drops blank messages, so a prompt whose only content is an image
+    /// would go with it — and with it the only record that a picture was ever
+    /// sent. The composer requires text, so nothing produces that today; the
+    /// transcript format should not be the layer that loses a picture anyway.
+    #[test]
+    fn an_image_only_prompt_round_trips_through_disk() {
+        let dir = tmp();
+        let st = TranscriptState::new(tmp());
+        st.note_prompt(
+            "ses_img",
+            "/w",
+            "opencode",
+            "",
+            vec![ImageAttachment {
+                mime_type: "image/png".into(),
+                data_base64: "aGVsbG8=".into(),
+            }],
+            "2026-01-01T00:00:00Z".into(),
+        );
+        st.note_message("ses_img", "assistant", "nice screenshot", None, None, "t1".into());
+
+        let t = st.snapshot("ses_img").unwrap();
+        save(&dir, &t).unwrap();
+        let back = read(&dir, "/w", "ses_img").unwrap();
+
+        assert_eq!(back.messages.len(), 2);
+        assert_eq!(back.messages[0].content, "");
+        assert_eq!(back.messages[0].attachments.len(), 1);
+        assert_eq!(back.messages[0].attachments[0].mime_type, "image/png");
+        assert_eq!(back.messages[0].attachments[0].data_base64, "aGVsbG8=");
+        // The assistant's half carries none.
+        assert!(back.messages[1].attachments.is_empty());
     }
 
     #[test]
@@ -402,7 +452,7 @@ mod tests {
         // Would be an untitled row the user cannot meaningfully reopen.
         let dir = tmp();
         let st = TranscriptState::new(tmp());
-        st.note_prompt("ses_2", "/w", "opencode", "q", "2026-01-01T00:00:00Z".into());
+        st.note_prompt("ses_2", "/w", "opencode", "q", Vec::new(), "2026-01-01T00:00:00Z".into());
         let mut t = st.snapshot("ses_2").unwrap();
         t.messages.clear();
         save(&dir, &t).unwrap();
@@ -420,7 +470,7 @@ mod tests {
     #[test]
     fn empty_content_is_not_recorded() {
         let st = TranscriptState::new(tmp());
-        st.note_prompt("s", "/w", "opencode", "q", "t".into());
+        st.note_prompt("s", "/w", "opencode", "q", Vec::new(), "t".into());
         st.note_message("s", "assistant", "   ", None, None, "t".into());
         assert_eq!(st.snapshot("s").unwrap().messages.len(), 1);
     }
@@ -432,7 +482,7 @@ mod tests {
         // chunks persisted every assistant reply cut off after a few words —
         // which is exactly how a reopened native-agent session painted.
         let st = TranscriptState::new(tmp());
-        st.note_prompt("s", "/w", "cersei", "explain this", "t0".into());
+        st.note_prompt("s", "/w", "cersei", "explain this", Vec::new(), "t0".into());
         st.note_message("s", "assistant", "The", None, Some("m1"), "t1".into());
         st.note_text_chunk("s", "m1", " whole", "t2".into());
         st.note_text_chunk("s", "m1", " answer.", "t3".into());
@@ -445,7 +495,7 @@ mod tests {
         // The run's `MessageAppended` can arrive with empty text and no
         // recordable content; the chunks that follow are the reply.
         let st = TranscriptState::new(tmp());
-        st.note_prompt("s", "/w", "cersei", "q", "t0".into());
+        st.note_prompt("s", "/w", "cersei", "q", Vec::new(), "t0".into());
         st.note_text_chunk("s", "m9", "late text", "t1".into());
         let snap = st.snapshot("s").unwrap();
         assert_eq!(snap.messages[1].content, "late text");
@@ -459,7 +509,7 @@ mod tests {
         // paint an empty bubble, so it must not reach disk.
         let dir = tmp();
         let st = TranscriptState::new(tmp());
-        st.note_prompt("s", "/w", "cersei", "q", "t0".into());
+        st.note_prompt("s", "/w", "cersei", "q", Vec::new(), "t0".into());
         st.note_message("s", "assistant", "", None, Some("thought-1"), "t1".into());
         st.note_message("s", "assistant", "real", None, Some("m2"), "t2".into());
         save(&dir, &st.snapshot("s").unwrap()).unwrap();
@@ -473,11 +523,11 @@ mod tests {
         let dir = tmp();
         for (id, when) in [("old", "2026-01-01T00:00:00Z"), ("new", "2026-06-01T00:00:00Z")] {
             let st = TranscriptState::new(tmp());
-            st.note_prompt(id, "/w", "opencode", "q", when.to_string());
+            st.note_prompt(id, "/w", "opencode", "q", Vec::new(), when.to_string());
             save(&dir, &st.snapshot(id).unwrap()).unwrap();
         }
         let st = TranscriptState::new(tmp());
-        st.note_prompt("other", "/elsewhere", "opencode", "q", "2026-07-01T00:00:00Z".into());
+        st.note_prompt("other", "/elsewhere", "opencode", "q", Vec::new(), "2026-07-01T00:00:00Z".into());
         save(&dir, &st.snapshot("other").unwrap()).unwrap();
 
         let rows = list(&dir, "/w");
@@ -489,7 +539,7 @@ mod tests {
     fn a_hostile_session_id_cannot_escape_its_directory() {
         let dir = tmp();
         let st = TranscriptState::new(tmp());
-        st.note_prompt("../../etc/passwd", "/w", "opencode", "q", "t".into());
+        st.note_prompt("../../etc/passwd", "/w", "opencode", "q", Vec::new(), "t".into());
         save(&dir, &st.snapshot("../../etc/passwd").unwrap()).unwrap();
         // Landed inside the project dir under a sanitized name.
         assert_eq!(list(&dir, "/w").len(), 1);
@@ -508,7 +558,7 @@ mod tests {
 
         // A NEW state over the same directory — this is a resume.
         let fresh = TranscriptState::new(dir.clone());
-        fresh.note_prompt("ses_1", "/w", "opencode", "much later", "2026-02-01T00:00:00Z".into());
+        fresh.note_prompt("ses_1", "/w", "opencode", "much later", Vec::new(), "2026-02-01T00:00:00Z".into());
         save(&dir, &fresh.snapshot("ses_1").unwrap()).unwrap();
 
         let back = read(&dir, "/w", "ses_1").unwrap();
@@ -525,7 +575,7 @@ mod tests {
         // User deltas used to be dropped outright, so a queued send left the
         // agent's answer in the transcript with no question above it.
         let st = TranscriptState::new(tmp());
-        st.note_prompt("s", "/w", "opencode", "first", "t".into());
+        st.note_prompt("s", "/w", "opencode", "first", Vec::new(), "t".into());
         // The agent echoes the prompt we just recorded — already there.
         st.note_user_delta("s", "first", "t".into());
         assert_eq!(st.snapshot("s").unwrap().messages.len(), 1, "echo is deduped");
@@ -543,7 +593,7 @@ mod tests {
         // Dedup looks only at the LAST message, so a user genuinely repeating
         // themselves later still gets both turns.
         let st = TranscriptState::new(tmp());
-        st.note_prompt("s", "/w", "opencode", "why", "t".into());
+        st.note_prompt("s", "/w", "opencode", "why", Vec::new(), "t".into());
         st.note_message("s", "assistant", "because", None, None, "t".into());
         st.note_user_delta("s", "why", "t".into());
         assert_eq!(st.snapshot("s").unwrap().messages.len(), 3);
@@ -554,7 +604,7 @@ mod tests {
         let dir = tmp();
         let (st, t) = state_with_turn();
         save(&dir, &t).unwrap();
-        st.note_prompt("ses_1", "/w", "opencode", "follow up", "2026-01-01T00:01:00Z".into());
+        st.note_prompt("ses_1", "/w", "opencode", "follow up", Vec::new(), "2026-01-01T00:01:00Z".into());
         save(&dir, &st.snapshot("ses_1").unwrap()).unwrap();
         assert_eq!(read(&dir, "/w", "ses_1").unwrap().messages.len(), 3);
         assert_eq!(list(&dir, "/w").len(), 1, "still one session, not two");

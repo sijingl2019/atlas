@@ -779,6 +779,50 @@ fn a_snapshot_carries_the_whole_conversation_including_the_user() {
     assert_eq!(ids.len(), messages.len());
 }
 
+/// A reopened conversation paints its thumbnails from the snapshot, and the
+/// delta stream never carries a user message at all — so if the image does not
+/// survive this projection it is gone for good. The combined `content` renders
+/// an image as an empty string, which is why the chunks are what is read here.
+#[test]
+fn a_snapshot_carries_the_images_the_user_attached() {
+    let harness = Harness::start();
+
+    lock(&harness.thread).push_user_content_block(
+        None,
+        acp::ContentBlock::Image(acp::ImageContent::new(
+            "aGVsbG8=".to_string(),
+            "image/png".to_string(),
+        )),
+    );
+
+    let thread = lock(&harness.thread);
+    let messages = atlas_agent_delta::project::snapshot_messages(&thread, None);
+    drop(thread);
+
+    assert_eq!(messages.len(), 1);
+    let user = &messages[0];
+    assert_eq!(user.role, atlas_agent_delta::MessageRole::User);
+    assert_eq!(user.attachments.len(), 1);
+    assert_eq!(user.attachments[0].mime_type, "image/png");
+    assert_eq!(user.attachments[0].data_base64, "aGVsbG8=");
+    // The image contributes no text; the bubble is the thumbnail or nothing.
+    assert_eq!(user.content, "");
+
+    // An assistant message is not a place images can appear.
+    harness.update(serde_json::json!({
+        "sessionUpdate": "agent_message_chunk",
+        "content": { "type": "text", "text": "got it" },
+    }));
+    let thread = lock(&harness.thread);
+    let messages = atlas_agent_delta::project::snapshot_messages(&thread, None);
+    drop(thread);
+    let assistant = messages
+        .iter()
+        .find(|m| m.role == atlas_agent_delta::MessageRole::Assistant)
+        .expect("the agent's reply");
+    assert!(assistant.attachments.is_empty());
+}
+
 // ------------------------------------------------------- terminal tool calls
 
 /// `echo`, wherever this platform keeps it.

@@ -375,9 +375,9 @@ export interface ChatMessage {
   id: string;
   role: MessageRole;
   content: string;
-  /** Images the user attached to this message. Optimistic user-echo only —
-   *  never set on assistant messages, and not recovered on session replay
-   *  (Rust history is text-only). Rendered as thumbnails in the bubble. */
+  /** Images the user attached to this message. Never set on assistant
+   *  messages. Recovered from the snapshot / transcript on session replay, so
+   *  a reopened conversation keeps the thumbnails. Rendered in the bubble. */
   attachments?: import("./agents").ImageAttachment[];
   toolCalls: ToolCallDisplay[];
   fileChanges: FileChange[];

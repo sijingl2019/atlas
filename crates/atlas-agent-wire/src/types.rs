@@ -20,6 +20,8 @@
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 
+use crate::attachments::ImageAttachment;
+
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum SessionStatus {
@@ -189,6 +191,11 @@ pub struct Message {
     /// deriving it from live state (which mislabels after model switches).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
+    /// Images attached to a user message. Snapshot/replay carries them so a
+    /// reopened transcript still shows what was sent. Assistant messages are
+    /// empty.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub attachments: Vec<ImageAttachment>,
     pub timestamp: DateTime<Utc>,
 }
 

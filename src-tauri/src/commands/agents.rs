@@ -36,13 +36,13 @@ use std::process::Stdio;
 use std::sync::Arc;
 use std::time::Duration;
 
-use atlas_acp_thread::prompt::{self, ImageAttachment, ResourceLinkSpec};
+use atlas_acp_thread::prompt::{self, ImageAttachment as PromptImageAttachment, ResourceLinkSpec};
 use atlas_agent_store::{
     AgentRegistryStore, AgentServerStore, InheritedProjectEnvironment, NodeRuntime, ReqwestClient,
 };
 use atlas_agent_wire::{
-    AgentId, DeltaSink, ErrorClass, Message, MessageMode, MessageRole, SessionDelta,
-    SessionDeltaEnvelope, SessionStatus, ToolCallStatus,
+    AgentId, DeltaSink, ErrorClass, ImageAttachment, Message, MessageMode, MessageRole,
+    SessionDelta, SessionDeltaEnvelope, SessionStatus, ToolCallStatus,
 };
 use atlas_bus::{OutboundMiddleware, OutboundPipeline};
 
@@ -1068,6 +1068,7 @@ fn transcript_to_messages(t: super::agent_transcript::StoredTranscript) -> Vec<M
             tool_calls: Vec::new(),
             plan: None,
             model: m.model,
+            attachments: m.attachments,
             timestamp: m
                 .timestamp
                 .parse::<chrono::DateTime<chrono::Utc>>()
@@ -1242,7 +1243,7 @@ const INJECT_BUDGET_SECS: u64 = 8;
 pub async fn agents_send(
     key: SessionKey,
     text: String,
-    attachments: Option<Vec<ImageAttachment>>,
+    attachments: Option<Vec<PromptImageAttachment>>,
     // `@`-mentions that point at files (P2.1). Sent as `ResourceLink` blocks
     // rather than flattened into the prose — the ACP-native way to hand an
     // agent a file, and every agent is required to accept it.
@@ -1320,12 +1321,20 @@ pub async fn agents_send(
     // injected context is machinery, not what the user said, and a history row
     // titled after it would be nonsense.
     if !cwd.is_empty() {
+        let stored_images: Vec<ImageAttachment> = images
+            .iter()
+            .map(|image| ImageAttachment {
+                mime_type: image.mime_type.clone(),
+                data_base64: image.data_base64.clone(),
+            })
+            .collect();
         app.state::<Arc<super::agent_transcript::TranscriptState>>()
             .note_prompt(
                 &key.session_id,
                 &cwd,
                 &plugin_id,
                 &text,
+                stored_images,
                 chrono::Utc::now().to_rfc3339(),
             );
     }

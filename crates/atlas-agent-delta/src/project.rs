@@ -10,7 +10,8 @@ use atlas_acp_thread::{
     ToolCallContent, ToolCallStatus as ThreadToolCallStatus,
 };
 use atlas_agent_wire::{
-    Message, MessageMode, MessageRole, PlanEntry, ToolCall, ToolCallStatus, ToolContentBlock,
+    ImageAttachment, Message, MessageMode, MessageRole, PlanEntry, ToolCall, ToolCallStatus,
+    ToolContentBlock,
 };
 
 /// One run of same-kind chunks inside an assistant entry.
@@ -128,6 +129,24 @@ pub fn block_str(block: &ContentBlock) -> &str {
     }
 }
 
+/// Image attachments carried by a user message's original ACP content blocks.
+///
+/// The combined `content` field renders images as an empty string, so the
+/// chunks are the only lossless source when a snapshot is rebuilt after a
+/// session reload.
+fn image_attachments(blocks: &[acp::ContentBlock]) -> Vec<ImageAttachment> {
+    blocks
+        .iter()
+        .filter_map(|block| match block {
+            acp::ContentBlock::Image(image) => Some(ImageAttachment {
+                mime_type: image.mime_type.clone(),
+                data_base64: image.data.clone(),
+            }),
+            _ => None,
+        })
+        .collect()
+}
+
 /// A wire message carrying one assistant run.
 ///
 /// `timestamp` is passed in rather than minted here: the live stream is
@@ -154,6 +173,7 @@ pub fn run_message(
         tool_calls: Vec::new(),
         plan: None,
         model,
+        attachments: Vec::new(),
         timestamp,
     }
 }
@@ -177,6 +197,7 @@ pub fn tool_message(
         tool_calls: vec![tool_call],
         plan: None,
         model,
+        attachments: Vec::new(),
         timestamp,
     }
 }
@@ -458,6 +479,7 @@ pub fn snapshot_messages(
                 tool_calls: Vec::new(),
                 plan: None,
                 model: None,
+                attachments: image_attachments(&message.chunks),
                 timestamp: at,
             }),
             AgentThreadEntry::AssistantMessage(message) => {

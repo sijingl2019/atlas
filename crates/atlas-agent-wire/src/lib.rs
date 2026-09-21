@@ -4,10 +4,12 @@
 //! crate is that document in code. Nothing here names a protocol version, which
 //! is the whole point — see [`types`] for the reason.
 
+pub mod attachments;
 pub mod delta;
 pub mod error;
 pub mod types;
 
+pub use attachments::ImageAttachment;
 pub use delta::{DeltaSink, Emitter, SessionDelta, SessionDeltaEnvelope};
 pub use error::{classify_message, ErrorClass};
 pub use types::{

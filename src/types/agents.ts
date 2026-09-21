@@ -60,6 +60,9 @@ export interface SessionMessage {
   /** Model that produced this assistant message (stamped live or recovered
    *  from the transcript on replay). Absent for user messages / old records. */
   model?: string | null;
+  /** Images attached to a user message, restored from a snapshot or the
+   *  Atlas transcript so reopened conversations keep their thumbnails. */
+  attachments?: ImageAttachment[];
   timestamp: string;
 }
 

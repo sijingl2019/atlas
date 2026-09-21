@@ -238,6 +238,7 @@ fn sample_message() -> Message {
         tool_calls: vec![sample_tool_call()],
         plan: Some(Vec::new()),
         model: Some("anthropic/claude".into()),
+        attachments: Vec::new(),
         timestamp: chrono::Utc::now(),
     }
 }

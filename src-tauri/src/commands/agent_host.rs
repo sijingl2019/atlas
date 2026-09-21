@@ -3223,6 +3223,50 @@ mod tests {
         assert_eq!(settings.0.len(), 2);
         assert!(settings.has_registry_agents());
     }
+    #[test]
+    fn a_row_with_a_collapsed_injected_agent_title_is_cleaned() {
+        let mut row = ThreadMetadata::new(
+            ThreadId::new(),
+            ThreadAgentId::new(CERSEI_AGENT_ID),
+            PathList::default(),
+        );
+
+        row.title = Some(
+            "--- RELEVANT PROJECT MEMORY --- - AGENTS.md (codex): notes --- END RELEVANT PROJECT MEMORY --- abc"
+                .into(),
+        );
+        assert_eq!(thread_row(&row).title, "abc");
+
+        row.title = Some(
+            "--- RELEVANT PROJECT MEMORY --- notes --- END RELEVANT PROJECT MEMORY ---"
+                .into(),
+        );
+        assert_eq!(
+            thread_row(&row).title,
+            atlas_thread_metadata::DEFAULT_THREAD_TITLE
+        );
+    }
+
+    #[test]
+    fn snapshot_title_falls_back_to_the_users_prose() {
+        let connection = Arc::new(RebindingNative { fresh_id: "s" });
+        let thread = connection.thread(acp::SessionId::new("s"), Vec::new());
+        lock_thread(&thread).push_user_content_block(
+            None,
+            acp::ContentBlock::Text(acp::TextContent::new(
+                "--- SHARED MEMORY ---
+remember this
+--- END SHARED MEMORY ---
+
+Fix the sidebar title",
+            )),
+        );
+
+        assert_eq!(
+            snapshot_of(&thread).title.as_deref(),
+            Some("Fix the sidebar title")
+        );
+    }
 }
 
 /// A real host wired to a temp data dir, for tests that need one.

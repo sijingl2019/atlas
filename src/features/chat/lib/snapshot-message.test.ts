@@ -87,4 +87,27 @@ describe("snapshotMessageToWire", () => {
       expect(wire.toolCalls[0].status).toBe(status);
     }
   });
+
+  /**
+   * The delta stream never carries a user message, so a reopened conversation
+   * has exactly one source for the pictures that were sent: this mapping. A
+   * dropped attachment is an empty bubble where the thumbnail used to be.
+   */
+  it("carries the user's attached images through", () => {
+    const wire = snapshotMessageToWire(
+      message({
+        role: "user",
+        content: "",
+        attachments: [{ mimeType: "image/png", dataBase64: "aGVsbG8=" }],
+      }),
+    );
+
+    expect(wire.attachments).toEqual([{ mimeType: "image/png", dataBase64: "aGVsbG8=" }]);
+  });
+
+  it("leaves attachments empty when there are none", () => {
+    const wire = snapshotMessageToWire(message({ role: "user", content: "hi" }));
+
+    expect(wire.attachments).toEqual([]);
+  });
 });

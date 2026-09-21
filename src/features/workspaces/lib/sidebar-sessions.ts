@@ -31,7 +31,8 @@ export function workspaceSessions(
     .sort(
       (a, b) =>
         Number(pinnedThreadIds.has(b.threadId)) - Number(pinnedThreadIds.has(a.threadId)) ||
-        Date.parse(b.updatedAt) - Date.parse(a.updatedAt),
+        Date.parse(b.createdAt ?? b.updatedAt) - Date.parse(a.createdAt ?? a.updatedAt) ||
+        b.threadId.localeCompare(a.threadId),
     );
 }
 
@@ -39,5 +40,11 @@ export function latestWorkspaceSession(
   projects: ThreadProject[],
   workspacePath: string,
 ): ThreadRow | undefined {
-  return workspaceSessions(projects, workspacePath, new Set())[0];
+  const threads = projectForWorkspace(projects, workspacePath)?.threads ?? [];
+  return threads
+    .filter((thread) => !!thread.sessionId && !thread.archived)
+    .sort(
+      (a, b) =>
+        Date.parse(b.updatedAt) - Date.parse(a.updatedAt) || b.threadId.localeCompare(a.threadId),
+    )[0];
 }
