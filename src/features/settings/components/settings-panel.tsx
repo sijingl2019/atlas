@@ -33,6 +33,7 @@ import { ThemeModeControl } from "./theme-mode-control";
 import { useActionShortcut } from "@/features/keybindings/lib/use-action-shortcut";
 import { useModelPricingStore } from "../stores/model-pricing-store";
 import { useProjectStore } from "@/features/project/stores/project-store";
+import { agentMeta, useSwitchableAgents } from "@/features/agents/lib/agent-meta";
 import { setEnabled as setTelemetryEnabled } from "@/features/telemetry/posthog-client";
 import { useFeedbackStore } from "@/features/feedback/stores/feedback-store";
 import { updater } from "@/features/updater/lib/updater-api";
@@ -195,6 +196,23 @@ interface CliStatus {
 
 function GeneralSettings() {
   const settings = useProjectStore.use.settings();
+  // Agents the user actually has, native first (see `switchableAgentIds`).
+  const switchableAgents = useSwitchableAgents();
+  // Only installed agents are offered -- the same set the composer's
+  // switcher lists. A configured value that is NOT installed (uninstalled
+  // since it was picked, or hand-edited into config.toml) still needs an
+  // <option>, or the select renders blank; it is appended and labelled,
+  // never silently swapped for something else.
+  const defaultAgentChoices = switchableAgents.map((id) => ({
+    id,
+    label: agentMeta(id).label,
+  }));
+  if (settings.defaultAgent && !switchableAgents.includes(settings.defaultAgent)) {
+    defaultAgentChoices.push({
+      id: settings.defaultAgent,
+      label: `${agentMeta(settings.defaultAgent).label} (not installed)`,
+    });
+  }
   const configError = useProjectStore.use.configError();
   const { updateSettings, clearConfigError, resetConfig } = useProjectStore.use.actions();
   const [cli, setCli] = useState<CliStatus | null>(null);
@@ -330,6 +348,22 @@ function GeneralSettings() {
         >
           <option value="2d">Flat (2D)</option>
           <option value="3d">Solar system (3D)</option>
+        </select>
+      </SettingRow>
+      <SettingRow
+        label="Default agent"
+        description="The agent a new chat starts on. Only agents you have installed are listed here; if the one you pick is later uninstalled, new chats fall back to Atlas Agent."
+      >
+        <select
+          value={settings.defaultAgent}
+          onChange={(e) => updateSettings({ defaultAgent: e.target.value })}
+          className={FIELD_CLASS}
+        >
+          {defaultAgentChoices.map((choice) => (
+            <option key={choice.id} value={choice.id}>
+              {choice.label}
+            </option>
+          ))}
         </select>
       </SettingRow>
       <SectionTitle title="Terminal" subtitle="Shell and font for the integrated terminal" />

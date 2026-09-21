@@ -13,6 +13,7 @@ import {
   type SwitchableAgent,
 } from "@/types/agent";
 import { invalidateLoad } from "./load-tokens";
+import { defaultAgentForNewSession } from "./default-agent";
 import { resumeSessionFast } from "./resume-session";
 
 /** Active project root, preferring the legacy `currentProject` but falling back
@@ -222,7 +223,13 @@ export function openNewAgentChat(agent?: SwitchableAgent): void {
     // cleared blank session with the old transcript.
     invalidateLoad(existing.id);
     clearSession(existing.id);
-    if (agent) switchChatAgent(existing.id, agent);
+    // A reused tab keeps its OLD agentType across a clear (only the ACP
+    // binding is dropped), so name the agent explicitly: the caller's pick
+    // when there is one, otherwise the configured default. Without this,
+    // every New Chat after the first would silently stay on whatever agent
+    // the tab was last on and the setting would only ever apply to a
+    // first-ever chat.
+    switchChatAgent(existing.id, agent ?? defaultAgentForNewSession());
     focus(existing.id);
     // The abandoned conversation persists to disk per-turn, but its live row was
     // the sidebar's only handle on it until a disk refetch. Re-list now so it

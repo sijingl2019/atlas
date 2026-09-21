@@ -9,6 +9,7 @@
  */
 
 import { DEFAULT_SCALE } from "./ui-scale";
+import { NATIVE_AGENT_ID } from "@/types/agent";
 import { DEFAULT_EDITOR_THEME_ID } from "@/features/editor/themes/themes";
 import type { ThemeMode } from "@/features/theme/mode";
 import { DEFAULT_ATLAS_THEME_ID } from "@/features/theme/themes";
@@ -83,6 +84,14 @@ export interface AppSettings {
    *  force-directed one. The in-graph Flat/3D toggle overrides it for the
    *  session. Default false. */
   graphDefault3d: boolean;
+  /** Which agent a BRAND-NEW chat starts on, by `agentType` (see
+   *  `src/types/agent.ts`): the native agent, a first-party ACP agent, or an
+   *  installed external's plugin id. Settings -> General only offers agents
+   *  the catalog currently lists as installed; `defaultAgentForNewSession`
+   *  falls back to the native agent when this names one that is gone, so a
+   *  stale value can never wedge a fresh chat. Default "cersei" (the native
+   *  agent), the one agent every profile is guaranteed to have. */
+  defaultAgent: string;
   /** Terminal notifications master switch: a command finishing (failed, or
    *  longer than `terminalNotifyMinDurationMs`) or wanting input raises an
    *  in-app notification, a toast when the terminal is off screen, and a
@@ -155,6 +164,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   updaterIgnoredVersion: null,
   enterToSend: true,
   graphDefault3d: false,
+  defaultAgent: NATIVE_AGENT_ID,
   terminalNotifications: true,
   terminalNotifyMinDurationMs: 10_000,
   terminalNotifyOnFailure: true,

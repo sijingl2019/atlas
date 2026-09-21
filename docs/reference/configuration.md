@@ -111,6 +111,19 @@ adaptiveSuggestions = "agent"
 # sends either way. (default: true)
 enterToSend = true
 
+# Knowledge graph opens in the 3D solar-system view instead of the flat
+# force-directed one. The in-graph Flat/3D toggle overrides it for the
+# session. (default: false)
+graphDefault3d = false
+
+# The agent a new chat starts on, by agentType: "cersei" is the
+# native Atlas Agent, "claude-code" / "codex" are the first-party
+# ACP agents, and an installed external agent uses its plugin id.
+# Settings only offers agents you have installed; an id that is
+# unknown or no longer installed falls back to the native agent.
+# (default: "cersei")
+defaultAgent = "cersei"
+
 # Terminal notifications: a command that fails, runs longer than
 # terminalNotifyMinDurationMs, or asks for input raises an in-app
 # notification, a toast when its terminal is off screen and a macOS
@@ -187,6 +200,8 @@ wrote; `toml_edit` just preserves whatever comments are already there.
 | `curatedPluginSync` | boolean | `false` | — |
 | `updaterIgnoredVersion` | string, or absent | absent | — |
 | `enterToSend` | boolean | `true` | — |
+| `graphDefault3d` | boolean | `false` | — |
+| `defaultAgent` | string | `"cersei"` | any `agentType`; one that is unknown or no longer installed falls back to the native agent |
 | `terminalNotifications` | boolean | `true` | — |
 | `terminalNotifyMinDurationMs` | integer | `10000` | 0 ≤ n ≤ 3600000 |
 | `terminalNotifyOnFailure` | boolean | `true` | — |

@@ -1,8 +1,17 @@
 // @vitest-environment happy-dom
 //
-// `removed-agents` pulls in the chat store, which touches `window` at import.
+// `removed-agents` pulls in the chat store, which touches `window` at import,
+// and the settings store, which subscribes to Tauri config events at import.
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// No Tauri in tests: the settings store registers `atlas:config-changed` /
+// `atlas:config-error` listeners the moment it is imported, and the real
+// `listen` reads `window.__TAURI_INTERNALS__`.
+vi.mock("@tauri-apps/api/event", () => ({
+  listen: vi.fn(async () => () => {}),
+  emit: vi.fn(async () => {}),
+}));
 import type { AgentCatalogEntry } from "@/types/agent-catalog";
 import { uninstalledBetween } from "./removed-agents";
 

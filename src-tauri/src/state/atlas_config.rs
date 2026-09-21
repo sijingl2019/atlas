@@ -214,6 +214,15 @@ pub struct AppSettings {
     /// session. Default OFF.
     #[serde(default)]
     pub graph_default_3d: bool,
+    /// The agent a BRAND-NEW chat starts on, by `agentType`: `"cersei"` for
+    /// the native Atlas Agent, `"claude-code"` / `"codex"` for the first-party
+    /// ACP agents, or an installed external agent's plugin id. The frontend
+    /// resolves it against the installed catalog and falls back to the native
+    /// agent when the id is unknown or no longer installed, so a stale value
+    /// here can never wedge a fresh chat on an agent the user does not have.
+    /// Default `"cersei"`: the one agent every profile is guaranteed to have.
+    #[serde(default = "default_agent_id")]
+    pub default_agent: String,
     /// Terminal notifications master switch. A command that fails, runs
     /// longer than `terminal_notify_min_duration_ms`, or asks for input raises
     /// an in-app notification, a toast when its terminal is off screen and a
@@ -275,6 +284,14 @@ pub fn default_embedding_model() -> String {
     "all-MiniLM-L6-v2".to_string()
 }
 
+/// The native agent (see `NATIVE_AGENT_ID` in `src/types/agent.ts`): in
+/// process, so it needs no install, no sign-in and no probe. It is the only
+/// agent a fresh profile is guaranteed to have, which is why it is the
+/// default for a new chat.
+pub fn default_agent_id() -> String {
+    "cersei".to_string()
+}
+
 pub fn default_terminal_font_size() -> u32 {
     13
 }
@@ -324,6 +341,7 @@ impl Default for AppSettings {
             updater_ignored_version: None,
             enter_to_send: true,
             graph_default_3d: false,
+            default_agent: default_agent_id(),
             terminal_notifications: true,
             terminal_notify_min_duration_ms: default_terminal_notify_min_duration_ms(),
             terminal_notify_on_failure: true,
@@ -478,6 +496,15 @@ const SETTINGS_DOCS: &[(&str, &str)] = &[
         "# Knowledge graph opens in the 3D solar-system view instead of the flat\n\
          # force-directed one. The in-graph Flat/3D toggle overrides it for the\n\
          # session. (default: false)",
+    ),
+    (
+        "defaultAgent",
+        "# The agent a new chat starts on, by agentType: \"cersei\" is the\n\
+         # native Atlas Agent, \"claude-code\" / \"codex\" are the first-party\n\
+         # ACP agents, and an installed external agent uses its plugin id.\n\
+         # Settings only offers agents you have installed; an id that is\n\
+         # unknown or no longer installed falls back to the native agent.\n\
+         # (default: \"cersei\")",
     ),
     (
         "terminalNotifications",
@@ -847,6 +874,7 @@ pub struct SettingsPatch {
     pub updater_ignored_version: Option<Option<String>>,
     pub enter_to_send: Option<bool>,
     pub graph_default_3d: Option<bool>,
+    pub default_agent: Option<String>,
     pub terminal_notifications: Option<bool>,
     pub terminal_notify_min_duration_ms: Option<u32>,
     pub terminal_notify_on_failure: Option<bool>,
@@ -919,6 +947,9 @@ impl SettingsPatch {
         if let Some(v) = self.graph_default_3d {
             settings.graph_default_3d = v;
         }
+        if let Some(v) = &self.default_agent {
+            settings.default_agent = v.clone();
+        }
         if let Some(v) = self.terminal_notifications {
             settings.terminal_notifications = v;
         }
@@ -980,6 +1011,9 @@ impl SettingsPatch {
         set_bool!(curated_plugin_sync, "curatedPluginSync");
         set_bool!(enter_to_send, "enterToSend");
         set_bool!(graph_default_3d, "graphDefault3d");
+        if let Some(v) = &self.default_agent {
+            table["defaultAgent"] = toml_edit::value(v.as_str());
+        }
         set_bool!(terminal_notifications, "terminalNotifications");
         set_bool!(terminal_notify_on_failure, "terminalNotifyOnFailure");
         set_bool!(terminal_notify_on_attention, "terminalNotifyOnAttention");
