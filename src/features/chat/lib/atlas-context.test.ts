@@ -27,6 +27,16 @@ describe("Atlas injected context", () => {
     expect(stripInjectedContext(text)).toBe("abc");
   });
 
+  it("cuts at the Codex boundary marker and keeps the user's words", () => {
+    const text =
+      "--- PROJECT MEMORY ---\nfacts\n--- END PROJECT MEMORY ---\n\n## My request for Codex:\n\nadd a knowledge base";
+    expect(stripInjectedContext(text)).toBe("add a knowledge base");
+    expect(extractInjectedContext(text)).toEqual({
+      prose: "add a knowledge base",
+      blocks: [{ label: "PROJECT MEMORY", body: "facts" }],
+    });
+  });
+
   it("still returns block bodies for the Timeline", () => {
     const text = "--- PROJECT MEMORY ---\nfacts\n--- END PROJECT MEMORY ---\n\nafter";
     expect(extractInjectedContext(text)).toEqual({

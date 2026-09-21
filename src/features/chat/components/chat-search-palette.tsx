@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Search, User } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -21,6 +21,10 @@ export function ChatSearchPalette({
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  // The highlighted row, so the arrow keys can keep it on screen: the list is
+  // taller than the 440px dialog, and without this the highlight walks off the
+  // bottom edge where the user cannot see it.
+  const activeRowRef = useRef<HTMLButtonElement>(null);
 
   // Only user messages, with their original indices.
   const userMessages = useMemo(
@@ -44,6 +48,13 @@ export function ChatSearchPalette({
   useEffect(() => {
     setSelected(0);
   }, [query]);
+
+  // Keep the keyboard-selected row visible (same contract as the command
+  // palettes). "nearest" scrolls the minimum amount, so stepping one row at a
+  // time moves the list by one row.
+  useLayoutEffect(() => {
+    activeRowRef.current?.scrollIntoView({ block: "nearest" });
+  }, [selected, filtered.length]);
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Escape") {
@@ -110,6 +121,7 @@ export function ChatSearchPalette({
                 return (
                   <button
                     key={m.id}
+                    ref={active ? activeRowRef : undefined}
                     onMouseEnter={() => setSelected(idx)}
                     onClick={() => {
                       onJump(i);

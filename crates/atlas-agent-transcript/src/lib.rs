@@ -89,6 +89,15 @@ const INJECTED_CONTEXT_CORES: [&str; 4] = [
 /// `src/features/chat/lib/next-steps.ts`.
 const NEXT_STEPS_MARKER: &str = "\u{2550}\u{2550}\u{2550} Atlas next-steps \u{2550}\u{2550}\u{2550}";
 
+/// The boundary marker Codex itself puts between a model-context preamble and
+/// the user's real request — `codex_protocol::protocol::USER_MESSAGE_BEGIN`.
+///
+/// `agents_send` inserts it for Codex sessions so Codex's own thread title
+/// (`strip_user_message_prefix`) keeps only what the user typed. Keep this in
+/// sync with `CODEX_USER_MESSAGE_BEGIN` in `src-tauri/src/commands/memory_pack.rs`
+/// and in `src/features/chat/lib/atlas-context.ts`.
+const CODEX_USER_MESSAGE_BEGIN: &str = "## My request for Codex:";
+
 struct InjectedStart {
     core: &'static str,
     start: usize,
@@ -156,6 +165,13 @@ pub fn strip_injected_context(text: &str) -> String {
     let text = text
         .find(NEXT_STEPS_MARKER)
         .map_or(text, |at| &text[..at]);
+
+    // Codex's boundary marker is authoritative: everything after it is the
+    // user's own words, everything before it is preamble. Cutting here also
+    // keeps the marker itself from surfacing as prose.
+    let text = text
+        .find(CODEX_USER_MESSAGE_BEGIN)
+        .map_or(text, |at| &text[at + CODEX_USER_MESSAGE_BEGIN.len()..]);
 
     let mut out = String::with_capacity(text.len());
     let mut cursor = 0;

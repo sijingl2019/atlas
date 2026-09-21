@@ -37,6 +37,11 @@ import {
   type SlashKeyInterceptor,
   type SlashTrigger,
 } from "../lib/cm-slash-extension";
+import {
+  skillChipExtension,
+  setSkillTokens as setSkillTokensInView,
+} from "../lib/cm-skill-chip-extension";
+import type { SlashSkill } from "../lib/slash-skill";
 import type { MentionData } from "../lib/mentions";
 import { markInputActivity } from "@/lib/input-activity";
 import { invoke } from "@tauri-apps/api/core";
@@ -61,6 +66,11 @@ export interface ChatInputHandle {
    * `@query` the user typed). Otherwise inserts at the caret.
    */
   insertMention(m: MentionData, from?: number, to?: number): void;
+  /** Replace the composer's skill vocabulary — the rows the bound agent
+   *  advertised as skills. Matching `/name` tokens are then painted as
+   *  inline chips. The document text is never rewritten: the token stays
+   *  exactly what the agent published, only its paint changes. */
+  setSkillTokens(tokens: SlashSkill[]): void;
   /** Imperative dispatch — escape hatch for the mention extension to
    *  insert a chip into the buffer. Pass the raw view if you need more. */
   view(): EditorView | null;
@@ -99,6 +109,12 @@ interface ChatInputProps {
    *  Return true to consume them (e.g. stage as inline attachments); false
    *  falls through to the path-paste path. Read live via ref. */
   onPasteImages?: (files: File[]) => boolean;
+  /** Skill rows the bound agent advertised. The composer paints a chip over
+   *  each matching `/name` token; `message-input.tsx` derives them from the
+   *  same advertisement the slash picker lists, so the row you pick and the
+   *  chip you get are one thing. Pushed in via a state effect because the
+   *  view is built once and the advertisement lands after mount. */
+  skillTokens?: SlashSkill[];
   /** Slot for future extensions. */
   extraExtensions?: Extension[];
   /** Min height in pixels (matches old textarea: 44). */
@@ -118,6 +134,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
     onSlashTrigger,
     keyInterceptor,
     onPasteImages,
+    skillTokens,
     extraExtensions,
     minHeight = 44,
     maxHeight = 200,
@@ -146,6 +163,11 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
   keyInterceptorRef.current = keyInterceptor;
   const onPasteImagesRef = useRef(onPasteImages);
   onPasteImagesRef.current = onPasteImages;
+  // The skill vocabulary, same trick: the mount-only effect below cannot see
+  // a later prop change, so the imperative `setSkillTokens` handle and the
+  // sync effect both read it through a ref.
+  const skillTokensRef = useRef<SlashSkill[] | undefined>(skillTokens);
+  skillTokensRef.current = skillTokens;
 
   // Build the theme once — sized to the container, transparent
   // background so the parent's chip rounding shows through.
@@ -382,6 +404,10 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
             },
           }),
           ...mentionExtension,
+          // Skill chips: same decoration pattern as mentions, but the
+          // vocabulary arrives from the agent's advertisement rather than
+          // from the transaction that inserted the token.
+          ...skillChipExtension,
           mentionTriggerPlugin((t) => onMentionTriggerRef.current?.(t)),
           slashTriggerPlugin((t) => onSlashTriggerRef.current?.(t)),
           // Prec.highest puts the picker keymap above lang-markdown's
@@ -414,6 +440,15 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Hand the live view the skill vocabulary. Runs after the mount effect
+  // above (same render, declaration order), so the first advertisement is
+  // pushed in on mount too; later changes -- a different agent, a rescan of
+  // the workspace -- arrive here as prop changes.
+  useEffect(() => {
+    const v = viewRef.current;
+    if (v) setSkillTokensInView(v, skillTokensRef.current ?? []);
+  }, [skillTokens]);
+
   useImperativeHandle(
     ref,
     (): ChatInputHandle => ({
@@ -440,6 +475,10 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
         if (!v) return;
         const head = v.state.selection.main.head;
         insertMentionInView(v, m, from ?? head, to ?? head);
+      },
+      setSkillTokens: (tokens) => {
+        const v = viewRef.current;
+        if (v) setSkillTokensInView(v, tokens);
       },
       view: () => viewRef.current,
     }),

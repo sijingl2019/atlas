@@ -64,6 +64,11 @@ import type {
 } from "./slash-command-picker";
 import { commandRequiresArgs } from "./slash-command-picker";
 import { configActionOf, resolveSlashSubmission } from "../lib/slash-command-action";
+// Skill recognition lives in its own CodeMirror-free module: the chip that
+// renders a skill is part of the lazily-loaded editor chunk, but deciding WHICH
+// advertised rows are skills has to be usable on the eager path (and in tests)
+// without pulling CodeMirror in.
+import { skillInfoOf, skillTokensOf } from "../lib/slash-skill";
 import { PlanTasksPill } from "./plan-tasks-pill";
 import { PlanModePill } from "./plan-mode-pill";
 import { openSettingsSection } from "@/features/settings/lib/open-settings";
@@ -973,6 +978,10 @@ export function MessageInput({
           description: o.description ?? "",
           handler: action ? ("acp-config" as const) : ("passthrough" as const),
           configAction: action ?? undefined,
+          // A skill the agent marked as one (see `slash-skill.ts`). The row
+          // and the composer chip both render it as a name, never as the slug
+          // the wire carries.
+          skill: skillInfoOf(o) ?? undefined,
         };
       })
       .filter((c) => c.name && c.name !== "login");
@@ -1021,6 +1030,11 @@ export function MessageInput({
     });
     return [...(login ? [login] : []), ...fromAgent, ...local];
   }, [agentType, availableCommands]);
+  // The skill rows, in the shape the composer's chip extension wants. Memoised
+  // off `agentSlashCommands` so the composer re-dispatches its vocabulary only
+  // when the agent's advertisement actually changes — a fresh array every
+  // render would rebuild the chip decorations on every keystroke.
+  const skillTokens = useMemo(() => skillTokensOf(agentSlashCommands), [agentSlashCommands]);
   const queue = useChatStore((s) => s.queues[tabId] ?? EMPTY_QUEUE);
 
   // CodeMirror owns the document; React only needs the empty↔non-empty EDGE
@@ -2021,6 +2035,7 @@ export function MessageInput({
                   onSlashTrigger={setSlashTrigger}
                   onPasteImages={handlePasteImages}
                   keyInterceptor={keyInterceptor}
+                  skillTokens={skillTokens}
                 />
               ) : (
                 // Same-height empty slot so the panel layout doesn't reflow when

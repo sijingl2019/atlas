@@ -1231,6 +1231,32 @@ pub fn agents_snapshot_meta(
 /// a slow disk or provider can never stall the user's first message.
 const INJECT_BUDGET_SECS: u64 = 8;
 
+/// Is this plugin id a Codex-family agent?
+///
+/// Matched by substring rather than equality on purpose: the ids in the wild
+/// are `codex` (the spec id) and `codex-acp` (the bridge most users install),
+/// and a scoped or versioned spelling of either must not silently lose the
+/// title fix.
+///
+/// Only Codex gets [`memory_pack::CODEX_USER_MESSAGE_BEGIN`], and the deciding
+/// question is *how an agent derives a thread title*, not whether its id looks
+/// Codex-ish. Codex titles a thread by truncating the first user message
+/// (`codex_protocol::protocol::strip_user_message_prefix`), so an injected
+/// preamble becomes the title unless it ends with Codex's own marker. The
+/// agents Atlas ships next to it all title themselves with a model, and would
+/// only be handed a heading they cannot strip:
+///   - Claude Code writes an LLM `ai-title` into the session JSONL. Checked
+///     against real sessions carrying the same injected blocks -- the title is
+///     the user's intent, never `--- RELEVANT PROJECT MEMORY ---`.
+///   - opencode stores a generated `session.title`; its pre-title placeholder
+///     is a bare `New session - <timestamp>`, never the first message.
+///   - the native agent is Atlas's own and titles from the stored prompt.
+/// So a future agent that truncates like Codex earns its own marker here -- do
+/// not widen this predicate into "every agent gets a boundary".
+fn is_codex_plugin(plugin_id: &str) -> bool {
+    plugin_id.contains("codex")
+}
+
 /// Send a user message to an agent session.
 ///
 /// On the **first send** of a session — when Shared Cross-Agent Memory is
@@ -1403,31 +1429,36 @@ pub async fn agents_send(
     index_docs.retain(|d| sharing.note_index_doc(&key, &d.id));
     let index_block = memory_retrieve::compose_index_block(&index_docs);
 
+    // Everything Atlas injects goes into one ordered preamble; the user's own
+    // text is appended exactly once, at the end, so the per-agent boundary
+    // below lands precisely between the two.
+    let mut preamble: Vec<String> = Vec::new();
+    if let Some(b) = shared_block {
+        preamble.push(b);
+    }
+    if let Some(b) = index_block {
+        preamble.push(b);
+    }
+
     // v1 bootstrap: on the very first send only, also prepend the curated pack +
     // recent-session handoff (retained as the clock-0 onboarding layer, bounded
     // by INJECT_BUDGET_SECS inside `build_injection`).
-    let base = if !sharing.already_sent(&key) {
+    if !sharing.already_sent(&key) {
         let pref = sharing.summarizer_pref(&cwd);
-        let built = build_injection(&app, &cwd, &key.session_id, &pref, &text).await;
+        if let Some(b) = build_injection(&app, &cwd, &key.session_id, &pref).await {
+            preamble.push(b);
+        }
         sharing.mark_sent(&key);
-        built
-    } else {
-        text
-    };
+    }
 
-    // Compose: [working memory] + [relevant index] + (bootstrap +) user text.
-    let mut parts: Vec<String> = Vec::new();
-    if let Some(b) = shared_block {
-        parts.push(b);
-    }
-    if let Some(b) = index_block {
-        parts.push(b);
-    }
-    let prefixed = if parts.is_empty() {
-        base
-    } else {
-        format!("{}\n\n{}", parts.join("\n\n"), base)
-    };
+    // Codex titles a thread from its first user message, stripping everything
+    // before its own `## My request for Codex:` marker — without one the injected
+    // preamble *is* the title, and the sidebar reads `--- RELEVANT PROJECT
+    // MEMORY ---` instead of the question. Other agents have no such convention,
+    // and a Codex-branded heading in their prompt is noise they cannot strip, so
+    // only Codex gets a boundary. See `memory_pack::CODEX_USER_MESSAGE_BEGIN`.
+    let boundary = is_codex_plugin(&plugin_id).then_some(memory_pack::CODEX_USER_MESSAGE_BEGIN);
+    let prefixed = memory_pack::compose_injection(&preamble, boundary, &text);
     host.send(
         &key,
         prompt::with_resource_links(prompt::compose(prefixed, images), links),
@@ -1435,15 +1466,16 @@ pub async fn agents_send(
     .map_err(|e| e.to_string())
 }
 
-/// Assemble the memory-prefixed message. Everything runs inside a single
-/// [`INJECT_BUDGET_SECS`] timeout; on elapse it falls back to the bare text.
+/// Assemble the first-send memory preamble (curated pack + recent-session
+/// handoff). Everything runs inside a single [`INJECT_BUDGET_SECS`] timeout; on
+/// elapse, or with nothing to inject, it returns `None` and the turn rides
+/// without a preamble.
 async fn build_injection(
     app: &AppHandle,
     cwd: &str,
     session_id: &str,
     pref: &SummarizerPref,
-    user_text: &str,
-) -> String {
+) -> Option<String> {
     let cwd = cwd.to_string();
     let session_id = session_id.to_string();
 
@@ -1481,18 +1513,26 @@ async fn build_injection(
             None
         };
 
-        memory_pack::compose_injection(pack.as_deref(), handoff_block.as_deref(), user_text)
+        let blocks: Vec<String> = [pack, handoff_block]
+            .into_iter()
+            .flatten()
+            .filter(|b| !b.is_empty())
+            .collect();
+        if blocks.is_empty() {
+            return None;
+        }
+        Some(blocks.join("\n\n"))
     })
     .await;
 
     match built {
-        Ok(s) => s,
+        Ok(built) => built,
         Err(_) => {
             tracing::warn!(
                 target: "atlas::memory_sharing",
                 "memory injection exceeded {INJECT_BUDGET_SECS}s budget; sending bare text"
             );
-            user_text.to_string()
+            None
         }
     }
 }
@@ -1832,6 +1872,46 @@ pub async fn agents_run_auth_method(
 #[cfg(test)]
 mod cmd_error_tests {
     use super::*;
+
+    /// Only Codex strips the boundary marker, so only Codex may get one.
+    #[test]
+    fn only_codex_plugins_get_the_boundary_marker() {
+        for id in ["codex", "codex-acp", "@agentclientprotocol/codex-acp"] {
+            assert!(is_codex_plugin(id), "{id} is Codex");
+        }
+        for id in ["claude-acp", "claude-code-ts", "cersei", "opencode", "pi-acp"] {
+            assert!(!is_codex_plugin(id), "{id} is not Codex");
+        }
+    }
+
+    /// The predicate above only matters through what it does to the wire
+    /// prompt, and the two outcomes must stay distinguishable: Codex gets a
+    /// heading between the preamble and the user, everyone else gets the
+    /// preamble flush against the user's own words.
+    #[test]
+    fn the_boundary_lands_only_between_a_preamble_and_a_codex_request() {
+        let preamble = vec!["--- PROJECT MEMORY ---\nfacts\n--- END PROJECT MEMORY ---".to_string()];
+
+        for id in ["codex", "codex-acp"] {
+            let boundary = is_codex_plugin(id).then_some(memory_pack::CODEX_USER_MESSAGE_BEGIN);
+            let out = memory_pack::compose_injection(&preamble, boundary, "Fix the sidebar title");
+            assert_eq!(
+                out,
+                "--- PROJECT MEMORY ---\nfacts\n--- END PROJECT MEMORY ---\n\n## My request for Codex:\n\nFix the sidebar title",
+                "{id} must hand Codex its own boundary"
+            );
+        }
+
+        for id in ["claude-acp", "claude-code-ts", "cersei", "opencode", "cursor", "kilo"] {
+            let boundary = is_codex_plugin(id).then_some(memory_pack::CODEX_USER_MESSAGE_BEGIN);
+            let out = memory_pack::compose_injection(&preamble, boundary, "Fix the sidebar title");
+            assert!(
+                !out.contains(memory_pack::CODEX_USER_MESSAGE_BEGIN),
+                "{id} must not be handed a Codex-branded heading it cannot strip"
+            );
+            assert!(out.ends_with("Fix the sidebar title"), "{id} keeps the user's words last");
+        }
+    }
 
     fn wire(e: CmdError) -> serde_json::Value {
         serde_json::to_value(e).unwrap()

@@ -8,9 +8,11 @@
 //!      session for this project, so a freshly-switched agent resumes context.
 //!      Built by [`build_session_handoff`] / [`parse_handoff_turns`].
 //!
-//! [`compose_injection`] stitches the (optional) blocks in front of the user's
-//! text. Every builder returns `Option`/empty so an absent source is a true
-//! no-op (no delimiters, no allocation) — see the empty-pack hardening rule.
+//! [`compose_injection`] stitches the blocks in front of the user's text,
+//! optionally separated by a boundary marker the agent itself understands (see
+//! [`CODEX_USER_MESSAGE_BEGIN`]). Every builder returns `Option`/empty so an
+//! absent source is a true no-op (no delimiters, no allocation) — see the
+//! empty-pack hardening rule.
 //!
 //! Disk-touching entry points are kept thin around pure functions
 //! (`curate_pack`, `parse_handoff_turns`, `pick_newest_session`) so the ranking,
@@ -239,28 +241,38 @@ pub fn wrap_handoff(body: &str, turn_count: usize, attribution: &str) -> String 
 
 // ── Composition ──────────────────────────────────────────────────────────────
 
-/// Prepend the (optional) already-wrapped blocks to the user's text. With both
-/// blocks absent this returns `user_text` unchanged (zero-overhead no-op).
-pub fn compose_injection(
-    pack_block: Option<&str>,
-    handoff_block: Option<&str>,
-    user_text: &str,
-) -> String {
-    let mut parts: Vec<&str> = Vec::new();
-    if let Some(p) = pack_block {
-        if !p.is_empty() {
-            parts.push(p);
+/// The boundary marker Codex itself puts between a model-context preamble and
+/// the user's real request (`codex_protocol::protocol::USER_MESSAGE_BEGIN`).
+///
+/// Codex names a thread — and fills its sidebar preview — from its first user
+/// message, after `strip_user_message_prefix` cuts everything *before* this
+/// marker. Without it the injected memory blocks above become the title, so the
+/// sidebar reads `--- RELEVANT PROJECT MEMORY ---` instead of what the user
+/// asked. Agents with no such convention get the blocks and no marker at all: a
+/// Codex-branded heading in their prompt would be noise they cannot strip.
+pub const CODEX_USER_MESSAGE_BEGIN: &str = "## My request for Codex:";
+
+/// Prepend the already-wrapped `blocks` (in order) to the user's text,
+/// inserting `boundary` immediately before the text when one applies.
+///
+/// With no non-empty block this returns `user_text` unchanged (zero-overhead
+/// no-op), so a turn with nothing to inject stays byte-identical to a plain
+/// send.
+pub fn compose_injection(blocks: &[String], boundary: Option<&str>, user_text: &str) -> String {
+    let mut preamble = String::new();
+    for block in blocks.iter().filter(|b| !b.is_empty()) {
+        if !preamble.is_empty() {
+            preamble.push_str("\n\n");
         }
+        preamble.push_str(block);
     }
-    if let Some(h) = handoff_block {
-        if !h.is_empty() {
-            parts.push(h);
-        }
-    }
-    if parts.is_empty() {
+    if preamble.is_empty() {
         return user_text.to_string();
     }
-    format!("{}\n\n{}", parts.join("\n\n"), user_text)
+    match boundary {
+        Some(marker) => format!("{preamble}\n\n{marker}\n\n{user_text}"),
+        None => format!("{preamble}\n\n{user_text}"),
+    }
 }
 
 /// Does this turn's text open with a slash command (`/skill-name [args]`)?
@@ -429,20 +441,49 @@ mod tests {
 
     #[test]
     fn test_compose_injection_empty_is_passthrough() {
-        assert_eq!(compose_injection(None, None, "hello"), "hello");
-        assert_eq!(compose_injection(Some(""), Some(""), "hello"), "hello");
+        assert_eq!(compose_injection(&[], None, "hello"), "hello");
+        let blanks = vec![String::new(), String::new()];
+        assert_eq!(compose_injection(&blanks, None, "hello"), "hello");
     }
 
     #[test]
     fn test_compose_injection_both() {
-        let out = compose_injection(Some("PACK"), Some("HANDOFF"), "user text");
+        let blocks = vec!["PACK".to_string(), "HANDOFF".to_string()];
+        let out = compose_injection(&blocks, None, "user text");
         assert_eq!(out, "PACK\n\nHANDOFF\n\nuser text");
     }
 
     #[test]
     fn test_compose_injection_pack_only() {
-        let out = compose_injection(Some("PACK"), None, "u");
+        let blocks = vec!["PACK".to_string()];
+        let out = compose_injection(&blocks, None, "u");
         assert_eq!(out, "PACK\n\nu");
+    }
+
+    /// The Codex marker has to land immediately before the user's text, so
+    /// Codex's own `strip_user_message_prefix` keeps only what the user typed.
+    #[test]
+    fn test_compose_injection_codex_boundary() {
+        let blocks = vec!["--- PROJECT MEMORY ---\nx".to_string()];
+        let out = compose_injection(&blocks, Some(CODEX_USER_MESSAGE_BEGIN), "real request");
+        assert_eq!(
+            out,
+            "--- PROJECT MEMORY ---\nx\n\n## My request for Codex:\n\nreal request"
+        );
+        // What Codex's strip_user_message_prefix would keep.
+        let kept = out
+            .find(CODEX_USER_MESSAGE_BEGIN)
+            .map(|at| out[at + CODEX_USER_MESSAGE_BEGIN.len()..].trim());
+        assert_eq!(kept, Some("real request"));
+    }
+
+    /// Nothing to inject means no marker either: a bare turn must stay bare.
+    #[test]
+    fn test_compose_injection_boundary_without_blocks_is_passthrough() {
+        assert_eq!(
+            compose_injection(&[], Some(CODEX_USER_MESSAGE_BEGIN), "hi"),
+            "hi"
+        );
     }
 
     #[test]
@@ -484,7 +525,8 @@ mod tests {
     fn test_injection_would_displace_a_slash_command() {
         let text = "/improve-codebase-architecture";
         assert!(is_slash_command(text));
-        let injected = compose_injection(Some("--- PROJECT MEMORY ---\nx"), None, text);
+        let blocks = vec!["--- PROJECT MEMORY ---\nx".to_string()];
+        let injected = compose_injection(&blocks, None, text);
         assert!(
             !injected.starts_with('/'),
             "injection moves the command off byte 0 — callers must skip it for slash turns"

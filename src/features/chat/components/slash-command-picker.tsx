@@ -9,11 +9,20 @@
 // `/clear`/`/logout` dimmed-unavailable rows) alongside whatever the agent
 // advertises.
 
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
-import { Loader2 } from "lucide-react";
+import { Box, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SlashConfigAction } from "../lib/slash-command-action";
+import type { SlashSkill } from "../lib/slash-skill";
 
 // ── Public API ──────────────────────────────────────────────────────────────
 
@@ -49,6 +58,12 @@ export interface SlashCommand {
   /** Set when `handler` is `acp-config`: the config option this command
    *  switches, parsed from the agent's `_meta.commandAction`. */
   configAction?: SlashConfigAction;
+  /** Set when the agent advertised this row as a skill. A skill's name is a
+   *  slug and its label is the humanized form of it, so the row (and the
+   *  composer chip it becomes) reads as a name rather than as a filename. See
+   *  `slash-skill.ts` for how a row is recognised — and for why an agent that
+   *  does not say gets no marker. */
+  skill?: SlashSkill;
 }
 
 /** True if the signature contains `<...>` (required args). The picker uses
@@ -125,6 +140,10 @@ export const SlashCommandPicker = forwardRef<SlashCommandPickerHandle, SlashComm
     ref,
   ) {
     const [active, setActive] = useState(0);
+    // The highlighted row, so the arrow keys can keep it on screen: the
+    // catalogue is taller than the 360px cap, and without this the highlight
+    // walks off the bottom edge where the user cannot see it.
+    const activeRowRef = useRef<HTMLButtonElement>(null);
 
     useEffect(() => {
       if (open) setActive(0);
@@ -154,6 +173,13 @@ export const SlashCommandPicker = forwardRef<SlashCommandPickerHandle, SlashComm
 
     useEffect(() => {
       if (active >= rows.length) setActive(0);
+    }, [active, rows.length]);
+
+    // Keep the keyboard-selected row visible (same contract as the mention
+    // picker and the command palettes). "nearest" scrolls the minimum amount,
+    // so stepping one row at a time moves the list by one row.
+    useLayoutEffect(() => {
+      activeRowRef.current?.scrollIntoView({ block: "nearest" });
     }, [active, rows.length]);
 
     const activeRow = rows[active];
@@ -236,6 +262,7 @@ export const SlashCommandPicker = forwardRef<SlashCommandPickerHandle, SlashComm
               return (
                 <button
                   key={cmd.name}
+                  ref={isActive ? activeRowRef : undefined}
                   onMouseEnter={() => setActive(i)}
                   onMouseDown={(e) => {
                     e.preventDefault();
@@ -249,9 +276,22 @@ export const SlashCommandPicker = forwardRef<SlashCommandPickerHandle, SlashComm
                   )}
                   title={cmd.description}
                 >
-                  <span className="font-mono text-[var(--text-primary)] shrink-0 min-w-[80px]">
-                    /{highlightMatches(cmd.name, query)}
-                  </span>
+                  {cmd.skill ? (
+                    // Same glyph + label as the composer chip this row turns
+                    // into, so the row and what lands in the input are one
+                    // thing. The raw token stays in the tooltip.
+                    <span
+                      className="shrink-0 min-w-[80px] flex items-center gap-1.5 text-[var(--accent-primary)]"
+                      title={`/${cmd.name}`}
+                    >
+                      <Box size={11} className="shrink-0" />
+                      <span className="truncate">{cmd.skill.displayName}</span>
+                    </span>
+                  ) : (
+                    <span className="font-mono text-[var(--text-primary)] shrink-0 min-w-[80px]">
+                      /{highlightMatches(cmd.name, query)}
+                    </span>
+                  )}
                   <span className="truncate text-[10.5px] text-[var(--text-tertiary)] min-w-0 flex-1">
                     {highlightMatches(cmd.description, query)}
                   </span>

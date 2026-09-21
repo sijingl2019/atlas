@@ -102,6 +102,11 @@ you verified from the repository itself.";
 /// row of its own, exactly how Claude Code's skills reach its picker. A skill
 /// whose name collides with a static command is dropped rather than shadowing
 /// it: the static set is what the module documents and executes first.
+///
+/// A skill row is tagged `_meta.atlas.kind = "skill"`; a builtin carries no
+/// marker. ACP has no "this command is a skill" flag, so this is what lets the
+/// composer paint a skill as an icon + humanized name instead of guessing from
+/// the row's name — see `src/features/chat/lib/slash-skill.ts`.
 pub fn available(skills: &[SkillRef]) -> Vec<acp::AvailableCommand> {
     let mut commands = vec![
         acp::AvailableCommand::new(
@@ -131,12 +136,21 @@ pub fn available(skills: &[SkillRef]) -> Vec<acp::AvailableCommand> {
         if commands.iter().any(|c| c.name == skill.name) {
             continue;
         }
-        commands.push(acp::AvailableCommand::new(
-            skill.name.clone(),
-            skill.description.clone(),
-        ));
+        commands.push(
+            acp::AvailableCommand::new(skill.name.clone(), skill.description.clone())
+                .meta(skill_marker()),
+        );
     }
     commands
+}
+
+/// The `_meta` block that marks a row as a skill.
+///
+/// Deliberately not an ACP extension the protocol defines — `_meta` is the
+/// place protocol clients and agents put what the schema does not model — so it
+/// is namespaced under `atlas` and read only by Atlas's own composer.
+fn skill_marker() -> acp::Meta {
+    acp::Meta::from_iter([("atlas".to_string(), serde_json::json!({ "kind": "skill" }))])
 }
 
 /// The `/diff` reply: `git diff HEAD` in the session's working directory.
@@ -315,6 +329,43 @@ mod tests {
         );
         // Not a skill, not a command → it is what the user typed, sent as-is.
         assert_eq!(parse("/release-notes", &[]), None);
+    }
+
+    #[test]
+    fn a_skill_row_is_tagged_as_one_and_a_builtin_is_not() {
+        // The composer paints a skill as an icon + humanized name. Nothing in
+        // the advertisement distinguishes a skill from a builtin, so this
+        // marker is the only signal it has — and inventing one from the name
+        // would mean a second source of truth for what a skill is.
+        let skills = vec![SkillRef {
+            name: "release-notes".into(),
+            description: "Draft release notes".into(),
+            path: PathBuf::from("/tmp/skills/release-notes"),
+        }];
+        let commands = available(&skills);
+        let skill = commands
+            .iter()
+            .find(|c| c.name == "release-notes")
+            .expect("the skill is advertised");
+        assert_eq!(
+            skill
+                .meta
+                .as_ref()
+                .and_then(|meta| meta.get("atlas"))
+                .and_then(|atlas| atlas.get("kind")),
+            Some(&serde_json::json!("skill")),
+            "the skill row has to say it is one: {:?}",
+            skill.meta,
+        );
+        let builtin = commands
+            .iter()
+            .find(|c| c.name == "diff")
+            .expect("the static set is advertised");
+        assert!(
+            builtin.meta.is_none(),
+            "a builtin is not a skill and carries no marker: {:?}",
+            builtin.meta,
+        );
     }
 
     #[test]

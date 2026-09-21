@@ -77,3 +77,18 @@ fn the_next_steps_directive_is_not_part_of_a_title() {
     let text = "abc\n\n\u{2550}\u{2550}\u{2550} Atlas next-steps \u{2550}\u{2550}\u{2550}\nappend a block";
     assert_eq!(strip_injected_context(text), "abc");
 }
+
+#[test]
+fn the_codex_boundary_marker_is_cut_and_the_users_words_survive() {
+    // What Atlas now puts on the wire for a Codex session: preamble, then the
+    // marker Codex strips, then the real request. The marker itself must never
+    // reach the UI.
+    let text = "--- PROJECT MEMORY ---\nfacts\n--- END PROJECT MEMORY ---\n\n## My request for Codex:\n\nadd a knowledge base";
+    assert_eq!(strip_injected_context(text), "add a knowledge base");
+}
+
+#[test]
+fn a_boundary_marker_alone_still_yields_the_users_words() {
+    let text = "## My request for Codex:\n\nfix the flaky test";
+    assert_eq!(strip_injected_context(text), "fix the flaky test");
+}

@@ -26,6 +26,13 @@ const INJECTED_CORES = [
 // Keep this in sync with `NEXT_STEPS_MARKER` in `next-steps.ts`.
 const NEXT_STEPS_MARKER = "\u2550\u2550\u2550 Atlas next-steps \u2550\u2550\u2550";
 
+// The boundary marker Codex itself puts between a model-context preamble and
+// the user's real request (`codex_protocol::protocol::USER_MESSAGE_BEGIN`).
+// `agents_send` inserts it for Codex sessions so Codex's own thread title keeps
+// only what the user typed. Keep in sync with `CODEX_USER_MESSAGE_BEGIN` in
+// `src-tauri/src/commands/memory_pack.rs`.
+const CODEX_USER_MESSAGE_BEGIN = "## My request for Codex:";
+
 /** One Atlas-injected context block, recovered rather than discarded. */
 export interface InjectedBlock {
   /** The marker's label - `SHARED MEMORY`, `RELEVANT PROJECT MEMORY`, ... */
@@ -109,21 +116,27 @@ export function extractInjectedContext(text: string): {
 } {
   const directiveAt = text.indexOf(NEXT_STEPS_MARKER);
   const body = directiveAt >= 0 ? text.slice(0, directiveAt).replace(/\s+$/, "") : text;
-  if (!body.includes("--- ")) return { prose: body, blocks: [] }; // fast path
 
-  const ranges = injectedRanges(body);
-  if (ranges.length === 0) return { prose: body, blocks: [] };
+  // Codex's boundary marker is authoritative when present: everything after it
+  // is what the user typed, everything before it is preamble.
+  const boundaryAt = body.indexOf(CODEX_USER_MESSAGE_BEGIN);
+  const hasBoundary = boundaryAt >= 0;
+  const preamble = hasBoundary ? body.slice(0, boundaryAt) : body;
+  const typed = hasBoundary ? body.slice(boundaryAt + CODEX_USER_MESSAGE_BEGIN.length) : null;
+
+  const ranges = preamble.includes("--- ") ? injectedRanges(preamble) : []; // fast path
+  if (ranges.length === 0) return { prose: (typed ?? preamble).trim(), blocks: [] };
 
   const blocks: InjectedBlock[] = [];
-  let prose = "";
+  let leftover = "";
   let cursor = 0;
   for (const range of ranges) {
-    prose += body.slice(cursor, range.start);
+    leftover += preamble.slice(cursor, range.start);
     blocks.push({ label: range.label, body: range.body });
     cursor = range.end;
   }
-  prose += body.slice(cursor);
-  return { prose: prose.trim(), blocks };
+  leftover += preamble.slice(cursor);
+  return { prose: (leftover + (typed ?? "")).trim(), blocks };
 }
 
 /** Strip Atlas-injected context blocks, keeping only the prose. */

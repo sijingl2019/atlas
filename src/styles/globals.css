@@ -389,6 +389,43 @@
   font-size: 11px;
 }
 
+/* A `/skill` token in the composer, painted by `cm-skill-chip-extension.ts`.
+   Unlike a mention chip this is *not* a pill: no background, no border, no
+   padding — the glyph + accent label sit inline in the line, matching how the
+   Codex desktop composer shows a skill. The document text is untouched; only
+   the paint changes, so the token still reaches the agent verbatim. */
+.atlas-skill-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--accent-primary);
+  /* Not a pill: the chip reads as a word in the sentence, so it takes the
+     composer's own type size and weight instead of the smaller one the
+     bordered mention chips use. */
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  line-height: 1;
+  vertical-align: baseline;
+  user-select: none;
+  white-space: nowrap;
+  max-width: 320px;
+}
+.atlas-skill-chip__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.atlas-skill-chip__icon svg {
+  display: block;
+}
+.atlas-skill-chip__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 @layer base {
   *,
   ::after,
