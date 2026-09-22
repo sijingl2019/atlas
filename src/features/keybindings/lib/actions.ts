@@ -102,7 +102,7 @@ export const ACTIONS = [
     title: "Command palette",
     category: "Navigation",
     when: "global",
-    defaults: ["cmd+k"],
+    defaults: ["cmd+k", "cmd+shift+p"],
   },
   {
     id: "nav.filePicker",
