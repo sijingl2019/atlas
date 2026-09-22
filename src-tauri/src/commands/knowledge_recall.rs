@@ -130,6 +130,71 @@ pub async fn knowledge_recall(
     Ok(aggregate(hits, &sources, limit))
 }
 
+/// Rebuild the KB semantic index from scratch: wipe the persisted HNSW +
+/// manifest + docstore, re-collect the corpus, and re-embed every chunk.
+///
+/// Used by the sidebar's "Rebuild index" menu when the index is suspected to be
+/// stale or corrupt. The caller passes the scoped KB root (`useKbRoot()`), so
+/// rebuilding from the "view" scope rebuilds the current project's KB index and
+/// from "global" rebuilds the whole global KB.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KnowledgeRebuildResult {
+    /// Number of KB notes collected from the corpus.
+    pub notes: usize,
+    /// Number of chunks re-embedded and added to the fresh index.
+    pub chunks_indexed: usize,
+}
+
+#[tauri::command]
+#[expect(
+    clippy::await_holding_invalid_type,
+    reason = "the KB write lock must span reset + re-index so a concurrent recall cannot observe a half-built index"
+)]
+pub async fn knowledge_rebuild_index(
+    project_path: String,
+    app: AppHandle,
+    registry: State<'_, Arc<MemoryRegistry>>,
+    state: State<'_, Arc<KnowledgeRecallState>>,
+) -> Result<KnowledgeRebuildResult, String> {
+    let model_id = super::models::selected_embedding_id(&app);
+    if !super::models::is_downloaded(&app, &model_id) {
+        return Err(format!("model_not_downloaded: {model_id}"));
+    }
+    let provider = registry
+        .provider(&app)
+        .await
+        .ok_or_else(|| format!("model_not_downloaded: {model_id}"))?;
+
+    let path = project_path.clone();
+    let (docs, _sources) = tokio::task::spawn_blocking(move || collect_docs(&path))
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let engine = state.engine_for(&project_path);
+    let stats = {
+        let mut guard = engine.write().await;
+        guard
+            .reset_index(provider.provider_name(), provider.dim())
+            .map_err(|e| e.to_string())?;
+        guard
+            .index_corpus(&docs, &provider)
+            .await
+            .map_err(|e| e.to_string())?
+    };
+
+    tracing::info!(
+        project = %project_path,
+        notes = docs.len(),
+        chunks = stats.added,
+        "rebuilt knowledge base index"
+    );
+    Ok(KnowledgeRebuildResult {
+        notes: docs.len(),
+        chunks_indexed: stats.added,
+    })
+}
+
 /// Read every KB markdown note into the neutral corpus shape.
 ///
 /// Returns `(docs, entry_id -> file_path)`; the path map lets the UI show a

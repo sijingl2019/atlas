@@ -16,6 +16,7 @@ import {
   MoreHorizontal,
   FileText,
   Folder,
+  RefreshCw,
 } from "lucide-react";
 import { KnowledgeTree, type KnowledgeTreeHandle } from "./knowledge-tree";
 import type { KnowledgeSource } from "../stores/knowledge-store";
@@ -39,6 +40,10 @@ interface KnowledgeSidebarProps {
   onImportFiles: () => void;
   /** Link a folder (e.g. an Obsidian vault) into the KB in place. */
   onImportFolder: () => void;
+  /** Rebuild the KB semantic index for the current scope's KB root. */
+  onRebuildIndex: () => void;
+  /** True while a rebuild is in flight (spinner on the menu item). */
+  rebuildingIndex?: boolean;
   /** Linked folders, mounted as top-level tree folders. */
   sources: KnowledgeSource[];
   onUnlinkSource: (name: string) => void;
@@ -68,6 +73,8 @@ export function KnowledgeSidebar({
   onNewNote,
   onImportFiles,
   onImportFolder,
+  onRebuildIndex,
+  rebuildingIndex = false,
   sources,
   onUnlinkSource,
   onOpenGraph,
@@ -218,6 +225,14 @@ export function KnowledgeSidebar({
                 className="flex items-center gap-2 px-2.5 h-[28px] text-[11px] text-text-secondary hover:bg-bg-hover hover:text-text-primary cursor-pointer outline-none"
               >
                 <Folder size={13} /> Link folder…
+              </DropdownMenu.Item>
+              <DropdownMenu.Item
+                disabled={rebuildingIndex}
+                onSelect={onRebuildIndex}
+                className="flex items-center gap-2 px-2.5 h-[28px] text-[11px] text-text-secondary hover:bg-bg-hover hover:text-text-primary cursor-pointer outline-none data-disabled:text-text-tertiary data-disabled:pointer-events-none"
+              >
+                <RefreshCw size={13} className={rebuildingIndex ? "animate-spin" : ""} />
+                {rebuildingIndex ? "Rebuilding index…" : "Rebuild index"}
               </DropdownMenu.Item>
             </DropdownMenu.Content>
           </DropdownMenu.Portal>

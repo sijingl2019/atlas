@@ -591,6 +591,7 @@ pub fn run() {
             commands::knowledge::knowledge_cover_upload,
             commands::knowledge::knowledge_cover_data_url,
             commands::knowledge_recall::knowledge_recall,
+            commands::knowledge_recall::knowledge_rebuild_index,
             commands::knowledge_meta::knowledge_meta_load,
             commands::knowledge_meta::knowledge_meta_patch,
             commands::knowledge_meta::knowledge_meta_delete,

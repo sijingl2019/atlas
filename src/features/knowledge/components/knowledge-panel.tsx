@@ -71,6 +71,7 @@ export function KnowledgePanel() {
   const [finderMode, setFinderMode] = useState<FinderMode>("title");
   const [activeRepoName, setActiveRepoName] = useState<string | null>(null);
   const [repoReadme, setRepoReadme] = useState<string | null>(null);
+  const [rebuildingIndex, setRebuildingIndex] = useState(false);
   const [clonedRepos, setClonedRepos] = useState<
     Array<{ name: string; display_name: string; path: string; has_readme: boolean }>
   >([]);
@@ -357,6 +358,36 @@ export function KnowledgePanel() {
     }
   }, [kbRoot, scope, linkFolder]);
 
+  // Rebuild the KB semantic index from scratch for the current scope: "view"
+  // rebuilds the project's KB, "global" rebuilds the whole global KB. The
+  // scoped `kbRoot` is passed to the backend, which wipes and re-embeds all
+  // chunks under that root's `.atlas/knowledge-index/`.
+  const handleRebuildIndex = useCallback(async () => {
+    if (!kbRoot || rebuildingIndex) return;
+    setRebuildingIndex(true);
+    try {
+      const res = await invoke<{ notes: number; chunks_indexed: number }>(
+        "knowledge_rebuild_index",
+        { projectPath: kbRoot },
+      );
+      const target = scope === "global" ? "global knowledge" : "project knowledge";
+      toast.success(
+        `Rebuilt ${target} index — ${res.chunks_indexed} chunk${res.chunks_indexed === 1 ? "" : "s"} from ${res.notes} note${res.notes === 1 ? "" : "s"}`,
+      );
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.startsWith("model_not_downloaded")) {
+        toast.error(
+          "Rebuild failed: embedding model not downloaded. Get it from the Models panel first.",
+        );
+      } else {
+        toast.error(`Rebuild failed: ${msg}`);
+      }
+    } finally {
+      setRebuildingIndex(false);
+    }
+  }, [kbRoot, scope, rebuildingIndex]);
+
   const handleUnlinkFolder = useCallback(
     async (name: string) => {
       if (!kbRoot) return;
@@ -567,6 +598,8 @@ export function KnowledgePanel() {
             onNewNote={() => void handleNewNote()}
             onImportFiles={handleImportFiles}
             onImportFolder={handleImportFolder}
+            onRebuildIndex={() => void handleRebuildIndex()}
+            rebuildingIndex={rebuildingIndex}
             sources={sources}
             onUnlinkSource={handleUnlinkFolder}
             onOpenGraph={() =>
