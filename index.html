@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" style="background:transparent;color-scheme:dark">
+<html lang="en" style="color-scheme:dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -64,17 +64,10 @@
          Reproduce without a build: serve `dist/` behind a CSP whose style-src
          carries any nonce alongside 'unsafe-inline'. -->
     <style>
-      /* html / body / #root are transparent so the NSVisualEffectView blur
-         applied in `src-tauri/src/lib.rs` is visible during the brief
-         window between the OS showing the window and React's first paint.
-         Without this the WKWebView's default opaque-white background sits
-         on top of our blurred window and we see a white flash.
-         The boot skeleton (`.atlas-boot`) is opaque (#050505, or white in
-         light mode) and the real app's `AppLayout` is opaque `bg-bg-base`,
-         so the vibrancy is only ever visible for that brief pre-paint
-         moment. */
+      /* Paint layout gaps with the theme, not the native black window backing.
+         This unlayered rule overrides the base layer in globals.css. */
       html, body, #root {
-        background: transparent;
+        background: var(--bg-base);
         margin: 0;
         padding: 0;
         height: 100%;
@@ -239,7 +232,7 @@
       :root[data-mode="light"] .atlas-window-border { border-color: rgba(0, 0, 0, 0.12); }
     </style>
   </head>
-  <body style="background:transparent">
+  <body>
     <div id="root">
       <div class="atlas-boot" aria-hidden="true">
         <div class="atlas-boot-titlebar"></div>

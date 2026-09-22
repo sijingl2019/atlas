@@ -15,7 +15,7 @@
 | Markdown 导出 | `pulldown-cmark` | Markdown 转 HTML |
 | HTML 清理 | `ammonia` | 仅用于 `fetch_readable`，当前未用于导出 |
 | mention 排序 | `nucleo_matcher` | 标题和目录模糊匹配 |
-| 语义索引 | MiniLM + usearch HNSW | 本地语义检索 |
+| 语义索引 | bge-small-zh-v1.5（本地 embedding）+ usearch HNSW | 离线语义召回 |
 
 ## 2. 代码地图
 
@@ -27,7 +27,7 @@ src/features/knowledge/
 │   ├── knowledge-panel.tsx       # 总装、保存生命周期、项目切换保护
 │   ├── knowledge-sidebar.tsx     # Recents、树、仓库、导入入口
 │   ├── knowledge-tree.tsx        # 目录构造和虚拟列表
-│   ├── knowledge-finder.tsx      # 标题子串搜索
+│   ├── knowledge-finder.tsx      # 标题搜索 + 本地语义召回（Ctrl/Cmd+F、Ctrl/Cmd+Alt+F）
 │   ├── knowledge-inspector.tsx   # Outline、Backlinks、页面统计
 │   ├── knowledge-graph.tsx       # Pixi/Matter 关系图
 │   ├── page-properties.tsx       # status/owner/tags/time/reference
@@ -106,6 +106,8 @@ interface KnowledgeMetaFile {
     icon?: string;
     cover?: string;
     title?: string;
+    /** "paragraph"（默认）| "whole"，控制本地 embedding 分块 */
+    chunk_mode?: "paragraph" | "whole";
     status?: string;
     tags?: string[];
     owner?: string;
@@ -222,6 +224,14 @@ Rust 使用 `#[serde(rename_all = "camelCase")]` 输出图相关结构。`edges`
 | `knowledge_export_workspace_html` | `index.html` + 每页平铺 HTML |
 | `knowledge_export_server` | 内嵌静态页面的本地 Server 可执行文件 |
 
+### 4.6 本地语义召回
+
+| 命令 | 输入 | 输出 | 说明 |
+|---|---|---|---|
+| `knowledge_recall` | `projectPath, query, limit?` | `KnowledgeRecallHit[]` | 用本地 embedding 模型对 KB 做语义召回；缺模型时返回 `model_not_downloaded: <id>` |
+
+`KnowledgeRecallHit` 为 camelCase：`{ entryId, title, snippet, source, score }`。命令每次调用重新扫描 KB，索引写入 `<project>/.atlas/knowledge-index/`，与 Agent 记忆索引分离；query 少于 2 字符直接返回空。
+
 ## 5. 前端状态与生命周期
 
 ### 5.1 `knowledge-store`
@@ -244,7 +254,8 @@ Rust 使用 `#[serde(rename_all = "camelCase")]` 输出图相关结构。`edges`
 - 对 patch 先乐观合并；
 - Rust 调用失败则恢复旧 `pages`；
 - 收到 meta event 后重新 hydrate；
-- 标题或图标变化后重新发布 mention cache。
+- 标题或图标变化后重新发布 mention cache；
+- `chunkMode`（`paragraph` / `whole`）随 patch 一起写入 `_meta.json` 的 `chunk_mode`，缺省视为 `paragraph`。
 
 Store 使用模块级 `unlisten`，这表示它是单绑定实例，不适合在同一 webview 内同时挂两个不同项目的 KnowledgePanel。
 
@@ -378,6 +389,8 @@ CorpusDoc {
 
 内容哈希让未改变的条目不重新 embedding，已删除 ID 会从索引删除。embedding 模型 ID 或维度变化时整库 reset 后重建。
 
+本地召回默认按 Markdown 空行段落分块（`ChunkMode::Paragraph`）：小段合并到约 400 字符，长段按中英文句末切分，相邻块保留约 48 字符 overlap；chunk id 由 `<entry-id>#<内容哈希>` 生成，内容相同则追加序号，保证增量 embedding 稳定。可在页面属性把单条笔记切到 `whole`（整篇一个向量），选择记录在 `_meta.json` 的 `chunk_mode` 字段。
+
 ### 9.2 触发和锁
 
 首次 `MemoryRegistry::engine_for(cwd)`：
@@ -401,13 +414,13 @@ await invoke("force_reindex", { cwd: projectPath });
 
 现有前端封装位于 `src/features/settings/lib/models-api.ts` 的 `models.reindex(cwd)`。命令只负责打开 engine 并把 `IndexCorpus` 放入后台队列，返回成功不等于 embedding 已经完成；实际结果应结合 `atlas::memory_indexer` 日志判断。
 
-默认 embedding 模型是 `all-MiniLM-L6-v2`（约 90 MiB、384 维）。用户入口是 **Settings → Local Models**，选择模型后点击下载并设为当前模型。开发时可以执行：
+默认 embedding 模型是 `bge-small-zh-v1.5`（约 97 MB、512 维，中文检索）。用户入口是 **Settings → Local Models**，选择模型后点击下载并设为当前模型。开发时可以执行：
 
 ```ts
 const list = await invoke<Array<{ id: string; downloaded: boolean; selected: boolean }>>(
   "models_list",
 );
-await invoke("model_download", { id: "all-MiniLM-L6-v2" });
+await invoke("model_download", { id: "bge-small-zh-v1.5" });
 ```
 
 `model_download` 同样只启动后台下载，应监听 `atlas:model-download:done`。模型保存在 Tauri `app_data_dir()/models/<model-id>/`；当前 embedding 模型至少需要 `config.json`、`tokenizer.json` 和 `model.safetensors`。`memory_embed_status` 可返回当前模型 ID、实际目录和 `downloaded` 状态。
@@ -421,6 +434,8 @@ await invoke("model_download", { id: "all-MiniLM-L6-v2" });
 - Jaccard ≥ 0.8 的后续片段视为重复；
 - 自动注入最多约 1400 字符，每条最多 320 字符；
 - 整个检索最多 6 秒。
+
+以上权重适用于 Agent 记忆检索（graph + embedding 混合）。知识库的 `knowledge_recall` 走独立路径：索引放在 `<project>/.atlas/knowledge-index/`，只调用 `retrieve_embeddings`（纯 embedding，不混 graph/global），每次调用重新扫描 KB 并做 chunk 级增量 embedding，阈值和去重规则同上；同一笔记的多个 chunk 在返回前按 `entryId` 聚合成最佳一条。标题搜索不依赖模型，模型缺失时语义模式返回 `model_not_downloaded: <id>` 并引导到 Settings → Local Models 下载。
 
 ## 10. 导出实现细节
 

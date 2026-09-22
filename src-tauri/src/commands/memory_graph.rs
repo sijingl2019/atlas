@@ -5,7 +5,7 @@
 //! build a similarity graph (kNN edges) augmented with explicit `[[wikilink]]`
 //! edges → answer natural-language queries by embedding the query and ranking.
 //!
-//! The model (`all-MiniLM-L6-v2`, ~90 MB) is downloaded on demand into the
+//! The model (`bge-small-zh-v1.5`, ~97 MB) is downloaded on demand into the
 //! global app-data dir; the per-project vector index lives in `.atlas/`.
 
 use std::path::PathBuf;

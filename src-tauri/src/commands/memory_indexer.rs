@@ -22,7 +22,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
-use atlas_memory::{CorpusDoc, MemoryEngine, MiniLmProvider};
+use atlas_memory::{ChunkMode, CorpusDoc, MemoryEngine, MiniLmProvider};
 use dashmap::DashMap;
 use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Manager, State};
@@ -622,6 +622,7 @@ fn to_corpus_doc(doc: &MemoryDoc) -> CorpusDoc {
         text,
         content_hash,
         corpus: doc.source.clone(),
+        chunk_mode: ChunkMode::Whole,
     }
 }
 

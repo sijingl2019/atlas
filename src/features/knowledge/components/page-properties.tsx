@@ -6,6 +6,7 @@ import {
   Calendar,
   Clock,
   Link as LinkIcon,
+  AlignLeft,
   X,
   Plus,
   ChevronRight,
@@ -125,6 +126,28 @@ export function PageProperties({
           </Row>
           <Row icon={Tag} label="Tags">
             <TagsEditor tags={meta.tags ?? []} onChange={(tags) => patch(entryId, { tags })} />
+          </Row>
+          <Row icon={AlignLeft} label="Chunking">
+            <select
+              value={meta.chunkMode ?? "paragraph"}
+              onChange={(e) =>
+                patch(entryId, {
+                  chunkMode: e.target.value as "paragraph" | "whole",
+                })
+              }
+              style={{
+                background: "transparent",
+                border: 0,
+                outline: "none",
+                color: "var(--text-secondary)",
+                fontSize: 12.5,
+                cursor: "pointer",
+                padding: 0,
+              }}
+            >
+              <option value="paragraph">Paragraph (default)</option>
+              <option value="whole">Whole note</option>
+            </select>
           </Row>
           <Row icon={Calendar} label="Created">
             <span style={{ color: "var(--text-secondary)" }}>

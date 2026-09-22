@@ -29,7 +29,7 @@ import {
 } from "@/features/editor-notion/lib/outline";
 import type { Editor } from "@tiptap/core";
 import { KnowledgeSidebar } from "./knowledge-sidebar";
-import { KnowledgeFinder } from "./knowledge-finder";
+import { KnowledgeFinder, type FinderMode } from "./knowledge-finder";
 import { EditorTopbar } from "./editor-topbar";
 import { EditorFooter } from "./editor-footer";
 import { KnowledgeInspector } from "./knowledge-inspector";
@@ -68,6 +68,7 @@ export function KnowledgePanel() {
   const rootRef = useRef<HTMLDivElement>(null);
   const [isDirty, setIsDirty] = useState(false);
   const [finderOpen, setFinderOpen] = useState(false);
+  const [finderMode, setFinderMode] = useState<FinderMode>("title");
   const [activeRepoName, setActiveRepoName] = useState<string | null>(null);
   const [repoReadme, setRepoReadme] = useState<string | null>(null);
   const [clonedRepos, setClonedRepos] = useState<
@@ -285,7 +286,14 @@ export function KnowledgePanel() {
     requireFocusWithin: true,
     capture: false,
     handlers: {
-      "kb.focusFinder": () => setFinderOpen(true),
+      "kb.focusFinder": () => {
+        setFinderMode("title");
+        setFinderOpen(true);
+      },
+      "kb.semanticFinder": () => {
+        setFinderMode("semantic");
+        setFinderOpen(true);
+      },
     },
   });
 
@@ -538,6 +546,8 @@ export function KnowledgePanel() {
       {finderOpen && (
         <KnowledgeFinder
           entries={sidebarEntries}
+          mode={finderMode}
+          kbRoot={kbRoot}
           onSelect={(id) => void handleSelectEntry(id)}
           onClose={() => setFinderOpen(false)}
         />

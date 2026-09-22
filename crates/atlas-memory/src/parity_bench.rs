@@ -70,18 +70,24 @@ fn retrieved_doc_maps_cleanly_onto_memdoc() {
     let docs = vec![
         RetrievedDoc {
             id: "claude::auth-001".into(),
+            parent_id: "claude::auth-001".into(),
+            chunk_index: 0,
             title: "Auth strategy".into(),
             source: "claude".into(),
             text: "Project uses Better Auth with DB-backed sessions.".into(),
         },
         RetrievedDoc {
             id: "graph::00ff".into(),
+            parent_id: "graph::00ff".into(),
+            chunk_index: 0,
             title: "Decision: usearch over brute-force".into(),
             source: "graph".into(),
             text: "HNSW replaces O(n) cosine as the live recall path.".into(),
         },
         RetrievedDoc {
             id: "global::beef".into(),
+            parent_id: "global::beef".into(),
+            chunk_index: 0,
             title: "User preference".into(),
             source: "global".into(),
             text: "Prefers conventional-commit messages, no AI co-author trailer.".into(),
@@ -132,7 +138,7 @@ fn retrieve_signature_has_no_agent_parameter() {
 /// maps cleanly onto `MemDoc`.
 #[test]
 fn retrieve_is_agent_agnostic_and_well_formed_when_model_available() {
-    use crate::{CorpusDoc, MemoryEngine, MiniLmProvider};
+    use crate::{ChunkMode, CorpusDoc, MemoryEngine, MiniLmProvider};
     use std::sync::Arc;
 
     let Some(model) = find_model_dir() else {
@@ -155,18 +161,21 @@ fn retrieve_is_agent_agnostic_and_well_formed_when_model_available() {
             text: "Auth: the project uses Better Auth with database-backed sessions.".into(),
             content_hash: "h1".into(),
             corpus: "claude".into(),
+            chunk_mode: ChunkMode::Whole,
         },
         CorpusDoc {
             id: "d2".into(),
             text: "Indexing: a background MemoryIndexer rebuilds the HNSW off the chat turn.".into(),
             content_hash: "h2".into(),
             corpus: "codebase".into(),
+            chunk_mode: ChunkMode::Whole,
         },
         CorpusDoc {
             id: "d3".into(),
             text: "Retrieval fuses usearch HNSW (primary) with graph memory via RRF.".into(),
             content_hash: "h3".into(),
             corpus: "codebase".into(),
+            chunk_mode: ChunkMode::Whole,
         },
     ];
     rt.block_on(engine.index_corpus(&corpus, &provider)).unwrap();

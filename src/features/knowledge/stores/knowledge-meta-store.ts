@@ -3,10 +3,14 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { createSelectors } from "@/lib/create-selectors";
 
+export type ChunkMode = "paragraph" | "whole";
+
 export interface PageMeta {
   icon?: string | null;
   cover?: string | null;
   title?: string | null;
+  /** Local-embedding chunking for this note. Absent means "paragraph". */
+  chunkMode?: ChunkMode | null;
   status?: string | null;
   tags?: string[];
   owner?: string | null;
@@ -18,6 +22,7 @@ export interface PageMetaPatch {
   icon?: string | null;
   cover?: string | null;
   title?: string | null;
+  chunkMode?: ChunkMode | null;
   status?: string | null;
   tags?: string[];
   owner?: string | null;
@@ -32,6 +37,7 @@ interface RustPageMeta {
   icon?: string | null;
   cover?: string | null;
   title?: string | null;
+  chunk_mode?: ChunkMode | null;
   status?: string | null;
   tags?: string[];
   owner?: string | null;
@@ -44,6 +50,7 @@ function fromRust(m: RustPageMeta): PageMeta {
     icon: m.icon ?? null,
     cover: m.cover ?? null,
     title: m.title ?? null,
+    chunkMode: m.chunk_mode ?? "paragraph",
     status: m.status ?? null,
     tags: m.tags ?? [],
     owner: m.owner ?? null,
@@ -146,6 +153,7 @@ const store = create<KnowledgeMetaState>()((set, get) => ({
         ...(patch.icon !== undefined ? { icon: patch.icon } : {}),
         ...(patch.cover !== undefined ? { cover: patch.cover } : {}),
         ...(patch.title !== undefined ? { title: patch.title } : {}),
+        ...(patch.chunkMode !== undefined ? { chunkMode: patch.chunkMode } : {}),
         ...(patch.status !== undefined ? { status: patch.status } : {}),
         ...(patch.tags !== undefined ? { tags: patch.tags } : {}),
         ...(patch.owner !== undefined ? { owner: patch.owner } : {}),
@@ -201,6 +209,7 @@ function toRustPatch(p: PageMetaPatch): Record<string, unknown> {
   if (p.icon !== undefined) out.icon = p.icon;
   if (p.cover !== undefined) out.cover = p.cover;
   if (p.title !== undefined) out.title = p.title;
+  if (p.chunkMode !== undefined) out.chunk_mode = p.chunkMode;
   if (p.status !== undefined) out.status = p.status;
   if (p.tags !== undefined) out.tags = p.tags;
   if (p.owner !== undefined) out.owner = p.owner;

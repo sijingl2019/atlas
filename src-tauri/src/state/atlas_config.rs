@@ -281,7 +281,7 @@ pub fn default_code_editor_theme_light() -> String {
 }
 
 pub fn default_embedding_model() -> String {
-    "all-MiniLM-L6-v2".to_string()
+    "bge-small-zh-v1.5".to_string()
 }
 
 /// The native agent (see `NATIVE_AGENT_ID` in `src/types/agent.ts`): in
@@ -429,7 +429,7 @@ const SETTINGS_DOCS: &[(&str, &str)] = &[
         "embeddingModelId",
         "# On-device embedding model, named by its directory. Normally managed\n\
          # for you by the Local Model Manager. Must not be empty.\n\
-         # (default: \"all-MiniLM-L6-v2\")",
+         # (default: \"bge-small-zh-v1.5\")",
     ),
     (
         "codeEditorTheme",

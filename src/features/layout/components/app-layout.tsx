@@ -116,10 +116,10 @@ export function AppLayout() {
             </Panel>
             <Separator
               className={cn(
-                "w-px bg-border-default hover:bg-accent data-[separator=active]:bg-accent transition-colors cursor-col-resize",
+                "bg-border-default hover:bg-accent data-[separator=active]:bg-accent transition-colors cursor-col-resize",
                 // Kept in the tree (removing it would re-derive the layout, the
                 // very thing we're avoiding) but inert while collapsed.
-                !showLeft && "pointer-events-none invisible",
+                showLeft ? "w-px" : "w-0 pointer-events-none invisible",
               )}
             />
 
