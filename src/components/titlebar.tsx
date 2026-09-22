@@ -18,6 +18,7 @@ import {
   PanelLeft,
   PanelRight,
   Bell,
+  Settings,
   Layers,
   ArrowDownToLine,
   Loader2,
@@ -41,6 +42,7 @@ import { StatusDot } from "@/features/capture/components/capture-status";
 import type { Binding, CaptureHealth } from "@/features/capture/types";
 import { activeWorkspaceId } from "@/features/workspaces/lib/active-workspace";
 import { useActiveOrgWorkspaces } from "@/features/workspaces/lib/org-scope";
+import { openSettingsSection } from "@/features/settings/lib/open-settings";
 import { isDev } from "@/lib/env";
 import { isMac, isWindows as isWindowsPlatform } from "@/lib/platform";
 
@@ -245,10 +247,11 @@ function WindowControls({
 function ActionDock() {
   const update = useUpdateItem();
   const notifications = useNotificationItem();
+  const settings = useSettingsItem();
   const rightPanel = useRightPanelItem();
   return (
     <TitlebarDock
-      items={[update, notifications, rightPanel]}
+      items={[update, notifications, settings, rightPanel]}
       trailing={{
         label: "Account and settings",
         node: <AccountButton compact />,
@@ -604,6 +607,18 @@ function useNotificationItem(): DockItem {
           label={needsAttention ? "Something needs your attention" : "Unread notifications"}
         />
       ) : undefined,
+  };
+}
+
+/**
+ * Opens the Settings tab on General. Promoted from the account menu to
+ * its own dock icon -- one click rather than a menu hop.
+ */
+function useSettingsItem(): DockItem {
+  return {
+    label: "Settings",
+    onClick: () => openSettingsSection("general"),
+    icon: <Settings size={12} />,
   };
 }
 

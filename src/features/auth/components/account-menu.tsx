@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { Keyboard, LayoutTemplate, LogIn, LogOut, Palette, Settings, Zap } from "lucide-react";
+import { Keyboard, LayoutTemplate, LogIn, LogOut, Palette, Zap } from "lucide-react";
 import { toast } from "sonner";
 
 import { KbdCombo } from "@/ui/kbd";
@@ -21,11 +21,10 @@ import { AccountAvatar } from "./account-avatar";
  */
 const ITEMS: Array<{
   label: string;
-  icon: typeof Settings;
+  icon: typeof Keyboard;
   section: SettingsSection;
   shortcut?: string;
 }> = [
-  { label: "Settings", icon: Settings, section: "general", shortcut: "⌘," },
   { label: "Keybindings", icon: Keyboard, section: "keybindings" },
   { label: "Themes", icon: Palette, section: "appearance" },
   { label: "Skills", icon: Zap, section: "skills" },
