@@ -70,7 +70,8 @@ import { useFullscreen } from "@/hooks/use-fullscreen";
 import { isMac } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 import { GitDot, NumStatPill } from "./git-summary";
-import { pickAndAddWorkspace } from "../lib/pick-workspace";
+import { useProjectDialogStore } from "../lib/project-dialog";
+import { ProjectGlyph } from "./project-glyph";
 import { agentTypeFromPluginId } from "@/types/agent";
 
 // Slot heights (include the inter-row gap so the virtualizer spaces rows out);
@@ -124,6 +125,7 @@ const WorkspaceRow = memo(function WorkspaceRow({
     beginRenameWorkspace,
     endRenameWorkspace,
   } = useWorkspaceStore.use.actions();
+  const { openEdit } = useProjectDialogStore.use.actions();
   // Inline-rename lives in the store (like group rename) so it survives the
   // virtualized row remounting. The name shown is the user-chosen workspace
   // label (defaults to the directory name) — renaming only relabels the row,
@@ -185,11 +187,7 @@ const WorkspaceRow = memo(function WorkspaceRow({
       )}
       title={ws.path}
     >
-      {expanded ? (
-        <FolderOpen size={13} className="shrink-0 text-[var(--text-tertiary)]" />
-      ) : (
-        <Folder size={13} className="shrink-0 text-[var(--text-tertiary)]" />
-      )}
+      <ProjectGlyph icon={ws.icon} color={ws.color} size={13} />
       <GitDot summary={summary} className="size-1.5" />
       {/* `pr-20` clears the right slot (pill at rest, actions on hover) on both
           lines, so neither can run under it. */}
@@ -300,10 +298,10 @@ const WorkspaceRow = memo(function WorkspaceRow({
                 className="z-[var(--z-max)] min-w-[148px] rounded-md border border-[var(--border-default)] bg-bg-base py-0.5 shadow-[var(--shadow-overlay)] text-[11px] text-[var(--text-secondary)]"
               >
                 <DropdownMenu.Item
-                  onSelect={() => beginRenameWorkspace(ws.id)}
+                  onSelect={() => openEdit(ws.id)}
                   className="px-2.5 h-6 flex items-center gap-1.5 outline-none hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] cursor-default"
                 >
-                  <Pencil size={11} /> Rename
+                  <Pencil size={11} /> Edit
                 </DropdownMenu.Item>
                 <DropdownMenu.Item
                   onSelect={() => {
@@ -519,6 +517,7 @@ const SectionHeaderRow = memo(function SectionHeaderRow({
   clearable?: boolean;
   onClear?: (id: string) => void;
 }) {
+  const { openCreate } = useProjectDialogStore.use.actions();
   return (
     // Sentence case, bold, in the secondary weight, with a small disclosure
     // AFTER the label. The slot is taller than the row: the extra is the gap
@@ -550,7 +549,7 @@ const SectionHeaderRow = memo(function SectionHeaderRow({
             type="button"
             onClick={(event) => {
               event.stopPropagation();
-              void pickAndAddWorkspace();
+              openCreate();
             }}
             title="New Project"
             aria-label="New Project"

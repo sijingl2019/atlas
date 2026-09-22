@@ -66,6 +66,11 @@ export interface Workspace {
    *  server (`workspace_refs.git_url`) for one-click clone. */
   gitUrl?: string;
   color?: string;
+  /** Optional glyph: a key into `PROJECT_ICON_MAP` (a lucide icon) OR a raw
+   *  emoji character the user picked. Persisted verbatim through
+   *  `state.json`; an unknown key falls back to the plain folder glyph at
+   *  render time (see `lib/project-icons.ts`). */
+  icon?: string;
   /** Pinned to the top of the sidebar + prioritized to stay in the hot set. */
   pinned?: boolean;
   /** ISO-8601 of the last time this was the active workspace. */
@@ -140,6 +145,12 @@ interface WorkspaceState {
     unpin: (id: string) => void;
     setColor: (id: string, color: string | null) => void;
     rename: (id: string, name: string) => void;
+    /** Patch a workspace's editable metadata (name / folder / icon / colour)
+     *  in one shot. Backs the Edit-project dialog. */
+    updateWorkspace: (
+      id: string,
+      patch: Partial<Pick<Workspace, "name" | "path" | "icon" | "color">>,
+    ) => void;
     /** Enter inline-rename for a workspace row. */
     beginRenameWorkspace: (id: string) => void;
     /** Leave workspace inline-rename (commit or cancel). */
@@ -583,6 +594,12 @@ export const useWorkspaceStore = createSelectors(
       rename: (id, name) => {
         set((s) => ({
           workspaces: s.workspaces.map((w) => (w.id === id ? { ...w, name } : w)),
+        }));
+        scheduleAppStateSave();
+      },
+      updateWorkspace: (id, patch) => {
+        set((s) => ({
+          workspaces: s.workspaces.map((w) => (w.id === id ? { ...w, ...patch } : w)),
         }));
         scheduleAppStateSave();
       },

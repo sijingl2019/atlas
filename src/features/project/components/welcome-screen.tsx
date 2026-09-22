@@ -1,5 +1,6 @@
 import { useProjectStore } from "../stores/project-store";
 import { useActionShortcut } from "@/features/keybindings/lib/use-action-shortcut";
+import { useProjectDialogStore } from "@/features/workspaces/lib/project-dialog";
 import { FolderOpen, Clock, X, Folder } from "lucide-react";
 import { AtlasIcon } from "@/components/atlas-icon";
 
@@ -7,18 +8,7 @@ export function WelcomeScreen() {
   const paletteHint = useActionShortcut("nav.commandPalette")?.label ?? "⌘K";
   const recentProjects = useProjectStore.use.recentProjects();
   const { openProject, removeRecent } = useProjectStore.use.actions();
-
-  const handleOpenFolder = async () => {
-    try {
-      const { open } = await import("@tauri-apps/plugin-dialog");
-      const selected = await open({ directory: true });
-      if (selected) {
-        openProject(selected as string);
-      }
-    } catch {
-      // dialog not available
-    }
-  };
+  const { openCreate } = useProjectDialogStore.use.actions();
 
   return (
     <div className="h-full flex items-center justify-center bg-bg-base">
@@ -32,7 +22,7 @@ export function WelcomeScreen() {
 
         {/* Primary action */}
         <button
-          onClick={handleOpenFolder}
+          onClick={() => openCreate()}
           className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md border border-[var(--border-default)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] hover:border-[var(--border-strong)] transition-colors text-left group"
         >
           <FolderOpen size={14} className="text-[var(--accent-primary)] shrink-0" />

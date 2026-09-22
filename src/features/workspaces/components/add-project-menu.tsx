@@ -12,12 +12,13 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Ellipsis, Folder, FolderOpen, Search, Trash2 } from "lucide-react";
 import { useProjectStore } from "@/features/project/stores/project-store";
 import { useWorkspaceStore } from "../stores/workspace-store";
-import { pickAndAddWorkspace } from "../lib/pick-workspace";
+import { useProjectDialogStore } from "../lib/project-dialog";
 
 export function AddProjectMenu() {
   const { addWorkspace } = useWorkspaceStore.use.actions();
   const recentProjects = useProjectStore.use.recentProjects();
   const { clearRecents } = useProjectStore.use.actions();
+  const { openCreate } = useProjectDialogStore.use.actions();
   const [query, setQuery] = useState("");
   const filtered = recentProjects.filter(
     (p) =>
@@ -48,7 +49,7 @@ export function AddProjectMenu() {
           className="z-[var(--z-max)] w-[280px] max-h-[360px] rounded-lg border border-[var(--border-default)] bg-bg-base shadow-xl text-[var(--text-secondary)] flex flex-col overflow-hidden"
         >
           <DropdownMenu.Item
-            onSelect={() => void pickAndAddWorkspace()}
+            onSelect={() => openCreate()}
             className="w-full flex items-center gap-2 px-3 h-[28px] text-[11px] outline-none hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] cursor-default shrink-0"
           >
             <FolderOpen size={13} className="text-[var(--text-tertiary)] shrink-0" />

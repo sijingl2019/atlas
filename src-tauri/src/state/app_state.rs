@@ -65,6 +65,11 @@ pub struct Workspace {
     pub org_id: Option<String>,
     #[serde(default)]
     pub color: Option<String>,
+    /// Optional project glyph: either a key into the frontend `PROJECT_ICON_MAP`
+    /// (a lucide icon) or a raw emoji character. Opaque to Rust - round-tripped
+    /// verbatim so the sidebar can render it.
+    #[serde(default)]
+    pub icon: Option<String>,
     /// Optional git remote. The ONLY field (besides id/name) that syncs to the
     /// server (`workspace_refs.git_url`) for one-click clone; the source tree
     /// itself never syncs. `None` for local-only projects.
@@ -261,6 +266,7 @@ impl AppState {
                     group_id: None,
                     org_id: None,
                     color: None,
+                    icon: None,
                     git_url: None,
                     last_active_at: None,
                 });

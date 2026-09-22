@@ -34,7 +34,7 @@ import {
 } from "@/features/file-picker/lib/file-picker-api";
 import { activeWorkspaceId } from "@/features/workspaces/lib/active-workspace";
 import { useWorkspaceStore } from "@/features/workspaces/stores/workspace-store";
-import { pickAndAddWorkspace } from "@/features/workspaces/lib/pick-workspace";
+import { useProjectDialogStore } from "@/features/workspaces/lib/project-dialog";
 import { flushAll } from "@/features/workspaces/lib/flush-registry";
 import { captureSnapshot } from "@/features/workspaces/lib/workspace-snapshot";
 import { useExplorerStore } from "@/features/explorer/stores/explorer-store";
@@ -71,6 +71,7 @@ import { FeedbackPanel } from "@/features/feedback/components/feedback-panel";
 import { UpdateAvailableModal } from "@/features/updater/components/update-available-modal";
 import { LoadingOrganisationOverlay } from "@/features/organisations/components/loading-organisation-overlay";
 import { StopAgentsDialog } from "@/features/workspaces/components/stop-agents-dialog";
+import { ProjectDialog } from "@/features/workspaces/components/project-dialog";
 import { RemoveAgentDialog } from "@/features/agents/components/remove-agent-dialog";
 import { useOrgStore } from "@/features/organisations/stores/org-store";
 import {
@@ -1286,7 +1287,7 @@ export function App() {
     // this window (Atlas is single-window now; this replaces the old
     // "open a new native window" behaviour).
     "workspace.add": () => {
-      void pickAndAddWorkspace();
+      useProjectDialogStore.getState().actions.openCreate();
     },
     // ⌘⇧. — toggle the Arc-like workspace sidebar. (⌘. alone is the macOS
     // system "Cancel" chord and gets swallowed before reaching the webview.)
@@ -1429,6 +1430,7 @@ export function App() {
       <ConnectDialog />
       <LoadingOrganisationOverlay />
       <StopAgentsDialog />
+      <ProjectDialog />
       <RemoveAgentDialog />
       <BrowserOverlayWatcher />
       <Toaster
