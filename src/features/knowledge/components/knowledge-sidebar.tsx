@@ -13,7 +13,7 @@ import {
   UnfoldVertical,
   ChevronDown,
   ChevronRight,
-  Download,
+  MoreHorizontal,
   FileText,
   Folder,
 } from "lucide-react";
@@ -198,7 +198,7 @@ export function KnowledgeSidebar({
               title="Import notes / link folder"
               style={{ width: 22, height: 22 }}
             >
-              <Download size={12} />
+              <MoreHorizontal size={12} />
             </button>
           </DropdownMenu.Trigger>
           <DropdownMenu.Portal>
