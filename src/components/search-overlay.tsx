@@ -6,7 +6,24 @@ import { useExplorerStore } from "@/features/explorer/stores/explorer-store";
 import { useLayoutStore } from "@/features/layout/stores/layout-store";
 import { useSessionStore } from "@/features/project/stores/session-store";
 import { useProjectStore } from "@/features/project/stores/project-store";
-import { Search, FileCode, Clock, X } from "lucide-react";
+import { Search, FileCode, Clock, X, BookOpen } from "lucide-react";
+import { useKbRoot } from "@/features/knowledge/lib/kb-root";
+import { useKnowledgeStore } from "@/features/knowledge/stores/knowledge-store";
+
+interface KnowledgeEntry {
+  id: string;
+  title: string;
+  content: string;
+  source: string;
+  file_path: string;
+}
+
+interface KnowledgeResult {
+  entryId: string;
+  title: string;
+  snippet: string;
+  source: string;
+}
 
 interface SearchResult {
   file_path: string;
@@ -25,6 +42,7 @@ export function SearchOverlay({
 }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
+  const [knowledgeResults, setKnowledgeResults] = useState<KnowledgeResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -35,20 +53,64 @@ export function SearchOverlay({
   const { addSearchHistory, removeSearchHistory, clearSearchHistory, saveSession } =
     useSessionStore.use.actions();
   const currentProject = useProjectStore.use.currentProject();
+  const kbRoot = useKbRoot();
 
   useEffect(() => {
     if (!open) {
       setQuery("");
       setResults([]);
+      setKnowledgeResults([]);
       setSelectedIndex(0);
       setHasSearched(false);
     }
   }, [open]);
 
   const performSearch = async (searchQuery: string) => {
-    if (!searchQuery.trim() || !rootPath) return;
+    if (!searchQuery.trim()) return;
     setSearching(true);
     setHasSearched(true);
+
+    const needle = searchQuery.trim().toLowerCase();
+    if (kbRoot) {
+      try {
+        const entries = await invoke<KnowledgeEntry[]>("list_knowledge", {
+          projectPath: kbRoot,
+        });
+        setKnowledgeResults(
+          entries
+            .filter((entry) => entry.source !== "file")
+            .filter((entry) => {
+              const heading = entry.content.match(/^#\s+(.+)$/m)?.[1] ?? "";
+              return (
+                entry.title.toLowerCase().includes(needle) ||
+                heading.toLowerCase().includes(needle) ||
+                entry.content.toLowerCase().includes(needle)
+              );
+            })
+            .slice(0, 10)
+            .map((entry) => {
+              const content = entry.content.toLowerCase();
+              const heading = entry.content.match(/^#\s+(.+)$/m)?.[1] ?? "";
+              const at = content.indexOf(needle);
+              const text = at === -1 ? entry.content : entry.content.slice(Math.max(0, at - 48));
+              return {
+                entryId: entry.id,
+                title: heading || entry.title,
+                snippet: text,
+                source: entry.file_path,
+              };
+            }),
+        );
+      } catch {
+        setKnowledgeResults([]);
+      }
+    }
+
+    if (!rootPath) {
+      setSearching(false);
+      return;
+    }
+
     try {
       const res = await invoke<SearchResult[]>("search_in_files", {
         path: rootPath,
@@ -63,6 +125,25 @@ export function SearchOverlay({
       setResults([]);
     }
     setSearching(false);
+  };
+
+  const openKnowledgeResult = (result: KnowledgeResult) => {
+    if (!kbRoot) return;
+    void useKnowledgeStore
+      .getState()
+      .actions.loadEntries(kbRoot)
+      .then(() => {
+        useKnowledgeStore.getState().actions.requestOpen(result.entryId);
+      });
+    useLayoutStore.getState().actions.addTab({
+      id: `knowledge-${Date.now()}`,
+      type: "knowledge",
+      title: "Knowledge",
+      closable: true,
+      dirty: false,
+      data: {},
+    });
+    onOpenChange(false);
   };
 
   const openResult = (result: SearchResult) => {
@@ -89,6 +170,8 @@ export function SearchOverlay({
       e.preventDefault();
       if (results.length > 0 && results[selectedIndex]) {
         openResult(results[selectedIndex]);
+      } else if (knowledgeResults.length > 0 && knowledgeResults[selectedIndex]) {
+        openKnowledgeResult(knowledgeResults[selectedIndex]);
       } else {
         performSearch(query);
       }
@@ -120,7 +203,7 @@ export function SearchOverlay({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Search in files..."
+              placeholder="Search files and knowledge..."
               className="flex-1 bg-transparent border-none outline-none text-sm text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)]"
             />
             {searching && (
@@ -185,6 +268,30 @@ export function SearchOverlay({
                 Type to search across all files
               </div>
             )}
+            {knowledgeResults.map((result, i) => (
+              <button
+                key={`knowledge:${result.entryId}`}
+                onClick={() => openKnowledgeResult(result)}
+                onMouseEnter={() => setSelectedIndex(i)}
+                className={cn(
+                  "w-full text-left px-4 py-1.5 transition-colors",
+                  i === selectedIndex ? "bg-[var(--bg-hover)]" : "",
+                )}
+              >
+                <div className="flex items-center gap-2">
+                  <BookOpen size={12} className="text-[var(--text-tertiary)] shrink-0" />
+                  <span className="text-[11px] text-[var(--accent-primary)] truncate">
+                    {result.title}
+                  </span>
+                  <span className="ml-auto text-[10px] text-[var(--text-tertiary)] shrink-0">
+                    Knowledge
+                  </span>
+                </div>
+                <div className="ml-5 text-[11px] text-[var(--text-secondary)] truncate mt-0.5">
+                  {result.snippet.trim()}
+                </div>
+              </button>
+            ))}
             {results.map((result, i) => (
               <button
                 key={`${result.file_path}:${result.line}:${i}`}
