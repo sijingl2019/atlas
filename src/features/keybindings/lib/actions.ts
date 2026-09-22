@@ -218,14 +218,14 @@ export const ACTIONS = [
     title: "Previous tab",
     category: "Tabs",
     when: "global",
-    defaults: ["cmd+shift+["],
+    defaults: ["cmd+shift+[", "ctrl+shift+tab"],
   },
   {
     id: "tabs.next",
     title: "Next tab",
     category: "Tabs",
     when: "global",
-    defaults: ["cmd+shift+]"],
+    defaults: ["cmd+shift+]", "ctrl+tab"],
   },
   ...Array.from({ length: 9 }, (_, i) => focusTab(i + 1)),
   // ── Splits ──
