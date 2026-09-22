@@ -24,7 +24,7 @@ import { MemoryTreeView } from "./memory-tree-view";
 type ViewMode = "graph" | "tree";
 const VIEW_KEY = "atlas-memory-graph-view-mode";
 
-const MODEL_LABEL = "all-MiniLM-L6-v2 · ~90 MB";
+const MODEL_LABEL = "bge-small-zh-v1.5 · ~97 MB";
 
 export function MemoryGraphView() {
   const projectPath = useProjectStore.use.currentProject()?.path ?? null;

@@ -417,6 +417,13 @@ export const ACTIONS = [
     defaults: ["cmd+f"],
   },
   {
+    id: "kb.semanticFinder",
+    title: "Semantic search in Knowledge",
+    category: "Knowledge",
+    when: "knowledgeFocus",
+    defaults: ["cmd+alt+f"],
+  },
+  {
     id: "kb.save",
     title: "Save note",
     category: "Knowledge",

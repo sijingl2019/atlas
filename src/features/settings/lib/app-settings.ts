@@ -151,7 +151,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   uiScale: DEFAULT_SCALE,
   shareTelemetry: true,
   linkTelemetryToAccount: true,
-  embeddingModelId: "all-MiniLM-L6-v2",
+  embeddingModelId: "bge-small-zh-v1.5",
   codeEditorTheme: DEFAULT_EDITOR_THEME_ID,
   atlasTheme: DEFAULT_ATLAS_THEME_ID,
   themeMode: "dark",

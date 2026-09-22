@@ -13,6 +13,7 @@ use commands::fileindex::FileIndexState;
 use commands::git_watcher::GitWatcherState;
 use commands::knowledge_links::KnowledgeLinksState;
 use commands::knowledge_meta::KnowledgeMetaState;
+use commands::knowledge_recall::KnowledgeRecallState;
 use commands::mention_search::MentionCacheState;
 use commands::recent_files::RecentFilesState;
 use commands::terminal::TerminalState;
@@ -339,6 +340,7 @@ pub fn run() {
         .manage(RecentFilesState::new())
         .manage(MentionCacheState::new())
         .manage(Arc::new(KnowledgeMetaState::new()))
+        .manage(Arc::new(KnowledgeRecallState::new()))
         .manage(Arc::new(KnowledgeLinksState::new()))
         .manage(CliLaunchState::new(initial_project))
         .manage(commands::memory_sharing::MemorySharingState::new())
@@ -588,6 +590,7 @@ pub fn run() {
             commands::knowledge::fetch_readable,
             commands::knowledge::knowledge_cover_upload,
             commands::knowledge::knowledge_cover_data_url,
+            commands::knowledge_recall::knowledge_recall,
             commands::knowledge_meta::knowledge_meta_load,
             commands::knowledge_meta::knowledge_meta_patch,
             commands::knowledge_meta::knowledge_meta_delete,

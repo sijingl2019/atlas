@@ -32,7 +32,7 @@ Atlas 知识库是项目级的 Markdown 知识工作区。它同时服务于三�
 
 - 列表、保存、链接分析、导出和语义索引均在本地完成。
 - 正文不依赖账户或网络服务。
-- 本地 MiniLM 模型存在时，笔记才参与语义检索；模型缺失时知识库编辑和显式 mention 仍可使用。
+- 本地 embedding 模型存在时，笔记才参与语义检索；模型缺失时知识库编辑、标题搜索和显式 mention 仍可使用。
 
 ### 2.3 权威状态与 UI 镜像分离
 
@@ -67,7 +67,7 @@ flowchart LR
   CP --> A[任意 Agent]
 
   M --> C[collect_corpus]
-  C --> H[MiniLM + HNSW]
+  C --> H[本地 embedding + HNSW]
   H --> R[相关记忆注入 / search_memory]
   R --> A
 
@@ -285,7 +285,7 @@ text:      Markdown 全文
 file_path: 实际文件路径
 ```
 
-索引器把标题和正文拼接后做 SHA-256 内容哈希，通过本地 MiniLM 生成 384 维向量并写入 usearch HNSW。查询时主要使用向量召回，辅以共享记忆图，采用 RRF 融合和 Jaccard 去重。结果有两个消费路径：
+索引器把标题和正文按段落分块后做内容哈希，通过本地 embedding 模型（默认 bge-small-zh-v1.5，512 维）生成向量并写入 usearch HNSW。查询时主要使用向量召回，辅以共享记忆图，采用 RRF 融合和 Jaccard 去重。结果有两个消费路径：
 
 - 发送消息前自动生成有限长度的 `RELEVANT PROJECT MEMORY` 区块；
 - 原生 Agent 的 `search_memory` 工具主动查询。

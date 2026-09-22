@@ -40,6 +40,7 @@ pub mod knowledge_graph_layout;
 pub mod knowledge_links;
 pub mod keybindings;
 pub mod knowledge_meta;
+pub mod knowledge_recall;
 pub mod log;
 pub mod models_pricing;
 pub mod usage;

@@ -84,6 +84,10 @@ pub struct PageMeta {
     /// derivation. Falls back to filename when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
+    /// How this note is split for local embedding recall. Absent means
+    /// paragraph (the KB default); whole keeps one vector per note.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub chunk_mode: Option<atlas_memory::ChunkMode>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub status: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -108,6 +112,8 @@ pub struct PageMetaPatch {
     #[serde(default, deserialize_with = "double_option")]
     pub title: Option<Option<String>>,
     #[serde(default, deserialize_with = "double_option")]
+    pub chunk_mode: Option<Option<atlas_memory::ChunkMode>>,
+    #[serde(default, deserialize_with = "double_option")]
     pub status: Option<Option<String>>,
     #[serde(default)]
     pub tags: Option<Vec<String>>,
@@ -120,6 +126,7 @@ impl PageMetaPatch {
         if let Some(v) = self.icon { meta.icon = v; }
         if let Some(v) = self.cover { meta.cover = v; }
         if let Some(v) = self.title { meta.title = v; }
+        if let Some(v) = self.chunk_mode { meta.chunk_mode = v; }
         if let Some(v) = self.status { meta.status = v; }
         if let Some(v) = self.tags { meta.tags = v; }
         if let Some(v) = self.owner { meta.owner = v; }
@@ -170,6 +177,13 @@ fn load_from_disk(project_path: &str) -> KnowledgeMetaFile {
         version: 1,
         pages: HashMap::new(),
     })
+}
+
+/// Read the current on-disk metadata without going through the debounced
+/// in-memory snapshot. Used by KB recall/indexing, which must not block on
+/// (or mutate) the metadata writer state.
+pub(crate) fn read_meta_file(project_path: &str) -> KnowledgeMetaFile {
+    load_from_disk(project_path)
 }
 
 fn write_to_disk(project_path: &str, file: &KnowledgeMetaFile) -> Result<(), String> {

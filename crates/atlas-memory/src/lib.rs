@@ -17,6 +17,7 @@ use std::path::PathBuf;
 
 // ─── Modules ─────────────────────────────────────────────────────────────────
 // Step 2 (implemented): provider (MiniLmProvider), store (usearch HNSW), manifest.
+pub mod chunk;
 pub mod manifest;
 pub mod provider;
 pub mod store;
@@ -66,6 +67,7 @@ pub use docstore::{DocStore, DocText};
 pub use extract::{
     category_to_memory_type, extract_and_store, should_extract, ExtractState, TranscriptTurn,
 };
+pub use chunk::{Chunk, ChunkMode};
 pub use manifest::{Diff, Entry, Manifest};
 pub use migrate::{migrate, MigrationOutcome};
 pub use provider::{MiniLmProvider, DIM, PROVIDER_NAME};
@@ -78,6 +80,7 @@ pub use store::HnswStore;
 #[cfg(test)]
 mod parity_bench;
 
+use chunk::chunk_document;
 use embedding::EmbeddingProvider;
 use graph::GraphMemory;
 
@@ -95,6 +98,10 @@ pub struct CorpusDoc {
     pub text: String,
     pub content_hash: String,
     pub corpus: String,
+    /// How the document is split before embedding. Existing agent-memory
+    /// callers pass ChunkMode::Whole to preserve their one-vector-per-doc
+    /// behavior; Knowledge Base callers default to paragraph chunks.
+    pub chunk_mode: ChunkMode,
 }
 
 /// What one [`MemoryEngine::index_corpus`] pass did, for logging / tests.
@@ -115,10 +122,16 @@ pub struct IndexStats {
 /// `MemDoc` at the `MemorySearchFn` boundary.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct RetrievedDoc {
-    /// Stable doc id (the corpus id for embedding hits, a synthetic `graph::…`
-    /// hash for graph-only hits). Carried so the Tauri layer can dedup site-C
-    /// pushes per session; the `MemDoc` seam drops it.
+    /// Stable doc id. For paragraph chunks this is the chunk id; use
+    /// parent_id to group chunks from the same source document.
     pub id: String,
+    /// Original corpus/document id. Empty on old persisted indexes, in which
+    /// case consumers should fall back to id.
+    #[serde(default)]
+    pub parent_id: String,
+    /// Zero-based position of this chunk within its parent document.
+    #[serde(default)]
+    pub chunk_index: usize,
     pub title: String,
     pub source: String,
     pub text: String,
@@ -149,6 +162,17 @@ impl MemoryEngine {
     /// Later steps run legacy migration (Step 3) and load the graph here.
     pub fn open(project_root: PathBuf) -> Self {
         let memory_dir = project_root.join(".atlas").join("memory");
+        Self::open_with_dir(project_root, memory_dir, true)
+    }
+
+    /// Open-or-create an engine at an explicit memory directory without running
+    /// legacy project-memory migration or shared-memory import. Knowledge Base
+    /// recall uses this so its index is fully isolated from agent memory.
+    pub fn open_at_dir(project_root: PathBuf, memory_dir: PathBuf) -> Self {
+        Self::open_with_dir(project_root, memory_dir, false)
+    }
+
+    fn open_with_dir(project_root: PathBuf, memory_dir: PathBuf, migrate_legacy: bool) -> Self {
         let manifest_path = memory_dir.join("manifest.json");
         let hnsw_path = memory_dir.join("hnsw.usearch");
 
@@ -185,6 +209,10 @@ impl MemoryEngine {
             docstore,
             graph,
         };
+
+        if !migrate_legacy {
+            return engine;
+        }
 
         // Step 3: import a legacy `.atlas/memory-index/index.json` (if present)
         // into the HNSW store + manifest with zero re-embedding. Idempotent — a
@@ -304,13 +332,23 @@ impl MemoryEngine {
             );
         }
 
-        let current: Vec<(String, String)> = docs
+        // Flatten parent documents into the actual vectors that will be indexed.
+        // Whole mode preserves the historical one-vector-per-document behavior.
+        let mut chunks: Vec<Chunk> = Vec::new();
+        let mut corpus_by_chunk: HashMap<String, String> = HashMap::new();
+        for doc in docs {
+            for chunk in chunk_document(&doc.id, &doc.text, &doc.content_hash, doc.chunk_mode) {
+                corpus_by_chunk.insert(chunk.id.clone(), doc.corpus.clone());
+                chunks.push(chunk);
+            }
+        }
+
+        let current: Vec<(String, String)> = chunks
             .iter()
-            .map(|d| (d.id.clone(), d.content_hash.clone()))
+            .map(|c| (c.id.clone(), c.content_hash.clone()))
             .collect();
         let diff = self.manifest.diff(&current);
-        let by_id: HashMap<&str, &CorpusDoc> =
-            docs.iter().map(|d| (d.id.as_str(), d)).collect();
+        let by_id: HashMap<&str, &Chunk> = chunks.iter().map(|c| (c.id.as_str(), c)).collect();
 
         let added = diff.add.len();
         let updated = diff.update.len();
@@ -321,9 +359,9 @@ impl MemoryEngine {
         let mut embed_ids: Vec<&str> = Vec::with_capacity(added + updated);
         let mut texts: Vec<String> = Vec::with_capacity(added + updated);
         for id in diff.add.iter().chain(diff.update.iter()) {
-            if let Some(d) = by_id.get(id.as_str()) {
+            if let Some(chunk) = by_id.get(id.as_str()) {
                 embed_ids.push(id.as_str());
-                texts.push(d.text.clone());
+                texts.push(chunk.text.clone());
             }
         }
 
@@ -340,22 +378,26 @@ impl MemoryEngine {
                 );
             }
             for (id, vec) in embed_ids.iter().zip(vecs.iter()) {
-                let Some(doc) = by_id.get(*id) else { continue };
+                let Some(chunk) = by_id.get(*id) else { continue };
                 let key = self.manifest.assign_key(id);
                 // An update reuses the same key; drop any prior vector first so
                 // usearch never keeps a stale embedding alongside the new one.
                 let _ = self.store.remove(key);
                 self.store.add(key, vec)?;
-                self.manifest.upsert(id, &doc.content_hash, &doc.corpus, 0);
-                // Mirror the display text so retrieval can render the doc without
-                // re-gathering the corpus. `corpus` is the source tag; title/body
-                // are recovered from the folded embed text.
-                let (title, body) = docstore::split_embedded(&doc.text);
+                let corpus = corpus_by_chunk
+                    .get(chunk.id.as_str())
+                    .map(String::as_str)
+                    .unwrap_or("unknown");
+                self.manifest
+                    .upsert(id, &chunk.content_hash, corpus, 0);
+                let (title, body) = docstore::split_embedded(&chunk.text);
                 self.docstore.upsert(
                     id,
                     DocText {
+                        parent_id: chunk.parent_id.clone(),
+                        chunk_index: chunk.chunk_index,
                         title,
-                        source: doc.corpus.clone(),
+                        source: corpus.to_string(),
                         text: body,
                     },
                 );
@@ -436,6 +478,7 @@ mod index_corpus_tests {
             text: text.into(),
             content_hash: hash.into(),
             corpus: "test".into(),
+            chunk_mode: ChunkMode::Whole,
         }
     }
 

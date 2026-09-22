@@ -112,6 +112,24 @@ impl MemoryEngine {
         jaccard_dedup(fused, limit)
     }
 
+    /// Embedding-only retrieval for callers (such as Knowledge Base recall)
+    /// that must not blend graph or global cross-project memory. Unlike
+    /// retrieve(), model/embedding errors are returned so the caller can
+    /// surface a model-not-downloaded state.
+    pub async fn retrieve_embeddings(
+        &self,
+        query: &str,
+        limit: usize,
+        provider: &MiniLmProvider,
+    ) -> anyhow::Result<Vec<RetrievedDoc>> {
+        if query.trim().len() < 2 || limit == 0 {
+            return Ok(Vec::new());
+        }
+        let pool = limit.saturating_mul(4).max(20);
+        let embed_ranked = self.embedding_candidates(query, pool, provider).await?;
+        Ok(jaccard_dedup(rrf_fuse(&embed_ranked, &[]), limit))
+    }
+
     /// Embed the query and return cosine hits that clear the floor, ranked best
     /// first and resolved to display docs via the manifest bimap + docstore.
     async fn embedding_candidates(
@@ -145,6 +163,12 @@ impl MemoryEngine {
             out.push(Ranked {
                 doc: RetrievedDoc {
                     id: id.clone(),
+                    parent_id: if dt.parent_id.is_empty() {
+                        id.clone()
+                    } else {
+                        dt.parent_id.clone()
+                    },
+                    chunk_index: dt.chunk_index,
                     title: dt.title.clone(),
                     source: dt.source.clone(),
                     text: dt.text.clone(),
@@ -168,6 +192,8 @@ impl MemoryEngine {
                 Ranked {
                     doc: RetrievedDoc {
                         id: id.clone(),
+                        parent_id: id.clone(),
+                        chunk_index: 0,
                         title,
                         source: "graph".to_string(),
                         text: body,
@@ -230,25 +256,35 @@ fn rrf_fuse_weighted(lists: &[(&[Ranked], f32)]) -> Vec<(RetrievedDoc, f32)> {
 /// kept. Stops at `limit`.
 fn jaccard_dedup(fused: Vec<(RetrievedDoc, f32)>, limit: usize) -> Vec<RetrievedDoc> {
     let mut kept: Vec<RetrievedDoc> = Vec::with_capacity(limit);
-    let mut kept_tokens: Vec<HashSet<String>> = Vec::with_capacity(limit);
+    // (parent id, tokens) for each kept hit. Chunks from the same parent are
+    // intentionally not deduped against each other and are capped at two.
+    let mut kept_tokens: Vec<(String, HashSet<String>)> = Vec::with_capacity(limit);
 
     for (doc, _score) in fused {
         if kept.len() >= limit {
             break;
         }
+        let parent = if doc.parent_id.is_empty() {
+            doc.id.clone()
+        } else {
+            doc.parent_id.clone()
+        };
+        let same_parent = kept_tokens.iter().filter(|(p, _)| p == &parent).count();
+        if same_parent >= 2 {
+            continue;
+        }
         let tokens = tokenize(&format!("{} {}", doc.title, doc.text));
-        let is_dup = kept_tokens
-            .iter()
-            .any(|t| jaccard(&tokens, t) >= JACCARD_DUP_THRESHOLD);
+        let is_dup = kept_tokens.iter().any(|(p, t)| {
+            p != &parent && jaccard(&tokens, t) >= JACCARD_DUP_THRESHOLD
+        });
         if is_dup {
             continue;
         }
-        kept_tokens.push(tokens);
+        kept_tokens.push((parent, tokens));
         kept.push(doc);
     }
     kept
 }
-
 /// Lowercased alphanumeric word set (tokens shorter than 2 chars dropped).
 fn tokenize(s: &str) -> HashSet<String> {
     s.split_whitespace()
@@ -288,6 +324,8 @@ fn global_candidates(query: &str, pool: usize) -> Vec<Ranked> {
             Ranked {
                 doc: RetrievedDoc {
                     id: id.clone(),
+                    parent_id: id.clone(),
+                    chunk_index: 0,
                     title,
                     source: "global".to_string(),
                     text: body,
@@ -326,6 +364,8 @@ mod tests {
     fn doc(id: &str, title: &str, text: &str) -> RetrievedDoc {
         RetrievedDoc {
             id: id.into(),
+            parent_id: id.into(),
+            chunk_index: 0,
             title: title.into(),
             source: "test".into(),
             text: text.into(),
@@ -397,6 +437,22 @@ mod tests {
     }
 
     /// Empty graph → fused result is exactly the embedding list (no graph noise).
+    /// Multiple chunks from one parent are allowed (up to two) and are not
+    /// treated as near-duplicates of one another.
+    #[test]
+    fn same_parent_chunks_are_capped_but_not_deduped() {
+        let mut a = doc("a#1", "A", "same body text");
+        a.parent_id = "a".into();
+        let mut b = doc("a#2", "A", "same body text");
+        b.parent_id = "a".into();
+        let mut c = doc("a#3", "A", "same body text");
+        c.parent_id = "a".into();
+        let d = doc("d", "D", "different body text");
+        let kept = jaccard_dedup(vec![(a, 0.9), (b, 0.8), (c, 0.7), (d, 0.6)], 10);
+        let ids: Vec<&str> = kept.iter().map(|d| d.id.as_str()).collect();
+        assert_eq!(ids, vec!["a#1", "a#2", "d"]);
+    }
+
     #[test]
     fn empty_graph_returns_embedding_only() {
         let embed = vec![ranked("a", "A", "alpha body text"), ranked("b", "B", "beta body text")];

@@ -188,7 +188,7 @@ wrote; `toml_edit` just preserves whatever comments are already there.
 | `uiScale` | number | `1.0` | finite, `0.5`–`2.0` inclusive |
 | `shareTelemetry` | boolean | `true` | — |
 | `linkTelemetryToAccount` | boolean | `true` | — |
-| `embeddingModelId` | string | `"all-MiniLM-L6-v2"` | non-empty |
+| `embeddingModelId` | string | `"bge-small-zh-v1.5"` | non-empty |
 | `codeEditorTheme` | string | `"atlas"` | non-empty (not checked against the frontend theme catalog — see [Non-goals](#non-goals-for-validation)) |
 | `atlasTheme` | string | `"atlas-black"` | non-empty (same caveat) |
 | `themeMode` | `"light"` \| `"dark"` \| `"system"` | `"dark"` | exactly one of these three strings |

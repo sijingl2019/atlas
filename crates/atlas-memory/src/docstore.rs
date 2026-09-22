@@ -24,6 +24,13 @@ use serde::{Deserialize, Serialize};
 /// Display fields for one indexed document.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DocText {
+    /// Parent corpus/document id. Empty on old persisted docstores; callers
+    /// should fall back to the chunk id in that case.
+    #[serde(default)]
+    pub parent_id: String,
+    /// Zero-based chunk position within the parent document.
+    #[serde(default)]
+    pub chunk_index: usize,
     pub title: String,
     pub source: String,
     pub text: String,
@@ -126,6 +133,8 @@ mod tests {
         ds.upsert(
             "a",
             DocText {
+                parent_id: "a".into(),
+                chunk_index: 0,
                 title: "T".into(),
                 source: "claude".into(),
                 text: "body".into(),
