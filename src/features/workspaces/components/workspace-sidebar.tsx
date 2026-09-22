@@ -499,8 +499,8 @@ const GroupHeaderRow = memo(function GroupHeaderRow({
  *  `{icon, title, onClick}` object per render — an object prop defeats `memo`
  *  on every row, every frame. */
 const CLEAR_TITLE: Record<string, string> = {
-  "sec:recent": "Clear recent projects",
-  "sec:chats": "Clear chats",
+  "sec:recent": "Empty trash",
+  "sec:chats": "Clear recent chats",
 };
 
 const SectionHeaderRow = memo(function SectionHeaderRow({
@@ -912,7 +912,7 @@ export function WorkspaceSidebar() {
       out.push({
         kind: "section",
         id: "sec:recent",
-        label: "Recent",
+        label: "Trash",
         key: "s:recent",
       });
       if (!collapsed["sec:recent"])
@@ -928,7 +928,7 @@ export function WorkspaceSidebar() {
       out.push({
         kind: "section",
         id: "sec:chats",
-        label: "Chats",
+        label: "Recent",
         key: "s:chats",
       });
       if (!collapsed["sec:chats"])
