@@ -42,13 +42,7 @@ fn search_in_files_sync(
     Ok(results)
 }
 
-fn search_dir(
-    dir: &Path,
-    root: &Path,
-    query: &str,
-    results: &mut Vec<SearchResult>,
-    max: usize,
-) {
+fn search_dir(dir: &Path, root: &Path, query: &str, results: &mut Vec<SearchResult>, max: usize) {
     if results.len() >= max {
         return;
     }
@@ -107,18 +101,42 @@ fn search_dir(
 }
 
 fn is_searchable(path: &Path) -> bool {
-    let ext = path
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("");
+    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
 
     matches!(
         ext,
-        "rs" | "ts" | "tsx" | "js" | "jsx" | "py" | "go" | "rb"
-            | "java" | "c" | "cpp" | "h" | "hpp"
-            | "swift" | "kt" | "css" | "scss" | "html"
-            | "json" | "toml" | "yaml" | "yml" | "md"
-            | "sh" | "bash" | "zsh" | "sql" | "xml" | "svg"
-            | "txt" | "cfg" | "ini" | "env" | "lock"
+        "rs" | "ts"
+            | "tsx"
+            | "js"
+            | "jsx"
+            | "py"
+            | "go"
+            | "rb"
+            | "java"
+            | "c"
+            | "cpp"
+            | "h"
+            | "hpp"
+            | "swift"
+            | "kt"
+            | "css"
+            | "scss"
+            | "html"
+            | "json"
+            | "toml"
+            | "yaml"
+            | "yml"
+            | "md"
+            | "sh"
+            | "bash"
+            | "zsh"
+            | "sql"
+            | "xml"
+            | "svg"
+            | "txt"
+            | "cfg"
+            | "ini"
+            | "env"
+            | "lock"
     )
 }

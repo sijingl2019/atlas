@@ -26,20 +26,20 @@
 //! the whole seam.
 
 pub mod conn;
-pub mod spaces;
 pub mod error;
 pub mod events;
 pub mod manager;
 pub mod rest;
+pub mod spaces;
 pub mod state;
 pub mod store;
 pub mod wire;
 
 pub use error::{CommsError, Result};
 pub use events::{CommsEnvelope, CommsEvent, ConnReason, ConnectionState};
-pub use state::{apply_frame, ChatState, LocalMessage, PendingMap, PendingSend, SendStatus};
 pub use manager::{CommsManager, ConnectionInfo, Session};
 pub use rest::{ConversationPatch, DmResult, MessagePage, RestClient};
+pub use state::{apply_frame, ChatState, LocalMessage, PendingMap, PendingSend, SendStatus};
 pub use store::{db_path, CommsStore, OrgSnapshot};
 pub use wire::{ClientFrame, Conversation, Message, ServerFrame};
 

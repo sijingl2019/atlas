@@ -19,7 +19,11 @@ pub(crate) struct Region {
 
 impl Region {
     pub(crate) fn new(start: usize, end: usize, category: Category) -> Self {
-        Self { start, end, category }
+        Self {
+            start,
+            end,
+            category,
+        }
     }
 }
 

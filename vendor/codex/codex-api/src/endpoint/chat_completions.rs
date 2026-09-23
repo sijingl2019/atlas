@@ -71,18 +71,18 @@ impl<T: HttpTransport> ChatCompletionsClient<T> {
         extra_headers: HeaderMap,
         dialect: ChatDialect,
     ) -> Result<ResponseStream, ApiError> {
-        let body = EncodedJsonBody::encode(&request).map_err(|err| {
-            ApiError::Stream(format!("failed to encode the chat request: {err}"))
-        })?;
+        let body = EncodedJsonBody::encode(&request)
+            .map_err(|err| ApiError::Stream(format!("failed to encode the chat request: {err}")))?;
 
         // The paying org, resolved now rather than at connect: the user can
         // switch org mid-session and the next request must bill the new one.
         // Absent = personal attribution, per the contract.
         let mut extra_headers = extra_headers;
         if let Some(org) = crate::atlas_chat::org::current_org()
-            && let Ok(value) = HeaderValue::from_str(&org) {
-                extra_headers.insert("atlas-org", value);
-            }
+            && let Ok(value) = HeaderValue::from_str(&org)
+        {
+            extra_headers.insert("atlas-org", value);
+        }
 
         let stream_response = self
             .session

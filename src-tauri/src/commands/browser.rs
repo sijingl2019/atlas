@@ -147,7 +147,12 @@ fn normalize_url(input: &str) -> Result<String, String> {
     // A scheme separator anywhere before the first slash means the caller
     // named a non-http scheme (file:, javascript:, data:, ftp:, …).
     let head = trimmed.split('/').next().unwrap_or(trimmed);
-    if head.contains(':') && !head.split(':').nth(1).is_some_and(|p| p.parse::<u16>().is_ok()) {
+    if head.contains(':')
+        && !head
+            .split(':')
+            .nth(1)
+            .is_some_and(|p| p.parse::<u16>().is_ok())
+    {
         return Err("only http(s) URLs can be opened".to_string());
     }
     Ok(format!("https://{trimmed}"))
@@ -193,7 +198,9 @@ fn emit_nav(
 #[tauri::command]
 pub fn browser_open_window(app: tauri::AppHandle, url: String) -> Result<String, String> {
     let url = normalize_url(&url)?;
-    let parsed = url.parse().map_err(|e| format!("invalid URL {url:?}: {e}"))?;
+    let parsed = url
+        .parse()
+        .map_err(|e| format!("invalid URL {url:?}: {e}"))?;
 
     let profile = browser_profile_dir(&app)?;
     let seq = BROWSER_SEQ.fetch_add(1, Ordering::Relaxed);
@@ -232,7 +239,9 @@ pub fn browser_embed_create(
         return Err(format!("invalid embed bounds: {rect:?}"));
     }
     let url = normalize_url(&url)?;
-    let parsed: url::Url = url.parse().map_err(|e| format!("invalid URL {url:?}: {e}"))?;
+    let parsed: url::Url = url
+        .parse()
+        .map_err(|e| format!("invalid URL {url:?}: {e}"))?;
     let label = embed_label(&id);
 
     // Already exists → just reposition, show, and navigate.
@@ -246,10 +255,7 @@ pub fn browser_embed_create(
 
     tracing::info!(id = %id, url = %url, rect = ?rect, "creating new embedded child webview (initially hidden)");
     let profile = browser_profile_dir(&app)?;
-    state
-        .nav
-        .lock()
-        .insert(id.clone(), NavHistory::default());
+    state.nav.lock().insert(id.clone(), NavHistory::default());
 
     let nav_started = state.nav.clone();
     let nav_finished = state.nav.clone();
@@ -267,11 +273,22 @@ pub fn browser_embed_create(
             let url = payload.url().to_string();
             match payload.event() {
                 tauri::webview::PageLoadEvent::Started => {
-                    nav_started.lock().entry(id_started.clone()).or_default().commit(&url);
+                    nav_started
+                        .lock()
+                        .entry(id_started.clone())
+                        .or_default()
+                        .commit(&url);
                     emit_nav(&app_started, &nav_started, &id_started, &url, true, None);
                 }
                 tauri::webview::PageLoadEvent::Finished => {
-                    emit_nav(&app_finished, &nav_finished, &id_finished, &url, false, None);
+                    emit_nav(
+                        &app_finished,
+                        &nav_finished,
+                        &id_finished,
+                        &url,
+                        false,
+                        None,
+                    );
                     // Title isn't known until the document parses; read it back
                     // and emit a follow-up so the URL bar / tab can show it.
                     let app2 = app_finished.clone();
@@ -301,9 +318,15 @@ pub fn browser_embed_create(
 
 /// Navigate the embed to a new URL.
 #[tauri::command]
-pub fn browser_embed_navigate(app: tauri::AppHandle, id: String, url: String) -> Result<(), String> {
+pub fn browser_embed_navigate(
+    app: tauri::AppHandle,
+    id: String,
+    url: String,
+) -> Result<(), String> {
     let url = normalize_url(&url)?;
-    let parsed: url::Url = url.parse().map_err(|e| format!("invalid URL {url:?}: {e}"))?;
+    let parsed: url::Url = url
+        .parse()
+        .map_err(|e| format!("invalid URL {url:?}: {e}"))?;
     let webview = app
         .get_webview(&embed_label(&id))
         .ok_or_else(|| "embed not found".to_string())?;
@@ -348,7 +371,9 @@ pub fn browser_embed_set_bounds(
         .get_webview(&embed_label(&id))
         .ok_or_else(|| "embed not found".to_string())?;
     tracing::trace!(id = %id, rect = ?rect, "browser_embed_set_bounds");
-    webview.set_bounds(rect.to_tauri()).map_err(|e| e.to_string())
+    webview
+        .set_bounds(rect.to_tauri())
+        .map_err(|e| e.to_string())
 }
 
 /// Show/hide the embed. A native child webview floats above the DOM and can't
@@ -393,17 +418,28 @@ mod normalize_url_tests {
     #[test]
     fn bare_hosts_get_https_and_http_passes() {
         assert_eq!(normalize_url("example.com").unwrap(), "https://example.com");
-        assert_eq!(normalize_url("  https://a.dev/x  ").unwrap(), "https://a.dev/x");
+        assert_eq!(
+            normalize_url("  https://a.dev/x  ").unwrap(),
+            "https://a.dev/x"
+        );
         assert_eq!(normalize_url("http://a.dev").unwrap(), "http://a.dev");
         // host:port is an address, not a scheme.
-        assert_eq!(normalize_url("localhost:3000").unwrap(), "https://localhost:3000");
+        assert_eq!(
+            normalize_url("localhost:3000").unwrap(),
+            "https://localhost:3000"
+        );
     }
 
     #[test]
     fn non_http_schemes_are_refused_not_laundered() {
         // The old version turned these into https://file:///… — unloadable,
         // so safe by accident. Refusal is the policy now.
-        for bad in ["file:///etc/passwd", "javascript:alert(1)", "data:text/html,x", "ftp://x"] {
+        for bad in [
+            "file:///etc/passwd",
+            "javascript:alert(1)",
+            "data:text/html,x",
+            "ftp://x",
+        ] {
             assert!(normalize_url(bad).is_err(), "{bad} must be refused");
         }
     }

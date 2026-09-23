@@ -37,7 +37,9 @@ fn entropy_catches_a_random_key_no_rule_covers() {
     let secret = secret.as_str();
     assert_scrubbed(&format!("the internal key is {secret} for now"), secret);
     assert_eq!(
-        redact(&format!("key {secret}")).counts.get(Category::Entropy),
+        redact(&format!("key {secret}"))
+            .counts
+            .get(Category::Entropy),
         1
     );
 }
@@ -71,7 +73,11 @@ fn a_keyword_gated_vendor_rule_fires_when_its_vendor_is_named() {
     // this crate honours that gate rather than redacting every hex string.
     let secret = fixtures::twilio_api_key();
     let out = redact(&format!("TWILIO_API_KEY={secret}"));
-    assert!(!out.text.contains(&secret), "gated rule did not fire: {}", out.text);
+    assert!(
+        !out.text.contains(&secret),
+        "gated rule did not fire: {}",
+        out.text
+    );
 
     let ungated = redact(&format!("the digest was {secret} before"));
     assert_eq!(
@@ -128,7 +134,11 @@ fn a_high_entropy_supabase_secret_is_caught_too() {
 fn credentialed_uris_are_replaced_whole() {
     let out = redact("connect to postgres://app:hunter2@db.internal:5432/prod first");
     assert!(!out.text.contains("hunter2"));
-    assert!(!out.text.contains("db.internal"), "host leaked: {}", out.text);
+    assert!(
+        !out.text.contains("db.internal"),
+        "host leaked: {}",
+        out.text
+    );
     assert_eq!(out.text, format!("connect to {PLACEHOLDER} first"));
     assert_eq!(out.counts.get(Category::CredentialedUri), 1);
 }
@@ -234,10 +244,7 @@ fn replacing_a_value_leaves_the_syntax_around_it_intact() {
             r#"{"k": "API_KEY=hunter2xyz"}"#,
             format!(r#"{{"k": "API_KEY={PLACEHOLDER}"}}"#),
         ),
-        (
-            "[API_KEY=hunter2xyz]",
-            format!("[API_KEY={PLACEHOLDER}]"),
-        ),
+        ("[API_KEY=hunter2xyz]", format!("[API_KEY={PLACEHOLDER}]")),
         (
             "call(token=hunter2xyz);",
             format!("call(token={PLACEHOLDER});"),

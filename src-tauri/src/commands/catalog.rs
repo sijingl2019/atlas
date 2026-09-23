@@ -223,8 +223,12 @@ fn build(host: &AgentHost) -> AgentCatalog {
                         .or_else(|| agent.website())
                         .map(str::to_string)
                 }),
-                repository: market.as_ref().and_then(|a| a.repository().map(str::to_string)),
-                website: market.as_ref().and_then(|a| a.website().map(str::to_string)),
+                repository: market
+                    .as_ref()
+                    .and_then(|a| a.repository().map(str::to_string)),
+                website: market
+                    .as_ref()
+                    .and_then(|a| a.website().map(str::to_string)),
                 platform_supported: is_native
                     || market
                         .as_ref()
@@ -275,9 +279,15 @@ fn build(host: &AgentHost) -> AgentCatalog {
             supports_fork: false,
             supports_rewind: false,
             icon_data_url: market.as_ref().and_then(super::agent_host::icon_data_url),
-            help_url: market.as_ref().and_then(|a| a.repository().map(str::to_string)),
-            repository: market.as_ref().and_then(|a| a.repository().map(str::to_string)),
-            website: market.as_ref().and_then(|a| a.website().map(str::to_string)),
+            help_url: market
+                .as_ref()
+                .and_then(|a| a.repository().map(str::to_string)),
+            repository: market
+                .as_ref()
+                .and_then(|a| a.repository().map(str::to_string)),
+            website: market
+                .as_ref()
+                .and_then(|a| a.website().map(str::to_string)),
             // Demonstrably runnable on this machine: the binary is right there.
             platform_supported: true,
             distribution_kind: String::new(),

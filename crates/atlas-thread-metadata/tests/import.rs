@@ -112,7 +112,11 @@ async fn an_agent_that_repeats_its_cursor_does_not_loop_forever() {
 
     let sessions = collect_all_sessions(list.as_ref(), None).await.unwrap();
 
-    assert_eq!(sessions.len(), 2, "it stopped as soon as the cursor repeated");
+    assert_eq!(
+        sessions.len(),
+        2,
+        "it stopped as soon as the cursor repeated"
+    );
 }
 
 #[test]
@@ -130,7 +134,10 @@ fn import_writes_metadata_only_and_lands_in_history_not_the_active_list() {
 
     let imported = store.threads();
     assert_eq!(imported.len(), 1);
-    assert!(imported[0].archived, "imports land in history, not the sidebar");
+    assert!(
+        imported[0].archived,
+        "imports land in history, not the sidebar"
+    );
     assert_eq!(imported[0].agent_id.as_str(), "some-agent");
     assert_eq!(imported[0].display_title().as_ref(), "a title");
     assert_eq!(
@@ -186,7 +193,11 @@ fn a_session_that_belongs_nowhere_is_not_imported() {
         &store.known_session_ids(),
     );
 
-    assert_eq!(rows.len(), 1, "a thread with no directory has no project to show under");
+    assert_eq!(
+        rows.len(),
+        1,
+        "a thread with no directory has no project to show under"
+    );
     assert_eq!(rows[0].session_id, Some(acp::SessionId::new("real")));
 }
 

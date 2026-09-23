@@ -52,8 +52,20 @@ const SECRET_WORDS: &[&str] = &[
 /// `key` is far too common to stand alone — `cache_key`, `primary_key`,
 /// `sort_key` are all ordinary. It only names a credential when qualified.
 const KEY_QUALIFIERS: &[&str] = &[
-    "api", "secret", "access", "private", "signing", "encryption", "auth", "client", "app",
-    "service", "license", "subscription", "consumer", "publishable",
+    "api",
+    "secret",
+    "access",
+    "private",
+    "signing",
+    "encryption",
+    "auth",
+    "client",
+    "app",
+    "service",
+    "license",
+    "subscription",
+    "consumer",
+    "publishable",
 ];
 
 /// Any assignment's *key and separator* — deliberately not its value. Which of
@@ -178,7 +190,9 @@ fn segments(key: &str) -> Vec<String> {
             continue;
         }
         let next_lower = chars.peek().is_some_and(char::is_ascii_lowercase);
-        if ch.is_ascii_uppercase() && !current.is_empty() && (prev_lower || (prev_upper && next_lower))
+        if ch.is_ascii_uppercase()
+            && !current.is_empty()
+            && (prev_lower || (prev_upper && next_lower))
         {
             out.push(std::mem::take(&mut current));
         }
@@ -220,10 +234,9 @@ pub(crate) fn detect(input: &str) -> Vec<Region> {
         regions.extend(value_region(input, start, end));
     }
     for captures in quoted_key_separator().captures_iter(input) {
-        let (Some(whole), Some(key)) = (
-            captures.get(0),
-            captures.get(1).or_else(|| captures.get(2)),
-        ) else {
+        let (Some(whole), Some(key)) =
+            (captures.get(0), captures.get(1).or_else(|| captures.get(2)))
+        else {
             continue;
         };
         if !is_credential_key(key.as_str()) {
@@ -335,7 +348,10 @@ mod tests {
 
     #[test]
     fn an_env_assignment_flags_only_the_value() {
-        assert_eq!(spans("API_KEY=supersecretvalue123"), vec!["supersecretvalue123"]);
+        assert_eq!(
+            spans("API_KEY=supersecretvalue123"),
+            vec!["supersecretvalue123"]
+        );
     }
 
     #[test]
@@ -392,7 +408,10 @@ mod tests {
             (r#"{"password": "hunter2"}"#, "hunter2"),
             (r#"{'password': 'hunter2'}"#, "hunter2"),
             (r#""client_secret":"hunter2xyz""#, "hunter2xyz"),
-            (r#"the tool sent {"api_key": "abcdefgh1234"} and failed"#, "abcdefgh1234"),
+            (
+                r#"the tool sent {"api_key": "abcdefgh1234"} and failed"#,
+                "abcdefgh1234",
+            ),
         ] {
             assert_eq!(spans(input), vec![expected], "missed: {input}");
         }
@@ -401,7 +420,10 @@ mod tests {
     #[test]
     fn a_yaml_credential_key_with_a_quoted_value_is_caught() {
         assert_eq!(spans(r#"password: "hunter2""#), vec!["hunter2"]);
-        assert_eq!(spans("secret: 'correct-horse-battery'"), vec!["correct-horse-battery"]);
+        assert_eq!(
+            spans("secret: 'correct-horse-battery'"),
+            vec!["correct-horse-battery"]
+        );
     }
 
     #[test]

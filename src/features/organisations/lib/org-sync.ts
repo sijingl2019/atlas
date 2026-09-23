@@ -17,19 +17,19 @@
  * — funnels through here, so the master switch cannot be bypassed by one
  * component re-deriving the predicate.
  */
-import { useProjectStore } from "@/features/project/stores/project-store";
+import { useSettingsStore } from "@/features/settings/stores/settings-store";
 import type { AppSettings } from "@/features/settings/lib/app-settings";
-import type { Organisation } from "../types";
+import { isSyncedOrg, type Organisation } from "../types";
 
 /** True when `org` is linked to the server AND personal sync is enabled. */
 export function isOrgSynced(
   org: Organisation | null | undefined,
   settings: Pick<AppSettings, "personalSync">,
 ): boolean {
-  return !!settings.personalSync && !!org?.syncEnabled && !!org?.remoteId;
+  return !!settings.personalSync && !!org && isSyncedOrg(org);
 }
 
 /** Reactive form for components — re-renders when the preference flips. */
 export function useIsOrgSynced(org: Organisation | null | undefined): boolean {
-  return useProjectStore((s) => isOrgSynced(org, s.settings));
+  return useSettingsStore((s) => isOrgSynced(org, s.settings));
 }

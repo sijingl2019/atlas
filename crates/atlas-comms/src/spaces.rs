@@ -256,7 +256,12 @@ impl SpacesManager {
     }
 
     /// One dial-to-close cycle. Returns why it ended.
-    async fn attempt_once(&self, slot: &Arc<SpaceSlot>, conv_id: &str, generation: u64) -> ExitReason {
+    async fn attempt_once(
+        &self,
+        slot: &Arc<SpaceSlot>,
+        conv_id: &str,
+        generation: u64,
+    ) -> ExitReason {
         let token = match self.inner.tokens.mint().await {
             Ok(t) => t,
             Err(e) => {
@@ -414,12 +419,16 @@ mod tests {
     fn space_event_serialization_shape() {
         // The renderer switches on `kind` and camelCase states; a rename here
         // is a protocol change for the bridge.
-        let ev = SpaceEvent::Connection { state: SpaceConnState::Backoff };
+        let ev = SpaceEvent::Connection {
+            state: SpaceConnState::Backoff,
+        };
         assert_eq!(
             serde_json::to_string(&ev).unwrap(),
             r#"{"kind":"connection","state":"backoff"}"#
         );
-        let ev = SpaceEvent::Binary { data: "AQI=".into() };
+        let ev = SpaceEvent::Binary {
+            data: "AQI=".into(),
+        };
         assert_eq!(
             serde_json::to_string(&ev).unwrap(),
             r#"{"kind":"binary","data":"AQI="}"#

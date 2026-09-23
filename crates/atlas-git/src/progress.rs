@@ -75,9 +75,16 @@ impl ProgressParser {
         let total: f32 = steps.iter().map(|s| s.weight).sum();
         let steps = steps
             .iter()
-            .map(|s| Step { title: s.title, weight: if total > 0.0 { s.weight / total } else { 0.0 } })
+            .map(|s| Step {
+                title: s.title,
+                weight: if total > 0.0 { s.weight / total } else { 0.0 },
+            })
             .collect();
-        ProgressParser { steps, step_index: 0, last_fraction: 0.0 }
+        ProgressParser {
+            steps,
+            step_index: 0,
+            last_fraction: 0.0,
+        }
     }
 
     /// Feed one stderr line; returns the overall fraction (0..1) and the
@@ -112,28 +119,73 @@ impl ProgressParser {
 pub fn steps_for(kind: &str) -> Vec<Step> {
     match kind {
         "clone" => vec![
-            Step { title: "remote: Compressing objects", weight: 0.1 },
-            Step { title: "Receiving objects", weight: 0.6 },
-            Step { title: "Resolving deltas", weight: 0.1 },
-            Step { title: "Checking out files", weight: 0.2 },
+            Step {
+                title: "remote: Compressing objects",
+                weight: 0.1,
+            },
+            Step {
+                title: "Receiving objects",
+                weight: 0.6,
+            },
+            Step {
+                title: "Resolving deltas",
+                weight: 0.1,
+            },
+            Step {
+                title: "Checking out files",
+                weight: 0.2,
+            },
         ],
         "fetch" => vec![
-            Step { title: "remote: Compressing objects", weight: 0.1 },
-            Step { title: "Receiving objects", weight: 0.7 },
-            Step { title: "Resolving deltas", weight: 0.2 },
+            Step {
+                title: "remote: Compressing objects",
+                weight: 0.1,
+            },
+            Step {
+                title: "Receiving objects",
+                weight: 0.7,
+            },
+            Step {
+                title: "Resolving deltas",
+                weight: 0.2,
+            },
         ],
         "pull" => vec![
-            Step { title: "remote: Compressing objects", weight: 0.1 },
-            Step { title: "Receiving objects", weight: 0.7 },
-            Step { title: "Resolving deltas", weight: 0.15 },
-            Step { title: "Checking out files", weight: 0.15 },
+            Step {
+                title: "remote: Compressing objects",
+                weight: 0.1,
+            },
+            Step {
+                title: "Receiving objects",
+                weight: 0.7,
+            },
+            Step {
+                title: "Resolving deltas",
+                weight: 0.15,
+            },
+            Step {
+                title: "Checking out files",
+                weight: 0.15,
+            },
         ],
         "push" => vec![
-            Step { title: "Compressing objects", weight: 0.2 },
-            Step { title: "Writing objects", weight: 0.7 },
-            Step { title: "remote: Resolving deltas", weight: 0.1 },
+            Step {
+                title: "Compressing objects",
+                weight: 0.2,
+            },
+            Step {
+                title: "Writing objects",
+                weight: 0.7,
+            },
+            Step {
+                title: "remote: Resolving deltas",
+                weight: 0.1,
+            },
         ],
-        "checkout" => vec![Step { title: "Checking out files", weight: 1.0 }],
+        "checkout" => vec![Step {
+            title: "Checking out files",
+            weight: 1.0,
+        }],
         _ => Vec::new(),
     }
 }
@@ -159,14 +211,20 @@ mod tests {
     #[test]
     fn weighted_monotonic_walk() {
         let mut parser = ProgressParser::new(&steps_for("fetch"));
-        let (f1, _) = parser.advance("remote: Compressing objects: 100% (5/5), done.").unwrap();
+        let (f1, _) = parser
+            .advance("remote: Compressing objects: 100% (5/5), done.")
+            .unwrap();
         assert!((f1 - 0.1).abs() < 0.01, "{f1}");
         let (f2, t) = parser.advance("Receiving objects:  50% (100/200)").unwrap();
         assert!((f2 - (0.1 + 0.35)).abs() < 0.01, "{f2}");
         assert_eq!(t, "Receiving objects");
         // Backtracking line is ignored (monotonic).
-        assert!(parser.advance("remote: Compressing objects: 10% (1/10)").is_none());
-        let (f3, _) = parser.advance("Resolving deltas: 100% (50/50), done.").unwrap();
+        assert!(parser
+            .advance("remote: Compressing objects: 10% (1/10)")
+            .is_none());
+        let (f3, _) = parser
+            .advance("Resolving deltas: 100% (50/50), done.")
+            .unwrap();
         assert!((f3 - 1.0).abs() < 0.01, "{f3}");
     }
 

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
-import { useResolvedMode } from "@/features/theme/mode";
+import { withAlpha } from "@/features/theme/color";
+import { themeBase, themeColor, useThemeVersion } from "@/features/theme/theme-values";
 
 /**
  * Canvas/figma-style ruler overlay for the graph views. Draws a top + left
@@ -7,6 +8,11 @@ import { useResolvedMode } from "@/features/theme/mode";
  * `pointer-events: none` so it never intercepts graph interaction.
  *
  * One `<canvas>` (not hundreds of DOM ticks) redrawn on viewport change.
+ *
+ * `fillStyle`/`strokeStyle` take a resolved CSS colour, not a custom-property
+ * reference (same constraint as pixi/xterm — decision 14), so the four ruler
+ * colours are read through `theme-values.ts` at draw time and the effect
+ * re-runs on `useThemeVersion()` rather than once at module scope.
  */
 
 export interface Viewport {
@@ -16,21 +22,6 @@ export interface Viewport {
 }
 
 const BAND = 18; // ruler thickness, CSS px
-
-const RULER_COLORS = {
-  dark: {
-    tick: "#343434",
-    label: "#777777",
-    band: "rgba(10,10,10,0.72)",
-    border: "rgba(255,255,255,0.06)",
-  },
-  light: {
-    tick: "#c8c8c8",
-    label: "#6e6e6e",
-    band: "rgba(250,250,250,0.72)",
-    border: "rgba(0,0,0,0.06)",
-  },
-} as const;
 
 /** Nearest "nice" step (1/2/5 × 10ⁿ) ≥ `raw`. */
 function niceStep(raw: number): number {
@@ -51,17 +42,11 @@ export function GraphRuler({
   viewport: Viewport;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const mode = useResolvedMode();
+  const themeVersion = useThemeVersion();
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || width === 0 || height === 0) return;
-    const {
-      tick: TICK_COL,
-      label: LABEL_COL,
-      band: BAND_BG,
-      border: BORDER_COL,
-    } = RULER_COLORS[mode];
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = Math.floor(width * dpr);
     canvas.height = Math.floor(height * dpr);
@@ -69,6 +54,17 @@ export function GraphRuler({
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, width, height);
+
+    // Structural ramp for ticks (matches the graph background dots), muted
+    // foreground for labels, the app's own background for the band fill and
+    // `element.highlight` for the hairline edge — the same 6%-foreground the
+    // rest of the app uses for a raised top edge, so it stays legible in a
+    // light appearance instead of the fixed white-on-cream the old literal
+    // gave it.
+    const TICK_COL = themeColor("border.strong");
+    const LABEL_COL = themeBase("muted-foreground");
+    const BAND_BG = withAlpha(themeBase("background"), 0.72);
+    const BORDER_COL = themeColor("element.highlight");
 
     const { x: vx, y: vy, scale } = viewport;
     // Target ~70px between major ticks on screen.
@@ -151,18 +147,18 @@ export function GraphRuler({
     ctx.moveTo(BAND + 0.5, 0);
     ctx.lineTo(BAND + 0.5, height);
     ctx.stroke();
-  }, [width, height, viewport, mode]);
+  }, [width, height, viewport, themeVersion]);
 
   return (
     <canvas
       ref={canvasRef}
+      className="z-panel"
       style={{
         position: "absolute",
         inset: 0,
         width: "100%",
         height: "100%",
         pointerEvents: "none",
-        zIndex: 5,
       }}
     />
   );

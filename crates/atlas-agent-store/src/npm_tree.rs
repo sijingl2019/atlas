@@ -64,9 +64,9 @@ impl InstallState {
             Self::NoLockfile => {
                 Some("install incomplete: node_modules has no .package-lock.json".to_owned())
             }
-            Self::UnreadableLockfile(error) => {
-                Some(format!("install incomplete: .package-lock.json unreadable ({error})"))
-            }
+            Self::UnreadableLockfile(error) => Some(format!(
+                "install incomplete: .package-lock.json unreadable ({error})"
+            )),
             Self::MissingOptional(keys) => Some(format!(
                 "platform package(s) missing or inert: {}",
                 keys.join(", ")
@@ -278,8 +278,14 @@ mod tests {
 
     #[tokio::test]
     async fn a_healthy_tree_is_complete() {
-        let dir = tree(Some(CODEX_LIKE), &["node_modules/@openai/codex-darwin-arm64"]);
-        assert_eq!(install_state(dir.path(), DARWIN_ARM64).await, InstallState::Complete);
+        let dir = tree(
+            Some(CODEX_LIKE),
+            &["node_modules/@openai/codex-darwin-arm64"],
+        );
+        assert_eq!(
+            install_state(dir.path(), DARWIN_ARM64).await,
+            InstallState::Complete
+        );
     }
 
     #[tokio::test]
@@ -288,7 +294,10 @@ mod tests {
             r#""node_modules/@openai/codex-darwin-arm64": { "optional": true,"#,
             r#""node_modules/@openai/codex-darwin-arm64": { "optional": true, "ideallyInert": true,"#,
         );
-        let dir = tree(Some(&lockfile), &["node_modules/@openai/codex-darwin-arm64"]);
+        let dir = tree(
+            Some(&lockfile),
+            &["node_modules/@openai/codex-darwin-arm64"],
+        );
         assert_eq!(
             install_state(dir.path(), DARWIN_ARM64).await,
             InstallState::MissingOptional(vec!["node_modules/@openai/codex-darwin-arm64".into()])
@@ -311,7 +320,10 @@ mod tests {
 
     #[tokio::test]
     async fn foreign_platforms_are_not_required() {
-        let dir = tree(Some(CODEX_LIKE), &["node_modules/@openai/codex-darwin-arm64"]);
+        let dir = tree(
+            Some(CODEX_LIKE),
+            &["node_modules/@openai/codex-darwin-arm64"],
+        );
         let listed = platform_optionals(dir.path(), DARWIN_ARM64).await;
         assert_eq!(
             listed,
@@ -326,7 +338,10 @@ mod tests {
     #[tokio::test]
     async fn node_modules_without_a_hidden_lockfile_is_incomplete() {
         let dir = tree(None, &["node_modules/@scope/agent"]);
-        assert_eq!(install_state(dir.path(), DARWIN_ARM64).await, InstallState::NoLockfile);
+        assert_eq!(
+            install_state(dir.path(), DARWIN_ARM64).await,
+            InstallState::NoLockfile
+        );
     }
 
     #[tokio::test]
@@ -350,7 +365,10 @@ mod tests {
             "node_modules/g/node_modules/h": { "optional": true, "os": "darwin", "cpu": "arm64" }
         } }"#;
         let dir = tree(Some(lockfile), &["node_modules/g/node_modules/h"]);
-        assert_eq!(install_state(dir.path(), DARWIN_ARM64).await, InstallState::Complete);
+        assert_eq!(
+            install_state(dir.path(), DARWIN_ARM64).await,
+            InstallState::Complete
+        );
 
         let dir = tree(Some(lockfile), &[]);
         assert_eq!(
@@ -363,13 +381,25 @@ mod tests {
     fn gates_follow_npm_check_list_semantics() {
         let many = |v: &[&str]| Gate::Many(v.iter().map(|s| (*s).to_owned()).collect());
         assert!(gate_allows(None, Some("darwin")));
-        assert!(gate_allows(Some(&Gate::One("darwin".into())), Some("darwin")));
-        assert!(!gate_allows(Some(&Gate::One("linux".into())), Some("darwin")));
+        assert!(gate_allows(
+            Some(&Gate::One("darwin".into())),
+            Some("darwin")
+        ));
+        assert!(!gate_allows(
+            Some(&Gate::One("linux".into())),
+            Some("darwin")
+        ));
         assert!(gate_allows(Some(&many(&["any"])), Some("darwin")));
         assert!(gate_allows(Some(&many(&["!win32"])), Some("darwin")));
         assert!(!gate_allows(Some(&many(&["!darwin"])), Some("darwin")));
-        assert!(!gate_allows(Some(&many(&["darwin", "!darwin"])), Some("darwin")));
-        assert!(!gate_allows(Some(&many(&["linux", "!win32"])), Some("darwin")));
+        assert!(!gate_allows(
+            Some(&many(&["darwin", "!darwin"])),
+            Some("darwin")
+        ));
+        assert!(!gate_allows(
+            Some(&many(&["linux", "!win32"])),
+            Some("darwin")
+        ));
         assert!(gate_allows(Some(&many(&[])), Some("darwin")));
         // A libc gate we cannot evaluate never blocks.
         assert!(gate_allows(Some(&many(&["musl"])), None));

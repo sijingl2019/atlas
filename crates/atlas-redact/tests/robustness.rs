@@ -49,8 +49,15 @@ fn json_redaction_is_idempotent_too() {
     for input in inputs {
         let once = redact_json(input);
         let twice = redact_json(&once.text);
-        assert_eq!(twice.text, once.text, "second pass changed the output for {input:?}");
-        assert_eq!(twice.counts.total(), 0, "second pass re-redacted for {input:?}");
+        assert_eq!(
+            twice.text, once.text,
+            "second pass changed the output for {input:?}"
+        );
+        assert_eq!(
+            twice.counts.total(),
+            0,
+            "second pass re-redacted for {input:?}"
+        );
     }
 }
 
@@ -64,10 +71,21 @@ fn flat_redaction_of_json_fragments_is_idempotent() {
     ];
     for input in inputs {
         let once = redact(input);
-        assert!(!once.text.contains("hunter2"), "secret survived: {}", once.text);
+        assert!(
+            !once.text.contains("hunter2"),
+            "secret survived: {}",
+            once.text
+        );
         let twice = redact(&once.text);
-        assert_eq!(twice.text, once.text, "second pass changed the output for {input:?}");
-        assert_eq!(twice.counts.total(), 0, "second pass re-redacted for {input:?}");
+        assert_eq!(
+            twice.text, once.text,
+            "second pass changed the output for {input:?}"
+        );
+        assert_eq!(
+            twice.counts.total(),
+            0,
+            "second pass re-redacted for {input:?}"
+        );
     }
 }
 
@@ -104,7 +122,10 @@ fn multibyte_text_is_never_sliced_mid_character() {
     ] {
         let out = redact(input);
         // The invariant is that the output is still valid UTF-8 that round-trips.
-        assert_eq!(out.text, String::from_utf8(out.text.clone().into_bytes()).unwrap());
+        assert_eq!(
+            out.text,
+            String::from_utf8(out.text.clone().into_bytes()).unwrap()
+        );
     }
 }
 

@@ -34,7 +34,9 @@ static ORG_SOURCE: RwLock<Option<OrgSource>> = RwLock::new(None);
 /// Installs the host's org source. A later call replaces the earlier one,
 /// which is also what lets each test bring its own.
 pub fn set_org_source(source: OrgSource) {
-    *ORG_SOURCE.write().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(source);
+    *ORG_SOURCE
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(source);
 }
 
 /// The paying org for a request being built now, if the host declared one.
@@ -61,33 +63,45 @@ mod tests {
 
     #[test]
     fn no_source_means_personal_attribution() {
-        let _serialised = ORG_TEST_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _serialised = ORG_TEST_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         // Not an error: a caller with no org grant is the contract's
         // `org_none` case, and the header is simply absent.
-        *ORG_SOURCE.write().unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+        *ORG_SOURCE
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
         assert_eq!(current_org(), None);
     }
 
     #[test]
     fn the_source_is_consulted_per_call_so_an_org_switch_takes_effect() {
-        let _serialised = ORG_TEST_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _serialised = ORG_TEST_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         // The whole reason this is a callback and not a config value: the user
         // can switch org mid-session, and the *next* request must bill the new
         // one.
         let org = Arc::new(std::sync::Mutex::new(Some("org_a".to_string())));
         let reader = org.clone();
         set_org_source(Arc::new(move || {
-            reader.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone()
+            reader
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .clone()
         }));
         assert_eq!(current_org().as_deref(), Some("org_a"));
 
-        *org.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some("org_b".to_string());
+        *org.lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some("org_b".to_string());
         assert_eq!(current_org().as_deref(), Some("org_b"));
     }
 
     #[test]
     fn an_empty_org_id_is_absent_rather_than_a_malformed_header() {
-        let _serialised = ORG_TEST_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _serialised = ORG_TEST_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         set_org_source(Arc::new(|| Some(String::new())));
         assert_eq!(current_org(), None);
     }

@@ -132,7 +132,10 @@ impl DeltaProjector {
     /// Install the thread observer. Call before any session is created;
     /// events emitted before this are not replayed to it.
     pub fn observe_threads(&self, observer: Arc<dyn ThreadObserver>) {
-        *self.observer.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(observer);
+        *self
+            .observer
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(observer);
     }
 
     /// The sink factory to hand to `ConnectOptions`.
@@ -299,15 +302,24 @@ impl DeltaProjector {
     /// the leak these count was invisible from the outside.
     pub fn routing_table_sizes(&self) -> (usize, usize) {
         (
-            self.permissions.lock().unwrap_or_else(std::sync::PoisonError::into_inner).len(),
-            self.elicitations.lock().unwrap_or_else(std::sync::PoisonError::into_inner).len(),
+            self.permissions
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .len(),
+            self.elicitations
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .len(),
         )
     }
 
     /// How many event streams are pre-registered for sessions that do not exist
     /// yet. Test-facing, for the same reason.
     pub fn pending_len(&self) -> usize {
-        self.pending.lock().unwrap_or_else(std::sync::PoisonError::into_inner).len()
+        self.pending
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .len()
     }
 
     /// Subscribe to every delta in-process, without going through the host sink.
@@ -333,7 +345,9 @@ impl DeltaProjector {
         // thread itself, and holding the projection's lock across that call
         // would put the history store behind the wire projection's lock.
         let (agent_id, thread) = {
-            let projection = projection.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            let projection = projection
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             (projection.agent_id, projection.thread.clone())
         };
         observer.on_thread_event(agent_id, session_id, event, &thread);
@@ -447,7 +461,9 @@ impl DeltaProjector {
         };
         self.notify_observer(session_id, &event, &projection);
         let (envelopes, permissions, elicitations) = {
-            let mut projection = projection.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            let mut projection = projection
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             let deltas = projection.apply(event);
             let envelopes = projection.wrap(deltas);
             (
@@ -457,13 +473,19 @@ impl DeltaProjector {
             )
         };
         if !permissions.is_empty() {
-            let mut table = self.permissions.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            let mut table = self
+                .permissions
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             for (request_id, key) in permissions {
                 table.insert(request_id, key);
             }
         }
         if !elicitations.is_empty() {
-            let mut table = self.elicitations.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            let mut table = self
+                .elicitations
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             for (request_id, key) in elicitations {
                 table.insert(request_id, key);
             }
@@ -487,7 +509,9 @@ impl DeltaProjector {
         f: impl FnOnce(&mut SessionProjection) -> R,
     ) -> Option<R> {
         let projection = self.session(session_id)?;
-        let mut projection = projection.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut projection = projection
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         Some(f(&mut projection))
     }
 
@@ -500,7 +524,9 @@ impl DeltaProjector {
             return;
         };
         let envelopes = {
-            let projection = projection.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            let projection = projection
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             projection.wrap(f(&projection))
         };
         for envelope in envelopes {
@@ -515,7 +541,9 @@ enum Projected {
     /// A user message. Mirrored so indices line up, and never emitted — the
     /// prompt reaches capture through the send path, not the delta stream.
     User,
-    Assistant { runs: Vec<ProjectedRun> },
+    Assistant {
+        runs: Vec<ProjectedRun>,
+    },
     /// Boxed because a tool-call snapshot is by far the largest thing an entry
     /// can be, and most entries are not tool calls.
     ToolCall {
@@ -1271,5 +1299,7 @@ fn new_message_id() -> String {
 }
 
 fn lock_thread(thread: &AcpThreadHandle) -> std::sync::MutexGuard<'_, AcpThread> {
-    thread.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+    thread
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
 }

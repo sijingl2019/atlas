@@ -93,7 +93,7 @@ pub struct GitRefs {
 ///
 /// Used for changes Atlas *originates* and therefore already knows about:
 /// git mutations (stage / unstage / commit / discard / checkout …) and
-/// editor saves. Those don't need to wait for the `.git` / workspace fs
+/// editor saves. Those don't need to wait for the `.git` / project fs
 /// watcher to notice — calling this right after the action lands makes the
 /// Changes panel and file-tree dots update in one lean `git status`
 /// (~50–120 ms) instead of FSEvents-latency + debounce + a stale round-trip.
@@ -339,9 +339,18 @@ pub(crate) fn git_refs_compute(path: &str) -> Result<GitRefs, String> {
         }
         .to_string();
         let is_current = head_ref.as_deref() == Some(&name);
-        refs.push(GitRef { name, sha, kind, is_current });
+        refs.push(GitRef {
+            name,
+            sha,
+            kind,
+            is_current,
+        });
     }
-    Ok(GitRefs { head: head_sha, head_ref, refs })
+    Ok(GitRefs {
+        head: head_sha,
+        head_ref,
+        refs,
+    })
 }
 
 #[tauri::command]
@@ -354,10 +363,7 @@ pub async fn git_graph_signature(path: String) -> Result<String, String> {
             .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
             .unwrap_or_default();
         let refs_out = git_read()
-            .args([
-                "for-each-ref",
-                "--format=%(refname) %(objectname)",
-            ])
+            .args(["for-each-ref", "--format=%(refname) %(objectname)"])
             .current_dir(&path)
             .output()
             .map_err(|e| e.to_string())?;
@@ -379,13 +385,13 @@ pub async fn git_graph_signature(path: String) -> Result<String, String> {
     .await
     .map_err(|e| e.to_string())?
 }
-/// Compact per-workspace git summary for the workspace sidebar: branch, latest
+/// Compact per-project git summary for the project sidebar: branch, latest
 /// commit subject, dirty flag (green/yellow dot), and working-tree +/- counts.
 /// One command (a few cheap git calls) so the sidebar doesn't fan out several
-/// IPC round-trips per workspace.
+/// IPC round-trips per project.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GitWorkspaceSummary {
+pub struct GitProjectSummary {
     pub is_repo: bool,
     pub branch: String,
     pub head_subject: String,
@@ -395,7 +401,7 @@ pub struct GitWorkspaceSummary {
 }
 
 #[tauri::command]
-pub async fn git_workspace_summary(path: String) -> Result<GitWorkspaceSummary, String> {
+pub async fn git_workspace_summary(path: String) -> Result<GitProjectSummary, String> {
     tokio::task::spawn_blocking(move || {
         let git = |args: &[&str]| -> Option<String> {
             let out = git_read().args(args).current_dir(&path).output().ok()?;
@@ -409,7 +415,7 @@ pub async fn git_workspace_summary(path: String) -> Result<GitWorkspaceSummary, 
             .map(|s| s == "true")
             .unwrap_or(false);
         if !is_repo {
-            return GitWorkspaceSummary {
+            return GitProjectSummary {
                 is_repo: false,
                 branch: String::new(),
                 head_subject: String::new(),
@@ -440,7 +446,7 @@ pub async fn git_workspace_summary(path: String) -> Result<GitWorkspaceSummary, 
             }
         }
 
-        GitWorkspaceSummary {
+        GitProjectSummary {
             is_repo: true,
             branch,
             head_subject,
@@ -462,7 +468,9 @@ pub async fn git_diff_all(path: String) -> Result<String, String> {
             .output()
             .map_err(|e| e.to_string())?;
         Ok(String::from_utf8_lossy(&output.stdout).to_string())
-    }).await.map_err(|e| e.to_string())?
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -474,7 +482,9 @@ pub async fn git_diff_file(path: String, file: String) -> Result<String, String>
             .output()
             .map_err(|e| e.to_string())?;
         Ok(String::from_utf8_lossy(&output.stdout).to_string())
-    }).await.map_err(|e| e.to_string())?
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// spawn_blocking join failure → internal payload (never a raw string).
@@ -528,7 +538,9 @@ pub async fn git_list_branches(path: String) -> Result<Vec<GitBranch>, String> {
             })
             .collect();
         Ok(branches)
-    }).await.map_err(|e| e.to_string())?
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -580,7 +592,9 @@ pub async fn git_blame_file(path: String, file: String) -> Result<Vec<BlameLine>
         if !output.status.success() {
             return Ok(Vec::new());
         }
-        Ok(parse_line_porcelain(&String::from_utf8_lossy(&output.stdout)))
+        Ok(parse_line_porcelain(&String::from_utf8_lossy(
+            &output.stdout,
+        )))
     })
     .await
     .map_err(|e| e.to_string())?
@@ -605,7 +619,11 @@ fn parse_line_porcelain(out: &str) -> Vec<BlameLine> {
                 short_sha: sha.chars().take(7).collect(),
                 sha: std::mem::take(&mut sha),
                 line: line_no,
-                author: if committed { std::mem::take(&mut author) } else { "You".into() },
+                author: if committed {
+                    std::mem::take(&mut author)
+                } else {
+                    "You".into()
+                },
                 time_ms,
                 summary: if committed {
                     std::mem::take(&mut summary)
@@ -624,7 +642,11 @@ fn parse_line_porcelain(out: &str) -> Vec<BlameLine> {
         let first = raw.split(' ').next().unwrap_or("");
         if first.len() == 40 && first.bytes().all(|b| b.is_ascii_hexdigit()) {
             sha = first.to_string();
-            line_no = raw.split(' ').nth(2).and_then(|s| s.parse().ok()).unwrap_or(0);
+            line_no = raw
+                .split(' ')
+                .nth(2)
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(0);
         } else if let Some(rest) = raw.strip_prefix("author ") {
             author = rest.to_string();
         } else if let Some(rest) = raw.strip_prefix("author-time ") {

@@ -48,7 +48,10 @@ impl Backoff {
     fn cap(&self) -> Duration {
         let doubled = self
             .base
-            .checked_mul(1u32.checked_shl(self.attempt.min(MAX_SHIFT)).unwrap_or(u32::MAX))
+            .checked_mul(
+                1u32.checked_shl(self.attempt.min(MAX_SHIFT))
+                    .unwrap_or(u32::MAX),
+            )
             .unwrap_or(self.ceiling);
         doubled.min(self.ceiling)
     }

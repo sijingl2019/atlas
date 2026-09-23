@@ -247,14 +247,14 @@ pub struct ToolTally {
     pub count: i64,
 }
 
-/// Every Session in a Workspace, newest first.
+/// Every Session in a Project, newest first.
 ///
 /// Ordered by `updated_at` rather than `started_at`: a Session resumed today is
 /// today's work, whatever day it began on.
-/// Every Session in a Workspace, newest first.
+/// Every Session in a Project, newest first.
 ///
 /// Four queries regardless of how many Sessions there are. It used to be
-/// `3n + 1` — three per row — which was invisible for one Workspace and became
+/// `3n + 1` — three per row — which was invisible for one Project and became
 /// the whole cost once the board started spanning every project in an
 /// Organisation. The totals and the Checkpoints are fetched in one pass each
 /// and matched up in memory.
@@ -265,13 +265,19 @@ pub fn sessions(store: &Store, workspace_id: &str) -> Result<Vec<SessionSummary>
     let message_time = store.message_active_seconds(workspace_id, IDLE_CAP_SECONDS)?;
 
     let mut by_session: HashMap<String, Vec<Checkpoint>> = HashMap::new();
-    for checkpoint in store.checkpoints_for_workspace(workspace_id)? {
-        by_session.entry(checkpoint.session_id.clone()).or_default().push(checkpoint);
+    for checkpoint in store.checkpoints_for_project(workspace_id)? {
+        by_session
+            .entry(checkpoint.session_id.clone())
+            .or_default()
+            .push(checkpoint);
     }
 
     let mut out = Vec::new();
-    for session in store.sessions_for_workspace(workspace_id)? {
-        let checkpoints = by_session.get(&session.id).map(Vec::as_slice).unwrap_or(&[]);
+    for session in store.sessions_for_project(workspace_id)? {
+        let checkpoints = by_session
+            .get(&session.id)
+            .map(Vec::as_slice)
+            .unwrap_or(&[]);
         out.push(summarize(
             &session,
             checkpoints,
@@ -291,7 +297,7 @@ pub fn sessions(store: &Store, workspace_id: &str) -> Result<Vec<SessionSummary>
 ///
 /// The composer's Usage popup asks for exactly one row while a session is
 /// live; the board's one-`GROUP BY`-per-table shape would read the whole
-/// Workspace to answer it. Five point queries over covering indexes instead.
+/// Project to answer it. Five point queries over covering indexes instead.
 pub fn session_summary(store: &Store, session_id: &str) -> Result<Option<SessionSummary>> {
     let Some(session) = store.session(session_id)? else {
         return Ok(None);
@@ -347,7 +353,10 @@ fn summarize(
     // one branch shows the one the work began on rather than whichever sorted
     // first.
     let mut branches: Vec<String> = session.branch.iter().cloned().collect();
-    let mut landed: Vec<String> = checkpoints.iter().filter_map(|c| c.branch.clone()).collect();
+    let mut landed: Vec<String> = checkpoints
+        .iter()
+        .filter_map(|c| c.branch.clone())
+        .collect();
     landed.sort();
     landed.dedup();
     for branch in landed {
@@ -357,8 +366,10 @@ fn summarize(
     }
 
     // Distinct paths, not touch events: editing one file four times is one file.
-    let mut files: Vec<&str> =
-        checkpoints.iter().flat_map(|c| c.files_touched.iter().map(String::as_str)).collect();
+    let mut files: Vec<&str> = checkpoints
+        .iter()
+        .flat_map(|c| c.files_touched.iter().map(String::as_str))
+        .collect();
     files.sort_unstable();
     files.dedup();
 
@@ -420,10 +431,10 @@ pub struct CheckpointRow {
     pub at: String,
 }
 
-/// The newest Checkpoints across a Workspace, most recent first.
+/// The newest Checkpoints across a Project, most recent first.
 ///
 /// `subject_for` is a callback for the same reason it is on [`detail`]: the read
-/// model has to work for a Workspace whose repository has moved, where the rows
+/// model has to work for a Project whose repository has moved, where the rows
 /// still render without subjects.
 pub fn recent_checkpoints(
     store: &Store,
@@ -453,7 +464,7 @@ pub fn recent_checkpoints(
 ///
 /// `subject_for` resolves a commit sha to its subject line. It is a callback
 /// rather than a git call inside this crate because the read model must work for
-/// a Workspace whose repository has moved or been deleted — in which case the
+/// a Project whose repository has moved or been deleted — in which case the
 /// Checkpoint still renders, without a subject.
 pub fn detail(
     store: &Store,
@@ -468,7 +479,9 @@ pub fn detail(
     let mut counts = EntryCounts::default();
 
     for message in store.messages_for_session(session_id)? {
-        let Some(entry) = message_entry(store, &message)? else { continue };
+        let Some(entry) = message_entry(store, &message)? else {
+            continue;
+        };
         match entry.kind {
             EntryKind::Prompt => counts.prompts += 1,
             EntryKind::Response => counts.responses += 1,
@@ -504,7 +517,10 @@ pub fn detail(
     let tools = store
         .tool_call_counts(session_id)?
         .into_iter()
-        .map(|(name, count)| ToolTally { tool_name: name.as_str().to_string(), count })
+        .map(|(name, count)| ToolTally {
+            tool_name: name.as_str().to_string(),
+            count,
+        })
         .collect();
 
     // One Session, so the per-Session counts are two queries rather than the
@@ -519,7 +535,12 @@ pub fn detail(
             store.message_active_seconds_for(session_id, IDLE_CAP_SECONDS)?,
         ),
     );
-    Ok(Some(SessionDetail { summary, entries, counts, tools }))
+    Ok(Some(SessionDetail {
+        summary,
+        entries,
+        counts,
+        tools,
+    }))
 }
 
 /// Timeline order: by turn, then by when it happened.
@@ -566,7 +587,10 @@ fn message_entry(store: &Store, message: &Message) -> Result<Option<TimelineEntr
     let text = if inline {
         // Falls back to the preview when the blob is gone: a Session whose blob
         // store was pruned should still render, with less.
-        store.message_body(message).ok().filter(|body| !body.is_empty())
+        store
+            .message_body(message)
+            .ok()
+            .filter(|body| !body.is_empty())
     } else {
         None
     };
@@ -599,8 +623,11 @@ fn tool_call_entry(
     entry.tool_name = Some(call.tool_name.as_str().to_string());
     entry.tool_title = call.title.clone();
     entry.tool_status = Some(call.status);
-    entry.paths =
-        touches.iter().filter(|t| t.tool_call_id == call.id).map(|t| t.path.clone()).collect();
+    entry.paths = touches
+        .iter()
+        .filter(|t| t.tool_call_id == call.id)
+        .map(|t| t.path.clone())
+        .collect();
     entry.arguments = call.arguments.clone();
     entry.arguments_ref = call.arguments_ref.clone();
     entry.result_ref = call.result_ref.clone();

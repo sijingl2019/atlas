@@ -151,7 +151,11 @@ impl GitCommand {
         let display = self.display();
         let mut cmd = self.command();
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
-        cmd.stdin(if self.stdin.is_some() { Stdio::piped() } else { Stdio::null() });
+        cmd.stdin(if self.stdin.is_some() {
+            Stdio::piped()
+        } else {
+            Stdio::null()
+        });
 
         let mut child = cmd.spawn().map_err(|e| spawn_error(&display, &e))?;
 
@@ -176,7 +180,11 @@ impl GitCommand {
         let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
 
         if self.success_exit_codes.contains(&exit_code) {
-            Ok(GitOutput { exit_code, stdout, stderr })
+            Ok(GitOutput {
+                exit_code,
+                stdout,
+                stderr,
+            })
         } else {
             Err(error::payload(display, out.status.code(), &stderr, &stdout))
         }
@@ -189,7 +197,11 @@ impl GitCommand {
         let display = self.display();
         let mut cmd = self.command();
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
-        cmd.stdin(if self.stdin.is_some() { Stdio::piped() } else { Stdio::null() });
+        cmd.stdin(if self.stdin.is_some() {
+            Stdio::piped()
+        } else {
+            Stdio::null()
+        });
 
         let mut child = cmd.spawn().map_err(|e| spawn_error(&display, &e))?;
 
@@ -238,7 +250,11 @@ impl GitCommand {
 
             let exit_code = status.code().unwrap_or(-1);
             if self.success_exit_codes.contains(&exit_code) {
-                Ok(GitOutput { exit_code, stdout, stderr })
+                Ok(GitOutput {
+                    exit_code,
+                    stdout,
+                    stderr,
+                })
             } else {
                 Err(error::payload(display, status.code(), &stderr, &stdout))
             }
@@ -266,28 +282,36 @@ mod tests {
         }
     }
 
-    fn temp_repo() -> PathBuf {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let root = std::env::temp_dir().join(format!("atlas-git-exec-{nanos}"));
-        std::fs::create_dir_all(&root).unwrap();
-        GitCommand::new(&root, &["init", "-q", "-b", "main"]).run().unwrap();
+    fn temp_repo() -> tempfile::TempDir {
+        // `SystemTime` names collide when these tests start together, making
+        // concurrent `git init` calls race while copying template files.
+        // TempDir reserves a unique directory atomically and removes it on
+        // drop, covering both parallel tests and failed assertions.
+        let root = tempfile::Builder::new()
+            .prefix("atlas-git-exec-")
+            .tempdir()
+            .unwrap();
+        GitCommand::new(root.path(), &["init", "-q", "-b", "main"])
+            .run()
+            .unwrap();
         root
     }
 
     #[test]
     fn run_success_and_typed_failure() {
         let repo = temp_repo();
-        let out = GitCommand::new(&repo, &["status", "--porcelain"]).read_only().run().unwrap();
+        let out = GitCommand::new(repo.path(), &["status", "--porcelain"])
+            .read_only()
+            .run()
+            .unwrap();
         assert_eq!(out.exit_code, 0);
 
         // Unknown ref → typed error, not a raw string.
-        let err = GitCommand::new(&repo, &["log", "no-such-ref"]).run().unwrap_err();
+        let err = GitCommand::new(repo.path(), &["log", "no-such-ref"])
+            .run()
+            .unwrap_err();
         assert_eq!(err.code, crate::GitErrorCode::UnknownRef);
         assert!(!err.raw_stderr.is_empty());
-        let _ = std::fs::remove_dir_all(&repo);
     }
 
     #[test]
@@ -295,22 +319,23 @@ mod tests {
         let repo = temp_repo();
         // `git diff --check` on a clean tree exits 0; asking for an accepted
         // extra code must not break the success path.
-        let out = GitCommand::new(&repo, &["diff", "--check"])
+        let out = GitCommand::new(repo.path(), &["diff", "--check"])
             .success_codes(&[0, 2])
             .run()
             .unwrap();
         assert_eq!(out.exit_code, 0);
-        let _ = std::fs::remove_dir_all(&repo);
     }
 
     #[test]
     fn streaming_forwards_lines_and_stdin() {
         let repo = temp_repo();
-        std::fs::write(repo.join("f.txt"), "hello\n").unwrap();
-        GitCommand::new(&repo, &["add", "f.txt"]).run().unwrap();
+        std::fs::write(repo.path().join("f.txt"), "hello\n").unwrap();
+        GitCommand::new(repo.path(), &["add", "f.txt"])
+            .run()
+            .unwrap();
 
         let sink = CollectSink(Mutex::new(Vec::new()));
-        let out = GitCommand::new(&repo, &["commit", "-F", "-"])
+        let out = GitCommand::new(repo.path(), &["commit", "-F", "-"])
             .env("GIT_AUTHOR_NAME", "t")
             .env("GIT_AUTHOR_EMAIL", "t@example.com")
             .env("GIT_COMMITTER_NAME", "t")
@@ -321,10 +346,11 @@ mod tests {
         assert_eq!(out.exit_code, 0);
         let lines = sink.0.lock().unwrap();
         assert!(
-            lines.iter().any(|(_, l)| l.contains("streamed commit message")),
+            lines
+                .iter()
+                .any(|(_, l)| l.contains("streamed commit message")),
             "commit summary should stream through the sink: {lines:?}"
         );
-        let _ = std::fs::remove_dir_all(&repo);
     }
 
     #[test]

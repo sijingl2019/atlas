@@ -58,10 +58,10 @@ use std::path::Path;
 use chrono::Utc;
 
 use crate::blobs;
-use crate::sketch;
 use crate::error::{Error, Result};
 use crate::git::{self, ChangedPath};
-use crate::model::{FileTouch, WorkspaceMode};
+use crate::model::{FileTouch, ProjectMode};
+use crate::sketch;
 use crate::store::{CheckpointInput, LinkCandidate, Store};
 
 /// A git read that should have worked did not — lock contention, a mid-gc
@@ -76,9 +76,9 @@ fn git_unavailable(err: git::GitError) -> Error {
 ///
 /// `rev-list cursor..HEAD` fails outright if the cursor commit was garbage
 /// collected or rewritten away, and detection would then stop **forever** for
-/// that Workspace with nothing logged. A bounded re-scan is the recovery: it is
+/// that Project with nothing logged. A bounded re-scan is the recovery: it is
 /// cheap, `(Session, commit)` makes re-processing harmless, and the alternative
-/// is a Workspace that has silently gone dark.
+/// is a Project that has silently gone dark.
 pub const RECOVERY_SCAN_LIMIT: usize = 200;
 
 /// What one walk did.
@@ -96,18 +96,18 @@ pub struct WalkOutcome {
 
 /// Walk from the last-seen commit to HEAD, creating Checkpoints.
 ///
-/// Safe to call on every ref movement and on Workspace open. The open-time call
-/// is not a fallback: a watcher only exists for a Workspace activated at least
-/// once this app session, so for a never-activated or evicted Workspace this
+/// Safe to call on every ref movement and on Project open. The open-time call
+/// is not a fallback: a watcher only exists for a Project activated at least
+/// once this app session, so for a never-activated or evicted Project this
 /// walk is the *primary* mechanism.
 pub fn walk_new_commits(
     store: &Store,
     workspace_id: &str,
     repo: &Path,
-    mode: WorkspaceMode,
+    mode: ProjectMode,
 ) -> Result<WalkOutcome> {
     if !git::is_repository(repo) {
-        // Git is optional. A non-repository Workspace captures Sessions and
+        // Git is optional. A non-repository Project captures Sessions and
         // simply never produces Checkpoints.
         return Ok(WalkOutcome::default());
     }
@@ -131,7 +131,7 @@ pub fn walk_new_commits(
 
     let (commits, recovered) = resolve_range(repo, cursor.as_deref(), &head);
     if commits.is_empty() {
-        // Still record the cursor, so a Workspace whose first walk finds nothing
+        // Still record the cursor, so a Project whose first walk finds nothing
         // does not re-scan from the beginning on every ref movement.
         store.set_commit_cursor(workspace_id, &head, recovered)?;
         return Ok(WalkOutcome {
@@ -148,8 +148,14 @@ pub fn walk_new_commits(
     };
 
     for commit in &commits {
-        outcome.checkpoints_created +=
-            link_commit(store, repo, commit, &mut candidates, branch.as_deref(), mode)?;
+        outcome.checkpoints_created += link_commit(
+            store,
+            repo,
+            commit,
+            &mut candidates,
+            branch.as_deref(),
+            mode,
+        )?;
 
         // Advance per commit rather than once at the end: a crash mid-walk then
         // resumes from the last commit whose Checkpoints are durably written,
@@ -163,7 +169,7 @@ pub fn walk_new_commits(
 /// The commits to examine, and whether the cursor had to be recovered.
 fn resolve_range(repo: &Path, cursor: Option<&str>, head: &str) -> (Vec<String>, bool) {
     match cursor {
-        // No cursor yet — a Workspace whose capture was just enabled. Bound the
+        // No cursor yet — a Project whose capture was just enabled. Bound the
         // first walk rather than replaying an entire repository history, which
         // for a large repo would be tens of thousands of commits none of which
         // can match a Session that did not exist yet.
@@ -200,7 +206,7 @@ pub fn link_commits(
     workspace_id: &str,
     repo: &Path,
     commits: &[String],
-    mode: WorkspaceMode,
+    mode: ProjectMode,
 ) -> Result<usize> {
     if commits.is_empty() || !git::is_repository(repo) {
         return Ok(0);
@@ -209,7 +215,14 @@ pub fn link_commits(
     let branch = git::current_branch(repo);
     let mut created = 0;
     for commit in commits {
-        created += link_commit(store, repo, commit, &mut candidates, branch.as_deref(), mode)?;
+        created += link_commit(
+            store,
+            repo,
+            commit,
+            &mut candidates,
+            branch.as_deref(),
+            mode,
+        )?;
     }
     Ok(created)
 }
@@ -226,7 +239,7 @@ fn link_commit(
     commit_sha: &str,
     candidates: &mut [LinkCandidate],
     branch: Option<&str>,
-    mode: WorkspaceMode,
+    mode: ProjectMode,
 ) -> Result<usize> {
     if candidates.is_empty() {
         // Nothing can link and nothing can be consumed. Skipping the git reads
@@ -248,11 +261,13 @@ fn link_commit(
         let mut created = 0;
         let first_parent = &info.parents[0];
         for side_parent in &info.parents[1..] {
-            let sides = git::merge_side_commits(repo, first_parent, side_parent, RECOVERY_SCAN_LIMIT)
-                .map_err(git_unavailable)?;
+            let sides =
+                git::merge_side_commits(repo, first_parent, side_parent, RECOVERY_SCAN_LIMIT)
+                    .map_err(git_unavailable)?;
             for side in sides {
                 let side_info = git::commit_info(repo, &side).map_err(git_unavailable)?;
-                created += evaluate_commit(store, repo, &side, &side_info, candidates, branch, mode)?;
+                created +=
+                    evaluate_commit(store, repo, &side, &side_info, candidates, branch, mode)?;
             }
         }
         return Ok(created);
@@ -269,7 +284,7 @@ fn evaluate_commit(
     info: &git::CommitInfo,
     candidates: &mut [LinkCandidate],
     branch: Option<&str>,
-    mode: WorkspaceMode,
+    mode: ProjectMode,
 ) -> Result<usize> {
     let changed = git::changed_paths(repo, commit_sha).map_err(git_unavailable)?;
     if changed.is_empty() {
@@ -340,9 +355,9 @@ fn evaluate_commit(
         let up_to = chrono::DateTime::<chrono::Utc>::from_timestamp(info.commit_time + 1, 0)
             .unwrap_or_else(chrono::Utc::now);
         store.consume_touches(&candidate.session_id, commit_sha, &matches.touched, up_to)?;
-        candidate.touches.retain(|touch| {
-            !matches.touched.contains(&touch.path) || touch.created_at > up_to
-        });
+        candidate
+            .touches
+            .retain(|touch| !matches.touched.contains(&touch.path) || touch.created_at > up_to);
     }
     Ok(created)
 }
@@ -378,7 +393,10 @@ fn matching_paths(
         .map(|touch| (touch.path.to_lowercase(), touch))
         .collect();
 
-    let mut matches = PathMatches { linked: Vec::new(), touched: Vec::new() };
+    let mut matches = PathMatches {
+        linked: Vec::new(),
+        touched: Vec::new(),
+    };
     for change in changed {
         // A rename carries the agent's work under its *pre*-rename path: the
         // agent edited the file, the commit moved it. Either spelling counts.
@@ -478,14 +496,14 @@ fn links(repo: &Path, commit_sha: &str, change: &ChangedPath, touch: &FileTouch)
     sketch::retains_agent_work(agent_sketch, &committed_sketch)
 }
 
-/// Are there Checkpoints for this Workspace whose commit has gone missing?
+/// Are there Checkpoints for this Project whose commit has gone missing?
 ///
 /// Split out so a caller can cheaply decide whether reconciliation is worth
 /// running at all.
 pub fn has_unreachable_checkpoints(store: &Store, workspace_id: &str, repo: &Path) -> Result<bool> {
     use crate::model::LinkState;
     Ok(store
-        .checkpoints_for_workspace(workspace_id)?
+        .checkpoints_for_project(workspace_id)?
         .into_iter()
         // A failed probe reads as "still reachable" here: this is only a cheap
         // pre-check, and it must never nominate a Checkpoint for orphaning on
@@ -548,7 +566,11 @@ pub const MASS_ORPHAN_THRESHOLD: usize = 5;
 ///
 /// Safe and cheap to call on every ref movement: it does nothing when every
 /// Checkpoint's commit is still reachable.
-pub fn reconcile_rewrites(store: &Store, workspace_id: &str, repo: &Path) -> Result<ReconcileOutcome> {
+pub fn reconcile_rewrites(
+    store: &Store,
+    workspace_id: &str,
+    repo: &Path,
+) -> Result<ReconcileOutcome> {
     use crate::model::LinkState;
 
     let mut outcome = ReconcileOutcome::default();
@@ -565,7 +587,7 @@ pub fn reconcile_rewrites(store: &Store, workspace_id: &str, repo: &Path) -> Res
         return Ok(outcome);
     }
 
-    let checkpoints = store.checkpoints_for_workspace(workspace_id)?;
+    let checkpoints = store.checkpoints_for_project(workspace_id)?;
     if checkpoints.is_empty() {
         return Ok(outcome);
     }
@@ -609,8 +631,13 @@ pub fn reconcile_rewrites(store: &Store, workspace_id: &str, repo: &Path) -> Res
             // a reverted force-push. Re-link it rather than leaving the record
             // pessimistic.
             LinkState::Orphaned if reachable => {
-                let branch = branch_hint(repo, &checkpoint.commit_sha, checkpoint.branch.as_deref());
-                match store.relink_checkpoint(&checkpoint.id, &checkpoint.commit_sha, branch.as_deref()) {
+                let branch =
+                    branch_hint(repo, &checkpoint.commit_sha, checkpoint.branch.as_deref());
+                match store.relink_checkpoint(
+                    &checkpoint.id,
+                    &checkpoint.commit_sha,
+                    branch.as_deref(),
+                ) {
                     Ok(()) => outcome.recovered += 1,
                     Err(_) => outcome.failed += 1,
                 }
@@ -678,7 +705,11 @@ pub fn reconcile_rewrites(store: &Store, workspace_id: &str, repo: &Path) -> Res
 /// explanation living only in a log file is the same as no explanation. A clean
 /// pass zeroes the note rather than leaving the old alarm standing, so the
 /// signal reports current state, not history.
-fn record_reconcile_note(store: &Store, workspace_id: &str, outcome: &ReconcileOutcome) -> Result<()> {
+fn record_reconcile_note(
+    store: &Store,
+    workspace_id: &str,
+    outcome: &ReconcileOutcome,
+) -> Result<()> {
     let noteworthy = outcome.is_mass_orphan() || outcome.failed > 0;
     if noteworthy {
         let note = serde_json::json!({
@@ -741,7 +772,11 @@ fn resolve_candidate(
             let branch = recorded_branch?;
             let on_branch: Vec<&String> = candidates
                 .iter()
-                .filter(|sha| git::branches_containing(repo, sha).iter().any(|b| b == branch))
+                .filter(|sha| {
+                    git::branches_containing(repo, sha)
+                        .iter()
+                        .any(|b| b == branch)
+                })
                 .collect();
             // Still ambiguous after the branch preference — two commits with the
             // same diff on the same branch. Orphan rather than guess.

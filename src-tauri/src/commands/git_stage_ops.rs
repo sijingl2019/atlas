@@ -56,7 +56,9 @@ fn selection_op(
     };
     let out = GitCommand::new(path, &diff_args).read_only().run()?;
     let parsed = patch::parse_file_diff(&out.stdout).ok_or_else(|| {
-        GitErrorPayload::internal("No changes found for this file — it may already be staged. Refresh and try again.")
+        GitErrorPayload::internal(
+            "No changes found for this file — it may already be staged. Refresh and try again.",
+        )
     })?;
     if parsed.binary {
         return Err(GitErrorPayload::internal(
@@ -71,9 +73,8 @@ fn selection_op(
         )
     })?;
 
-    let patch_text = patch::line_selection_patch(&parsed, idx, selected).ok_or_else(|| {
-        GitErrorPayload::internal("The selection contains no changed lines.")
-    })?;
+    let patch_text = patch::line_selection_patch(&parsed, idx, selected)
+        .ok_or_else(|| GitErrorPayload::internal("The selection contains no changed lines."))?;
 
     let apply_args: Vec<&str> = match op {
         SelOp::Stage => vec!["apply", "--cached", "--whitespace=nowarn", "-"],
@@ -98,7 +99,14 @@ pub async fn git_stage_hunk(
     app: AppHandle,
 ) -> Result<(), GitErrorPayload> {
     tokio::task::spawn_blocking(move || {
-        selection_op(&app, &path, &file, &lines, selected.as_deref(), SelOp::Stage)
+        selection_op(
+            &app,
+            &path,
+            &file,
+            &lines,
+            selected.as_deref(),
+            SelOp::Stage,
+        )
     })
     .await
     .map_err(|e| GitErrorPayload::internal(e.to_string()))?
@@ -114,7 +122,14 @@ pub async fn git_unstage_hunk(
     app: AppHandle,
 ) -> Result<(), GitErrorPayload> {
     tokio::task::spawn_blocking(move || {
-        selection_op(&app, &path, &file, &lines, selected.as_deref(), SelOp::Unstage)
+        selection_op(
+            &app,
+            &path,
+            &file,
+            &lines,
+            selected.as_deref(),
+            SelOp::Unstage,
+        )
     })
     .await
     .map_err(|e| GitErrorPayload::internal(e.to_string()))?
@@ -131,7 +146,14 @@ pub async fn git_discard_hunk(
     app: AppHandle,
 ) -> Result<(), GitErrorPayload> {
     tokio::task::spawn_blocking(move || {
-        selection_op(&app, &path, &file, &lines, selected.as_deref(), SelOp::Discard)
+        selection_op(
+            &app,
+            &path,
+            &file,
+            &lines,
+            selected.as_deref(),
+            SelOp::Discard,
+        )
     })
     .await
     .map_err(|e| GitErrorPayload::internal(e.to_string()))?

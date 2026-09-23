@@ -38,10 +38,7 @@ pub fn from_prompt(prompt: &str) -> Option<String> {
 pub fn from_redacted(text: &str) -> Option<String> {
     // First *non-empty* line, not first line: prompts routinely open with a
     // blank line or a pasted block, and titling a Session "```" helps nobody.
-    let line = text
-        .lines()
-        .map(str::trim)
-        .find(|line| !line.is_empty())?;
+    let line = text.lines().map(str::trim).find(|line| !line.is_empty())?;
 
     let stripped = strip_markdown_prefix(line);
     if stripped.is_empty() {
@@ -128,8 +125,8 @@ mod tests {
 
     #[test]
     fn a_long_prompt_is_cut_at_a_word_boundary_when_one_is_near() {
-        let title = from_prompt(&format!("{} finally", "alpha beta gamma ".repeat(20)))
-            .expect("title");
+        let title =
+            from_prompt(&format!("{} finally", "alpha beta gamma ".repeat(20))).expect("title");
         assert!(!title.trim_end_matches('…').ends_with(' '));
         assert!(title.ends_with('…'));
     }

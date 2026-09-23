@@ -128,7 +128,9 @@ impl Db {
 
     /// Which agents the first-run backfill has already run for.
     pub(crate) fn backfilled_agents(&self) -> Result<Vec<String>> {
-        let mut stmt = self.conn.prepare("SELECT agent_id FROM backfilled_agents")?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT agent_id FROM backfilled_agents")?;
         let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
         let mut out = Vec::new();
         for row in rows {
@@ -153,7 +155,6 @@ impl Db {
         )?;
         Ok(())
     }
-
 }
 
 /// An empty path list is stored as `NULL`, not as two empty strings — Zed's

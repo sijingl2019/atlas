@@ -15,8 +15,8 @@ const mocks = vi.hoisted(() => ({
   catalog: [] as unknown[],
 }));
 
-vi.mock("@/features/project/stores/project-store", () => ({
-  useProjectStore: Object.assign(() => undefined, {
+vi.mock("@/features/settings/stores/settings-store", () => ({
+  useSettingsStore: Object.assign(() => undefined, {
     getState: () => ({ settings: { defaultAgent: mocks.defaultAgent } }),
   }),
 }));

@@ -1,36 +1,41 @@
-import { GitBranch, Share2, SlidersHorizontal } from "lucide-react";
+import { Share2, SlidersHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MemoryGraphView } from "./memory-graph-view";
 import { MemoryPolicyView } from "./memory-policy-view";
-import { MemoryTimelineView } from "./memory-timeline-view";
 import { MemorySharingControls } from "./memory-sharing-controls";
 import { SharedMemoryView } from "./shared-memory-view";
-import { useProjectStore } from "@/features/project/stores/project-store";
+import { useAppStore } from "@/features/app/stores/app-store";
 import { useMemoryStore } from "../stores/memory-store";
 
 // ── Panel shell ─────────────────────────────────────────────────────────────
 //
-// Four views over the project's memory: the semantic Graph, the retrieval
-// Policy, the Timeline, and Shared memory. Each loads its own data on mount /
-// project change and owns its own refresh, so the shell is just navigation.
+// Three views over the project's memory: the semantic Graph, the retrieval
+// Policy, and Shared memory. Each loads its own data on mount / project change
+// and owns its own refresh, so the shell is just navigation.
 //
-// Two things used to live here and were removed on 2026-08-22:
-//   * **Chat** — an on-device RAG chat over the memory index.
-//   * **The coding-agent dropdown** — per-agent memory browsers (Claude Code,
-//     Codex, Atlas, and every capture-backed agent). It enumerated agents from
-//     three different sources and drifted out of step with the ACP registry
-//     rework, listing duplicates. Rebuilding it belongs on the registry, not on
-//     the hand-rolled agent list it was built against.
+// Three things used to live here and were removed:
+//   * **Chat** (2026-08-22) — an on-device RAG chat over the memory index.
+//   * **The coding-agent dropdown** (2026-08-22) — per-agent memory browsers
+//     (Claude Code, Codex, Atlas, and every capture-backed agent). It
+//     enumerated agents from three different sources and drifted out of step
+//     with the ACP registry rework, listing duplicates. Rebuilding it belongs
+//     on the registry, not on the hand-rolled agent list it was built against.
+//   * **Timeline** (2026-09-22) — a branch-aware board of git commits, agent
+//     sessions and the memory each one touched. Never used; it also carried
+//     the module's heaviest backend call (`memory_timeline` walked every ref
+//     and re-collected the corpus on each project visit). Removed whole, down
+//     to the Rust command — the session Timeline in the center panel is a
+//     different, unrelated feature and is untouched.
 
 export function MemoryPanel() {
-  const projectPath = useProjectStore.use.currentProject()?.path ?? null;
+  const projectPath = useAppStore.use.currentProject()?.path ?? null;
   const sub = useMemoryStore.use.subTab();
   const { setSubTab } = useMemoryStore.use.actions();
 
   return (
-    <div className="h-full flex flex-col bg-[var(--bg-base)]">
+    <div className="h-full flex flex-col bg-[var(--background)]">
       {/* Header: nav (left) · sharing controls (right) */}
-      <div className="flex items-center h-[32px] shrink-0 border-b border-[var(--border-default)] px-2">
+      <div className="flex items-center h-[32px] shrink-0 border-b border-[var(--border)] px-2">
         <PillGroup>
           <PillSeg
             active={sub === "graph"}
@@ -43,12 +48,6 @@ export function MemoryPanel() {
             onClick={() => setSubTab("policy")}
             icon={<SlidersHorizontal size={12} />}
             label="Policy"
-          />
-          <PillSeg
-            active={sub === "timeline"}
-            onClick={() => setSubTab("timeline")}
-            icon={<GitBranch size={12} />}
-            label="Timeline"
           />
           <PillSeg
             active={sub === "shared"}
@@ -68,13 +67,11 @@ export function MemoryPanel() {
           <MemoryGraphView />
         ) : sub === "policy" ? (
           <MemoryPolicyView />
-        ) : sub === "timeline" ? (
-          <MemoryTimelineView />
         ) : projectPath ? (
           <SharedMemoryView projectPath={projectPath} />
         ) : (
           <Centered>
-            <p className="text-[12px] text-[var(--text-tertiary)]">
+            <p className="text-sm text-[var(--muted-foreground)]">
               Open a project to view shared memory.
             </p>
           </Centered>
@@ -87,7 +84,7 @@ export function MemoryPanel() {
 /** Rounded container that groups the segmented nav pills. */
 function PillGroup({ children }: { children: React.ReactNode }) {
   return (
-    <div className="inline-flex items-center gap-0.5 rounded-full border border-[var(--border-default)] bg-[var(--bg-elevated,var(--bg-secondary))] p-0.5">
+    <div className="inline-flex items-center gap-0.5 rounded-full border border-[var(--border)] bg-[var(--card,var(--card))] p-0.5">
       {children}
     </div>
   );
@@ -108,10 +105,10 @@ function PillSeg({
     <button
       onClick={onClick}
       className={cn(
-        "flex items-center gap-1.5 h-[22px] px-2.5 rounded-full text-[11px] font-medium outline-none transition-colors cursor-pointer",
+        "flex items-center gap-1.5 h-control-xs px-2.5 rounded-full text-xs font-medium outline-none transition-colors cursor-pointer",
         active
-          ? "bg-[var(--bg-selected)] text-[var(--text-primary)]"
-          : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]",
+          ? "bg-[var(--atlas-element-selected)] text-[var(--foreground)]"
+          : "text-[var(--muted-foreground)] hover:text-[var(--secondary-foreground)] hover:bg-[var(--atlas-element-hover)]",
       )}
     >
       {icon}

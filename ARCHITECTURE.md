@@ -54,7 +54,7 @@ src/features/<feature>/
   lib/          — pure helpers, and the invoke()/listen() wrappers (<domain>-api.ts)
 ```
 
-`src/features/` holds ~30 slices: chat, editor, terminal, browser, git, github, explorer, knowledge, canvas, layout, log, monitor, settings, memory, mission-control, model-chat, organisations, packs, skills, telemetry, updater, workspaces, and more.
+`src/features/` holds ~30 slices: app, chat, editor, terminal, browser, git, github, explorer, knowledge, canvas, layout, log, monitor, settings, memory, mission-control, model-chat, organisations, packs, projects, skills, telemetry, updater, and more.
 
 - **Cross-feature widgets** live in `src/components/`.
 - **UI primitives** live in `src/ui/`.
@@ -159,7 +159,7 @@ Atlas's agent stack is a port of Zed's, taken as a mechanism rather than rewritt
 | external ACP agent | `atlas-agent-servers` | a subprocess over JSON-RPC/stdio |
 | native agent | `atlas-native-agent` | the ported Codex engine, in-process |
 
-Beyond `prompt` / `cancel` / `authenticate`, **every optional behaviour is capability-gated** — either a `supports_*` predicate (`supports_load_session`, `supports_resume_session`, `supports_close_session`, `supports_logout`) or an `Option<Arc<dyn …>>` sub-trait the connection returns only when the agent advertised it (`model_selector`, `session_modes`, `session_config_options`, `session_list`, `truncate`, `retry`, `set_title`, `telemetry`). A caller asks the connection what it can do; it never asks who it is.
+Beyond `prompt` / `cancel` / `authenticate`, **every optional behaviour is capability-gated** — either a `supports_*` predicate (`supports_load_session`, `supports_resume_session`, `supports_close_session`, `supports_logout`, `supports_http_mcp`) or an `Option<Arc<dyn …>>` sub-trait the connection returns only when the agent advertised it (`model_selector`, `session_modes`, `session_config_options`, `session_list`, `truncate`, `retry`, `set_title`, `telemetry`). A caller asks the connection what it can do; it never asks who it is.
 
 **Branching on agent identity is forbidden.** Capabilities come from what the agent advertised at `initialize`. An `if agent_id == "claude"` is a bug, not a shortcut — it is what made the pre-port stack impossible to extend to an agent nobody had hand-written support for.
 
@@ -208,7 +208,7 @@ All wired in as `path` dependencies from `src-tauri/Cargo.toml`, and all members
 | `atlas-native-agent` | The ported Codex engine on the `AgentConnection` seam — the native agent as just another connection. Its agent id is still the literal `"cersei"`: a storage key, not a live reference to the deleted SDK. Renaming it orphans every existing thread's history. |
 | `atlas-agent-transcript` | Where an agent keeps its record of a conversation, and how to read Atlas's own text back out of one. The Claude JSONL replay it used to hold is gone. |
 | `atlas-thread-metadata` | The app-owned thread-metadata store (`threads.db`) — Atlas's only source for the sidebar and history. Metadata only, never transcript content. Ported from Zed's `ThreadMetadataStore`. See ADR-0001. |
-| `atlas-bus` | Event broadcaster + middleware pipeline seam: a `tokio::sync::broadcast`-backed fan-out (lagging subscribers drop rather than block the producer), plus `OutboundPipeline`/`InboundPipeline`. Generic — no dependency on any agent or ACP type. |
+| `atlas-bus` | Event broadcaster + middleware pipeline seam: a `tokio::sync::broadcast`-backed fan-out (lagging subscribers drop rather than block the producer), plus `OutboundPipeline`. Generic — no dependency on any agent or ACP type. |
 
 ### Everything else
 
@@ -219,21 +219,22 @@ All wired in as `path` dependencies from `src-tauri/Cargo.toml`, and all members
 | `atlas-git` | Git execution layer: one spawn chokepoint over the real `git` binary (so hooks run), a typed stderr→error taxonomy with friendly messages (ported from GitHub Desktop/dugite), porcelain-v2 status parsing, streaming output for long operations. |
 | `atlas-gitdiff` | Structured side-by-side diff engine: parses unified diffs, computes word-level intra-line change spans (word-diff vendored from `dandavison/delta`, MIT). |
 | `atlas-terminal` | Wraps `portable-pty`, manages `TerminalSession`s, bridges PTY bytes to Tauri events. |
-| `atlas-memory` | On-device RAG/memory engine: MiniLM → usearch HNSW plus grafeo graph memory, behind a `MemorySearchFn` seam. Read its `README.md` and `MIGRATION.md` before changing on-disk index formats. |
+| `atlas-memory` | On-device RAG/memory engine: MiniLM → usearch HNSW behind a `MemorySearchFn` seam; the shared-memory record store (`record`: SQLite per repository scope, redact-on-write, one-time legacy migration); and global promotion of Facts seen in two or more repositories to `~/.atlas/memory` (`global`). Read its `README.md` and `MIGRATION.md` before changing on-disk index formats. |
 | `atlas-embed` | On-device text embeddings (BERT-family sentence-transformers) and a small vector store, isolated so `candle`'s heavy dependency tree doesn't slow everything else's incremental builds. Embedding only — on-device generation was removed 2026-08-22. |
 | `atlas-codeindex` | Deterministic codebase scanner: turns live source into structural, embeddable docs via its own tree-sitter code intelligence (Rust/TS/TSX/JS/Python/Go). |
 | `atlas-kb-server` | Standalone static-server binary produced by the knowledge base's "Export server" action. Embeds the exported HTML/CSS via `include_dir!`, serves on `localhost:4747`. |
 
 ## Persistence
 
-Most app state is plain files, by design — but **two subsystems are SQLite**, and both are Atlas's own databases rather than anyone else's:
+Most app state is plain files, by design — but **three subsystems are SQLite**, and all are Atlas's own databases rather than anyone else's:
 
 | Store | Path | Crate |
 |---|---|---|
 | Session history (thread metadata) | `<app-config-dir>/threads.db` | `atlas-thread-metadata` |
 | Session record / Timeline (checkpoints) | `<project-root>/.atlas/sessions.db` + blob sidecar | `atlas-checkpoint` |
+| Shared memory record (events, entries, sessions) | `<scope-root>/.atlas/memory/memory.sqlite` | `atlas-memory` (`record`) |
 
-`<app-config-dir>` is Tauri's `app_config_dir()` — `~/Library/Application Support/dev.atlas.ide/` on macOS. History is global because threads are grouped *across* projects; the checkpoint record is per-project because a Timeline is about one worktree.
+`<app-config-dir>` is Tauri's `app_config_dir()` — `~/Library/Application Support/dev.atlas.ide/` on macOS. History is global because threads are grouped *across* projects; the checkpoint record is per-project because a Timeline is about one worktree. Shared memory is per *repository*: its scope root is the main worktree (found through the git common dir), or the launch directory outside git, so every worktree of a repository shares one record.
 
 **Atlas does not read another program's storage to build session history.** The per-agent scrape readers are deleted (ADR-0001). Two deliberate reads of CLI directories remain and are not history: the checkpoint importer, under its own preserved contract, and the memory/skills surfaces, which read instruction files (`CLAUDE.md`, `AGENTS.md`, skills) as documents. `CONTEXT.md` records one flagged exception — the Memory panel's Codex thread list.
 
@@ -243,8 +244,8 @@ Everything else is per-project files under `<project-root>/.atlas/`:
 <project-root>/.atlas/
 ├── sessions.db               checkpoint/Timeline record (SQLite) + blobs/
 ├── knowledge/                markdown notes, in subdirectories
-├── shared-memory/            cross-agent memory facts
-├── memory/                   on-device RAG index (atlas-memory)
+├── shared-memory/            legacy cross-agent event log (migrated into memory/memory.sqlite; kept one release)
+├── memory/                   shared-memory record (memory.sqlite, at the scope root) + on-device RAG index (atlas-memory)
 ├── codebase-index/           atlas-codeindex output
 ├── repos/                    repos cloned via the GitHub panel
 ├── skills/, agent-skills/    SKILL.md files

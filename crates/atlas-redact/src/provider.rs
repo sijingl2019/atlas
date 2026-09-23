@@ -50,14 +50,23 @@ const PROVIDER_PATTERNS: &[(&str, &str)] = &[
     // minted years ago still works, and still turns up in a transcript. Its
     // alphabet is narrow enough that entropy misses it too, so without this rule
     // nothing catches it at all.
-    ("legacy-sk-api-key", r"(?:^|[^A-Za-z0-9])(sk-[A-Za-z0-9_-]{16,})"),
+    (
+        "legacy-sk-api-key",
+        r"(?:^|[^A-Za-z0-9])(sk-[A-Za-z0-9_-]{16,})",
+    ),
     // GitHub personal access / OAuth / user / server / refresh tokens. The
     // corpus pins exact lengths per kind; this covers the same prefixes at any
     // length, which is what a truncated or future-length token needs.
-    ("github-token", r"(?:^|[^A-Za-z0-9])(gh[pousr]_[A-Za-z0-9]{16,})"),
+    (
+        "github-token",
+        r"(?:^|[^A-Za-z0-9])(gh[pousr]_[A-Za-z0-9]{16,})",
+    ),
     // Slack bot / user / app / workspace tokens. The corpus rule requires the
     // two numeric id groups; a token quoted without them still leaks.
-    ("slack-token", r"(?:^|[^A-Za-z0-9])(xox[baprse]-[A-Za-z0-9-]{10,})"),
+    (
+        "slack-token",
+        r"(?:^|[^A-Za-z0-9])(xox[baprse]-[A-Za-z0-9-]{10,})",
+    ),
 ];
 
 fn patterns() -> &'static [(&'static str, Regex)] {
@@ -79,7 +88,11 @@ pub(crate) fn detect(input: &str) -> Vec<Region> {
             let Some(token) = captures.get(1).or_else(|| captures.get(0)) else {
                 continue;
             };
-            regions.push(Region::new(token.start(), token.end(), Category::ProviderToken));
+            regions.push(Region::new(
+                token.start(),
+                token.end(),
+                Category::ProviderToken,
+            ));
         }
     }
     regions
@@ -98,13 +111,19 @@ mod tests {
 
     #[test]
     fn a_supabase_secret_key_alone_in_a_string_is_found() {
-        let input = format!("SUPABASE_KEY={}", token("sb_secret", "_QRSTUVWXYZabcdefghijklmnop"));
+        let input = format!(
+            "SUPABASE_KEY={}",
+            token("sb_secret", "_QRSTUVWXYZabcdefghijklmnop")
+        );
         assert_eq!(detect(&input).len(), 1);
     }
 
     #[test]
     fn a_token_glued_to_a_preceding_word_character_is_still_found() {
-        let input = format!(r"line1\n{}", token("sb_secret", "_QRSTUVWXYZabcdefghijklmnop"));
+        let input = format!(
+            r"line1\n{}",
+            token("sb_secret", "_QRSTUVWXYZabcdefghijklmnop")
+        );
         assert_eq!(detect(&input).len(), 1);
     }
 
@@ -136,8 +155,17 @@ mod tests {
 
     #[test]
     fn github_and_slack_prefixes_are_found() {
-        assert_eq!(detect(&token("ghp", "_z63FfkCzJr4i0B3JrTAwR4y9ojfljoQoaF1L")).len(), 1);
-        assert_eq!(detect(&token("gho", "_z63FfkCzJr4i0B3JrTAwR4y9ojfljoQoaF1L")).len(), 1);
-        assert_eq!(detect(&token("xoxp", "-2837465091-4839201756-NyjOq")).len(), 1);
+        assert_eq!(
+            detect(&token("ghp", "_z63FfkCzJr4i0B3JrTAwR4y9ojfljoQoaF1L")).len(),
+            1
+        );
+        assert_eq!(
+            detect(&token("gho", "_z63FfkCzJr4i0B3JrTAwR4y9ojfljoQoaF1L")).len(),
+            1
+        );
+        assert_eq!(
+            detect(&token("xoxp", "-2837465091-4839201756-NyjOq")).len(),
+            1
+        );
     }
 }

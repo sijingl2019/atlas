@@ -10,6 +10,9 @@
 
 pub mod code_intel;
 
+#[cfg(test)]
+mod tests;
+
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
@@ -115,7 +118,11 @@ pub fn scan(root: &Path, mtime_ms_of: impl Fn(&Path) -> i64) -> Vec<ScannedFile>
         if matches!(Language::from_extension(ext), Language::Unknown) {
             continue;
         }
-        if entry.metadata().map(|m| m.len() > MAX_SOURCE_BYTES).unwrap_or(true) {
+        if entry
+            .metadata()
+            .map(|m| m.len() > MAX_SOURCE_BYTES)
+            .unwrap_or(true)
+        {
             continue;
         }
         let Ok(rel) = path.strip_prefix(root) else {
@@ -148,13 +155,23 @@ pub fn scan(root: &Path, mtime_ms_of: impl Fn(&Path) -> i64) -> Vec<ScannedFile>
             hash: content_hash(&source),
             mtime_ms: mtime_ms_of(path),
         });
+        // The cap counts files that produced an index entry, not files walked,
+        // so a tree full of unsupported or empty files can't starve it.
+        if out.len() >= DEFAULT_MAX_FILES {
+            break;
+        }
     }
     out
 }
 
 /// Deterministic embeddable text for a file: a compact, natural-language-ish
 /// description of what it defines and imports, so a vector query can match it.
-pub fn structural_text(rel: &str, language: &str, symbols: &[CodebaseSymbol], imports: &[String]) -> String {
+pub fn structural_text(
+    rel: &str,
+    language: &str,
+    symbols: &[CodebaseSymbol],
+    imports: &[String],
+) -> String {
     let mut s = format!("File {rel} ({language}).");
     if !symbols.is_empty() {
         let defs: Vec<String> = symbols
@@ -199,7 +216,9 @@ pub fn aliases(rel: &str, symbols: &[CodebaseSymbol]) -> Vec<String> {
 // ── Persistence ──────────────────────────────────────────────────────────────
 
 pub fn index_dir(project_path: &str) -> PathBuf {
-    Path::new(project_path).join(".atlas").join("codebase-index")
+    Path::new(project_path)
+        .join(".atlas")
+        .join("codebase-index")
 }
 
 pub fn docs_path(project_path: &str) -> PathBuf {

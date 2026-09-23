@@ -123,7 +123,10 @@ impl NodeRuntime {
     /// Callers that will go on to run npm call this first, so the user sees
     /// "Downloading Node.js…" during the one step that can take minutes rather
     /// than a bare "Starting …". When Node is already present nothing is sent.
-    pub async fn ensure_installed(&self, loading_status: Option<&LoadingStatus>) -> Result<PathBuf> {
+    pub async fn ensure_installed(
+        &self,
+        loading_status: Option<&LoadingStatus>,
+    ) -> Result<PathBuf> {
         self.install_if_needed(loading_status).await
     }
 
@@ -139,14 +142,18 @@ impl NodeRuntime {
     ) -> Result<Output> {
         let node_dir = self.install_if_needed(None).await?;
 
-        let mut output = self.npm_attempt(&node_dir, directory, subcommand, args).await;
+        let mut output = self
+            .npm_attempt(&node_dir, directory, subcommand, args)
+            .await;
         // Retry spawn/IO failures only. A timeout already waited ten minutes;
         // doing it again would double the hang the deadline exists to end.
         if output
             .as_ref()
             .is_err_and(|error| !error.is::<NpmTimedOut>())
         {
-            output = self.npm_attempt(&node_dir, directory, subcommand, args).await;
+            output = self
+                .npm_attempt(&node_dir, directory, subcommand, args)
+                .await;
         }
         let output = output.with_context(|| format!("launching npm {subcommand}"))?;
 
@@ -178,7 +185,9 @@ impl NodeRuntime {
         );
 
         let mut command = atlas_process::async_command(&node_binary);
-        command.args(npm_command_args(&npm_file, node_dir, directory, subcommand, args));
+        command.args(npm_command_args(
+            &npm_file, node_dir, directory, subcommand, args,
+        ));
         command.envs(npm_command_env(&node_binary));
         for key in inherited_npm_config_keys(std::env::vars_os().map(|(key, _)| key)) {
             command.env_remove(key);
@@ -440,7 +449,12 @@ fn npm_command_args(
     command_args.push(subcommand.to_string());
     command_args.push(format!("--cache={}", node_dir.join("cache").display()));
     command_args.push("--userconfig".into());
-    command_args.push(node_dir.join("blank_user_npmrc").to_string_lossy().into_owned());
+    command_args.push(
+        node_dir
+            .join("blank_user_npmrc")
+            .to_string_lossy()
+            .into_owned(),
+    );
     command_args.push("--globalconfig".into());
     command_args.push(
         node_dir
@@ -485,8 +499,7 @@ fn path_with_node_binary_prepended(node_binary: &Path) -> Option<String> {
     let existing = std::env::var_os("PATH");
     let joined = match &existing {
         Some(existing) => std::env::join_paths(
-            std::iter::once(node_bin_dir.to_path_buf())
-                .chain(std::env::split_paths(existing)),
+            std::iter::once(node_bin_dir.to_path_buf()).chain(std::env::split_paths(existing)),
         )
         .ok()?,
         None => node_bin_dir.as_os_str().to_owned(),
@@ -613,7 +626,6 @@ pub async fn installed_package_version(node_modules_dir: &Path, name: &str) -> O
     Some(package_json.version.unwrap_or_default())
 }
 
-
 /// The SHA-256 nodejs.org publishes for `file_name`.
 ///
 /// Required, not best-effort — which is the opposite of how the agent registry
@@ -695,10 +707,7 @@ mod tests {
 
         // A well-formed listing that names the right file — with the digest of
         // something else entirely.
-        let listing = format!(
-            "{}  {file_name}\n",
-            "1".repeat(64),
-        );
+        let listing = format!("{}  {file_name}\n", "1".repeat(64),);
 
         let mut routes = HashMap::new();
         routes.insert(
@@ -806,24 +815,40 @@ mod tests {
         );
 
         let joined = args.join(" ");
-        assert!(joined.starts_with(&format!(
-            "{} --prefix /opt/atlas/npx/codex install --cache=/opt/atlas/node/node-v24/cache \
+        assert!(
+            joined.starts_with(&format!(
+                "{} --prefix /opt/atlas/npx/codex install --cache=/opt/atlas/node/node-v24/cache \
              --userconfig /opt/atlas/node/node-v24/blank_user_npmrc \
              --globalconfig /opt/atlas/node/node-v24/blank_global_npmrc ",
-            npm.display()
-        )), "got {joined}");
-        assert!(joined.contains(
-            "--no-audit --no-fund --prefer-offline --fetch-timeout 300000 --fetch-retries 2 \
+                npm.display()
+            )),
+            "got {joined}"
+        );
+        assert!(
+            joined.contains(
+                "--no-audit --no-fund --prefer-offline --fetch-timeout 300000 --fetch-retries 2 \
              --fetch-retry-mintimeout 2000 --fetch-retry-maxtimeout 10000"
-        ), "got {joined}");
+            ),
+            "got {joined}"
+        );
         // The caller's own args come last.
-        assert_eq!(&args[args.len() - 2..], ["codex-acp@0.0.0 - 1.0.0", "--save-exact"]);
+        assert_eq!(
+            &args[args.len() - 2..],
+            ["codex-acp@0.0.0 - 1.0.0", "--save-exact"]
+        );
     }
 
     #[test]
     fn inherited_npm_config_and_node_env_are_stripped_case_insensitively() {
-        let keys = ["npm_config_omit", "NPM_CONFIG_ARCH", "NODE_ENV", "HOME", "PATH", "node_env"]
-            .map(std::ffi::OsString::from);
+        let keys = [
+            "npm_config_omit",
+            "NPM_CONFIG_ARCH",
+            "NODE_ENV",
+            "HOME",
+            "PATH",
+            "node_env",
+        ]
+        .map(std::ffi::OsString::from);
         let stripped = inherited_npm_config_keys(keys);
         assert_eq!(
             stripped,

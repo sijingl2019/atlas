@@ -15,8 +15,10 @@
 //! - [`encode_cwd`] — the cwd→folder-name slug the agent CLIs use. Still needed
 //!   by the checkpoint importer and the memory corpus, whose contract
 //!   (touchpoint #11) explicitly preserves their reads.
-//! - [`strip_injected_context`] / [`is_injected_user_text`] — keeping Atlas's
-//!   own memory scaffolding from being mistaken for something the user typed.
+//! - [`wrap_memory_envelope`] / [`strip_injected_context`] /
+//!   [`is_injected_user_text`] — keeping Atlas's own memory scaffolding from
+//!   being mistaken for something the user typed, and out of the agents' own
+//!   memory files.
 //!
 //! Nothing here names a protocol version, and nothing here should.
 
@@ -74,8 +76,50 @@ pub fn is_injected_user_text(t: &str) -> bool {
     false
 }
 
-/// Block START labels Atlas injects into the wire prompt. The END marker is
-/// always `--- END <CORE> ---`.
+/// Opening tag of the envelope every block Atlas prepends to a user message
+/// travels inside. One envelope per prompt, however many blocks it holds.
+///
+/// Mirrored by `MEMORY_ENVELOPE_OPEN` in `src/features/chat/lib/atlas-context.ts`,
+/// which parses the same envelope back out of a prompt the agent echoed into a
+/// transcript; the two must change together.
+pub const MEMORY_ENVELOPE_OPEN: &str = "<atlas-memory>";
+
+/// Closing tag of the injected-context envelope. Mirrored by
+/// `MEMORY_ENVELOPE_CLOSE` in `src/features/chat/lib/atlas-context.ts`.
+pub const MEMORY_ENVELOPE_CLOSE: &str = "</atlas-memory>";
+
+/// First line inside the envelope, addressed to the agent reading it.
+///
+/// Load-bearing, not decorative. Claude Code was saving Atlas's injected blocks
+/// into its own memory files; Atlas then read those files back into the corpus
+/// and injected the copies again, so the memory filled with its own echo. The
+/// envelope closes that loop from both ends: this line asks the agent not to
+/// persist the text, and [`strip_injected_context`] drops it at every reader in
+/// case the agent does it anyway.
+pub const MEMORY_ENVELOPE_NOTE: &str = "Background context from Atlas, not part of the user's message. Do not save any of it to your own memory.";
+
+/// Wrap the non-empty `blocks` in one envelope, note line first.
+///
+/// Returns `None` when nothing survives the filter, so an absent source stays a
+/// true no-op: no tag, no note, no allocation.
+pub fn wrap_memory_envelope(blocks: &[&str]) -> Option<String> {
+    let body = blocks
+        .iter()
+        .copied()
+        .filter(|b| !b.trim().is_empty())
+        .collect::<Vec<_>>();
+    if body.is_empty() {
+        return None;
+    }
+    Some(format!(
+        "{MEMORY_ENVELOPE_OPEN}\n{MEMORY_ENVELOPE_NOTE}\n{}\n{MEMORY_ENVELOPE_CLOSE}",
+        body.join("\n\n")
+    ))
+}
+
+/// Legacy block START labels (the END marker is always `--- END <CORE> ---`).
+/// The SHARED MEMORY block's start line may carry a suffix ("— UPDATES SINCE
+/// LAST TURN"), so a label matches by prefix.
 const INJECTED_CONTEXT_CORES: [&str; 4] = [
     "SHARED MEMORY",
     "RELEVANT PROJECT MEMORY",
@@ -87,15 +131,13 @@ const INJECTED_CONTEXT_CORES: [&str; 4] = [
 /// block, but it is the same kind of host machinery and must not become a
 /// title. Keep this in sync with `NEXT_STEPS_MARKER` in
 /// `src/features/chat/lib/next-steps.ts`.
-const NEXT_STEPS_MARKER: &str = "\u{2550}\u{2550}\u{2550} Atlas next-steps \u{2550}\u{2550}\u{2550}";
+const NEXT_STEPS_MARKER: &str =
+    "\u{2550}\u{2550}\u{2550} Atlas next-steps \u{2550}\u{2550}\u{2550}";
 
 /// The boundary marker Codex itself puts between a model-context preamble and
 /// the user's real request — `codex_protocol::protocol::USER_MESSAGE_BEGIN`.
-///
-/// `agents_send` inserts it for Codex sessions so Codex's own thread title
-/// (`strip_user_message_prefix`) keeps only what the user typed. Keep this in
-/// sync with `CODEX_USER_MESSAGE_BEGIN` in `src-tauri/src/commands/memory_pack.rs`
-/// and in `src/features/chat/lib/atlas-context.ts`.
+/// Older Atlas builds inserted it for Codex sessions, so transcripts and titles
+/// on disk still carry it.
 const CODEX_USER_MESSAGE_BEGIN: &str = "## My request for Codex:";
 
 struct InjectedStart {
@@ -104,7 +146,7 @@ struct InjectedStart {
     marker_end: usize,
 }
 
-/// Find the next injected block marker at or after `from`.
+/// Find the next legacy block marker at or after `from`.
 ///
 /// Most blocks are written on their own line, but Codex may collapse the wire
 /// prompt into one line before reporting a session title. That turns
@@ -152,23 +194,45 @@ fn find_injected_start(text: &str, from: usize) -> Option<InjectedStart> {
     None
 }
 
-/// Strip the Atlas-injected context blocks that `agents_send` prepends to the
-/// wire prompt (shared cross-agent memory, retrieved long-term memory, recent-
-/// session recap) and the hidden next-steps directive it appends.
+/// Strip the Atlas-injected context from a prompt the agent recorded: shared
+/// cross-agent memory, retrieved long-term memory, the recent-session recap and
+/// the hidden next-steps directive. The coding agent records the prompt it
+/// received in its transcript, so a resumed session would otherwise surface
+/// the raw scaffolding as the user's message and chat title — and, worse, save
+/// it into its own memory files for Atlas to read back.
 ///
-/// The coding agent records the prompt it received in its transcript, so a
-/// resumed session would otherwise surface the raw `--- SHARED MEMORY ---` /
-/// `--- RELEVANT PROJECT MEMORY ---` scaffolding as the user's message and
-/// chat title. The parser accepts both normal multi-line blocks and blocks
-/// collapsed onto one line by an agent's title summariser.
+/// Every shape that is on disk is recognised: the [`MEMORY_ENVELOPE_OPEN`] …
+/// [`MEMORY_ENVELOPE_CLOSE`] envelope (only a line that IS the tag opens one),
+/// the bare `--- LABEL ---` … `--- END LABEL ---` blocks written before the
+/// envelope existed — on their own lines or collapsed onto one line by an
+/// agent's title summariser — and Codex's request boundary. An unterminated
+/// region eats the rest of the text, which is the safe side: scaffolding must
+/// never be shown as the user's words.
 pub fn strip_injected_context(text: &str) -> String {
+    let mut kept: Vec<&str> = Vec::new();
+    let mut in_envelope = false;
+    for line in text.lines() {
+        let l = line.trim();
+        if in_envelope {
+            if l == MEMORY_ENVELOPE_CLOSE {
+                in_envelope = false;
+            }
+            continue;
+        }
+        if l == MEMORY_ENVELOPE_OPEN {
+            in_envelope = true;
+            continue;
+        }
+        kept.push(line);
+    }
+    let text = kept.join("\n");
+
     let text = text
         .find(NEXT_STEPS_MARKER)
-        .map_or(text, |at| &text[..at]);
+        .map_or(text.as_str(), |at| &text[..at]);
 
     // Codex's boundary marker is authoritative: everything after it is the
-    // user's own words, everything before it is preamble. Cutting here also
-    // keeps the marker itself from surfacing as prose.
+    // user's own words, everything before it is preamble.
     let text = text
         .find(CODEX_USER_MESSAGE_BEGIN)
         .map_or(text, |at| &text[at + CODEX_USER_MESSAGE_BEGIN.len()..]);

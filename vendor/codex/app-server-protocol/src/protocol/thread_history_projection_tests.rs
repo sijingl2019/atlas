@@ -95,7 +95,7 @@ fn projects_failed_turn_completion_as_snapshot() {
                     message: "request failed".to_string(),
                     codex_error_info: None,
                     additional_details: None,
-            retry_delay_ms: None,
+                    retry_delay_ms: None,
                 }),
                 started_at: Some(10),
                 completed_at: Some(20),

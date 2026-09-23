@@ -79,7 +79,10 @@ fn output_arriving_before_created_is_replayed_not_dropped() {
     registry.handle_event(created(&id));
 
     assert_eq!(registry.pending_output_len(&id), 0);
-    let output = registry.get(&id).expect("terminal missing").current_output();
+    let output = registry
+        .get(&id)
+        .expect("terminal missing")
+        .current_output();
     assert!(
         output.output.starts_with("first-second"),
         "replayed output must lead, got {:?}",
@@ -107,7 +110,10 @@ fn an_exit_arriving_before_created_is_applied_on_creation() {
     registry.handle_event(created(&id));
 
     assert!(!registry.has_pending_exit(&id));
-    let output = registry.get(&id).expect("terminal missing").current_output();
+    let output = registry
+        .get(&id)
+        .expect("terminal missing")
+        .current_output();
     assert!(output.output.starts_with("done"));
     assert_eq!(
         output.exit_status.and_then(|s| s.exit_code),
@@ -172,7 +178,10 @@ fn a_title_change_renames_the_command_label() {
         title: "cargo build".into(),
     });
 
-    assert_eq!(registry.get(&id).expect("terminal missing").command(), "cargo build");
+    assert_eq!(
+        registry.get(&id).expect("terminal missing").command(),
+        "cargo build"
+    );
 }
 
 /// Adapted from `test_terminal_kill_allows_wait_for_exit_to_complete`: a killed
@@ -266,7 +275,11 @@ fn output_arriving_before_a_display_only_terminal_is_replayed() {
     registry.handle_event(display_only(&id));
 
     assert_eq!(
-        registry.get(&id).expect("registered").current_output().output,
+        registry
+            .get(&id)
+            .expect("registered")
+            .current_output()
+            .output,
         "early\n"
     );
 }
@@ -397,8 +410,15 @@ fn trimming_a_display_only_buffer_keeps_it_valid_utf8() {
         });
     }
 
-    let output = registry.get(&id).expect("registered").current_output().output;
-    assert!(!output.contains('\u{fffd}'), "cut a character in half: {output:?}");
+    let output = registry
+        .get(&id)
+        .expect("registered")
+        .current_output()
+        .output;
+    assert!(
+        !output.contains('\u{fffd}'),
+        "cut a character in half: {output:?}"
+    );
     assert!(output.chars().all(|c| c == '🌍'));
 }
 
@@ -473,7 +493,11 @@ fn bounding_the_side_tables_does_not_break_ordinary_out_of_order_replay() {
     let (ids, bytes) = registry.pending_output_stats();
     assert_eq!((ids, bytes), (0, 0), "draining must clear the accounting");
     assert_eq!(
-        registry.get(&id).expect("registered").current_output().output,
+        registry
+            .get(&id)
+            .expect("registered")
+            .current_output()
+            .output,
         "early"
     );
 }

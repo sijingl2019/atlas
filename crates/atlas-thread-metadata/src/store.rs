@@ -27,8 +27,9 @@
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::sync::mpsc::{self, Sender};
-use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError, RwLock, RwLockReadGuard,
-                RwLockWriteGuard};
+use std::sync::{
+    Arc, Condvar, Mutex, MutexGuard, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard,
+};
 use std::thread::JoinHandle;
 
 use agent_client_protocol::schema::v1 as acp;
@@ -273,7 +274,8 @@ impl ThreadMetadataStore {
 
     /// Every thread, most recently active first.
     pub fn threads(&self) -> Vec<ThreadMetadata> {
-        let mut out: Vec<ThreadMetadata> = read(&self.inner.cache).threads.values().cloned().collect();
+        let mut out: Vec<ThreadMetadata> =
+            read(&self.inner.cache).threads.values().cloned().collect();
         out.sort_by(|a, b| b.updated_at.cmp(&a.updated_at).then_with(|| tiebreak(a, b)));
         out
     }
@@ -361,9 +363,8 @@ impl ThreadMetadataStore {
                 if threads.is_empty() {
                     return None;
                 }
-                threads.sort_by(|a, b| {
-                    b.updated_at.cmp(&a.updated_at).then_with(|| tiebreak(a, b))
-                });
+                threads
+                    .sort_by(|a, b| b.updated_at.cmp(&a.updated_at).then_with(|| tiebreak(a, b)));
                 Some(ThreadProject {
                     paths: paths.clone(),
                     threads,
@@ -621,7 +622,11 @@ impl ThreadMetadataStore {
     ///
     /// Every single-row mutator is this shape; having it once is what keeps
     /// "no change means no write and no event" true for all of them.
-    fn update(&self, thread_id: ThreadId, mutate: impl FnOnce(&mut ThreadMetadata) -> bool) -> bool {
+    fn update(
+        &self,
+        thread_id: ThreadId,
+        mutate: impl FnOnce(&mut ThreadMetadata) -> bool,
+    ) -> bool {
         let changed = self.update_silently(thread_id, mutate);
         if changed {
             self.notify(ThreadStoreEvent::Changed);
@@ -719,7 +724,11 @@ impl Cache {
             // Re-index only what moved: a row whose paths changed must not be
             // left findable under its old grouping key.
             if previous.folder_paths() != metadata.folder_paths() {
-                remove_from(&mut self.by_paths, previous.folder_paths(), metadata.thread_id);
+                remove_from(
+                    &mut self.by_paths,
+                    previous.folder_paths(),
+                    metadata.thread_id,
+                );
             }
             if previous.main_worktree_paths() != metadata.main_worktree_paths() {
                 remove_from(
@@ -780,7 +789,11 @@ impl Progress {
         counts.drained += drained;
         if !failures.is_empty() {
             let mut errors = lock(&self.errors);
-            errors.extend(failures.into_iter().map(|message| (counts.drained, message)));
+            errors.extend(
+                failures
+                    .into_iter()
+                    .map(|message| (counts.drained, message)),
+            );
             let overflow = errors.len().saturating_sub(MAX_RETAINED_ERRORS);
             errors.drain(..overflow);
         }

@@ -165,9 +165,7 @@ impl AuthFailure {
     pub fn user_message(&self) -> String {
         match self {
             AuthFailure::NoCredential => "Sign in to sync organisations.".into(),
-            AuthFailure::Rejected => {
-                "Your Atlas session ended. Sign in again to reconnect.".into()
-            }
+            AuthFailure::Rejected => "Your Atlas session ended. Sign in again to reconnect.".into(),
             // For create, the realistic Denied is a 400 duplicate slug/name; a
             // 403 on a caller-scoped create would be a server fault. Either way
             // retrying is pointless, so the message points at the fixable cause.
@@ -546,8 +544,7 @@ impl AuthCore {
             .unwrap_or_default();
         // Writes back the *pair* — a failed fetch returns the previous one
         // untouched, so a blip never trades a known-good photo for initials.
-        let avatar =
-            avatar::resolve(&self.http, &self.dir, profile.image.as_deref(), &held).await;
+        let avatar = avatar::resolve(&self.http, &self.dir, profile.image.as_deref(), &held).await;
 
         let orgs = self.resolve_orgs(access_token, previous.as_ref()).await;
 
@@ -872,11 +869,7 @@ impl AuthCore {
     /// the same reason — the one place a credential's fate is decided lives once,
     /// not per endpoint. The body is never logged: it, and any error body coming
     /// back, are the places a token could plausibly be echoed.
-    async fn authed_post(
-        &self,
-        path: &str,
-        body: &impl Serialize,
-    ) -> Authed<reqwest::Response> {
+    async fn authed_post(&self, path: &str, body: &impl Serialize) -> Authed<reqwest::Response> {
         let Some(stored) = self.stored() else {
             return Err(AuthFailure::NoCredential);
         };
@@ -1194,7 +1187,11 @@ impl AuthCore {
             } else {
                 raw.email
             },
-            role: raw.role.as_deref().and_then(Role::from_claim).or(Some(role)),
+            role: raw
+                .role
+                .as_deref()
+                .and_then(Role::from_claim)
+                .or(Some(role)),
             status: raw.status.unwrap_or_else(|| "pending".into()),
             expires_at: raw.expires_at,
             accept_url: raw.accept_url,
@@ -1285,7 +1282,7 @@ impl AuthCore {
     pub async fn refresh(&self) {
         if self.stored().is_some() {
             self.refresh_identity(self.stored().and_then(|s| s.identity), None)
-            .await;
+                .await;
         }
     }
 

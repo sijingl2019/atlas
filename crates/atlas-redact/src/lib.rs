@@ -155,7 +155,10 @@ pub struct Redacted {
 impl Redacted {
     /// Nothing was found; the input passes through untouched.
     fn clean(text: impl Into<String>) -> Self {
-        Self { text: text.into(), counts: RedactionCounts::default() }
+        Self {
+            text: text.into(),
+            counts: RedactionCounts::default(),
+        }
     }
 
     /// Did this pass replace anything?

@@ -123,7 +123,10 @@ fn normalize(file: &mut KeybindingsFile) -> Vec<String> {
     default.name = "Default".to_string();
     for p in file.profiles.iter_mut() {
         if p.built_in {
-            warnings.push(format!("profile `{}` claimed to be built-in; cleared", p.id));
+            warnings.push(format!(
+                "profile `{}` claimed to be built-in; cleared",
+                p.id
+            ));
             p.built_in = false;
         }
     }
@@ -148,7 +151,10 @@ fn is_plausible_combo(s: &str) -> bool {
         return false;
     }
     // `cmd++` — a literal plus as the key.
-    let body = s.strip_suffix("++").map(|b| format!("{b}+=")).unwrap_or(s.clone());
+    let body = s
+        .strip_suffix("++")
+        .map(|b| format!("{b}+="))
+        .unwrap_or(s.clone());
     let mut keys = 0;
     let mut seen = HashSet::new();
     for part in body.split('+') {
@@ -303,7 +309,10 @@ mod tests {
         let mut file = KeybindingsFile::default();
         file.profiles.push(profile(
             "mine",
-            &[("panels.left", Some(&["cmd+shift+l"])), ("panels.right", None)],
+            &[
+                ("panels.left", Some(&["cmd+shift+l"])),
+                ("panels.right", None),
+            ],
         ));
         file.active_profile_id = "mine".into();
         let json = serde_json::to_string_pretty(&file).unwrap();
@@ -405,7 +414,15 @@ mod tests {
 
     #[test]
     fn plausible_combo_syntax() {
-        for ok in ["cmd+shift+b", "alt+;", "cmd+alt+space", "shift+tab", "f5", "cmd++", "cmd+\\"] {
+        for ok in [
+            "cmd+shift+b",
+            "alt+;",
+            "cmd+alt+space",
+            "shift+tab",
+            "f5",
+            "cmd++",
+            "cmd+\\",
+        ] {
             assert!(is_plausible_combo(ok), "{ok}");
         }
         for bad in ["", "cmd+", "cmd+shift", "cmd+b+c", "cmd+cmd+b", "+b"] {

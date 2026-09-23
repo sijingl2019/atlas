@@ -28,7 +28,8 @@ use serde::Deserialize;
 use crate::http::{get_body, HttpClient};
 use crate::registry_dir;
 
-pub const REGISTRY_URL: &str = "https://cdn.agentclientprotocol.com/registry/v1/latest/registry.json";
+pub const REGISTRY_URL: &str =
+    "https://cdn.agentclientprotocol.com/registry/v1/latest/registry.json";
 const REFRESH_THROTTLE_DURATION: Duration = Duration::from_secs(60 * 60);
 // Bound the full request lifecycle, including response body reads; a connect
 // timeout alone would let a stalled body hang the marketplace.
@@ -316,8 +317,7 @@ impl AgentRegistryStore {
             bail!("registry status error {status}, response: {text:?}");
         }
 
-        let index: RegistryIndex =
-            serde_json::from_slice(&body).context("parsing ACP registry")?;
+        let index: RegistryIndex = serde_json::from_slice(&body).context("parsing ACP registry")?;
         self.build_registry_agents(index, &body, true).await
     }
 

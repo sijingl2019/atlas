@@ -815,8 +815,13 @@ pub struct RetryStatus {
 /// Why a connection stopped serving a thread.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoadError {
-    Unsupported { message: Arc<str> },
-    Exited { status: Option<i32>, stderr: Arc<str> },
+    Unsupported {
+        message: Arc<str>,
+    },
+    Exited {
+        status: Option<i32>,
+        stderr: Arc<str>,
+    },
     /// A hop on the connect/bind path ran past its deadline while the agent
     /// process was still alive. Distinct from `Exited`: the process did not
     /// die, it went silent — and from `Other`, so a caller can tell "the
@@ -1022,13 +1027,19 @@ impl AcpThread {
     /// this the moment it arrives — but a history row reading "New Thread"
     /// forever, because the agent never got around to naming it, is a row the
     /// user cannot pick out of a list.
-    pub fn fallback_title(&self) -> Option<Arc<str>> {
+    ///
+    /// `clean` runs over the message before its first line is taken. The text
+    /// recorded here is what the agent was sent, and a host that prefixes its
+    /// own context to the user's words (Atlas prepends memory blocks) would
+    /// otherwise have the thread named after that prefix. The prefix format is
+    /// the host's, so the host supplies the cleaning.
+    pub fn fallback_title(&self, clean: impl FnOnce(&str) -> String) -> Option<Arc<str>> {
         let first = self.entries.iter().find_map(|entry| match entry {
             AgentThreadEntry::UserMessage(message) => Some(message.content.to_text()),
             _ => None,
         })?;
-        let clean = atlas_agent_transcript::strip_injected_context(&first);
-        let line = clean.trim().lines().next()?.trim();
+        let first = clean(first);
+        let line = first.trim().lines().next()?.trim();
         if line.is_empty() {
             return None;
         }
@@ -1409,6 +1420,23 @@ impl AcpThread {
         }));
     }
 
+    /// Append a host-authored note as its OWN entry.
+    ///
+    /// [`Self::push_assistant_content_block`] merges into the last assistant
+    /// entry, which is right for a stream and wrong for a note *about* one: a
+    /// marker appended to a turn that was cut off mid-sentence would render as
+    /// the end of that sentence. Replay uses this to say that a turn never
+    /// finished, so the note has to be visibly separate from the words the
+    /// agent actually produced.
+    pub fn push_assistant_notice(&mut self, text: impl Into<String>) {
+        let block = ContentBlock::new(acp::ContentBlock::Text(acp::TextContent::new(text.into())));
+        self.push_entry(AgentThreadEntry::AssistantMessage(AssistantMessage {
+            chunks: vec![AssistantMessageChunk::Message { id: None, block }],
+            indented: false,
+            is_subagent_output: false,
+        }));
+    }
+
     // ---- tool calls -----------------------------------------------------
 
     pub fn index_for_tool_call(&self, id: &acp::ToolCallId) -> Option<usize> {
@@ -1471,9 +1499,9 @@ impl AcpThread {
 
             self.emit(AcpThreadEvent::EntryUpdated(ix));
         } else {
-            let tool_call: acp::ToolCall = update
-                .try_into()
-                .map_err(|_| acp::Error::invalid_params().data("tool call update is not a full tool call"))?;
+            let tool_call: acp::ToolCall = update.try_into().map_err(|_| {
+                acp::Error::invalid_params().data("tool call update is not a full tool call")
+            })?;
             let call = ToolCall::from_acp(tool_call, status)
                 .map_err(|e| acp::Error::internal_error().data(e.to_string()))?;
             self.push_entry(AgentThreadEntry::ToolCall(call));
@@ -1526,7 +1554,8 @@ impl AcpThread {
                 }
                 ToolCallUpdate::UpdateTerminal(update) => {
                     call.content.clear();
-                    call.content.push(ToolCallContent::Terminal(update.terminal));
+                    call.content
+                        .push(ToolCallContent::Terminal(update.terminal));
                     Ok(())
                 }
             }
@@ -1615,11 +1644,7 @@ impl AcpThread {
     }
 
     /// Ported from `authorize_tool_call` (`acp_thread.rs:3433-3489`).
-    pub fn authorize_tool_call(
-        &mut self,
-        id: acp::ToolCallId,
-        outcome: SelectedPermissionOutcome,
-    ) {
+    pub fn authorize_tool_call(&mut self, id: acp::ToolCallId, outcome: SelectedPermissionOutcome) {
         let Some((ix, call)) = self.tool_call_mut(&id) else {
             return;
         };
@@ -1639,8 +1664,9 @@ impl AcpThread {
                 }
             }
             _ => match outcome.option_kind {
-                acp::PermissionOptionKind::RejectOnce
-                | acp::PermissionOptionKind::RejectAlways => ToolCallStatus::Rejected,
+                acp::PermissionOptionKind::RejectOnce | acp::PermissionOptionKind::RejectAlways => {
+                    ToolCallStatus::Rejected
+                }
                 _ => ToolCallStatus::InProgress,
             },
         };
@@ -1758,7 +1784,11 @@ impl AcpThread {
 
     pub fn update_plan(&mut self, request: acp::Plan) {
         self.plan = Plan {
-            entries: request.entries.into_iter().map(PlanEntry::from_acp).collect(),
+            entries: request
+                .entries
+                .into_iter()
+                .map(PlanEntry::from_acp)
+                .collect(),
         };
         self.emit(AcpThreadEvent::PromptUpdated);
     }
@@ -1818,9 +1848,9 @@ impl AcpThread {
         id: ContextCompactionId,
         status: ContextCompactionStatus,
     ) {
-        let existing = self.entries.iter().position(|entry| {
-            matches!(entry, AgentThreadEntry::ContextCompaction(c) if c.id == id)
-        });
+        let existing = self.entries.iter().position(
+            |entry| matches!(entry, AgentThreadEntry::ContextCompaction(c) if c.id == id),
+        );
         match existing {
             Some(ix) => {
                 if let AgentThreadEntry::ContextCompaction(compaction) = &mut self.entries[ix] {
@@ -2048,19 +2078,18 @@ impl AcpThread {
     /// Silent when nothing references the terminal — the agent is allowed to
     /// create one and never mention it in a tool call.
     pub fn note_terminal_output(&mut self, id: &acp::TerminalId) {
-        let updated: Vec<usize> = self
-            .entries
-            .iter()
-            .enumerate()
-            .filter(|(_, entry)| match entry {
-                AgentThreadEntry::ToolCall(call) => call
-                    .content
-                    .iter()
-                    .any(|block| matches!(block, ToolCallContent::Terminal(other) if other == id)),
-                _ => false,
-            })
-            .map(|(ix, _)| ix)
-            .collect();
+        let updated: Vec<usize> =
+            self.entries
+                .iter()
+                .enumerate()
+                .filter(|(_, entry)| match entry {
+                    AgentThreadEntry::ToolCall(call) => call.content.iter().any(
+                        |block| matches!(block, ToolCallContent::Terminal(other) if other == id),
+                    ),
+                    _ => false,
+                })
+                .map(|(ix, _)| ix)
+                .collect();
         for ix in updated {
             self.emit(AcpThreadEvent::EntryUpdated(ix));
         }

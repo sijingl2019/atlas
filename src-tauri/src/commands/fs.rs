@@ -192,8 +192,7 @@ pub async fn capture_screenshot(
 pub async fn is_text_file(path: String) -> Result<bool, String> {
     tokio::task::spawn_blocking(move || {
         use std::io::Read;
-        let mut f =
-            fs::File::open(&path).map_err(|e| format!("Failed to open {path}: {e}"))?;
+        let mut f = fs::File::open(&path).map_err(|e| format!("Failed to open {path}: {e}"))?;
         let mut buf = [0u8; 8192];
         let n = f
             .read(&mut buf)
@@ -225,7 +224,7 @@ pub async fn is_text_file(path: String) -> Result<bool, String> {
 /// BOUNDED: the old version passed the renderer's string straight to
 /// `allow_directory`, so `asset_allow_dir("/")` made the entire filesystem
 /// readable over `asset://` for the rest of the session. A grant now has to
-/// be either (a) under a known workspace root — the project-open case, external
+/// be either (a) under a known project root — the project-open case, external
 /// volumes included — or (b) a *visible* directory under `$HOME` (the
 /// "@-mention a screenshot on the Desktop" case). Hidden directories
 /// (`~/.ssh`, `~/.aws`), `~/Library`, and system roots are refused.
@@ -243,7 +242,7 @@ pub fn asset_allow_dir(
     let canonical = dunce::canonicalize(requested)
         .map_err(|e| format!("cannot grant a directory that does not resolve: {e}"))?;
 
-    let workspace_roots: Vec<std::path::PathBuf> = {
+    let project_roots: Vec<std::path::PathBuf> = {
         let state = app_state.lock();
         state
             .workspaces
@@ -251,7 +250,7 @@ pub fn asset_allow_dir(
             .map(|w| std::path::PathBuf::from(&w.path))
             .collect()
     };
-    if !asset_grant_allowed(&canonical, &workspace_roots, dirs::home_dir().as_deref()) {
+    if !asset_grant_allowed(&canonical, &project_roots, dirs::home_dir().as_deref()) {
         return Err("that directory is outside what the media viewer may serve".into());
     }
 
@@ -261,20 +260,20 @@ pub fn asset_allow_dir(
 }
 
 /// The asset-grant policy, pure so it is testable: a canonical directory may
-/// be granted when it sits under a known workspace root, or when it is a
+/// be granted when it sits under a known project root, or when it is a
 /// VISIBLE directory under `$HOME` — hidden dirs (`~/.ssh`), `~/Library`, and
 /// `$HOME` itself are refused, and anything else (system roots, other users)
 /// falls through to refusal.
 fn asset_grant_allowed(
     canonical: &std::path::Path,
-    workspace_roots: &[std::path::PathBuf],
+    project_roots: &[std::path::PathBuf],
     home: Option<&std::path::Path>,
 ) -> bool {
-    let under_workspace = workspace_roots.iter().any(|root| {
+    let under_project = project_roots.iter().any(|root| {
         let root = dunce::canonicalize(root).unwrap_or_else(|_| root.clone());
         canonical.starts_with(&root)
     });
-    if under_workspace {
+    if under_project {
         return true;
     }
     home.is_some_and(|home| {
@@ -481,9 +480,8 @@ pub async fn fs_duplicate(path: String) -> Result<String, String> {
     .map_err(|e| e.to_string())?
 }
 
-/// Open a folder in the system terminal. macOS only for now —
-/// returns `Err("unsupported")` on other platforms so the frontend
-/// can show a sensible toast.
+/// Open a folder in the system terminal.
+/// Supported on macOS and Linux.
 #[tauri::command]
 pub async fn fs_open_in_terminal(path: String) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
@@ -496,7 +494,48 @@ pub async fn fs_open_in_terminal(path: String) -> Result<(), String> {
                 .map(|_| ())
                 .map_err(|e| format!("Failed to open Terminal: {e}"))
         }
-        #[cfg(not(target_os = "macos"))]
+        #[cfg(target_os = "linux")]
+        {
+            use std::process::Command;
+            let target_path = std::path::Path::new(&path);
+            let target_dir = if target_path.is_dir() {
+                target_path
+            } else if let Some(parent) = target_path.parent() {
+                parent
+            } else {
+                target_path
+            };
+            let dir_str = target_dir.to_string_lossy();
+
+            // Modern desktop spec, common desktop terminals, and popular standalone emulators.
+            let terminals: &[(&str, &[&str])] = &[
+                ("xdg-terminal-exec", &[]),
+                ("x-terminal-emulator", &[]),
+                ("ptyxis", &["--working-directory", &dir_str]),
+                ("gnome-terminal", &["--working-directory", &dir_str]),
+                ("kitty", &["--directory", &dir_str]),
+                ("foot", &["--working-directory", &dir_str]),
+                ("alacritty", &["--working-directory", &dir_str]),
+                ("ghostty", &["--working-directory", &dir_str]),
+                ("wezterm", &["start", "--cwd", &dir_str]),
+                ("konsole", &["--workdir", &dir_str]),
+                ("xfce4-terminal", &["--working-directory", &dir_str]),
+                ("xterm", &[]),
+            ];
+
+            for (term, args) in terminals {
+                if Command::new(term)
+                    .args(*args)
+                    .current_dir(target_dir)
+                    .spawn()
+                    .is_ok()
+                {
+                    return Ok(());
+                }
+            }
+            Err("No supported terminal emulator found".to_string())
+        }
+        #[cfg(not(any(target_os = "macos", target_os = "linux")))]
         {
             let _ = path;
             Err::<(), String>("unsupported".to_string())
@@ -597,9 +636,7 @@ pub async fn ensure_atlas_gitignore(
         .map_err(|e| e.to_string())?
 }
 
-fn ensure_atlas_gitignore_sync(
-    project_path: &str,
-) -> Result<EnsureAtlasGitignoreResult, String> {
+fn ensure_atlas_gitignore_sync(project_path: &str) -> Result<EnsureAtlasGitignoreResult, String> {
     let root = Path::new(project_path);
     if !root.join(".git").exists() {
         return Ok(EnsureAtlasGitignoreResult::NotGitRepo);
@@ -667,13 +704,17 @@ mod inline_cap_tests {
 
         let small = dir.join("small.pdf");
         std::fs::write(&small, b"pdf bytes").unwrap();
-        assert!(read_file_base64(small.to_string_lossy().into()).await.is_ok());
+        assert!(read_file_base64(small.to_string_lossy().into())
+            .await
+            .is_ok());
 
         // 51MB: a real document ceiling, not a policy about content.
         let big = dir.join("big.bin");
         let f = std::fs::File::create(&big).unwrap();
         f.set_len(51 * 1024 * 1024).unwrap();
-        let err = read_file_base64(big.to_string_lossy().into()).await.unwrap_err();
+        let err = read_file_base64(big.to_string_lossy().into())
+            .await
+            .unwrap_err();
         assert!(err.contains("too large"), "{err}");
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -689,8 +730,12 @@ mod asset_grant_tests {
         let home = Path::new("/Users/me");
         let ws = vec![PathBuf::from("/Volumes/ext/project")];
 
-        // Visible home dirs and workspace roots pass.
-        for ok in ["/Users/me/Desktop/shots", "/Users/me/Documents", "/Volumes/ext/project/media"] {
+        // Visible home dirs and project roots pass.
+        for ok in [
+            "/Users/me/Desktop/shots",
+            "/Users/me/Documents",
+            "/Volumes/ext/project/media",
+        ] {
             assert!(asset_grant_allowed(Path::new(ok), &ws, Some(home)), "{ok}");
         }
         // The audit shapes: root grant, hidden dirs, Library, home itself,
@@ -704,7 +749,10 @@ mod asset_grant_tests {
             "/etc",
             "/Users/other/Desktop",
         ] {
-            assert!(!asset_grant_allowed(Path::new(bad), &ws, Some(home)), "{bad}");
+            assert!(
+                !asset_grant_allowed(Path::new(bad), &ws, Some(home)),
+                "{bad}"
+            );
         }
     }
 }

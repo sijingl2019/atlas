@@ -41,7 +41,12 @@ pub fn telemetry_set_org(app: AppHandle, org_id: Option<String>) {
 pub fn resolve_org(app: &AppHandle, org_id: Option<&str>) -> Option<OrgIdentity> {
     let id = org_id?;
     let state = app.state::<crate::state::AppStateHandle>();
-    let org = state.lock().organisations.iter().find(|o| o.id == id).cloned()?;
+    let org = state
+        .lock()
+        .organisations
+        .iter()
+        .find(|o| o.id == id)
+        .cloned()?;
 
     // Synced means there is a server row this name is already shared through.
     // Local-only orgs travel as a bare id — see `OrgIdentity`.
@@ -52,7 +57,10 @@ pub fn resolve_org(app: &AppHandle, org_id: Option<&str>) -> Option<OrgIdentity>
     let role = synced
         .then(|| {
             let snapshot = app.state::<super::auth::AuthState>().core().snapshot();
-            let crate::auth::AuthSnapshot::SignedIn { orgs: Some(orgs), .. } = snapshot else {
+            let crate::auth::AuthSnapshot::SignedIn {
+                orgs: Some(orgs), ..
+            } = snapshot
+            else {
                 return None;
             };
             let remote = org.remote_id.as_deref()?;
@@ -70,4 +78,3 @@ pub fn resolve_org(app: &AppHandle, org_id: Option<&str>) -> Option<OrgIdentity>
         role,
     })
 }
-

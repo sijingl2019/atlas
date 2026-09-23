@@ -99,16 +99,22 @@ pub enum CommsEvent {
         discoverable: Vec<Conversation>,
     },
 
-    ReadsChanged { reads: Vec<ReadState> },
+    ReadsChanged {
+        reads: Vec<ReadState>,
+    },
 
     /// One conversation's read state moved. The common case — every
     /// `read.updated` frame names a single conversation — used to ride the
     /// bulk event above, re-serializing the WHOLE read table per read
     /// receipt. Bulk stays for snapshot restatements (clean reconnect).
-    ReadChanged { read: ReadState },
+    ReadChanged {
+        read: ReadState,
+    },
 
     /// The **whole** online set — an assignment, not a delta.
-    Presence { online: Vec<String> },
+    Presence {
+        online: Vec<String>,
+    },
 
     Typing {
         conv_id: String,

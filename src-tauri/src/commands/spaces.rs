@@ -22,7 +22,10 @@ fn safe_id(id: &str) -> Result<(), String> {
     if id.is_empty() || id.len() > 128 {
         return Err("bad id".to_string());
     }
-    if !id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_') {
+    if !id
+        .bytes()
+        .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+    {
         return Err("bad id".to_string());
     }
     Ok(())
@@ -150,7 +153,10 @@ pub async fn spaces_media_upload(
     };
     // Size gate BEFORE the read: a 4GB .mp4 must be refused from metadata,
     // not loaded into RAM to be measured.
-    let size_on_disk = tokio::fs::metadata(&file).await.map_err(|e| e.to_string())?.len();
+    let size_on_disk = tokio::fs::metadata(&file)
+        .await
+        .map_err(|e| e.to_string())?
+        .len();
     if size_on_disk > SPACE_MEDIA_MAX_BYTES {
         return Err("file is larger than the 64 MiB media limit".to_string());
     }
@@ -256,8 +262,14 @@ mod tests {
     fn media_mime_allowlist_matches_contract() {
         use std::path::Path;
         assert_eq!(media_mime(Path::new("a.PNG")), Some(("image/png", "image")));
-        assert_eq!(media_mime(Path::new("a.jpeg")), Some(("image/jpeg", "image")));
-        assert_eq!(media_mime(Path::new("a.webm")), Some(("video/webm", "video")));
+        assert_eq!(
+            media_mime(Path::new("a.jpeg")),
+            Some(("image/jpeg", "image"))
+        );
+        assert_eq!(
+            media_mime(Path::new("a.webm")),
+            Some(("video/webm", "video"))
+        );
         // SVG's absence is the defence, not an oversight.
         assert_eq!(media_mime(Path::new("a.svg")), None);
         assert_eq!(media_mime(Path::new("noext")), None);

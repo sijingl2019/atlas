@@ -69,7 +69,10 @@ pub async fn collect_all_sessions(
         if sessions.len() >= MAX_PAGES {
             // Unreachable in practice — the cursor checks above end every
             // well-behaved and most ill-behaved agents first.
-            tracing::warn!(pages = MAX_PAGES, "stopped following an agent's session cursor");
+            tracing::warn!(
+                pages = MAX_PAGES,
+                "stopped following an agent's session cursor"
+            );
         }
     }
     Ok(sessions)

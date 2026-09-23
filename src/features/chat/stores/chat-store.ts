@@ -387,7 +387,7 @@ interface ChatActions {
     setResumePending: (sessionId: string, pending: boolean) => void;
     clearSession: (sessionId: string) => void;
     removeSession: (sessionId: string) => void;
-    /** Drop several sessions at once (used when a workspace is DISCARDED from
+    /** Drop several sessions at once (used when a project is DISCARDED from
      *  the hot set — frees its chat history from RAM; reloaded cold on revisit). */
     removeSessions: (sessionIds: string[]) => void;
     /** Drop all chat sessions, queues, and pending permissions. Used when
@@ -398,6 +398,10 @@ interface ChatActions {
     /** Reflect the mode the agent chose during session creation without
      *  treating it as an Atlas user override or sending a second RPC. */
     hydrateClaudePermissionMode: (sessionId: string, mode: ClaudePermissionMode) => void;
+    /** Say, once, that this session answered without ever reading shared
+     *  memory. Keyed by ACP session id because the host observes the session,
+     *  not the tab. */
+    noteMemoryUnconsulted: (acpSessionId: string) => void;
     setClaudePermissionMode: (sessionId: string, mode: ClaudePermissionMode) => void;
     /** A plan-approval option was answered: adopt the mode it selects (or
      *  `override`, for Atlas's own "approve and bypass") and push it to the
@@ -654,8 +658,8 @@ async function capturePlanIfPresent(
     }
   }
 
-  const { useProjectStore } = await import("@/features/project/stores/project-store");
-  const projectPath = useProjectStore.getState().currentProject?.path;
+  const { useAppStore } = await import("@/features/app/stores/app-store");
+  const projectPath = useAppStore.getState().currentProject?.path;
   if (!projectPath) return;
 
   const record: PlanRecord = {
@@ -734,6 +738,14 @@ function findToolCall(
   }
   return null;
 }
+
+/** Shown when a turn ends and the agent never read shared memory.
+ *
+ *  A recorded fact exists precisely because it is NOT derivable from the code,
+ *  so an answer reasoned out from the repo can contradict one and look just as
+ *  confident. This does not stop that; it says when it might have happened. */
+export const MEMORY_UNCONSULTED_NOTICE =
+  "(shared memory was not consulted this session — this answer was not informed by anything previously recorded)";
 
 /** Human-readable end-of-turn notice for a stop reason, or null when the
  *  outcome speaks for itself (P2.4).
@@ -1130,6 +1142,15 @@ export const useChatStore = createSelectors(
           if (next) saveLastModePref("claude-code", next === "default" ? null : next);
           pushPermissionModeToAgent(get(), sessionId, previous);
         },
+        noteMemoryUnconsulted: (acpSessionId) =>
+          set((s) => {
+            const tabId = findTabByAcpSession(s.sessions, acpSessionId);
+            const session = tabId ? s.sessions[tabId] : undefined;
+            if (!session) return;
+            // Same shape as the other end-of-turn notices: a quiet aside in
+            // the transcript, where the answer it qualifies actually is.
+            session.messages.push(makeAssistantTextMessage(MEMORY_UNCONSULTED_NOTICE));
+          }),
         hydrateClaudePermissionMode: (sessionId, mode) =>
           set((s) => {
             const session = s.sessions[sessionId];
@@ -1629,11 +1650,11 @@ export const useChatStore = createSelectors(
             if (!session) return;
             // A (re)bind points the tab at a DIFFERENT backend session — a
             // freshly spawned SessionActor whose `turn_seq` counter restarts at
-            // 1 (turn_seq is not persisted; new / resumed / workspace-switched
+            // 1 (turn_seq is not persisted; new / resumed / project-switched
             // sessions all reconstruct it from 0). The frontend `currentTurnSeq`
             // is a monotonic high-water mark that only ratchets UP (see the
             // status handler), so a value retained from the PREVIOUS session —
-            // e.g. after ⌥N launches a new session in a new workspace, or "New
+            // e.g. after ⌥N launches a new session in a new project, or "New
             // Chat" resets the singleton tab in place — would make every
             // terminal of the new session (idle / turn_finished at turn_seq 1)
             // look stale via `isStaleTurn` and get dropped, stranding the
@@ -1655,7 +1676,7 @@ export const useChatStore = createSelectors(
             session.bindError = undefined;
             // Stamp the session's project root the moment it's bound (the agent
             // was created with this cwd). Without it `workingDirectory` stays ""
-            // and the chat never lands in the workspace "Chats" list / running
+            // and the chat never lands in the project "Chats" list / running
             // counts. Callers pass the project path they used for the session.
             if (cwd) session.workingDirectory = cwd;
           }),
@@ -1885,7 +1906,11 @@ function applyDeltaToDraft(s: ChatDraft, env: AgentDelta): void {
       const seq = env.turn_seq;
       if (env.status === "running" || env.status === "waiting") {
         // Turn start / paused-for-user (plan / permission): adopt the turn
-        // identity and stay in an active (busy) state.
+        // identity and stay in an active (busy) state. A running/waiting for
+        // an already-superseded turn is dropped like a stale terminal: applied,
+        // it would flip a finished session back to busy with nothing left to
+        // clear it.
+        if (isStaleTurn(session, seq)) return;
         if (seq && seq > (session.currentTurnSeq ?? 0)) {
           session.currentTurnSeq = seq;
           // New turn — clear the previous turn's live plan so the docked panel
@@ -2057,6 +2082,15 @@ function applyDeltaToDraft(s: ChatDraft, env: AgentDelta): void {
         }
         session.turnScratch = undefined;
       }
+      // "Worked for 7m 37s": the turn's wall time, measured from the user's
+      // message. Only a live turn can be timed honestly — see `workedMs`.
+      if (lastUserIdx >= 0 && responded) {
+        const sentAt = Date.parse(session.messages[lastUserIdx].timestamp);
+        const last = session.messages[session.messages.length - 1];
+        if (Number.isFinite(sentAt) && last.role === "assistant") {
+          last.workedMs = Math.max(0, Date.now() - sentAt);
+        }
+      }
       // Agent-generated next-step chips: extract the trailing assistant reply's
       // hidden `<next_steps>` block into click-to-send suggestions. The raw
       // content (with the block) stays in the store; the display path strips it.
@@ -2209,9 +2243,18 @@ function applyDeltaToDraft(s: ChatDraft, env: AgentDelta): void {
       }
       const found = findToolCall(session, env.tool_call.id);
       if (found) {
+        // `toChatToolCall` mints a fresh record with no `startedAt`; assigning
+        // it over the existing one leaves the stamp from first sight in place,
+        // which is the whole point — the clock must not restart on the
+        // pending→running→completed updates for the same call.
         Object.assign(found.tc, toChatToolCall(env.tool_call));
         return;
       }
+      // First sight of this call: stamp the start the live elapsed figure
+      // counts from. The delta arrives when the agent announces the call, so
+      // this is its start to within one IPC hop.
+      const fresh = toChatToolCall(env.tool_call);
+      fresh.startedAt = Date.now();
       // Collapse consecutive tool calls into ONE assistant message
       // so the thread doesn't render N separate message-item boxes
       // (each with its own padding) for every Find/Read/Bash the
@@ -2224,12 +2267,10 @@ function applyDeltaToDraft(s: ChatDraft, env: AgentDelta): void {
       // message.
       const last = session.messages[session.messages.length - 1];
       if (last && last.role === "assistant" && last.mode === "tool") {
-        last.toolCalls.push(toChatToolCall(env.tool_call));
+        last.toolCalls.push(fresh);
         return;
       }
-      session.messages.push(
-        stampProducingModel(session, makeAssistantToolMessage(toChatToolCall(env.tool_call))),
-      );
+      session.messages.push(stampProducingModel(session, makeAssistantToolMessage(fresh)));
       return;
     }
     case "tool_call_output_chunk": {

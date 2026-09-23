@@ -68,7 +68,12 @@ pub fn build(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
 
     // View menu — keep the standard fullscreen toggle (⌃⌘F) that the default
     // menu provided.
-    let view_menu = Submenu::with_items(app, "View", true, &[&PredefinedMenuItem::fullscreen(app, None)?])?;
+    let view_menu = Submenu::with_items(
+        app,
+        "View",
+        true,
+        &[&PredefinedMenuItem::fullscreen(app, None)?],
+    )?;
 
     // Window menu — Cmd+W is our custom "close tab" item, NOT the predefined
     // close-window (which would tear down the app from a focused child webview).

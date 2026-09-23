@@ -29,8 +29,8 @@ use tokio::sync::watch;
 
 use crate::archive::{
     github_release_archive_from_url, github_release_digest, install_archive,
-    registry_archive_kind_for_url, remove_stale_versioned_archive_cache_dirs, sanitize_path_component,
-    versioned_archive_cache_dir,
+    registry_archive_kind_for_url, remove_stale_versioned_archive_cache_dirs,
+    sanitize_path_component, versioned_archive_cache_dir,
 };
 use crate::http::HttpClient;
 use crate::node::{
@@ -349,14 +349,12 @@ impl ExternalAgentServer for LocalRegistryNpxAgent {
                 // *real* prefix; hand it a symlinked one (a relocated
                 // `~/Library`, `/tmp` on macOS) and every entry comes back as
                 // `../../real/path/node_modules/…`, which nothing below can
-                // match against the tree. Resolve once, up front.
-                // …but hand the *verbatim* spelling Windows canonicalize
-                // returns to npm as `--prefix` and arborist's `realpathCached`
-                // recurses on `dirname` forever — `\\?\C:\` never reaches the
-                // fixed point its base case tests for, so the install dies with
-                // `RangeError: Maximum call stack size exceeded` before it
-                // resolves a single package.
-                let install_dir = node_facing_path(
+                // match against the tree. Resolve once, up front — and keep
+                // the plain spelling of the result, because npm and Node both
+                // choke on the `\\?\`-verbatim form Windows canonicalizes to
+                // (#277). Every consumer below, the filesystem checks
+                // included, gets the same plain path.
+                let install_dir = plain_process_path(
                     tokio::fs::canonicalize(&install_dir)
                         .await
                         .with_context(|| format!("resolving {install_dir:?}"))?,
@@ -413,11 +411,9 @@ impl ExternalAgentServer for LocalRegistryNpxAgent {
                 // own, and the point of this layer is that ours wins.
                 let mut base = project_env.await;
                 base.extend(npm_command_env(&node_binary));
-                let env =
-                    layered_env(base, &distribution_env, extra_env, &byok_env, &settings_env);
+                let env = layered_env(base, &distribution_env, extra_env, &byok_env, &settings_env);
 
-                let mut command_args =
-                    vec![node_facing_path(executable).to_string_lossy().into_owned()];
+                let mut command_args = vec![executable.to_string_lossy().into_owned()];
                 command_args.extend(args);
                 command_args.extend(extra_args);
 
@@ -437,14 +433,6 @@ impl ExternalAgentServer for LocalRegistryNpxAgent {
             result
         })
     }
-}
-
-/// Neither node nor npm accepts the `\\?\` path spelling Windows
-/// `canonicalize` returns: node rejects it as an entry point, and npm walks it
-/// until the stack runs out. Every path that leaves for one of them goes
-/// through here.
-fn node_facing_path(path: PathBuf) -> PathBuf {
-    dunce::simplified(&path).to_path_buf()
 }
 
 /// `npm install` into a clean `install_dir`, verified against the platform
@@ -469,9 +457,15 @@ async fn install_package(
     platform: Option<NpmPlatform>,
 ) -> Result<()> {
     wipe_install_tree(install_dir).await?;
-    node.run_npm_subcommand(Some(install_dir), "install", &[package_spec, "--save-exact"])
-        .await?;
-    let Some(platform) = platform else { return Ok(()) };
+    node.run_npm_subcommand(
+        Some(install_dir),
+        "install",
+        &[package_spec, "--save-exact"],
+    )
+    .await?;
+    let Some(platform) = platform else {
+        return Ok(());
+    };
 
     let state = install_state(install_dir, platform).await;
     let InstallState::MissingOptional(gaps) = state else {
@@ -552,8 +546,11 @@ async fn read_wanted_spec(install_dir: &std::path::Path) -> Option<String> {
 }
 
 async fn write_wanted_spec(install_dir: &std::path::Path, package_spec: &str) {
-    if let Err(error) =
-        tokio::fs::write(install_dir.join(WANTED_SPEC_FILE), format!("{package_spec}\n")).await
+    if let Err(error) = tokio::fs::write(
+        install_dir.join(WANTED_SPEC_FILE),
+        format!("{package_spec}\n"),
+    )
+    .await
     {
         tracing::warn!(
             path = %install_dir.join(WANTED_SPEC_FILE).display(),
@@ -600,7 +597,10 @@ async fn install_needed(
         return Some("installed package declares no usable executable".to_owned());
     }
     if let Some(platform) = platform {
-        if let Some(reason) = install_state(install_dir, platform).await.reinstall_reason() {
+        if let Some(reason) = install_state(install_dir, platform)
+            .await
+            .reinstall_reason()
+        {
             return Some(reason);
         }
     }
@@ -622,6 +622,41 @@ pub fn npx_install_dir(registry_dir: &std::path::Path, id: &str) -> PathBuf {
     registry_dir.join("npx").join(sanitize_path_component(id))
 }
 
+/// The plain spelling of a canonicalized path, safe to hand to a child process.
+///
+/// `canonicalize` on Windows returns the `\\?\`-verbatim spelling, and the two
+/// processes this module spawns cannot digest it: npm's Arborist recurses to a
+/// stack overflow when it is the `--prefix` (`RangeError: Maximum call stack
+/// size exceeded at resolve`), and Node fails with `EISDIR: lstat 'C:'` when it
+/// is the script argument — both reproduced in #277, where a clean-install
+/// Codex ACP agent could not start at all. Stripping the prefix keeps the
+/// symlink resolution `canonicalize` did (the path still points at the same
+/// directory); only the spelling changes.
+///
+/// Only the two spellings that have a plain equivalent are stripped:
+/// `\\?\C:\...` (drive) and `\\?\UNC\server\share` (→ `\\server\share`).
+/// Device paths (`\\?\Volume{...}`) have no plain spelling and are returned
+/// unchanged, as is anything that does not carry the prefix. Not gated on
+/// `cfg!(windows)`: POSIX `canonicalize` never produces the prefix, and an
+/// unconditional strip keeps this testable on the Linux CI runners — the same
+/// call the app makes on Windows.
+fn plain_process_path(path: PathBuf) -> PathBuf {
+    let text = path.to_string_lossy();
+    let Some(rest) = text.strip_prefix(r"\\?\") else {
+        return path;
+    };
+    if let Some(share) = rest.strip_prefix(r"UNC\") {
+        return PathBuf::from(format!(r"\\{share}"));
+    }
+    // `C:\...`: a drive letter, a colon, and a separator. The separator matters
+    // — bare `C:` means "the current directory on C", a different location.
+    let bytes = rest.as_bytes();
+    if bytes.len() >= 3 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':' && bytes[2] == b'\\' {
+        return PathBuf::from(rest);
+    }
+    path
+}
+
 async fn is_dir(path: &std::path::Path) -> bool {
     tokio::fs::metadata(path)
         .await
@@ -635,13 +670,46 @@ mod tests {
 
     const PACKAGE: &str = "@scope/agent";
 
-    #[cfg(windows)]
     #[test]
-    fn node_facing_paths_drop_the_windows_verbatim_prefix() {
+    fn plain_process_path_drops_windows_verbatim_prefixes() {
+        // A disk path canonicalized on Windows comes back `\\?\C:\...`; npm's
+        // Arborist recurses to a stack overflow on it as `--prefix`, and Node
+        // fails `lstat 'C:'` when it is the script argument (#277).
         assert_eq!(
-            node_facing_path(PathBuf::from(r"\\?\C:\atlas\agent\index.js")),
-            PathBuf::from(r"C:\atlas\agent\index.js")
+            plain_process_path(PathBuf::from(
+                r"\\?\C:\Users\u\AppData\Roaming\dev.atlas.ide\external-agents\registry\npx\codex-acp"
+            )),
+            PathBuf::from(
+                r"C:\Users\u\AppData\Roaming\dev.atlas.ide\external-agents\registry\npx\codex-acp"
+            )
         );
+        // The UNC spelling must come back as `\\server\share`, not
+        // `UNC\server\share`.
+        assert_eq!(
+            plain_process_path(PathBuf::from(r"\\?\UNC\server\share\agent")),
+            PathBuf::from(r"\\server\share\agent")
+        );
+    }
+
+    #[test]
+    fn plain_process_path_keeps_every_plain_spelling_untouched() {
+        for plain in [
+            r"C:\Users\u\AppData\Roaming\dev.atlas.ide",
+            "/home/u/.local/share/dev.atlas.ide/npx/codex-acp",
+            // The marker only counts at the very front: a POSIX path with a
+            // literal backslash component stays exactly as it is.
+            r"/tmp/\\?\inside",
+            // A device path has no plain spelling; keep the verbatim one.
+            r"\\?\Volume{12345678-1234-1234-1234-123456789abc}\agent",
+            // Nothing after the prefix to hand back.
+            r"\\?\",
+        ] {
+            assert_eq!(
+                plain_process_path(PathBuf::from(plain)),
+                PathBuf::from(plain),
+                "changed {plain:?}"
+            );
+        }
     }
 
     #[test]
@@ -691,7 +759,11 @@ mod tests {
         let dir = installed_without_platform_package(version);
         let platform_dir = dir.path().join("node_modules/@scope/agent-darwin-arm64");
         std::fs::create_dir_all(&platform_dir).unwrap();
-        std::fs::write(platform_dir.join("package.json"), r#"{"name":"@scope/agent"}"#).unwrap();
+        std::fs::write(
+            platform_dir.join("package.json"),
+            r#"{"name":"@scope/agent"}"#,
+        )
+        .unwrap();
         dir
     }
 
@@ -767,9 +839,11 @@ mod tests {
         assert_eq!(sidecar(&dir), None, "nothing is adopted without an install");
 
         let dir = installed("2.0.0");
-        assert!(install_needed(dir.path(), PACKAGE, "@scope/agent@1.11.0", PLATFORM)
-            .await
-            .is_some_and(|reason| reason.contains("outside the ceiling")));
+        assert!(
+            install_needed(dir.path(), PACKAGE, "@scope/agent@1.11.0", PLATFORM)
+                .await
+                .is_some_and(|reason| reason.contains("outside the ceiling"))
+        );
         assert_eq!(sidecar(&dir), None);
     }
 

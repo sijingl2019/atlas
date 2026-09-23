@@ -130,7 +130,10 @@ fn upstream_detail(upstream: &serde_json::Value) -> Option<String> {
 fn upstream_status(message: &str) -> Option<u16> {
     let (_, tail) = message.rsplit_once('(')?;
     let digits = tail.trim_end_matches(&['.', ')'][..]);
-    digits.parse().ok().filter(|status| (100..600).contains(status))
+    digits
+        .parse()
+        .ok()
+        .filter(|status| (100..600).contains(status))
 }
 
 /// `Retry-After`, in seconds.
@@ -294,7 +297,9 @@ impl Disposition {
     pub fn is_retryable(&self) -> bool {
         matches!(
             self,
-            Self::RetryAfter { .. } | Self::RetryCautiously { .. } | Self::RefreshAuthThenRetryOnce { .. }
+            Self::RetryAfter { .. }
+                | Self::RetryCautiously { .. }
+                | Self::RefreshAuthThenRetryOnce { .. }
         )
     }
 
@@ -370,7 +375,10 @@ mod tests {
         assert!(m.contains("307425"), "used missing: {m}");
         assert!(m.contains("350000"), "cap missing: {m}");
         assert!(m.contains("monthly"), "window missing: {m}");
-        assert!(m.contains("org"), "scope missing — a shared cap must not read as personal: {m}");
+        assert!(
+            m.contains("org"),
+            "scope missing — a shared cap must not read as personal: {m}"
+        );
         assert!(m.contains("2026-09-01"), "reset missing: {m}");
     }
 
@@ -379,7 +387,11 @@ mod tests {
         // The gateway sets 1 for a concurrency refusal and 60 for the
         // per-minute limit. Ignoring the header is how a client turns a
         // one-second wait into a minute, or a minute into a hammering.
-        let d = classify(StatusCode::TOO_MANY_REQUESTS, &body("rate_limited", "slow down"), Some("1"));
+        let d = classify(
+            StatusCode::TOO_MANY_REQUESTS,
+            &body("rate_limited", "slow down"),
+            Some("1"),
+        );
         assert_eq!(
             d,
             Disposition::RetryAfter {
@@ -389,18 +401,36 @@ mod tests {
         );
         assert!(d.is_retryable());
 
-        let d = classify(StatusCode::TOO_MANY_REQUESTS, &body("rate_limited", "slow down"), Some("60"));
-        assert!(matches!(d, Disposition::RetryAfter { delay, .. } if delay == Duration::from_secs(60)));
+        let d = classify(
+            StatusCode::TOO_MANY_REQUESTS,
+            &body("rate_limited", "slow down"),
+            Some("60"),
+        );
+        assert!(
+            matches!(d, Disposition::RetryAfter { delay, .. } if delay == Duration::from_secs(60))
+        );
     }
 
     #[test]
     fn a_missing_retry_after_waits_the_longer_interval() {
         // Retrying too soon against a rate limit earns another one, so the
         // fallback is the longer of the two the gateway uses.
-        let d = classify(StatusCode::TOO_MANY_REQUESTS, &body("rate_limited", "x"), None);
-        assert!(matches!(d, Disposition::RetryAfter { delay, .. } if delay == Duration::from_secs(60)));
-        let d = classify(StatusCode::TOO_MANY_REQUESTS, &body("rate_limited", "x"), Some("garbage"));
-        assert!(matches!(d, Disposition::RetryAfter { delay, .. } if delay == Duration::from_secs(60)));
+        let d = classify(
+            StatusCode::TOO_MANY_REQUESTS,
+            &body("rate_limited", "x"),
+            None,
+        );
+        assert!(
+            matches!(d, Disposition::RetryAfter { delay, .. } if delay == Duration::from_secs(60))
+        );
+        let d = classify(
+            StatusCode::TOO_MANY_REQUESTS,
+            &body("rate_limited", "x"),
+            Some("garbage"),
+        );
+        assert!(
+            matches!(d, Disposition::RetryAfter { delay, .. } if delay == Duration::from_secs(60))
+        );
     }
 
     #[test]
@@ -409,11 +439,23 @@ mod tests {
         // `Retry-After: 86400` would stall the turn for a day behind
         // "Reconnecting…" (#68). 60 is the longest interval the gateway
         // documents; nothing may wait longer on this header's say-so.
-        let d = classify(StatusCode::TOO_MANY_REQUESTS, &body("rate_limited", "x"), Some("86400"));
-        assert!(matches!(d, Disposition::RetryAfter { delay, .. } if delay == Duration::from_secs(60)));
+        let d = classify(
+            StatusCode::TOO_MANY_REQUESTS,
+            &body("rate_limited", "x"),
+            Some("86400"),
+        );
+        assert!(
+            matches!(d, Disposition::RetryAfter { delay, .. } if delay == Duration::from_secs(60))
+        );
         // The documented short interval still passes through untouched.
-        let d = classify(StatusCode::TOO_MANY_REQUESTS, &body("rate_limited", "x"), Some("1"));
-        assert!(matches!(d, Disposition::RetryAfter { delay, .. } if delay == Duration::from_secs(1)));
+        let d = classify(
+            StatusCode::TOO_MANY_REQUESTS,
+            &body("rate_limited", "x"),
+            Some("1"),
+        );
+        assert!(
+            matches!(d, Disposition::RetryAfter { delay, .. } if delay == Duration::from_secs(1))
+        );
     }
 
     #[test]
@@ -422,7 +464,10 @@ mod tests {
         // minting a new one. An unverifiable one does not, and the gateway says
         // explicitly not to back off and retry it.
         let expired = classify_code(401, "token_expired");
-        assert!(matches!(expired, Disposition::RefreshAuthThenRetryOnce { .. }));
+        assert!(matches!(
+            expired,
+            Disposition::RefreshAuthThenRetryOnce { .. }
+        ));
         assert!(expired.is_retryable());
 
         let unauthorized = classify_code(401, "unauthorized");
@@ -615,8 +660,9 @@ mod tests {
         let body = r#"{"error":{"message":"The org monthly AI budget is spent.",
             "code":"cap_exceeded","window":"monthly","scope":"org",
             "used":307425,"cap":350000,"reset":"2026-09-01T00:00:00.000Z"}}"#;
-        let engine_error =
-            crate::map_api_error(classify(StatusCode::PAYMENT_REQUIRED, body, None).into_api_error());
+        let engine_error = crate::map_api_error(
+            classify(StatusCode::PAYMENT_REQUIRED, body, None).into_api_error(),
+        );
         let rendered = engine_error.to_string();
         assert!(rendered.contains("307425"), "cap detail lost: {rendered}");
         assert!(rendered.contains("2026-09-01"), "reset lost: {rendered}");

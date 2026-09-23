@@ -14,8 +14,13 @@ import {
 } from "@/features/keybindings/stores/keybindings-store";
 import { useLayoutStore } from "@/features/layout/stores/layout-store";
 import { useTerminalStore } from "@/features/terminal/stores/terminal-store";
-import { useProjectStore, type AppStateWire } from "@/features/project/stores/project-store";
+import {
+  useAppStore,
+  setAppStateWritable,
+  type AppStateWire,
+} from "@/features/app/stores/app-store";
 import { useChatStore } from "@/features/chat/stores/chat-store";
+import { listenMemoryUnconsulted } from "@/features/chat/lib/agents-api";
 import {
   listenAgents,
   pluginIdForAgentId,
@@ -32,11 +37,11 @@ import {
   openFileIndex,
   markFileIndexClosed,
 } from "@/features/file-picker/lib/file-picker-api";
-import { activeWorkspaceId } from "@/features/workspaces/lib/active-workspace";
-import { useWorkspaceStore } from "@/features/workspaces/stores/workspace-store";
-import { useProjectDialogStore } from "@/features/workspaces/lib/project-dialog";
-import { flushAll } from "@/features/workspaces/lib/flush-registry";
-import { captureSnapshot } from "@/features/workspaces/lib/workspace-snapshot";
+import { activeProjectId } from "@/features/projects/lib/active-project";
+import { useProjectStore } from "@/features/projects/stores/project-store";
+import { flushAll } from "@/features/projects/lib/flush-registry";
+import { captureSnapshot } from "@/features/projects/lib/project-snapshot";
+import { useProjectDialogStore } from "@/features/projects/lib/project-dialog";
 import { useExplorerStore } from "@/features/explorer/stores/explorer-store";
 import { listen } from "@tauri-apps/api/event";
 import {
@@ -44,14 +49,15 @@ import {
   ensureRecentFilesListener,
   type RecentFile,
 } from "@/features/chat/stores/recent-files-store";
-import { useRecentChatsStore } from "@/features/workspaces/stores/recent-chats-store";
+import { useRecentChatsStore } from "@/features/projects/stores/recent-chats-store";
 import { stripInjectedContext } from "@/features/chat/lib/atlas-context";
 import { openNewAgentChat } from "@/features/chat/lib/open-agent-session";
 import { requestCloseTab } from "@/features/chat/lib/close-tab";
-import { jumpToSession } from "@/features/chat/lib/tab-workspace";
+import { jumpToSession } from "@/features/chat/lib/tab-project";
 import { pruneContextUsageCache } from "@/features/chat/lib/context-usage-cache";
 import { isScrollHot } from "@/lib/scroll-hot";
-import { isWindows } from "@/lib/platform";
+import { isWindows, isLinux } from "@/lib/platform";
+import type { CliStatus } from "@/features/settings/components/settings-panel";
 import { basename } from "@/lib/paths";
 import {
   hydrateAgentRegistry,
@@ -70,8 +76,8 @@ import { NotificationPanel } from "@/features/notifications/components/notificat
 import { FeedbackPanel } from "@/features/feedback/components/feedback-panel";
 import { UpdateAvailableModal } from "@/features/updater/components/update-available-modal";
 import { LoadingOrganisationOverlay } from "@/features/organisations/components/loading-organisation-overlay";
-import { StopAgentsDialog } from "@/features/workspaces/components/stop-agents-dialog";
-import { ProjectDialog } from "@/features/workspaces/components/project-dialog";
+import { StopAgentsDialog } from "@/features/projects/components/stop-agents-dialog";
+import { ProjectDialog } from "@/features/projects/components/project-dialog";
 import { RemoveAgentDialog } from "@/features/agents/components/remove-agent-dialog";
 import { useOrgStore } from "@/features/organisations/stores/org-store";
 import {
@@ -79,6 +85,7 @@ import {
   markOrgReconciled,
 } from "@/features/organisations/lib/org-reconciliation";
 import { comms, listenComms, type CommsEnvelope } from "@/features/comms/lib/comms-api";
+import { useSettingsStore } from "@/features/settings/stores/settings-store";
 import { commsActions, pruneTyping } from "@/features/comms/stores/comms-store";
 import { useUpdaterStore } from "@/features/updater/stores/updater-store";
 import {
@@ -90,27 +97,35 @@ import {
   listenUpdateChecking,
 } from "@/features/updater/lib/updater-api";
 import { Toaster, toast } from "sonner";
+import { IconThemeFonts } from "@/features/icon-theme/components/file-icon";
 import {
+  auth,
   listenAuthChanged,
   listenAuthError,
   listenAuthSignedOut,
 } from "@/features/auth/lib/auth-api";
 import { useAuthStore } from "@/features/auth/stores/auth-store";
+import { createWakeRefresher } from "@/features/auth/lib/refresh-on-wake";
 import { useMembersStore } from "@/features/organisations/stores/members-store";
 import { ConnectDialog } from "@/features/auth/components/connect-dialog";
 import { clampScale, SCALE_STEP, DEFAULT_SCALE } from "@/features/settings/lib/ui-scale";
 import { useModelsStore } from "@/features/settings/stores/models-store";
 
+/** Minimum gap between two wake-triggered account re-pulls. Long enough that a
+ *  burst of focus edges (Space switches) costs one pull; short enough that a
+ *  rename made on the web is visible the next time the user comes back. */
+const AUTH_WAKE_REFRESH_MS = 5 * 60_000;
+
 // Interface-zoom helpers (⌘+/⌘-/⌘0). They read + write the persisted
 // `uiScale` setting; `updateSettings` applies it to the native WebView zoom.
 function stepZoom(delta: number) {
-  const { settings, actions } = useProjectStore.getState();
+  const { settings, actions } = useSettingsStore.getState();
   actions.updateSettings({ uiScale: clampScale(settings.uiScale + delta) });
 }
 const zoomIn = () => stepZoom(SCALE_STEP);
 const zoomOut = () => stepZoom(-SCALE_STEP);
 const zoomReset = () =>
-  useProjectStore.getState().actions.updateSettings({ uiScale: DEFAULT_SCALE });
+  useSettingsStore.getState().actions.updateSettings({ uiScale: DEFAULT_SCALE });
 
 export function App() {
   // Own model download listeners at app scope so completion notifications are
@@ -151,18 +166,28 @@ export function App() {
   // app still works without the helper, the user just can't type
   // `atlas ./` in their terminal until they hit the install button
   // in Settings → General. Not on Windows: the helper is a bash script
-  // (see `commands::cli::cli_install_helper`).
+  // (see `commands::cli::cli_install_helper`). On Linux, skip if a
+  // system-wide /usr/bin/atlas exists so ~/.local/bin/atlas does not shadow it.
   useEffect(() => {
     if (isWindows) return;
-    void invoke("cli_install_helper").catch((e) => {
-      console.warn("atlas CLI helper refresh failed:", e);
-    });
+    void invoke<CliStatus>("cli_status")
+      .then((status) => {
+        // If installed system-wide outside ~/.local/ (e.g. /usr/bin/atlas on Linux), don't shadow it
+        if (status?.installed && status.path && !status.path.includes("/.local/")) return;
+        // If already installed and up to date on Linux, skip (macOS re-runs to self-heal edited/deleted helpers)
+        if (isLinux && status?.installed && status.installedVersion === status.currentVersion)
+          return;
+        return invoke("cli_install_helper");
+      })
+      .catch((e) => {
+        console.warn("atlas CLI helper refresh failed:", e);
+      });
   }, []);
 
   // Warm-launch CLI: when `atlas <path>` runs while Atlas is already open, the
   // Rust single-instance callback forwards the folder here. The app is already
-  // hydrated, so we just ADD it to the workspace list and switch to it (no race
-  // with hydration). `openProject` → `addWorkspace` dedupes by path.
+  // hydrated, so we just ADD it to the project list and switch to it (no race
+  // with hydration). `openProject` → `addProject` dedupes by path.
   useEffect(() => {
     const unlisten = listen<string>("atlas:cli-open-project", (event) => {
       const path = event.payload;
@@ -170,11 +195,11 @@ export function App() {
       logEvent({
         source: "atlas",
         kind: "cli-launch-open-project",
-        summary: `Adding workspace from CLI (warm launch): ${path}`,
+        summary: `Adding project from CLI (warm launch): ${path}`,
         status: "success",
         payload: { path },
       });
-      void useProjectStore.getState().actions.openProject(path);
+      void useAppStore.getState().actions.openProject(path);
     });
     return () => {
       void unlisten.then((off) => off());
@@ -233,12 +258,13 @@ export function App() {
     const offs: Array<Promise<() => void>> = [
       listenAuthChanged((snapshot) => {
         a.setSnapshot(snapshot);
-        // Add-only merge of the server's org list into the local switcher,
-        // but only while Personal sync is on. Guarded on `orgs !== null`
-        // (three-state): `null` is "not known yet" (offline), not "no orgs",
-        // and must never touch the local list.
+        // Merge the server's org list into the local switcher (adds new ones,
+        // takes renamed names onto linked ones, never removes) — only while
+        // Personal sync is on. Guarded on `orgs !== null` (three-state):
+        // `null` is "not known yet" (offline), not "no orgs", and must never
+        // touch the local list.
         if (
-          useProjectStore.getState().settings.personalSync &&
+          useSettingsStore.getState().settings.personalSync &&
           snapshot.status === "signed-in" &&
           snapshot.orgs
         ) {
@@ -252,7 +278,18 @@ export function App() {
       listenAuthSignedOut((e) => toast.error(e.message)),
     ];
     void a.hydrate();
+    // Re-pull on wake so an org renamed on the web shows up when the user
+    // comes back to Atlas, not at the next relaunch. `atlas:window-active` is
+    // the focus rising edge / page-visible signal from `window-focus.ts`, and
+    // the first input after 30 s idle (below) — all throttled by one gate.
+    const refreshOnWake = createWakeRefresher({
+      refresh: auth.refresh,
+      isSignedIn: () => useAuthStore.getState().snapshot.status === "signed-in",
+      minIntervalMs: AUTH_WAKE_REFRESH_MS,
+    });
+    window.addEventListener("atlas:window-active", refreshOnWake);
     return () => {
+      window.removeEventListener("atlas:window-active", refreshOnWake);
       for (const p of offs) void p.then((off) => off());
     };
   }, []);
@@ -268,7 +305,7 @@ export function App() {
   const bootAuthStatus = useAuthStore((s) => s.snapshot.status);
   const bootLocalActiveOrg = useOrgStore.use.activeOrganisationId();
   const bootOrganisations = useOrgStore.use.organisations();
-  const personalSync = useProjectStore((s) => s.settings.personalSync);
+  const personalSync = useSettingsStore((s) => s.settings.personalSync);
   useEffect(() => {
     if (bootAuthStatus !== "signed-in") return;
     // With Personal sync off Rust must not keep a socket pointed at a
@@ -383,7 +420,7 @@ export function App() {
   }, [bootRemoteOrgId, bootSignedIn]);
 
   // NOTE: we intentionally do NOT wipe localStorage on boot anymore. Several
-  // stores legitimately persist there via zustand `persist` — the workspace
+  // stores legitimately persist there via zustand `persist` — the project
   // "Chats" list (`atlas-recent-chats`), layout prefs (`atlas-layout-prefs`),
   // the review provider/model selection — and a blanket clear was silently
   // dropping all of them on every restart. Each store carries its own
@@ -414,36 +451,72 @@ export function App() {
     (async () => {
       // A terminal `atlas <path>` launch stashes the path in Rust (single-shot,
       // so a window reload won't re-trigger). Consume it BEFORE hydrating: the
-      // CLI project must be ADDED to the workspace list and switched to, but
+      // CLI project must be ADDED to the project list and switched to, but
       // hydrate replaces that list and fires its own `switchTo` — which would
-      // both clobber the CLI workspace and swallow the CLI switch (`switching`
+      // both clobber the CLI project and swallow the CLI switch (`switching`
       // guard). So we suppress hydrate's auto-switch when a CLI path is present
       // and perform the CLI open as the sole, final switch.
       const cliPath = await invoke<string | null>("cli_take_initial_project_path").catch(
         () => null,
       );
-      try {
-        const payload = await invoke<AppStateWire>("bootstrap_app_state");
-        if (cancelled) return;
-        startTransition(() => {
-          useProjectStore.getState().actions.hydrate(payload, { skipActiveSwitch: !!cliPath });
-          // Hydration replaces the org list wholesale, so re-apply any server
-          // orgs from a snapshot that may have already arrived — otherwise a
-          // sign-in that landed before this bootstrap would be overwritten.
-          const snap = useAuthStore.getState().snapshot;
-          if (
-            useProjectStore.getState().settings.personalSync &&
-            snap.status === "signed-in" &&
-            snap.orgs
-          ) {
-            useOrgStore.getState().actions.mergeServerOrgs(snap.orgs);
+      // `bootstrap_app_state` is the only read of `state.json` Atlas ever
+      // performs, so a failure here is NOT "start empty and carry on": the
+      // stores keep their empty defaults, `AppState::apply_patch` replaces the
+      // persisted lists wholesale, and the unconditional quit flush would then
+      // write that emptiness over the user's real projects and orgs. Retry
+      // first — a transient IPC hiccup shouldn't cost a session.
+      let snapshot: AppStateWire | null = null;
+      for (let attempt = 1; attempt <= 3 && !snapshot; attempt++) {
+        try {
+          snapshot = await invoke<AppStateWire>("bootstrap_app_state");
+        } catch (e) {
+          console.warn(`bootstrap_app_state attempt ${attempt} failed:`, e);
+          if (attempt < 3) {
+            await new Promise((resolve) => setTimeout(resolve, 150 * attempt));
           }
-        });
-      } catch (e) {
-        console.warn("bootstrap_app_state failed; starting empty:", e);
-        if (!cancelled) {
+        }
+      }
+      if (cancelled) return;
+      try {
+        if (snapshot) {
+          const payload = snapshot;
           startTransition(() => {
-            useProjectStore.getState().actions.hydrate(
+            // The stores are about to hold the user's real state, so writing
+            // them back is safe from here on. Before this line they hold empty
+            // defaults and persistence is denied — see `appStateWritable`.
+            setAppStateWritable(true);
+            useAppStore.getState().actions.hydrate(payload, { skipActiveSwitch: !!cliPath });
+            // Hydration replaces the org list wholesale, so re-apply any server
+            // orgs from a snapshot that may have already arrived — otherwise a
+            // sign-in that landed before this bootstrap would be overwritten.
+            const snap = useAuthStore.getState().snapshot;
+            if (
+              useSettingsStore.getState().settings.personalSync &&
+              snap.status === "signed-in" &&
+              snap.orgs
+            ) {
+              useOrgStore.getState().actions.mergeServerOrgs(snap.orgs);
+            }
+          });
+        } else {
+          // Every attempt failed. Come up in an explicitly READ-ONLY session
+          // rather than letting the empty stores overwrite `state.json`: the
+          // user's projects and orgs are still on disk, and a restart is what
+          // brings them back. Without this the app looks merely "empty" and
+          // then makes that permanent on quit.
+          setAppStateWritable(false);
+          logEvent({
+            source: "atlas",
+            kind: "bootstrap-failed",
+            summary: "bootstrap_app_state failed after 3 attempts; app-state writes suspended",
+            status: "failure",
+          });
+          toast.error(
+            "Atlas couldn't load your projects. Your saved data is safe on disk — restart Atlas to get it back.",
+            { duration: Infinity },
+          );
+          startTransition(() => {
+            useAppStore.getState().actions.hydrate(
               {
                 currentProject: null,
                 recentProjects: [],
@@ -455,15 +528,19 @@ export function App() {
         }
       } finally {
         if (!cancelled) {
-          if (cliPath) {
+          // Only open the CLI path when we actually have a snapshot. Without
+          // one there is no org to own the project, so `addProject` would
+          // refuse anyway — and its "no organisation" toast would bury the
+          // boot-failure one that actually tells the user what to do.
+          if (cliPath && snapshot) {
             logEvent({
               source: "atlas",
               kind: "cli-launch-open-project",
-              summary: `Adding workspace from CLI argv: ${cliPath}`,
+              summary: `Adding project from CLI argv: ${cliPath}`,
               status: "success",
               payload: { path: cliPath },
             });
-            await useProjectStore
+            await useAppStore
               .getState()
               .actions.openProject(cliPath)
               .catch((err) => {
@@ -493,7 +570,7 @@ export function App() {
 
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [newTabPaletteOpen, setNewTabPaletteOpen] = useState(false);
-  // The workspace rail's "Open module" row opens the same palette ⌘⌥N does.
+  // The project rail's "Open module" row opens the same palette ⌘⌥N does.
   // The palette's state lives here, so the rail asks for it by event rather
   // than the state being lifted into a store for one caller.
   useEffect(() => {
@@ -574,7 +651,7 @@ export function App() {
       focusTerminalSoon(newTabId);
     }
   };
-  const currentProject = useProjectStore.use.currentProject();
+  const currentProject = useAppStore.use.currentProject();
 
   // Global agent event bus. One listener routes atlas-agents SessionDelta
   // events into the chat-store, queues permission requests for the
@@ -659,16 +736,16 @@ export function App() {
     // Establish notification permission EAGERLY at startup (see native-notify.ts
     // for why lazy asking lost the first real background notification).
     void primeNativeNotificationPermission();
-    // Name the SESSION's workspace, not the active project — a finish in
-    // workspace B while A is focused used to read "Atlas — A".
+    // Name the SESSION's project, not the active project — a finish in
+    // project B while A is focused used to read "Atlas — A".
     const sessionProjectName = (acpSessionId: string): string => {
       const sess = Object.values(useChatStore.getState().sessions).find(
         (s) => s.acpSessionId === acpSessionId,
       );
-      const byPath = useWorkspaceStore
+      const byPath = useProjectStore
         .getState()
-        .workspaces.find((w) => w.path === sess?.workingDirectory)?.name;
-      return byPath ?? useProjectStore.getState().currentProject?.name ?? "Atlas";
+        .projects.find((w) => w.path === sess?.workingDirectory)?.name;
+      return byPath ?? useAppStore.getState().currentProject?.name ?? "Atlas";
     };
     const notifyAgentDone = (acpSessionId: string) =>
       sendNativeNotification({
@@ -864,10 +941,10 @@ export function App() {
     const notify = () => useNotificationsStore.getState().actions;
 
     // In-app toast for events from a session the user ISN'T looking at (another
-    // tab or another workspace) — the OS notification only fires when the whole
-    // window is unfocused, so without this a background workspace's permission
+    // tab or another project) — the OS notification only fires when the whole
+    // window is unfocused, so without this a background project's permission
     // prompt was invisible until the user happened to switch. Click jumps to
-    // the owning workspace + tab.
+    // the owning project + tab.
     const toastBackgroundSession = (
       tabId: string | undefined,
       acpSessionId: string,
@@ -880,9 +957,9 @@ export function App() {
       const wsName = (() => {
         const path = useChatStore.getState().sessions[tabId]?.workingDirectory;
         if (!path) return null;
-        const ws = useWorkspaceStore.getState();
-        const w = ws.workspaces.find((x) => x.path === path);
-        return w && w.id !== ws.activeWorkspaceId ? w.name : null;
+        const ws = useProjectStore.getState();
+        const w = ws.projects.find((x) => x.path === path);
+        return w && w.id !== ws.activeProjectId ? w.name : null;
       })();
       const fn = kind === "failed" ? toast.error : kind === "done" ? toast.success : toast;
       fn(wsName ? `${title} — ${wsName}` : title, {
@@ -898,7 +975,7 @@ export function App() {
 
     // After a native-agent turn that may have changed files, refresh the
     // project's codebase index (incremental + structural — cheap, no LLM) so
-    // `search_memory` and the Memory tab stay current. Debounced per project so
+    // `memory_search` and the Memory tab stay current. Debounced per project so
     // a burst of turns triggers one rebuild.
     const indexTimers = new Map<string, ReturnType<typeof setTimeout>>();
     const autoIndexAfterTurn = (acpSessionId: string) => {
@@ -1176,9 +1253,9 @@ export function App() {
     };
     listen<Payload>("atlas:explorer:changed", (e) => {
       if (cancelled) return;
-      // Ignore changes from a backgrounded workspace's resident watcher —
-      // only the active workspace's explorer should reconcile.
-      const active = activeWorkspaceId();
+      // Ignore changes from a backgrounded project's resident watcher —
+      // only the active project's explorer should reconcile.
+      const active = activeProjectId();
       if (e.payload.workspaceId && active && e.payload.workspaceId !== active) {
         return;
       }
@@ -1244,10 +1321,10 @@ export function App() {
       fileIndex.closeProject().catch(() => {});
       markFileIndexClosed();
       // Deliberately does NOT stop git watchers. This branch runs whenever the
-      // *current* project becomes null, but watchers are per-workspace and a
-      // backgrounded workspace must keep watching — its commits still need
+      // *current* project becomes null, but watchers are per-project and a
+      // backgrounded project must keep watching — its commits still need
       // linking to its Sessions. Tearing one down is `teardownHot`'s job, with
-      // the workspace id it actually owns.
+      // the project id it actually owns.
       void invoke("recent_files_close_project").catch(() => {});
       // Drop the mention cache so the @-picker doesn't briefly
       // surface the previous project's notes / symbols on a fresh
@@ -1256,24 +1333,24 @@ export function App() {
       return;
     }
     // Deliberately NOT `markFileIndexClosed()` here: switching projects keeps
-    // every hot workspace's Rust index resident (`fileindex_open_project` is
+    // every hot project's Rust index resident (`fileindex_open_project` is
     // idempotent for a live one), so previously-confirmed roots stay valid —
     // clearing them made the first Cmd+P/@ after every switch pay a status
     // round-trip. Roots are forgotten where indexes actually die: project
-    // close (above) and workspace teardown (`markFileIndexClosedFor`).
-    const workspaceId = activeWorkspaceId();
+    // close (above) and project teardown (`markFileIndexClosedFor`).
+    const projectId = activeProjectId();
     void openFileIndex(currentProject.path);
     // Git watcher: emits `atlas:git-changed` on commit / checkout /
     // branch ops. Replaces the 3-second polling that git-graph-panel
     // used to do via `refetchInterval` on `git_graph_signature`.
-    // Keyed by workspace so each open workspace keeps its own resident watcher.
+    // Keyed by project so each open project keeps its own resident watcher.
     void invoke("git_watch_start", {
       projectPath: currentProject.path,
-      workspaceId,
+      workspaceId: projectId,
     }).catch((e) => console.warn("git watch start failed:", e));
-    // Capture: a bound Workspace just became active — open its store (which
+    // Capture: a bound Project just became active — open its store (which
     // also heals a folder rename) and kick its transcript import and drain.
-    // A no-op for Workspaces that never enabled capture.
+    // A no-op for Projects that never enabled capture.
     void invoke("capture_activate", { projectPath: currentProject.path }).catch((e) =>
       console.warn("capture activate failed:", e),
     );
@@ -1287,7 +1364,7 @@ export function App() {
     // first render of the new project.
     void invoke<RecentFile[]>("recent_files_open_project", {
       projectPath: currentProject.path,
-      workspaceId,
+      workspaceId: projectId,
     })
       .then((items) => {
         useRecentFilesStore.getState().actions.hydrate(items);
@@ -1309,18 +1386,30 @@ export function App() {
     ensureRecentFilesListener();
   }, []);
 
+  // A session that answered without ever reading shared memory says so, once.
+  // Host-observed rather than agent-reported, so it rides its own event rather
+  // than the frozen delta wire.
+  useEffect(() => {
+    const unlisten = listenMemoryUnconsulted(({ sessionId }) => {
+      useChatStore.getState().actions.noteMemoryUnconsulted(sessionId);
+    });
+    return () => {
+      void unlisten.then((f) => f());
+    };
+  }, []);
+
   // Quit durability: per-switch flushes are fire-and-forget, so on window
-  // close flush the ACTIVE workspace's pending writes (background workspaces
+  // close flush the ACTIVE project's pending writes (background projects
   // were already flushed when we left them). beforeunload can't await, but it
   // cancels the debounce and kicks the write immediately.
   useEffect(() => {
     const onBeforeUnload = () => {
-      const wsId = useWorkspaceStore.getState().activeWorkspaceId;
-      const path = useProjectStore.getState().currentProject?.path ?? null;
+      const wsId = useProjectStore.getState().activeProjectId;
+      const path = useAppStore.getState().currentProject?.path ?? null;
       // Capture first so the flush dedup compares against the CURRENT state
       // (not a stale capture from the last switch-away).
       if (wsId) captureSnapshot(wsId);
-      void flushAll({ workspaceId: wsId, path });
+      void flushAll({ projectId: wsId, path });
     };
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
@@ -1330,15 +1419,15 @@ export function App() {
   // this is only the action-id → behaviour map. See
   // `src/features/keybindings/lib/actions.ts` for the registry.
   useActionHotkeys({
-    // ⌘⇧N — "new workspace": pick a folder and add it as a workspace in
+    // ⌘⇧N — "new project": pick a folder and add it as a project in
     // this window (Atlas is single-window now; this replaces the old
     // "open a new native window" behaviour).
     "workspace.add": () => {
       useProjectDialogStore.getState().actions.openCreate();
     },
-    // ⌘⇧. — toggle the Arc-like workspace sidebar. (⌘. alone is the macOS
+    // ⌘⇧. — toggle the Arc-like project sidebar. (⌘. alone is the macOS
     // system "Cancel" chord and gets swallowed before reaching the webview.)
-    "workspace.toggleSidebar": () => useWorkspaceStore.getState().actions.toggleSidebar(),
+    "workspace.toggleSidebar": () => useProjectStore.getState().actions.toggleSidebar(),
     "nav.commandPalette": () => setCommandPaletteOpen(true),
     "nav.filePicker": () => setFilePickerOpen(true),
     "nav.search": () => setSearchOpen(true),
@@ -1441,6 +1530,16 @@ export function App() {
         dirty: false,
         data: {},
       }),
+    // The org's Usage dashboard — a singleton tab, so re-running focuses it.
+    "usage.open": () =>
+      addTab({
+        id: "usage",
+        type: "usage",
+        title: "Usage",
+        closable: true,
+        dirty: false,
+        data: {},
+      }),
     // Session Capture (the popover behind the titlebar's project pill). Local
     // `captureOpen` state lives in `ProjectLabel`, so this reaches it via the
     // same `atlas:open-capture` event the command palette entry dispatches.
@@ -1480,14 +1579,17 @@ export function App() {
       <ProjectDialog />
       <RemoveAgentDialog />
       <BrowserOverlayWatcher />
+      {/* Renders nothing at all until a glyph-based icon theme is in use, and
+          so costs an SVG theme (including the bundled default) nothing. */}
+      <IconThemeFonts />
       <Toaster
         position="bottom-right"
         toastOptions={{
           style: {
-            background: "var(--bg-elevated)",
-            border: "1px solid var(--border-default)",
-            color: "var(--text-primary)",
-            fontSize: "var(--font-size-sm)",
+            background: "var(--card)",
+            border: "1px solid var(--border)",
+            color: "var(--foreground)",
+            fontSize: "var(--text-sm)",
           },
         }}
       />

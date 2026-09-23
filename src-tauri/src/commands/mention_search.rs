@@ -98,12 +98,7 @@ pub fn mention_cache_set_knowledge(
     state: State<'_, MentionCacheState>,
 ) {
     let key = workspace_id.unwrap_or_else(|| webview.label().to_string());
-    state
-        .per_window
-        .write()
-        .entry(key)
-        .or_default()
-        .knowledge = items;
+    state.per_window.write().entry(key).or_default().knowledge = items;
 }
 
 #[tauri::command(async)]
@@ -134,11 +129,7 @@ pub struct SymbolInput {
 /// the branch-refs lazy-cache pattern. A project that has never been indexed
 /// (no `docs.json`) yields an empty list — `@symbol` simply returns nothing
 /// until chat-with-codebase indexing has run.
-async fn ensure_symbol_cache(
-    state: &MentionCacheState,
-    label: &str,
-    project_path: Option<&str>,
-) {
+async fn ensure_symbol_cache(state: &MentionCacheState, label: &str, project_path: Option<&str>) {
     let Some(project) = project_path else {
         return;
     };
@@ -202,13 +193,16 @@ pub struct KnowledgeInput {
     pub file_path: String,
 }
 
-
 /// Single result, discriminated by `kind`. Mirrors the TS
 /// `MentionData` union field-for-field; `kind` is rendered in
 /// snake_case so `kind: "past_message"` reads cleanly were it ever
 /// added (today this enum doesn't include it).
 #[derive(Debug, Clone, Serialize)]
-#[serde(tag = "kind", rename_all = "snake_case", rename_all_fields = "camelCase")]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase"
+)]
 pub enum MentionResult {
     File {
         id: String,
@@ -395,8 +389,14 @@ pub async fn mention_search(
         rank_knowledge(&trimmed_for_knowledge, knowledge_data)
     };
 
-    let (files, folders, repos, branches, symbols_res, knowledge_res) =
-        tokio::join!(file_fut, folder_fut, repo_fut, branch_fut, symbol_fut, knowledge_fut);
+    let (files, folders, repos, branches, symbols_res, knowledge_res) = tokio::join!(
+        file_fut,
+        folder_fut,
+        repo_fut,
+        branch_fut,
+        symbol_fut,
+        knowledge_fut
+    );
 
     if scope_ref.is_some() {
         // Scoped view: only one kind is populated — flatten and cap.
@@ -504,10 +504,7 @@ fn rank_files(query: &str, files: Vec<(String, PathBuf)>) -> Vec<(u32, MentionRe
         .collect()
 }
 
-fn rank_folders(
-    query: &str,
-    folders: Vec<(String, PathBuf)>,
-) -> Vec<(u32, MentionResult)> {
+fn rank_folders(query: &str, folders: Vec<(String, PathBuf)>) -> Vec<(u32, MentionResult)> {
     let to_result = |(rel, abs): (String, PathBuf)| {
         let abs_str = abs.to_string_lossy().into_owned();
         MentionResult::Folder {
@@ -547,12 +544,15 @@ fn rank_repos(query: &str, rows: Vec<ClonedRepo>) -> Vec<(u32, MentionResult)> {
             .into_iter()
             .take(PER_KIND_LIMIT)
             .map(|r| {
-                (0, MentionResult::Repo {
-                    id: r.path.clone(),
-                    display_name: r.name,
-                    abs_path: r.path,
-                    has_readme: r.has_readme,
-                })
+                (
+                    0,
+                    MentionResult::Repo {
+                        id: r.path.clone(),
+                        display_name: r.name,
+                        abs_path: r.path,
+                        has_readme: r.has_readme,
+                    },
+                )
             })
             .collect();
     }
@@ -571,12 +571,15 @@ fn rank_repos(query: &str, rows: Vec<ClonedRepo>) -> Vec<(u32, MentionResult)> {
         .into_iter()
         .take(PER_KIND_LIMIT)
         .map(|(s, r)| {
-            (s, MentionResult::Repo {
-                id: r.path.clone(),
-                display_name: r.name,
-                abs_path: r.path,
-                has_readme: r.has_readme,
-            })
+            (
+                s,
+                MentionResult::Repo {
+                    id: r.path.clone(),
+                    display_name: r.name,
+                    abs_path: r.path,
+                    has_readme: r.has_readme,
+                },
+            )
         })
         .collect()
 }
@@ -592,13 +595,16 @@ fn rank_branches(query: &str, refs: GitRefs) -> Vec<(u32, MentionResult)> {
             .into_iter()
             .take(PER_KIND_LIMIT)
             .map(|r| {
-                (0, MentionResult::Branch {
-                    id: r.name.clone(),
-                    display_name: r.name,
-                    sha: r.sha,
-                    ref_kind: r.kind,
-                    is_current: r.is_current,
-                })
+                (
+                    0,
+                    MentionResult::Branch {
+                        id: r.name.clone(),
+                        display_name: r.name,
+                        sha: r.sha,
+                        ref_kind: r.kind,
+                        is_current: r.is_current,
+                    },
+                )
             })
             .collect();
     }
@@ -617,13 +623,16 @@ fn rank_branches(query: &str, refs: GitRefs) -> Vec<(u32, MentionResult)> {
         .into_iter()
         .take(PER_KIND_LIMIT)
         .map(|(s, r)| {
-            (s, MentionResult::Branch {
-                id: r.name.clone(),
-                display_name: r.name,
-                sha: r.sha,
-                ref_kind: r.kind,
-                is_current: r.is_current,
-            })
+            (
+                s,
+                MentionResult::Branch {
+                    id: r.name.clone(),
+                    display_name: r.name,
+                    sha: r.sha,
+                    ref_kind: r.kind,
+                    is_current: r.is_current,
+                },
+            )
         })
         .collect()
 }
@@ -634,14 +643,17 @@ fn rank_symbols(query: &str, symbols: Vec<SymbolInput>) -> Vec<(u32, MentionResu
             .into_iter()
             .take(PER_KIND_LIMIT)
             .map(|s| {
-                (0, MentionResult::Symbol {
-                    id: format!("{}@{}:{}", s.name, s.file_path, s.line),
-                    display_name: s.name,
-                    signature: s.signature,
-                    symbol_kind: s.kind,
-                    file_path: s.file_path,
-                    line: s.line,
-                })
+                (
+                    0,
+                    MentionResult::Symbol {
+                        id: format!("{}@{}:{}", s.name, s.file_path, s.line),
+                        display_name: s.name,
+                        signature: s.signature,
+                        symbol_kind: s.kind,
+                        file_path: s.file_path,
+                        line: s.line,
+                    },
+                )
             })
             .collect();
     }
@@ -660,14 +672,17 @@ fn rank_symbols(query: &str, symbols: Vec<SymbolInput>) -> Vec<(u32, MentionResu
         .into_iter()
         .take(PER_KIND_LIMIT)
         .map(|(sc, s)| {
-            (sc, MentionResult::Symbol {
-                id: format!("{}@{}:{}", s.name, s.file_path, s.line),
-                display_name: s.name,
-                signature: s.signature,
-                symbol_kind: s.kind,
-                file_path: s.file_path,
-                line: s.line,
-            })
+            (
+                sc,
+                MentionResult::Symbol {
+                    id: format!("{}@{}:{}", s.name, s.file_path, s.line),
+                    display_name: s.name,
+                    signature: s.signature,
+                    symbol_kind: s.kind,
+                    file_path: s.file_path,
+                    line: s.line,
+                },
+            )
         })
         .collect()
 }
@@ -679,14 +694,17 @@ fn rank_knowledge(query: &str, entries: Vec<KnowledgeInput>) -> Vec<(u32, Mentio
             .take(PER_KIND_LIMIT)
             .map(|e| {
                 let folder = e.id.rfind('/').map(|i| e.id[..i].to_string());
-                (0, MentionResult::Knowledge {
-                    id: e.id,
-                    display_name: e.title,
-                    icon: e.icon,
-                    source: e.source,
-                    file_path: e.file_path,
-                    folder,
-                })
+                (
+                    0,
+                    MentionResult::Knowledge {
+                        id: e.id,
+                        display_name: e.title,
+                        icon: e.icon,
+                        source: e.source,
+                        file_path: e.file_path,
+                        folder,
+                    },
+                )
             })
             .collect();
     }
@@ -715,14 +733,17 @@ fn rank_knowledge(query: &str, entries: Vec<KnowledgeInput>) -> Vec<(u32, Mentio
         .into_iter()
         .take(PER_KIND_LIMIT)
         .map(|(s, e, folder)| {
-            (s, MentionResult::Knowledge {
-                id: e.id,
-                display_name: e.title,
-                icon: e.icon,
-                source: e.source,
-                file_path: e.file_path,
-                folder,
-            })
+            (
+                s,
+                MentionResult::Knowledge {
+                    id: e.id,
+                    display_name: e.title,
+                    icon: e.icon,
+                    source: e.source,
+                    file_path: e.file_path,
+                    folder,
+                },
+            )
         })
         .collect()
 }

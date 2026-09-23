@@ -588,7 +588,9 @@ pub fn apply_frame(
         },
 
         ServerFrame::CallRecording {
-            call_id, state: rec, ..
+            call_id,
+            state: rec,
+            ..
         } => match state.calls.get_mut(&call_id) {
             Some(call) => {
                 call.recording_state = rec;

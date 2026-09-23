@@ -13,8 +13,8 @@ vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn().mockRejectedValue(new Error("missing")),
   convertFileSrc: (path: string) => `asset://localhost${path}`,
 }));
-vi.mock("@/features/project/stores/project-store", () => ({
-  useProjectStore: { getState: () => ({ currentProject: { path: "/project" } }) },
+vi.mock("@/features/app/stores/app-store", () => ({
+  useAppStore: { getState: () => ({ currentProject: { path: "/project" } }) },
 }));
 const { addTab } = vi.hoisted(() => ({ addTab: vi.fn() }));
 vi.mock("@/features/layout/stores/layout-store", () => ({

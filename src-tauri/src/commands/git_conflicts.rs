@@ -47,8 +47,11 @@ pub async fn git_conflict_state(path: String) -> Result<ConflictState, GitErrorP
         let parsed = gstatus::parse(status.stdout.as_bytes());
 
         // Marker counts — only worth a spawn when something is unmerged.
-        let unmerged: Vec<&gstatus::StatusEntry> =
-            parsed.entries.iter().filter(|e| e.unmerged.is_some()).collect();
+        let unmerged: Vec<&gstatus::StatusEntry> = parsed
+            .entries
+            .iter()
+            .filter(|e| e.unmerged.is_some())
+            .collect();
         let counts = if unmerged.is_empty() {
             Default::default()
         } else {
@@ -79,7 +82,12 @@ pub async fn git_conflict_state(path: String) -> Result<ConflictState, GitErrorP
             .find_map(|f| std::fs::read_to_string(Path::new(&git_dir).join(f)).ok())
             .map(|m| {
                 // Strip git's `#` commentary lines.
-                m.lines().filter(|l| !l.starts_with('#')).collect::<Vec<_>>().join("\n").trim().to_string()
+                m.lines()
+                    .filter(|l| !l.starts_with('#'))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+                    .trim()
+                    .to_string()
             })
             .unwrap_or_default();
 
@@ -120,7 +128,11 @@ pub async fn git_resolve_file(
                 emit_synthetic_change(&app, Path::new(&path));
                 return Ok(());
             }
-            let flag = if resolution == "ours" { "--ours" } else { "--theirs" };
+            let flag = if resolution == "ours" {
+                "--ours"
+            } else {
+                "--theirs"
+            };
             GitCommand::new(&path, &["checkout", flag, "--", &file]).run()?;
         }
         GitCommand::new(&path, &["add", "--", &file]).run()?;

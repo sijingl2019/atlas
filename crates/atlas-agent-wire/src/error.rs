@@ -124,7 +124,10 @@ mod tests {
             ("HTTP 503: Service Unavailable", ErrorClass::Transient),
             ("request timed out", ErrorClass::Transient),
             ("error sending request for url", ErrorClass::Transient),
-            ("HTTP 429: x (gave up after 4 attempts)", ErrorClass::Transient),
+            (
+                "HTTP 429: x (gave up after 4 attempts)",
+                ErrorClass::Transient,
+            ),
             ("HTTP 401: authentication_error", ErrorClass::Auth),
             ("HTTP 403: permission_error", ErrorClass::Auth),
             ("invalid x-api-key", ErrorClass::Auth),

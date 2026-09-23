@@ -1,7 +1,8 @@
 use std::fs;
 use std::path::Path;
 
-const DEFAULT_EMPTY: &str = r#"{"version":2,"viewport":{"x":0,"y":0,"zoom":1},"nodes":[],"edges":[]}"#;
+const DEFAULT_EMPTY: &str =
+    r#"{"version":2,"viewport":{"x":0,"y":0,"zoom":1},"nodes":[],"edges":[]}"#;
 
 #[tauri::command]
 pub async fn load_canvas(project_path: String) -> Result<String, String> {
@@ -133,13 +134,17 @@ mod media_guard_tests {
         std::fs::write(dir.join(".atlas/canvas-media/pic.png"), b"png!").unwrap();
         let root = dir.to_string_lossy().to_string();
 
-        let ok = canvas_media_data_url(root.clone(), "pic.png".into()).await.unwrap();
+        let ok = canvas_media_data_url(root.clone(), "pic.png".into())
+            .await
+            .unwrap();
         assert!(ok.starts_with("data:image/png;base64,"));
 
         // The audit shape: this used to read any file the user could.
         for bad in ["../../../../etc/hosts", "a/b.png", "/etc/hosts", ""] {
             assert!(
-                canvas_media_data_url(root.clone(), bad.into()).await.is_err(),
+                canvas_media_data_url(root.clone(), bad.into())
+                    .await
+                    .is_err(),
                 "{bad} must be refused"
             );
         }

@@ -123,7 +123,11 @@ pub fn canonical_name(
     // AND COMMITTED a file was classified as a read and never sampled for
     // writes. The argument shape outranks the title because it cannot be
     // prose.
-    if arguments.get("command").and_then(serde_json::Value::as_str).is_some() {
+    if arguments
+        .get("command")
+        .and_then(serde_json::Value::as_str)
+        .is_some()
+    {
         return ToolName::Bash;
     }
 
@@ -201,20 +205,20 @@ fn from_kind(kind: Option<&str>, arguments: &serde_json::Value) -> ToolName {
     }
 }
 
-/// A path an agent touched, resolved against the Workspace.
+/// A path an agent touched, resolved against the Project.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedPath {
-    /// NFC-normalised and workspace-relative when inside the Workspace;
+    /// NFC-normalised and project-relative when inside the Project;
     /// otherwise the path as given.
     pub path: String,
-    /// The agent wrote outside the Workspace root (`../../etc/hosts`, somewhere
+    /// The agent wrote outside the Project root (`../../etc/hosts`, somewhere
     /// in `~`). Recorded rather than dropped, and flagged so the link rule knows
     /// it can never match a commit and does not count it as pending agent work
     /// forever.
     pub out_of_repo: bool,
 }
 
-/// Resolve a path the agent reported against the Workspace root.
+/// Resolve a path the agent reported against the Project root.
 ///
 /// Two normalisations, both of which exist because their failure mode is a
 /// **silently missing Checkpoint** rather than an error anyone sees:
@@ -224,16 +228,16 @@ pub struct ResolvedPath {
 ///   forms, and nothing is logged.
 /// * **Separators and `.` / `..` segments.** The link rule compares against
 ///   git's stored path, which is always `/`-separated and always minimal.
-pub fn resolve_path(raw: &str, workspace_root: &Path) -> ResolvedPath {
+pub fn resolve_path(raw: &str, project_root: &Path) -> ResolvedPath {
     let candidate = PathBuf::from(raw);
     let absolute = if candidate.is_absolute() {
         candidate
     } else {
-        workspace_root.join(candidate)
+        project_root.join(candidate)
     };
 
     let cleaned = lexically_normalize(&absolute);
-    match cleaned.strip_prefix(lexically_normalize(workspace_root)) {
+    match cleaned.strip_prefix(lexically_normalize(project_root)) {
         Ok(relative) => ResolvedPath {
             path: nfc(&to_slash(relative)),
             out_of_repo: false,
@@ -384,7 +388,14 @@ pub fn extract_paths(
     }
 
     if out.is_empty() {
-        for key in ["file_path", "path", "filePath", "target_file", "file", "notebook_path"] {
+        for key in [
+            "file_path",
+            "path",
+            "filePath",
+            "target_file",
+            "file",
+            "notebook_path",
+        ] {
             if let Some(path) = arguments.get(key).and_then(serde_json::Value::as_str) {
                 if !path.trim().is_empty() {
                     out.push(path.to_string());
@@ -448,7 +459,12 @@ mod tests {
             "an explicit name is the agent naming itself"
         );
         assert_eq!(
-            canonical_name(Some("Read"), Some("Read"), None, &args(serde_json::json!({}))),
+            canonical_name(
+                Some("Read"),
+                Some("Read"),
+                None,
+                &args(serde_json::json!({}))
+            ),
             ToolName::Read
         );
     }
@@ -474,12 +490,25 @@ mod tests {
     #[test]
     fn claude_code_display_titles_reduce_to_their_leading_token() {
         for (title, kind, expected) in [
-            ("Bash(cargo test --package atlas-codeindex)", "execute", ToolName::Bash),
-            ("Read /Users/nafiz/dev/atlas/src/lib.rs", "read", ToolName::Read),
+            (
+                "Bash(cargo test --package atlas-codeindex)",
+                "execute",
+                ToolName::Bash,
+            ),
+            (
+                "Read /Users/nafiz/dev/atlas/src/lib.rs",
+                "read",
+                ToolName::Read,
+            ),
             ("Edit src/rate_limit.rs", "edit", ToolName::Edit),
         ] {
             assert_eq!(
-                canonical_name(Some(title), Some(title), Some(kind), &args(serde_json::json!({}))),
+                canonical_name(
+                    Some(title),
+                    Some(title),
+                    Some(kind),
+                    &args(serde_json::json!({}))
+                ),
                 expected,
                 "title {title}"
             );
@@ -548,7 +577,12 @@ mod tests {
     #[test]
     fn an_unrecognised_call_is_other_rather_than_a_new_bucket() {
         assert_eq!(
-            canonical_name(Some("Frobnicate the widget"), None, None, &args(serde_json::json!({}))),
+            canonical_name(
+                Some("Frobnicate the widget"),
+                None,
+                None,
+                &args(serde_json::json!({}))
+            ),
             ToolName::Other
         );
     }
@@ -565,14 +599,14 @@ mod tests {
     // ── Path resolution ─────────────────────────────────────────────────────
 
     #[test]
-    fn an_absolute_path_inside_the_workspace_becomes_relative() {
+    fn an_absolute_path_inside_the_project_becomes_relative() {
         let resolved = resolve_path("/tmp/project/src/lib.rs", Path::new("/tmp/project"));
         assert_eq!(resolved.path, "src/lib.rs");
         assert!(!resolved.out_of_repo);
     }
 
     #[test]
-    fn a_relative_path_is_taken_as_workspace_relative() {
+    fn a_relative_path_is_taken_as_project_relative() {
         let resolved = resolve_path("src/lib.rs", Path::new("/tmp/project"));
         assert_eq!(resolved.path, "src/lib.rs");
         assert!(!resolved.out_of_repo);
@@ -585,7 +619,7 @@ mod tests {
     }
 
     #[test]
-    fn a_path_escaping_the_workspace_is_flagged_rather_than_dropped() {
+    fn a_path_escaping_the_project_is_flagged_rather_than_dropped() {
         // Flagged, because the link rule must know it can never match a commit —
         // and dropping it would leave it looking like pending agent work forever.
         let resolved = resolve_path("../../etc/hosts", Path::new("/tmp/project"));
@@ -632,15 +666,22 @@ mod tests {
 
     #[test]
     fn the_arguments_are_the_fallback_when_no_location_arrived() {
-        let paths = extract_paths(&[], &[], &args(serde_json::json!({ "file_path": "src/b.rs" })));
+        let paths = extract_paths(
+            &[],
+            &[],
+            &args(serde_json::json!({ "file_path": "src/b.rs" })),
+        );
         assert_eq!(paths, vec!["src/b.rs"]);
     }
 
     #[test]
     fn a_call_with_no_usable_location_yields_nothing_rather_than_failing() {
-        assert!(
-            extract_paths(&[], &[], &args(serde_json::json!({ "command": "cargo test" }))).is_empty()
-        );
+        assert!(extract_paths(
+            &[],
+            &[],
+            &args(serde_json::json!({ "command": "cargo test" }))
+        )
+        .is_empty());
     }
 
     #[test]
@@ -701,7 +742,9 @@ mod tests {
     /// stop the arguments from being consulted either.
     #[test]
     fn a_blank_diff_path_is_not_a_file() {
-        assert!(extract_paths(&[], &["   ".to_string()], &args(serde_json::Value::Null)).is_empty());
+        assert!(
+            extract_paths(&[], &["   ".to_string()], &args(serde_json::Value::Null)).is_empty()
+        );
         assert_eq!(
             extract_paths(
                 &[],

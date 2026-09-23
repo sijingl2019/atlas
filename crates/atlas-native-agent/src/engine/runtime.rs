@@ -137,7 +137,9 @@ pub async fn start_engine(
     // engine spawns from inside it — runs on the engine's workers.
     let client = runtime
         .handle()
-        .spawn(async move { start_engine_inner(&settings, external_auth, catalogue.as_ref()).await })
+        .spawn(
+            async move { start_engine_inner(&settings, external_auth, catalogue.as_ref()).await },
+        )
         .await
         .context("the engine's startup task panicked")??;
 
@@ -248,6 +250,6 @@ async fn start_engine_inner(
         external_auth,
     ))
     .await
-        .map_err(anyhow::Error::from)
-        .context("starting the in-process app-server runtime")
+    .map_err(anyhow::Error::from)
+    .context("starting the in-process app-server runtime")
 }

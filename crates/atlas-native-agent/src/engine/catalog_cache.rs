@@ -33,14 +33,17 @@
 //! header, so a cache carries the org it was fetched for and is a miss for any
 //! other. A user switching orgs must not be offered the previous org's models.
 //!
-//! # Metadata the gateway does not send yet
+//! # Metadata
 //!
-//! Display name, description and context window are requested from the
-//! gateway (`docs/requests/gateway-catalogue-metadata.md`) and read here when
-//! present. Until they land: the name is the slug, there is no description,
-//! and — the one that matters — there is no context window, so the engine's
-//! auto-compaction is off for that row and the gateway's own `413` is the
-//! ceiling. Accepted, and temporary.
+//! Display name, description, context window, sort order, default and input
+//! modalities ride each row as the gateway's presentation block (server
+//! commit `e37ea88`, the answer to `docs/requests/gateway-catalogue-
+//! metadata.md`). Every member is optional on the wire and falls back per
+//! field: the slug is the name, no description, text+image assumed, and —
+//! only for a row the gateway has not annotated — no context window, which
+//! leaves the engine's auto-compaction off for that row. The gateway serves
+//! `context_window` already clamped to its own prompt ceiling, so the number
+//! here is always one the engine may compact against.
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::Hash;
@@ -81,22 +84,38 @@ const CACHE_VERSION: u32 = 1;
 /// One row of `GET /v1/catalogue`, as the gateway sends it.
 ///
 /// Every field but `id` is defaulted so the gateway may add or drop fields
-/// without invalidating a cache or breaking a launch. The three metadata
-/// fields are the ones requested from the gateway team; they are optional
-/// here precisely so they can ship incrementally.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// without invalidating a cache or breaking a launch. The presentation block
+/// (`display_name` through `input_modalities`) is the gateway's `ModelMeta`
+/// join (server `packages/contracts/src/model-meta.ts`); each member is
+/// `null` when unannotated, and a client falls back per field.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GatewayRow {
     pub id: String,
     #[serde(default)]
     pub publisher: Option<String>,
     #[serde(default)]
     pub entitled: bool,
+    /// `Claude Opus 5`, not `claude-opus-5`. Absent: the id is the name.
     #[serde(default)]
     pub display_name: Option<String>,
     #[serde(default)]
     pub description: Option<String>,
+    /// The prompt ceiling **as the gateway enforces it** — already clamped
+    /// to the gate's own limit server-side, so it is safe to compact against.
     #[serde(default)]
     pub context_window: Option<i64>,
+    /// Picker position. Informational here: the gateway already returns
+    /// `data[]` in this order, and the projection keeps the wire order.
+    #[serde(default)]
+    pub sort_order: Option<i64>,
+    /// The model a new session starts on. Per caller: the gateway only sets
+    /// it on a row this caller is also entitled to.
+    #[serde(default, rename = "default")]
+    pub is_default: bool,
+    /// What the model accepts. Absent: text and image are assumed, which is
+    /// what every gateway model took before this was on the wire.
+    #[serde(default)]
+    pub input_modalities: Option<Vec<String>>,
 }
 
 /// The gateway's whole answer.
@@ -155,7 +174,9 @@ impl std::fmt::Display for FetchError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::NoToken(why) => write!(f, "not authenticated: {why}"),
-            Self::Unauthorized(_) => write!(f, "the gateway rejected the account token (unauthorized)"),
+            Self::Unauthorized(_) => {
+                write!(f, "the gateway rejected the account token (unauthorized)")
+            }
             Self::Http { status, .. } => write!(f, "the gateway answered HTTP {status}"),
             Self::Transport(why) => write!(f, "could not reach the gateway: {why}"),
             Self::Shape(why) => write!(f, "the gateway's catalogue did not parse: {why}"),
@@ -187,7 +208,11 @@ pub struct GatewayCatalogueFetcher {
 }
 
 impl GatewayCatalogueFetcher {
-    pub fn new(base_url: impl Into<String>, token: Arc<dyn AtlasTokenSource>, org: OrgSource) -> Self {
+    pub fn new(
+        base_url: impl Into<String>,
+        token: Arc<dyn AtlasTokenSource>,
+        org: OrgSource,
+    ) -> Self {
         Self {
             base_url: base_url.into(),
             token: Some(token),
@@ -301,9 +326,12 @@ pub async fn write_cache(home: &Path, cache: &CatalogueCache) -> Result<()> {
     tokio::fs::write(&tmp, body)
         .await
         .with_context(|| format!("writing {}", tmp.display()))?;
-    tokio::fs::rename(&tmp, &path)
-        .await
-        .with_context(|| format!("moving the model catalogue cache into place at {}", path.display()))?;
+    tokio::fs::rename(&tmp, &path).await.with_context(|| {
+        format!(
+            "moving the model catalogue cache into place at {}",
+            path.display()
+        )
+    })?;
     Ok(())
 }
 
@@ -320,7 +348,10 @@ pub enum Resolved {
     /// The gateway answered and the cache was rewritten.
     Fetched(CatalogueCache),
     /// The gateway did not answer and an older cache carried the connection.
-    Stale { cache: CatalogueCache, error: FetchError },
+    Stale {
+        cache: CatalogueCache,
+        error: FetchError,
+    },
 }
 
 impl Resolved {
@@ -450,7 +481,8 @@ pub struct ProjectedCatalogue {
     pub response: ModelsResponse,
     /// What the composer lists.
     pub picker: Vec<AgentModelInfo>,
-    /// The first entitled row: what a session runs on before any pick.
+    /// What a session runs on before any pick: the entitled row the gateway
+    /// marks `default`, else the first entitled row.
     pub default_model: String,
     /// The identity that matters to the engine — slugs and context windows,
     /// in order. Names and descriptions are not in it: a change to those
@@ -465,6 +497,15 @@ pub struct ProjectedCatalogue {
 pub fn project(cache: &CatalogueCache) -> Option<ProjectedCatalogue> {
     let entitled: Vec<&GatewayRow> = cache.rows.iter().filter(|row| row.entitled).collect();
     let first = entitled.first()?;
+    // The gateway's `default` is per caller — set only on an entitled row —
+    // so an entitled row carrying it is the one to start on. With none
+    // marked (an unannotated table), the first entitled row is the default,
+    // exactly as the gateway documents the fallback.
+    let default = entitled
+        .iter()
+        .find(|row| row.is_default)
+        .copied()
+        .unwrap_or(first);
 
     let rows: Vec<serde_json::Value> = entitled
         .iter()
@@ -475,11 +516,14 @@ pub fn project(cache: &CatalogueCache) -> Option<ProjectedCatalogue> {
                 row.display_name.as_deref().unwrap_or(&row.id),
                 row.description.as_deref(),
                 row.context_window,
+                row.input_modalities.as_deref(),
                 index as i32 + 1,
             )
         })
         .collect();
-    let response: ModelsResponse = match serde_json::from_value(serde_json::json!({ "models": rows })) {
+    let response: ModelsResponse = match serde_json::from_value(
+        serde_json::json!({ "models": rows }),
+    ) {
         Ok(response) => response,
         Err(err) => {
             // The row builder and the engine's record are both in this
@@ -509,8 +553,12 @@ pub fn project(cache: &CatalogueCache) -> Option<ProjectedCatalogue> {
     Some(ProjectedCatalogue {
         response,
         picker,
-        default_model: first.id.clone(),
-        fingerprint: fingerprint(entitled.iter().map(|row| (row.id.as_str(), row.context_window))),
+        default_model: default.id.clone(),
+        fingerprint: fingerprint(
+            entitled
+                .iter()
+                .map(|row| (row.id.as_str(), row.context_window)),
+        ),
     })
 }
 
@@ -544,7 +592,10 @@ mod tests {
 
     impl FakeFetcher {
         fn ok(rows: Vec<GatewayRow>) -> Self {
-            Self::with(Ok(GatewayCatalogue { has_grant: true, rows }))
+            Self::with(Ok(GatewayCatalogue {
+                has_grant: true,
+                rows,
+            }))
         }
         fn failing(error: FetchError) -> Self {
             Self::with(Err(error))
@@ -585,9 +636,7 @@ mod tests {
             id: id.to_string(),
             publisher: Some("anthropic".to_string()),
             entitled,
-            display_name: None,
-            description: None,
-            context_window: None,
+            ..GatewayRow::default()
         }
     }
 
@@ -631,14 +680,84 @@ mod tests {
     }
 
     #[test]
-    fn the_requested_metadata_is_read_when_the_gateway_sends_it() {
-        let body = r#"{"data":[{"id":"m","entitled":true,"display_name":"Model M","description":"fast","context_window":200000}]}"#;
+    fn the_presentation_block_is_read_as_the_gateway_serves_it() {
+        // The shape in the server's docs (§6b) after commit e37ea88: the
+        // presentation block rides each row in snake_case, `default` included.
+        let body = r#"{"object":"list","data":[{
+            "id":"claude-sonnet-4-6","object":"model","created":1786320000,
+            "owned_by":"google-vertex-ai","publisher":"anthropic","entitled":true,
+            "display_name":"Claude Sonnet 4.6","description":"Strong agentic coding at the mid tier.",
+            "context_window":200000,"sort_order":1,"default":true,"input_modalities":["text","image"]
+        },{
+            "id":"glm-5.3-flash","entitled":true,"display_name":"GLM 5.3 Flash","description":null,
+            "context_window":200000,"sort_order":4,"default":false,"input_modalities":null
+        }],"hasGrant":true}"#;
         let Ok(catalogue) = serde_json::from_str::<GatewayCatalogue>(body) else {
             panic!("parse");
         };
-        assert_eq!(catalogue.rows[0].display_name.as_deref(), Some("Model M"));
-        assert_eq!(catalogue.rows[0].description.as_deref(), Some("fast"));
-        assert_eq!(catalogue.rows[0].context_window, Some(200_000));
+        let sonnet = &catalogue.rows[0];
+        assert_eq!(sonnet.display_name.as_deref(), Some("Claude Sonnet 4.6"));
+        assert_eq!(
+            sonnet.description.as_deref(),
+            Some("Strong agentic coding at the mid tier.")
+        );
+        assert_eq!(sonnet.context_window, Some(200_000));
+        assert_eq!(sonnet.sort_order, Some(1));
+        assert!(sonnet.is_default);
+        assert_eq!(
+            sonnet.input_modalities.as_deref(),
+            Some(&["text".to_string(), "image".to_string()][..])
+        );
+        let glm = &catalogue.rows[1];
+        assert_eq!(glm.description, None, "null is absent, not the string null");
+        assert!(!glm.is_default);
+        assert_eq!(glm.input_modalities, None);
+    }
+
+    #[test]
+    fn the_gateways_default_wins_over_first_position() {
+        // `default` is the gateway's say on where a session starts; position
+        // only decides it when no row claims it.
+        let mut opus = row("claude-opus-5", true);
+        opus.is_default = true;
+        let cache = cache_with(vec![row("claude-sonnet-4-6", true), opus], None, 0);
+        let projected = project(&cache).expect("rows");
+        assert_eq!(projected.default_model, "claude-opus-5");
+        let slugs: Vec<&str> = projected.picker.iter().map(|m| m.id.as_str()).collect();
+        assert_eq!(
+            slugs,
+            ["claude-sonnet-4-6", "claude-opus-5"],
+            "the wire order is kept"
+        );
+
+        // A default the gateway put on a row this caller cannot use — which
+        // it never does, but a cache could carry — must not start a session
+        // on a refusal.
+        let mut locked = row("locked", false);
+        locked.is_default = true;
+        let cache = cache_with(vec![locked, row("open", true)], None, 0);
+        assert_eq!(project(&cache).expect("rows").default_model, "open");
+    }
+
+    #[test]
+    fn input_modalities_come_from_the_gateway_when_stated() {
+        let mut text_only = row("text-only", true);
+        text_only.input_modalities = Some(vec!["text".to_string()]);
+        let cache = cache_with(vec![row("unstated", true), text_only], None, 0);
+        let projected = project(&cache).expect("rows");
+        let modalities = |i: usize| {
+            projected.response.models[i]
+                .input_modalities
+                .iter()
+                .map(|m| format!("{m:?}").to_ascii_lowercase())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            modalities(0),
+            ["text", "image"],
+            "unstated keeps the old assumption"
+        );
+        assert_eq!(modalities(1), ["text"], "stated is honoured");
     }
 
     // ── the cache ───────────────────────────────────────────────────────
@@ -673,7 +792,9 @@ mod tests {
         assert_eq!(resolved.cache().rows[0].id, "b");
         assert_eq!(fetcher.calls(), 1);
 
-        let on_disk = load_cache(home.path()).await.expect("the cache was rewritten");
+        let on_disk = load_cache(home.path())
+            .await
+            .expect("the cache was rewritten");
         assert_eq!(on_disk.rows[0].id, "b");
         assert_eq!(on_disk.fetched_at, now);
     }
@@ -727,7 +848,10 @@ mod tests {
             panic!("with nothing to fall back to there must be no catalogue");
         };
         assert!(err.to_string().contains("model list"), "{err}");
-        assert!(err.to_string().contains("could not reach the gateway"), "{err}");
+        assert!(
+            err.to_string().contains("could not reach the gateway"),
+            "{err}"
+        );
     }
 
     #[tokio::test]
@@ -739,7 +863,12 @@ mod tests {
         let Err(err) = resolve(home.path(), &fetcher, &FakeClock(1), false).await else {
             panic!("no catalogue");
         };
-        assert!(err.to_string().to_ascii_lowercase().contains("unauthorized"), "{err}");
+        assert!(
+            err.to_string()
+                .to_ascii_lowercase()
+                .contains("unauthorized"),
+            "{err}"
+        );
         let no_token = FetchError::NoToken("signed out".into()).to_string();
         assert!(no_token.contains("not authenticated"), "{no_token}");
     }
@@ -747,9 +876,12 @@ mod tests {
     #[tokio::test]
     async fn a_cache_for_another_org_counts_as_missing() {
         let home = tempdir();
-        write_cache(home.path(), &cache_with(vec![row("a", true)], Some("org_1"), 1_000))
-            .await
-            .expect("write");
+        write_cache(
+            home.path(),
+            &cache_with(vec![row("a", true)], Some("org_1"), 1_000),
+        )
+        .await
+        .expect("write");
 
         // Fresh by age, wrong org: fetch.
         let fetcher = FakeFetcher::ok(vec![row("b", true)]).for_org("org_2");
@@ -761,7 +893,9 @@ mod tests {
 
         // And a failed fetch for a third org may not fall back to org_2's rows.
         let failing = FakeFetcher::failing(FetchError::Transport("down".into())).for_org("org_3");
-        assert!(resolve(home.path(), &failing, &FakeClock(1_002), false).await.is_err());
+        assert!(resolve(home.path(), &failing, &FakeClock(1_002), false)
+            .await
+            .is_err());
     }
 
     #[tokio::test]
@@ -807,10 +941,18 @@ mod tests {
             .expect("refresh");
         assert_eq!(cache.rows[0].id, "b");
         assert_eq!(fetcher.calls(), 1);
-        assert_eq!(load_cache(home.path()).await.expect("reload").rows[0].id, "b");
+        assert_eq!(
+            load_cache(home.path()).await.expect("reload").rows[0].id,
+            "b"
+        );
 
-        let failing = FakeFetcher::failing(FetchError::Http { status: 503, body: String::new() });
-        assert!(refresh_now(home.path(), &failing, &FakeClock(1_002)).await.is_err());
+        let failing = FakeFetcher::failing(FetchError::Http {
+            status: 503,
+            body: String::new(),
+        });
+        assert!(refresh_now(home.path(), &failing, &FakeClock(1_002))
+            .await
+            .is_err());
         assert_eq!(
             load_cache(home.path()).await.expect("reload").rows[0].id,
             "b",
@@ -823,18 +965,35 @@ mod tests {
     #[test]
     fn only_entitled_rows_are_offered_in_the_gateways_order() {
         let cache = cache_with(
-            vec![row("second", true), row("locked", false), row("first", true)],
+            vec![
+                row("second", true),
+                row("locked", false),
+                row("first", true),
+            ],
             None,
             0,
         );
         let projected = project(&cache).expect("two entitled rows");
-        let slugs: Vec<&str> = projected.response.models.iter().map(|m| m.slug.as_str()).collect();
+        let slugs: Vec<&str> = projected
+            .response
+            .models
+            .iter()
+            .map(|m| m.slug.as_str())
+            .collect();
         assert_eq!(slugs, ["second", "first"], "gateway order, not sorted");
         assert_eq!(
-            projected.response.models.iter().map(|m| m.priority).collect::<Vec<_>>(),
+            projected
+                .response
+                .models
+                .iter()
+                .map(|m| m.priority)
+                .collect::<Vec<_>>(),
             [1, 2],
         );
-        assert_eq!(projected.default_model, "second", "the first entitled row is the default");
+        assert_eq!(
+            projected.default_model, "second",
+            "the first entitled row is the default"
+        );
         assert_eq!(projected.picker.len(), 2);
         assert!(projected.picker.iter().all(|m| m.cost.is_none()));
     }
@@ -853,10 +1012,16 @@ mod tests {
         named.description = Some("The most capable.".into());
         let cache = cache_with(vec![row("gemini-3.6-flash", true), named], None, 0);
         let projected = project(&cache).expect("rows");
-        assert_eq!(projected.response.models[0].display_name, "gemini-3.6-flash");
+        assert_eq!(
+            projected.response.models[0].display_name,
+            "gemini-3.6-flash"
+        );
         assert_eq!(projected.response.models[0].description, None);
         assert_eq!(projected.response.models[1].display_name, "Claude Opus 5");
-        assert_eq!(projected.response.models[1].description.as_deref(), Some("The most capable."));
+        assert_eq!(
+            projected.response.models[1].description.as_deref(),
+            Some("The most capable.")
+        );
         assert_eq!(&*projected.picker[0].name, "gemini-3.6-flash");
         assert_eq!(&*projected.picker[1].name, "Claude Opus 5");
     }
@@ -870,23 +1035,41 @@ mod tests {
         // Absent: the engine has no ceiling to compact against. This is the
         // accepted interim cost until the gateway sends the number.
         assert_eq!(projected.response.models[0].context_window, None);
-        assert_eq!(projected.response.models[0].auto_compact_token_limit(), None);
+        assert_eq!(
+            projected.response.models[0].auto_compact_token_limit(),
+            None
+        );
         // Present: compaction fires at 90%.
         assert_eq!(projected.response.models[1].context_window, Some(200_000));
-        assert_eq!(projected.response.models[1].auto_compact_token_limit(), Some(180_000));
+        assert_eq!(
+            projected.response.models[1].auto_compact_token_limit(),
+            Some(180_000)
+        );
     }
 
     #[test]
     fn no_projected_row_advertises_a_control_this_wire_cannot_carry() {
         let cache = cache_with(vec![row("a", true), row("b", true)], None, 0);
         for model in project(&cache).expect("rows").response.models {
-            assert!(model.supported_reasoning_levels.is_empty(), "{}", model.slug);
+            assert!(
+                model.supported_reasoning_levels.is_empty(),
+                "{}",
+                model.slug
+            );
             assert!(!model.support_verbosity, "{}", model.slug);
-            assert!(!model.supports_reasoning_summary_parameter, "{}", model.slug);
+            assert!(
+                !model.supports_reasoning_summary_parameter,
+                "{}",
+                model.slug
+            );
             assert!(model.service_tiers.is_empty(), "{}", model.slug);
             assert!(!model.use_responses_lite, "{}", model.slug);
             assert!(!model.supports_search_tool, "{}", model.slug);
-            assert!(model.apply_patch_tool_type.is_some(), "{} lost apply_patch", model.slug);
+            assert!(
+                model.apply_patch_tool_type.is_some(),
+                "{} lost apply_patch",
+                model.slug
+            );
         }
     }
 
@@ -896,7 +1079,11 @@ mod tests {
         // with no system prompt at all.
         let cache = cache_with(vec![row("a", true)], None, 0);
         for model in project(&cache).expect("rows").response.models {
-            assert!(model.get_model_instructions(None).len() > 1_000, "{}", model.slug);
+            assert!(
+                model.get_model_instructions(None).len() > 1_000,
+                "{}",
+                model.slug
+            );
         }
     }
 
@@ -908,7 +1095,11 @@ mod tests {
         let mut relabelled = base.clone();
         relabelled.rows[0].display_name = Some("A!".into());
         relabelled.rows[1].description = Some("desc".into());
-        assert_eq!(fp(&base), fp(&relabelled), "names and descriptions swap in place");
+        assert_eq!(
+            fp(&base),
+            fp(&relabelled),
+            "names and descriptions swap in place"
+        );
 
         let mut added = base.clone();
         added.rows.push(row("c", true));

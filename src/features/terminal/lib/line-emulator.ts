@@ -29,7 +29,6 @@
  */
 import type { CSSProperties } from "react";
 import type { AnsiSegment } from "./ansi-to-segments";
-import { ANSI_KEYS, TERMINAL_PALETTES } from "./terminal-palette";
 
 export interface ResolvedLine {
   /** Stable for the lifetime of the row — the React key. */
@@ -56,9 +55,40 @@ interface HotRow {
 
 // ── SGR ────────────────────────────────────────────────────────────────────
 
-/** The block renderer's ANSI colors: light-mode CSS tokens with the dark
- *  palette as the fallback, so committed lines recolor when the mode flips. */
-const PALETTE_16 = ANSI_KEYS.map((key, i) => `var(--ansi-${i}, ${TERMINAL_PALETTES.dark[key]})`);
+/**
+ * The 16 ANSI slots, as the theme keys that define them.
+ *
+ * Emitted as a `--atlas-terminal-ansi-*` custom property rather than as a
+ * resolved hex, which is the one thing that makes a scrolled-back block follow
+ * the theme. Blocks
+ * are IMMUTABLE by design: a committed `ResolvedLine` keeps its object identity
+ * for ever so React can memoise on it, and `STYLE_CACHE` interns one style
+ * object per SGR signature. Baking a colour in would freeze every line already
+ * on screen at the palette it was printed under, and no repaint could reach it.
+ * A custom property is late-bound: the applier rewrites `:root` and the whole
+ * scrollback recolours with zero React work.
+ *
+ * `terminal-theme.ts` resolves the same keys for xterm, which cannot take a
+ * `var()`. The two renderers agree because they read one set of keys.
+ */
+const PALETTE_16 = [
+  "var(--atlas-terminal-ansi-black)",
+  "var(--atlas-terminal-ansi-red)",
+  "var(--atlas-terminal-ansi-green)",
+  "var(--atlas-terminal-ansi-yellow)",
+  "var(--atlas-terminal-ansi-blue)",
+  "var(--atlas-terminal-ansi-magenta)",
+  "var(--atlas-terminal-ansi-cyan)",
+  "var(--atlas-terminal-ansi-white)",
+  "var(--atlas-terminal-ansi-bright-black)",
+  "var(--atlas-terminal-ansi-bright-red)",
+  "var(--atlas-terminal-ansi-bright-green)",
+  "var(--atlas-terminal-ansi-bright-yellow)",
+  "var(--atlas-terminal-ansi-bright-blue)",
+  "var(--atlas-terminal-ansi-bright-magenta)",
+  "var(--atlas-terminal-ansi-bright-cyan)",
+  "var(--atlas-terminal-ansi-bright-white)",
+];
 
 function color256(n: number): string {
   if (n < 16) return PALETTE_16[n];

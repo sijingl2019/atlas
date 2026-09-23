@@ -1,7 +1,7 @@
 import { Node } from "@tiptap/core";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { openFile } from "@/lib/open-file";
-import { useProjectStore } from "@/features/project/stores/project-store";
+import { useAppStore } from "@/features/app/stores/app-store";
 import { useKnowledgeStore } from "@/features/knowledge/stores/knowledge-store";
 
 // Small structural type: markdown-it is supplied by tiptap-markdown.
@@ -86,7 +86,7 @@ export const WikiLink = Node.create({
       dom.textContent = alias || destination;
       dom.title = destination;
       dom.contentEditable = "false";
-      const projectPath = useProjectStore.getState().currentProject?.path;
+      const projectPath = useAppStore.getState().currentProject?.path;
       const fromId = useKnowledgeStore.getState().activeEntryId;
       let disposed = false;
       if (projectPath && fromId) {

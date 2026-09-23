@@ -77,10 +77,7 @@ async fn accepting_a_form_resolves_the_waiter_and_records_accepted() {
     store.respond_to_elicitation(&id, accept());
 
     let response = waiter.await;
-    assert!(matches!(
-        response.action,
-        acp::ElicitationAction::Accept(_)
-    ));
+    assert!(matches!(response.action, acp::ElicitationAction::Accept(_)));
     assert_eq!(status_of(&store, &id), "Accepted");
 }
 
@@ -100,7 +97,10 @@ async fn a_duplicate_response_is_ignored() {
         acp::CreateElicitationResponse::new(acp::ElicitationAction::Decline),
     );
 
-    assert!(matches!(waiter.await.action, acp::ElicitationAction::Accept(_)));
+    assert!(matches!(
+        waiter.await.action,
+        acp::ElicitationAction::Accept(_)
+    ));
     assert_eq!(status_of(&store, &id), "Accepted");
 }
 
@@ -112,7 +112,10 @@ async fn cancelling_a_pending_elicitation_resolves_it_as_cancelled() {
     let (id, waiter) = store.request_elicitation(form_request("s1")).unwrap();
     store.cancel_elicitation(&id);
 
-    assert!(matches!(waiter.await.action, acp::ElicitationAction::Cancel));
+    assert!(matches!(
+        waiter.await.action,
+        acp::ElicitationAction::Cancel
+    ));
     assert_eq!(status_of(&store, &id), "Canceled");
 }
 
@@ -125,7 +128,10 @@ async fn dropping_the_store_still_answers_the_agent() {
     let (_id, waiter) = store.request_elicitation(form_request("s1")).unwrap();
     drop(store);
 
-    assert!(matches!(waiter.await.action, acp::ElicitationAction::Cancel));
+    assert!(matches!(
+        waiter.await.action,
+        acp::ElicitationAction::Cancel
+    ));
 }
 
 /// Adapted from `test_url_elicitation_can_be_completed`.
@@ -219,8 +225,14 @@ async fn cancel_all_resolves_every_pending_waiter() {
 
     store.cancel_all();
 
-    assert!(matches!(a_waiter.await.action, acp::ElicitationAction::Cancel));
-    assert!(matches!(b_waiter.await.action, acp::ElicitationAction::Cancel));
+    assert!(matches!(
+        a_waiter.await.action,
+        acp::ElicitationAction::Cancel
+    ));
+    assert!(matches!(
+        b_waiter.await.action,
+        acp::ElicitationAction::Cancel
+    ));
 }
 
 /// Adapted from `test_url_elicitation_rejects_non_browser_urls`.
@@ -285,7 +297,10 @@ async fn a_duplicate_url_elicitation_id_is_refused_while_the_first_is_outstandin
 
     let duplicate = store.request_elicitation(url_request("s1", "e1", "https://example.com/other"));
 
-    assert!(duplicate.is_err(), "a second live elicitation took the same id");
+    assert!(
+        duplicate.is_err(),
+        "a second live elicitation took the same id"
+    );
     assert_eq!(store.elicitations().len(), 1);
 }
 

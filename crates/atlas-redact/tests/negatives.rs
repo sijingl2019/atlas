@@ -159,7 +159,11 @@ fn a_url_field_keeps_its_host_and_path() {
 fn json_structure_field_names_and_ids_survive() {
     let input = r#"{"session_id":"xJ3kQ9vB2mZ7pL5rT8wN4cF6yH1sD0gA","file_path":"/Users/nafiz/dev/atlas/src/lib.rs","role":"assistant"}"#;
     let out = redact_json(input);
-    assert!(!out.text.contains(PLACEHOLDER), "over-redacted: {}", out.text);
+    assert!(
+        !out.text.contains(PLACEHOLDER),
+        "over-redacted: {}",
+        out.text
+    );
     assert_eq!(out.counts.total(), 0);
 }
 

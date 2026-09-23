@@ -30,10 +30,10 @@ use std::time::Duration;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
-use codex_login::CodexAuth;
-pub use codex_login::ExternalAuthFuture;
 use codex_login::auth::ExternalAuth;
 use codex_login::auth::ExternalAuthRefreshContext;
+use codex_login::CodexAuth;
+pub use codex_login::ExternalAuthFuture;
 
 /// How long before a token's own expiry we stop trusting it.
 ///
@@ -64,10 +64,9 @@ pub trait AtlasTokenSource: Send + Sync {
 
 /// The token source the host installed, for connections not handed one.
 ///
-/// Registered rather than passed in, for the same reason `search_memory` is
-/// (#48): minting needs the Tauri app's auth state, and these types live behind
-/// a cargo feature — so a constructor parameter would `cfg`-gate
-/// `AgentHost::new`'s signature and every caller of it.
+/// Registered rather than passed in: minting needs the Tauri app's auth state,
+/// and these types live behind a cargo feature — so a constructor parameter
+/// would `cfg`-gate `AgentHost::new`'s signature and every caller of it.
 ///
 /// It is read at **connect** time, not at construction. That ordering is
 /// load-bearing: `AgentHost` is built during startup, before the auth state
@@ -162,7 +161,10 @@ impl AtlasExternalAuth {
 
     fn cached_if_fresh(&self) -> Option<String> {
         let now = self.clock.now_unix();
-        let cached = self.cached.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let cached = self
+            .cached
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         cached
             .as_ref()
             .filter(|c| now < c.renew_after)
@@ -180,7 +182,10 @@ impl AtlasExternalAuth {
             Some(exp) => exp.saturating_sub(REMINT_MARGIN.as_secs()).max(now + 1),
             None => now + ASSUMED_TTL.as_secs() - REMINT_MARGIN.as_secs(),
         };
-        *self.cached.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(CachedToken {
+        *self
+            .cached
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(CachedToken {
             token: token.clone(),
             renew_after,
         });
@@ -289,7 +294,11 @@ mod tests {
 
         now.fetch_add(30, Ordering::SeqCst);
         auth.resolve().await.expect("still fresh");
-        assert_eq!(source.calls(), 1, "a token 30s into a 100s life is reusable");
+        assert_eq!(
+            source.calls(),
+            1,
+            "a token 30s into a 100s life is reusable"
+        );
 
         now.fetch_add(60, Ordering::SeqCst);
         auth.resolve().await.expect("past the margin");
@@ -354,7 +363,11 @@ mod tests {
             now.fetch_add(550, Ordering::SeqCst);
         }
 
-        assert_eq!(source.calls(), 6, "each lap crosses the margin and re-mints");
+        assert_eq!(
+            source.calls(),
+            6,
+            "each lap crosses the margin and re-mints"
+        );
         // Not vacuous: the credential really did rotate rather than the same
         // string being handed back six times.
         let distinct: std::collections::BTreeSet<_> = bearers.iter().collect();
@@ -387,7 +400,10 @@ mod tests {
         assert_ne!(first, refreshed, "refresh must produce a different token");
 
         // And the refreshed token is what subsequent resolves see.
-        assert_eq!(bearer(&auth.resolve().await.expect("after refresh")), refreshed);
+        assert_eq!(
+            bearer(&auth.resolve().await.expect("after refresh")),
+            refreshed
+        );
         assert_eq!(source.calls(), 2);
     }
 
@@ -400,10 +416,8 @@ mod tests {
             }
         }
         let now = Arc::new(AtomicU64::new(1_000_000));
-        let auth = AtlasExternalAuth::with_clock(
-            Arc::new(Opaque),
-            Arc::new(TestClock(now.clone())),
-        );
+        let auth =
+            AtlasExternalAuth::with_clock(Arc::new(Opaque), Arc::new(TestClock(now.clone())));
 
         assert_eq!(bearer(&auth.resolve().await.expect("resolve")), "not-a-jwt");
         now.fetch_add(539, Ordering::SeqCst);

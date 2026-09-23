@@ -269,10 +269,16 @@ pub enum ServerFrame {
     },
 
     #[serde(rename = "conversation.created")]
-    ConversationCreated { seq: i64, conversation: Conversation },
+    ConversationCreated {
+        seq: i64,
+        conversation: Conversation,
+    },
 
     #[serde(rename = "conversation.updated")]
-    ConversationUpdated { seq: i64, conversation: Conversation },
+    ConversationUpdated {
+        seq: i64,
+        conversation: Conversation,
+    },
 
     #[serde(rename = "member.joined")]
     MemberJoined {

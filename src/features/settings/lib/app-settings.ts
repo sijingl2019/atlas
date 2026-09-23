@@ -8,11 +8,11 @@
  * — made the two modules a cycle.
  */
 
-import { DEFAULT_EDITOR_THEME_ID } from "@/features/editor/themes/themes";
-import type { ThemeMode } from "@/features/theme/mode";
-import { DEFAULT_ATLAS_THEME_ID } from "@/features/theme/themes";
 import { NATIVE_AGENT_ID } from "@/types/agent";
 import { DEFAULT_SCALE } from "./ui-scale";
+import { DEFAULT_APP_ICON } from "./app-icons";
+import type { ThemeMode } from "@/features/theme/lib/theme-api";
+import type { ThemeOverride } from "@/features/theme/resolve-theme";
 
 /**
  * App-wide preferences surfaced in Settings → General. Mirrors
@@ -48,22 +48,22 @@ export interface AppSettings {
   /** Selected on-device embedding model id (== dir name). Managed by the Local
    *  Model Manager; carried here so settings round-trips never clobber it. */
   embeddingModelId: string;
-  /** Code-editor color theme id (see src/features/editor/themes). Drives the
-   *  CodeMirror editor, the diff viewer and the source-control diff views. */
-  codeEditorTheme: string;
-  /** Atlas interface-theme id (see src/features/theme/themes). The dark mode's
-   *  interface theme — swaps the whole UI palette — background, panels, text,
-   *  borders and accent — while keeping dark-theme primitives. Independent of
-   *  `codeEditorTheme` (which only themes code syntax). Default "atlas-black" =
-   *  original AMOLED look. */
-  atlasTheme: string;
-  /** Light / Dark / System. `atlasTheme` and `codeEditorTheme` are the dark
-   *  mode's picks; the `…Light` fields are light mode's. Default "dark". */
+  /** One theme id for chrome, editor, terminal, diffs and syntax. */
+  theme: string;
+  /** Active variant preference. Light is persisted but hidden in Settings
+   *  until the light-mode QA flag is enabled. */
   themeMode: ThemeMode;
-  /** Interface theme id used in light mode. Default "atlas-light". */
-  atlasThemeLight: string;
-  /** Editor theme id used in light mode. Default "atlas-light". */
-  codeEditorThemeLight: string;
+  /** User-local patch applied after the active theme variant. */
+  themeOverrides: ThemeOverride;
+  /** File and folder icons, on their own track from the colour theme
+   *  (decision 4). `"minimal"` keeps Atlas's own lucide icons; anything else
+   *  names a VS Code icon theme — bundled, or installed from Open VSX. */
+  iconTheme: string;
+  /** macOS app icon, by id from `APP_ICONS` (`./app-icons`). The default is
+   *  the icon the bundle ships with; any other replaces the Dock and Finder
+   *  icon. Applied on the Rust side (`src-tauri/src/app_icon.rs`); ignored on
+   *  other platforms. */
+  appIcon: string;
   /** Adaptive next-step suggestion chips in the agent chat's per-turn card.
    *  "agent" (default) asks the coding agent to end each reply with a hidden
    *  `<next_steps>` block (uses the live session context, no BYOK); "off"
@@ -160,11 +160,11 @@ export const DEFAULT_SETTINGS: AppSettings = {
   linkTelemetryToAccount: true,
   personalSync: false,
   embeddingModelId: "bge-small-zh-v1.5",
-  codeEditorTheme: DEFAULT_EDITOR_THEME_ID,
-  atlasTheme: DEFAULT_ATLAS_THEME_ID,
-  themeMode: "dark",
-  atlasThemeLight: "atlas-light",
-  codeEditorThemeLight: "atlas-light",
+  theme: "atlas",
+  themeMode: "system",
+  themeOverrides: {},
+  iconTheme: "material-icon-theme",
+  appIcon: DEFAULT_APP_ICON,
   adaptiveSuggestions: "agent",
   gitBlameInline: true,
   autoUpdate: true,

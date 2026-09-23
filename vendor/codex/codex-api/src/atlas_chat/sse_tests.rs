@@ -19,10 +19,7 @@ async fn play(frames: &[&str]) -> Vec<Result<ResponseEvent, ApiError>> {
     play_bytes(body, ChatDialect::default()).await
 }
 
-async fn play_with(
-    frames: &[&str],
-    dialect: ChatDialect,
-) -> Vec<Result<ResponseEvent, ApiError>> {
+async fn play_with(frames: &[&str], dialect: ChatDialect) -> Vec<Result<ResponseEvent, ApiError>> {
     let body: Vec<Bytes> = frames
         .iter()
         .map(|frame| Bytes::from(format!("data: {frame}\n\n")))
@@ -36,7 +33,9 @@ async fn play_bytes(
     dialect: ChatDialect,
 ) -> Vec<Result<ResponseEvent, ApiError>> {
     let byte_stream: ByteStream = Box::pin(stream::iter(
-        chunks.into_iter().map(Ok::<_, codex_client::TransportError>),
+        chunks
+            .into_iter()
+            .map(Ok::<_, codex_client::TransportError>),
     ));
     let (tx, mut rx) = mpsc::channel(64);
     process_chat_sse(byte_stream, tx, IDLE, /*telemetry*/ None, dialect).await;
@@ -54,7 +53,8 @@ fn text_delta(text: &str) -> String {
     )
 }
 
-const FINISH_STOP: &str = r#"{"id":"chatcmpl-1","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}"#;
+const FINISH_STOP: &str =
+    r#"{"id":"chatcmpl-1","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}"#;
 const USAGE_ONLY: &str = r#"{"id":"chatcmpl-1","choices":[],"usage":{"prompt_tokens":100,"completion_tokens":7,"total_tokens":142,"prompt_tokens_details":{"cached_tokens":40}}}"#;
 
 fn assistant_text(events: &[Result<ResponseEvent, ApiError>]) -> Option<String> {
@@ -180,7 +180,10 @@ fn an_error_frame_wins_even_if_done_arrives_anyway() {
         "[DONE]",
     ]));
 
-    assert!(completion(&events).is_none(), "an errored turn never completes");
+    assert!(
+        completion(&events).is_none(),
+        "an errored turn never completes"
+    );
     assert!(error_of(&events).is_some());
 }
 
@@ -223,16 +226,25 @@ fn claude_thinking_arrives_as_reasoning_rather_than_as_the_answer() {
         })
         .collect();
     assert_eq!(reasoning, "Let me think harder");
-    assert_eq!(deltas(&events), "42", "thinking must not leak into the answer");
+    assert_eq!(
+        deltas(&events),
+        "42",
+        "thinking must not leak into the answer"
+    );
     assert_eq!(assistant_text(&events).as_deref(), Some("42"));
 
     let reasoning_item = events.iter().any(|event| {
         matches!(
             event,
-            Ok(ResponseEvent::OutputItemDone(ResponseItem::Reasoning { .. }))
+            Ok(ResponseEvent::OutputItemDone(
+                ResponseItem::Reasoning { .. }
+            ))
         )
     });
-    assert!(reasoning_item, "the thinking block has to be finished, not left open");
+    assert!(
+        reasoning_item,
+        "the thinking block has to be finished, not left open"
+    );
 }
 
 #[test]
@@ -270,15 +282,12 @@ fn tool_call_fragments_are_reassembled_into_one_call() {
         "[DONE]",
     ]));
 
-    let call = events
-        .iter()
-        .find_map(|event| match event {
-            Ok(ResponseEvent::OutputItemDone(item @ ResponseItem::FunctionCall { .. })) => {
-                Some(item.clone())
-            }
-            _ => None,
-        })
-;
+    let call = events.iter().find_map(|event| match event {
+        Ok(ResponseEvent::OutputItemDone(item @ ResponseItem::FunctionCall { .. })) => {
+            Some(item.clone())
+        }
+        _ => None,
+    });
     let Some(call) = call else {
         panic!("the call must be reassembled");
     };
@@ -342,6 +351,7 @@ fn a_flattened_freeform_tool_comes_back_as_the_shape_its_handler_accepts() {
     // a patch, the tool never runs, and nothing says why.
     let dialect = ChatDialect {
         freeform_tools: ["apply_patch".to_string()].into_iter().collect(),
+        ..ChatDialect::default()
     };
     let events = tokio_test::block_on(play_with(
         &[
@@ -352,15 +362,12 @@ fn a_flattened_freeform_tool_comes_back_as_the_shape_its_handler_accepts() {
         dialect,
     ));
 
-    let call = events
-        .iter()
-        .find_map(|event| match event {
-            Ok(ResponseEvent::OutputItemDone(item @ ResponseItem::CustomToolCall { .. })) => {
-                Some(item.clone())
-            }
-            _ => None,
-        })
-;
+    let call = events.iter().find_map(|event| match event {
+        Ok(ResponseEvent::OutputItemDone(item @ ResponseItem::CustomToolCall { .. })) => {
+            Some(item.clone())
+        }
+        _ => None,
+    });
     let Some(call) = call else {
         panic!("a freeform tool must come back as a CustomToolCall");
     };
@@ -384,7 +391,9 @@ fn a_tool_not_flattened_stays_an_ordinary_function_call() {
     let is_function = events.iter().any(|event| {
         matches!(
             event,
-            Ok(ResponseEvent::OutputItemDone(ResponseItem::FunctionCall { .. }))
+            Ok(ResponseEvent::OutputItemDone(
+                ResponseItem::FunctionCall { .. }
+            ))
         )
     });
     assert!(is_function, "only flattened tools are unwrapped");
@@ -584,7 +593,11 @@ fn every_delta_is_inside_an_item_the_engine_was_told_about() {
                 });
             }
             Ok(ResponseEvent::ReasoningContentDelta { .. }) => {
-                assert_eq!(open, Some("reasoning"), "a thinking delta with no item open");
+                assert_eq!(
+                    open,
+                    Some("reasoning"),
+                    "a thinking delta with no item open"
+                );
             }
             Ok(ResponseEvent::OutputTextDelta(_)) => {
                 assert_eq!(open, Some("message"), "a text delta with no item open");
@@ -617,9 +630,57 @@ fn a_usage_block_missing_a_count_is_no_usage_rather_than_a_zero() {
     );
 
     // And the complete block still reports, so this is not "usage never works".
-    let events = tokio_test::block_on(play(&[&text_delta("hi"), FINISH_STOP, USAGE_ONLY, "[DONE]"]));
+    let events = tokio_test::block_on(play(&[
+        &text_delta("hi"),
+        FINISH_STOP,
+        USAGE_ONLY,
+        "[DONE]",
+    ]));
     let Some((usage, _)) = completion(&events) else {
         panic!("the turn completes");
     };
     assert!(usage.is_some());
+}
+
+#[test]
+fn a_flattened_namespace_tool_comes_back_under_its_namespace() {
+    // The router resolves MCP calls by (namespace, name). A call that comes
+    // back under the flat name alone is an unknown tool.
+    let dialect = ChatDialect {
+        namespaced_tools: [(
+            "mcp__atlas_memory__memory_search".to_string(),
+            NamespacedTool {
+                namespace: "mcp__atlas_memory__".to_string(),
+                name: "memory_search".to_string(),
+            },
+        )]
+        .into_iter()
+        .collect(),
+        ..ChatDialect::default()
+    };
+    let events = tokio_test::block_on(play_with(
+        &[
+            r#"{"id":"c1","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"m1","function":{"name":"mcp__atlas_memory__memory_search","arguments":"{\"query\":\"jwt\"}"}}]},"finish_reason":null}]}"#,
+            r#"{"id":"c1","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}"#,
+            "[DONE]",
+        ],
+        dialect,
+    ));
+    let call = events.iter().find_map(|event| match event {
+        Ok(ResponseEvent::OutputItemDone(ResponseItem::FunctionCall {
+            name,
+            namespace,
+            arguments,
+            ..
+        })) => Some((name.clone(), namespace.clone(), arguments.clone())),
+        _ => None,
+    });
+    assert_eq!(
+        call,
+        Some((
+            "memory_search".to_string(),
+            Some("mcp__atlas_memory__".to_string()),
+            r#"{"query":"jwt"}"#.to_string(),
+        ))
+    );
 }

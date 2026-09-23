@@ -538,9 +538,12 @@ mod tests {
     use super::*;
     use crate::auth::AgentIdentitySessionFallback;
 
-
     /// A gateway error, as the transport hands it up.
-    fn gateway_http_error(status: u16, body: &str, retry_after: Option<&str>) -> codex_api::ApiError {
+    fn gateway_http_error(
+        status: u16,
+        body: &str,
+        retry_after: Option<&str>,
+    ) -> codex_api::ApiError {
         let Ok(status) = http::StatusCode::from_u16(status) else {
             panic!("{status} is not a status code");
         };
@@ -579,8 +582,12 @@ mod tests {
         // `UnexpectedStatus` — which the turn loop retries against a wall that
         // cannot clear for weeks.
         let body = r#"{"error":{"message":"The org monthly AI budget is spent.","code":"cap_exceeded","window":"monthly","scope":"org","used":307425,"cap":350000}}"#;
-        let err = provider_on_wire(WireApi::Chat).map_api_error(gateway_http_error(402, body, None));
-        assert!(!err.is_retryable(), "a filled cap must produce zero retries: {err:?}");
+        let err =
+            provider_on_wire(WireApi::Chat).map_api_error(gateway_http_error(402, body, None));
+        assert!(
+            !err.is_retryable(),
+            "a filled cap must produce zero retries: {err:?}"
+        );
         assert!(
             err.to_string().contains("307425"),
             "the cap detail has to survive: {err}",
@@ -605,8 +612,8 @@ mod tests {
         // not speak the gateway's error vocabulary — a 402 from some other
         // OpenAI-compatible endpoint means whatever that endpoint says it does.
         let body = r#"{"error":{"code":"cap_exceeded"}}"#;
-        let err = provider_on_wire(WireApi::Responses)
-            .map_api_error(gateway_http_error(402, body, None));
+        let err =
+            provider_on_wire(WireApi::Responses).map_api_error(gateway_http_error(402, body, None));
         assert!(
             err.is_retryable(),
             "upstream classifies a 402 as UnexpectedStatus; changing that is not this arm's job",

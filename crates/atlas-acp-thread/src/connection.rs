@@ -220,6 +220,17 @@ pub trait AgentConnection: Send + Sync {
         false
     }
 
+    /// Whether this agent advertised `mcpCapabilities.http` at `initialize`,
+    /// i.e. whether it accepts an HTTP MCP server in `session/new`'s
+    /// `mcpServers`.
+    ///
+    /// Session-independent, like [`Self::supports_rewind`]: it is fixed by the
+    /// handshake, so it is known before any session exists. Decided only by
+    /// what the agent advertised, never by which agent it is.
+    fn supports_http_mcp(&self) -> bool {
+        false
+    }
+
     /// Whether this agent can drop its own last turn — see [`AgentSessionRewind`].
     ///
     /// Session-independent, like [`Self::supports_logout`], because the
@@ -245,7 +256,10 @@ pub trait AgentConnection: Send + Sync {
     }
 
     /// Close an existing session. Allows the agent to free the session from memory.
-    fn close_session(self: Arc<Self>, _session_id: acp::SessionId) -> BoxFuture<'static, Result<()>> {
+    fn close_session(
+        self: Arc<Self>,
+        _session_id: acp::SessionId,
+    ) -> BoxFuture<'static, Result<()>> {
         Box::pin(async { Err(anyhow::Error::msg("Closing sessions is not supported")) })
     }
 
@@ -298,10 +312,8 @@ pub trait AgentConnection: Send + Sync {
         None
     }
 
-    fn prompt(
-        &self,
-        params: acp::PromptRequest,
-    ) -> BoxFuture<'static, Result<acp::PromptResponse>>;
+    fn prompt(&self, params: acp::PromptRequest)
+        -> BoxFuture<'static, Result<acp::PromptResponse>>;
 
     fn retry(&self, _session_id: &acp::SessionId) -> Option<Arc<dyn AgentSessionRetry>> {
         None

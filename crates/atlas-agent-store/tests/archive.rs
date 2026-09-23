@@ -94,7 +94,9 @@ fn rejects_installers_and_archives_we_cannot_extract() {
         .map(|error| error.to_string());
     assert_eq!(
         error,
-        Some("unsupported archive type .tar.xz in URL: https://example.com/agent.tar.xz".to_string())
+        Some(
+            "unsupported archive type .tar.xz in URL: https://example.com/agent.tar.xz".to_string()
+        )
     );
 
     for installer_url in [
@@ -124,7 +126,9 @@ fn parses_github_release_archive_urls() {
     assert_eq!(archive.asset_name, "agent.tar.bz2");
 
     assert!(github_release_archive_from_url("https://example.com/agent.zip").is_none());
-    assert!(github_release_archive_from_url("http://github.com/o/r/releases/download/v1/a").is_none());
+    assert!(
+        github_release_archive_from_url("http://github.com/o/r/releases/download/v1/a").is_none()
+    );
 }
 
 // ------------------------------------------------------- versioned cache dirs
@@ -145,7 +149,10 @@ fn versioned_archive_cache_dir_includes_artifact_identity() {
         None,
     );
 
-    let file_name = slash_version.file_name().and_then(|name| name.to_str()).unwrap();
+    let file_name = slash_version
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap();
     assert!(file_name.starts_with("v_release-2.3.5_"), "got {file_name}");
     // Two versions that sanitize to the same string still get separate dirs.
     assert_ne!(slash_version, colon_version);
@@ -317,7 +324,10 @@ async fn refuses_to_install_bytes_that_do_not_match_the_checksum() {
         error.to_string().contains("SHA-256 mismatch"),
         "unexpected error: {error:#}"
     );
-    assert!(!destination.exists(), "a failed install must leave nothing behind");
+    assert!(
+        !destination.exists(),
+        "a failed install must leave nothing behind"
+    );
 }
 
 #[tokio::test]
@@ -383,7 +393,10 @@ async fn a_404_is_an_error_not_an_install() {
     .await
     .unwrap_err();
 
-    assert!(error.to_string().contains("404"), "unexpected error: {error:#}");
+    assert!(
+        error.to_string().contains("404"),
+        "unexpected error: {error:#}"
+    );
     assert!(!destination.exists());
 }
 
@@ -434,7 +447,11 @@ async fn a_zip_entry_does_not_keep_its_setuid_bit() {
         .mode();
     assert_eq!(mode & 0o7000, 0, "setuid/setgid/sticky survived: {mode:o}");
     assert_eq!(mode & 0o022, 0, "group/other write survived: {mode:o}");
-    assert_ne!(mode & 0o100, 0, "the binary is no longer executable: {mode:o}");
+    assert_ne!(
+        mode & 0o100,
+        0,
+        "the binary is no longer executable: {mode:o}"
+    );
 }
 
 /// tar already strips setuid, but not `0o777` — the world-writable half is the
@@ -469,7 +486,11 @@ async fn a_tar_entry_does_not_stay_world_writable() {
         .mode();
     assert_eq!(mode & 0o7000, 0, "setuid/setgid/sticky survived: {mode:o}");
     assert_eq!(mode & 0o022, 0, "group/other write survived: {mode:o}");
-    assert_ne!(mode & 0o100, 0, "the binary is no longer executable: {mode:o}");
+    assert_ne!(
+        mode & 0o100,
+        0,
+        "the binary is no longer executable: {mode:o}"
+    );
 }
 
 // ------------------------------------------------------------- install limits
@@ -546,7 +567,10 @@ async fn refuses_a_zip_that_declares_too_many_entries() {
     let mut writer = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
     for index in 0..8 {
         writer
-            .start_file(format!("file{index}"), zip::write::SimpleFileOptions::default())
+            .start_file(
+                format!("file{index}"),
+                zip::write::SimpleFileOptions::default(),
+            )
             .unwrap();
         writer.write_all(b"x").unwrap();
     }
@@ -727,8 +751,7 @@ async fn refuses_a_tar_with_too_many_entries() {
         tar.append_data(&mut header, format!("file{index}"), &b""[..])
             .unwrap();
     }
-    let mut encoder =
-        flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
+    let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
     encoder.write_all(&tar.into_inner().unwrap()).unwrap();
 
     let http = FakeHttp::new().with(url, 200, encoder.finish().unwrap());
@@ -791,7 +814,8 @@ fn tar_gz_escaping_to(name: &str) -> Vec<u8> {
     header.set_size(0);
     header.set_mode(0o644);
     header.set_cksum();
-    tar.append_data(&mut header, "placeholder", &b""[..]).unwrap();
+    tar.append_data(&mut header, "placeholder", &b""[..])
+        .unwrap();
     let mut raw = tar.into_inner().unwrap();
 
     // ustar header: name at 0..100, checksum at 148..156.

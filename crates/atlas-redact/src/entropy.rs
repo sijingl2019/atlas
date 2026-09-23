@@ -42,7 +42,10 @@ pub(crate) fn detect(input: &str) -> Vec<Region> {
         // merely follows a literal backslash still gets caught.
         if start > 0 && input.as_bytes()[start - 1] == b'\\' {
             let first = input.as_bytes()[start];
-            if matches!(first, b'n' | b't' | b'r' | b'b' | b'f' | b'u' | b'"' | b'\\' | b'/') {
+            if matches!(
+                first,
+                b'n' | b't' | b'r' | b'b' | b'f' | b'u' | b'"' | b'\\' | b'/'
+            ) {
                 start += 1;
                 if end - start < 10 {
                     continue;
@@ -113,6 +116,9 @@ mod tests {
         let input = r"controller.go\nxJ3kQ9vB2mZ7pL5rT8wN4cF6yH1sD0gA";
         let regions = detect(input);
         assert_eq!(regions.len(), 1);
-        assert_eq!(&input[regions[0].start..regions[0].end], "xJ3kQ9vB2mZ7pL5rT8wN4cF6yH1sD0gA");
+        assert_eq!(
+            &input[regions[0].start..regions[0].end],
+            "xJ3kQ9vB2mZ7pL5rT8wN4cF6yH1sD0gA"
+        );
     }
 }

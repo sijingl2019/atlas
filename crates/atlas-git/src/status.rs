@@ -62,7 +62,8 @@ pub fn parse(bytes: &[u8]) -> StatusV2 {
             Some('u') => {
                 if let Some((xy, sub, path)) = split_fields(tok, 10) {
                     let unmerged = Some(xy.clone());
-                    out.entries.push(entry(path, None, xy, sub, unmerged, false));
+                    out.entries
+                        .push(entry(path, None, xy, sub, unmerged, false));
                 }
             }
             Some('?') => {
@@ -116,7 +117,11 @@ fn split_fields(tok: &str, nfields: usize) -> Option<(String, String, String)> {
         fields.push(field);
         rest = tail;
     }
-    Some((fields[1].to_string(), fields[2].to_string(), rest.to_string()))
+    Some((
+        fields[1].to_string(),
+        fields[2].to_string(),
+        rest.to_string(),
+    ))
 }
 
 fn entry(

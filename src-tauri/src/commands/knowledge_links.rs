@@ -109,26 +109,58 @@ pub struct LinkDestination {
 }
 
 #[tauri::command]
-pub async fn knowledge_resolve_link(project_path: String, from_id: String, target: String) -> Result<LinkDestination, String> {
+pub async fn knowledge_resolve_link(
+    project_path: String,
+    from_id: String,
+    target: String,
+) -> Result<LinkDestination, String> {
     tokio::task::spawn_blocking(move || {
         let sources = super::knowledge::load_sources(&project_path);
-        let source = sources.iter().find(|s| from_id.starts_with(&format!("{}/", s.name)));
-        let (root, prefix) = source.map(|s| (std::path::PathBuf::from(&s.path), s.name.clone()))
-            .unwrap_or((std::path::Path::new(&project_path).join(".atlas/knowledge"), String::new()));
+        let source = sources
+            .iter()
+            .find(|s| from_id.starts_with(&format!("{}/", s.name)));
+        let (root, prefix) = source
+            .map(|s| (std::path::PathBuf::from(&s.path), s.name.clone()))
+            .unwrap_or((
+                std::path::Path::new(&project_path).join(".atlas/knowledge"),
+                String::new(),
+            ));
         let root = root.canonicalize().map_err(|e| e.to_string())?;
-        fn walk(root: &std::path::Path, dir: &std::path::Path, prefix: &str, out: &mut Vec<(String, std::path::PathBuf)>) {
-            let Ok(entries) = fs::read_dir(dir) else { return; };
+        fn walk(
+            root: &std::path::Path,
+            dir: &std::path::Path,
+            prefix: &str,
+            out: &mut Vec<(String, std::path::PathBuf)>,
+        ) {
+            let Ok(entries) = fs::read_dir(dir) else {
+                return;
+            };
             for entry in entries.flatten() {
-                if entry.file_name().to_string_lossy().starts_with('.') { continue; }
+                if entry.file_name().to_string_lossy().starts_with('.') {
+                    continue;
+                }
                 // Do not follow symlinks outside the vault or into cycles.
-                let Ok(kind) = entry.file_type() else { continue; };
-                if kind.is_symlink() { continue; }
+                let Ok(kind) = entry.file_type() else {
+                    continue;
+                };
+                if kind.is_symlink() {
+                    continue;
+                }
                 let path = entry.path();
-                if kind.is_dir() { walk(root, &path, prefix, out); }
-                else if kind.is_file() {
-                    let rel = path.strip_prefix(root).unwrap().to_string_lossy().replace('\\', "/");
+                if kind.is_dir() {
+                    walk(root, &path, prefix, out);
+                } else if kind.is_file() {
+                    let rel = path
+                        .strip_prefix(root)
+                        .unwrap()
+                        .to_string_lossy()
+                        .replace('\\', "/");
                     let rel = rel.strip_suffix(".md").unwrap_or(&rel);
-                    let id = if prefix.is_empty() { rel.to_string() } else { format!("{prefix}/{rel}") };
+                    let id = if prefix.is_empty() {
+                        rel.to_string()
+                    } else {
+                        format!("{prefix}/{rel}")
+                    };
                     out.push((id, path));
                 }
             }
@@ -136,13 +168,19 @@ pub async fn knowledge_resolve_link(project_path: String, from_id: String, targe
         let mut files = Vec::new();
         walk(&root, &root, &prefix, &mut files);
         let ids = files.iter().map(|(id, _)| id.clone()).collect::<Vec<_>>();
-        let id = link_target::resolve(&target, &from_id, &ids, &prefix).ok_or("Link target missing or ambiguous")?;
-        let (_, path) = files.into_iter().find(|(key, _)| key == &id).ok_or("Link target missing")?;
+        let id = link_target::resolve(&target, &from_id, &ids, &prefix)
+            .ok_or("Link target missing or ambiguous")?;
+        let (_, path) = files
+            .into_iter()
+            .find(|(key, _)| key == &id)
+            .ok_or("Link target missing")?;
         Ok(LinkDestination {
             entry_id: (path.extension().and_then(|s| s.to_str()) == Some("md")).then_some(id),
             file_path: path.to_string_lossy().into_owned(),
         })
-    }).await.map_err(|e| e.to_string())?
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// One-shot rebuild — walks every .md file, parses refs, builds the
@@ -155,7 +193,11 @@ fn build_graph(project_path: &str) -> LinkGraph {
         .into_iter()
         .filter_map(|(id, path)| {
             let body = fs::read_to_string(&path).ok()?;
-            let title = path.file_stem().unwrap_or_default().to_string_lossy().to_string();
+            let title = path
+                .file_stem()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string();
             Some((id, title, body))
         })
         .collect();
@@ -170,8 +212,11 @@ fn build_graph(project_path: &str) -> LinkGraph {
         });
         let mut targets: Vec<String> = Vec::new();
         for mut hit in find_refs(body) {
-            let root = sources.iter().find(|s| from_id.starts_with(&format!("{}/", s.name)))
-                .map(|s| s.name.as_str()).unwrap_or("");
+            let root = sources
+                .iter()
+                .find(|s| from_id.starts_with(&format!("{}/", s.name)))
+                .map(|s| s.name.as_str())
+                .unwrap_or("");
             hit.target = link_target::resolve(&hit.target, from_id, &ids, root)
                 .unwrap_or_else(|| link_target::target(&hit.target));
             // Skip self-references — a page can't backlink to itself.
@@ -214,10 +259,14 @@ fn find_refs(body: &str) -> Vec<RefHit> {
         match event {
             pulldown_cmark::Event::Start(pulldown_cmark::Tag::CodeBlock(_)) => in_code = true,
             pulldown_cmark::Event::End(pulldown_cmark::TagEnd::CodeBlock) => in_code = false,
-            _ => {},
+            _ => {}
         }
         if in_code || matches!(event, pulldown_cmark::Event::Code(_)) {
-            for byte in &mut filtered[range] { if *byte != b'\n' { *byte = b' '; } }
+            for byte in &mut filtered[range] {
+                if *byte != b'\n' {
+                    *byte = b' ';
+                }
+            }
         }
     }
     let filtered = String::from_utf8(filtered).expect("masked UTF-8 ranges");
@@ -259,7 +308,8 @@ fn find_refs(body: &str) -> Vec<RefHit> {
             // accept anything that isn't whitespace or a few break chars.
             let mut id_end = id_start;
             for c in body[id_start..].chars() {
-                if c.is_whitespace() || matches!(c, ',' | ';' | ')' | ']' | '}' | '"' | '\'' | '`') {
+                if c.is_whitespace() || matches!(c, ',' | ';' | ')' | ']' | '}' | '"' | '\'' | '`')
+                {
                     break;
                 }
                 id_end += c.len_utf8();
@@ -267,7 +317,11 @@ fn find_refs(body: &str) -> Vec<RefHit> {
             if id_end > id_start {
                 let target = body[id_start..id_end].to_string();
                 if !target.is_empty() {
-                    out.push(RefHit { target, start: pos, end: id_end });
+                    out.push(RefHit {
+                        target,
+                        start: pos,
+                        end: id_end,
+                    });
                 }
             }
             search_from = id_end.max(pos + 1);
@@ -285,7 +339,10 @@ fn find_refs(body: &str) -> Vec<RefHit> {
         let pos = span_search + pos_in_slice;
         let kind_value = match read_quoted_attr(&body[pos..], "data-mention-kind=") {
             Some(v) => v,
-            None => { span_search = pos + 1; continue; }
+            None => {
+                span_search = pos + 1;
+                continue;
+            }
         };
         let only_knowledge = matches!(kind_value.as_str(), "knowledge" | "note" | "page");
         // The id is typically on the same span; scan a small window.
@@ -295,7 +352,11 @@ fn find_refs(body: &str) -> Vec<RefHit> {
         if only_knowledge {
             if let Some(target) = id_value {
                 if !target.is_empty() {
-                    out.push(RefHit { target, start: pos, end: pos + 1 });
+                    out.push(RefHit {
+                        target,
+                        start: pos,
+                        end: pos + 1,
+                    });
                 }
             }
         }
@@ -310,15 +371,22 @@ mod link_tests {
     use super::*;
     #[test]
     fn ignores_examples_and_resolves_nested_vault_links() {
-        let hits = find_refs("[[Base]] `[[Example]]`\n\n```md\n[[Sample]]\n```\n![[image.jpg\\|100x145]]");
-        assert_eq!(hits.iter().map(|h| h.target.as_str()).collect::<Vec<_>>(), vec!["Base", "image.jpg\\|100x145"]);
+        let hits =
+            find_refs("[[Base]] `[[Example]]`\n\n```md\n[[Sample]]\n```\n![[image.jpg\\|100x145]]");
+        assert_eq!(
+            hits.iter().map(|h| h.target.as_str()).collect::<Vec<_>>(),
+            vec!["Base", "image.jpg\\|100x145"]
+        );
         let dir = std::env::temp_dir().join(format!("atlas-link-test-{}", uuid::Uuid::new_v4()));
         let notes = dir.join(".atlas/knowledge/Vault/Hello");
         fs::create_dir_all(&notes).unwrap();
         fs::write(notes.join("Advance.md"), "[[Base]] [[Base#Heading|Alias]]").unwrap();
         fs::write(notes.join("Base.md"), "Hello").unwrap();
         let graph = build_graph(dir.to_str().unwrap());
-        assert_eq!(graph.forwardlinks["Vault/Hello/Advance"], vec!["Vault/Hello/Base"]);
+        assert_eq!(
+            graph.forwardlinks["Vault/Hello/Advance"],
+            vec!["Vault/Hello/Base"]
+        );
         assert!(!graph.backlinks.contains_key("Base"));
         fs::remove_dir_all(dir).unwrap();
     }
@@ -331,9 +399,13 @@ fn read_quoted_attr(src: &str, name: &str) -> Option<String> {
     let head = src.find(name)?;
     let after = head + name.len();
     let bytes = src.as_bytes();
-    if after >= bytes.len() { return None; }
+    if after >= bytes.len() {
+        return None;
+    }
     let quote = bytes[after];
-    if quote != b'"' && quote != b'\'' { return None; }
+    if quote != b'"' && quote != b'\'' {
+        return None;
+    }
     let value_start = after + 1;
     let rest = &src[value_start..];
     let end = rest.find(quote as char)?;
@@ -346,11 +418,13 @@ fn read_quoted_attr(src: &str, name: &str) -> Option<String> {
 fn extract_snippet(body: &str, start: usize, end: usize) -> String {
     let lo = body
         .char_indices()
-        .map(|(i, _)| i).find(|i| *i + SNIPPET_RADIUS >= start)
+        .map(|(i, _)| i)
+        .find(|i| *i + SNIPPET_RADIUS >= start)
         .unwrap_or(start.saturating_sub(SNIPPET_RADIUS));
     let hi = body
         .char_indices()
-        .map(|(i, c)| i + c.len_utf8()).find(|i| *i >= end + SNIPPET_RADIUS)
+        .map(|(i, c)| i + c.len_utf8())
+        .find(|i| *i >= end + SNIPPET_RADIUS)
         .unwrap_or((end + SNIPPET_RADIUS).min(body.len()));
 
     let lo = clamp_to_char_boundary(body, lo);
@@ -429,8 +503,16 @@ pub async fn knowledge_link_counts(
             _ => return Ok(LinkCounts::default()),
         };
         Ok(LinkCounts {
-            backlinks: graph.backlinks.get(&entry_id).map(std::vec::Vec::len).unwrap_or(0),
-            forwardlinks: graph.forwardlinks.get(&entry_id).map(std::vec::Vec::len).unwrap_or(0),
+            backlinks: graph
+                .backlinks
+                .get(&entry_id)
+                .map(std::vec::Vec::len)
+                .unwrap_or(0),
+            forwardlinks: graph
+                .forwardlinks
+                .get(&entry_id)
+                .map(std::vec::Vec::len)
+                .unwrap_or(0),
         })
     })
     .await
@@ -503,10 +585,19 @@ pub async fn knowledge_links_graph(
         let mut seen_pairs: std::collections::HashSet<(String, String)> = Default::default();
         for (from, targets) in &graph.forwardlinks {
             for to in targets {
-                if from == to { continue; }
-                let key = if from < to { (from.clone(), to.clone()) } else { (to.clone(), from.clone()) };
+                if from == to {
+                    continue;
+                }
+                let key = if from < to {
+                    (from.clone(), to.clone())
+                } else {
+                    (to.clone(), from.clone())
+                };
                 if seen_pairs.insert(key) {
-                    edges.push(GraphEdge { from: from.clone(), to: to.clone() });
+                    edges.push(GraphEdge {
+                        from: from.clone(),
+                        to: to.clone(),
+                    });
                 }
             }
         }
@@ -527,7 +618,12 @@ pub async fn knowledge_links_graph(
                     .get(&id)
                     .map(|v| v.len() as u32)
                     .unwrap_or(0);
-                GraphNode { id, title, in_degree, out_degree }
+                GraphNode {
+                    id,
+                    title,
+                    in_degree,
+                    out_degree,
+                }
             })
             .collect();
         nodes.sort_by(|a, b| a.id.cmp(&b.id));

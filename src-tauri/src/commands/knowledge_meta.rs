@@ -123,13 +123,27 @@ pub struct PageMetaPatch {
 
 impl PageMetaPatch {
     fn apply(self, meta: &mut PageMeta) {
-        if let Some(v) = self.icon { meta.icon = v; }
-        if let Some(v) = self.cover { meta.cover = v; }
-        if let Some(v) = self.title { meta.title = v; }
-        if let Some(v) = self.chunk_mode { meta.chunk_mode = v; }
-        if let Some(v) = self.status { meta.status = v; }
-        if let Some(v) = self.tags { meta.tags = v; }
-        if let Some(v) = self.owner { meta.owner = v; }
+        if let Some(v) = self.icon {
+            meta.icon = v;
+        }
+        if let Some(v) = self.cover {
+            meta.cover = v;
+        }
+        if let Some(v) = self.title {
+            meta.title = v;
+        }
+        if let Some(v) = self.chunk_mode {
+            meta.chunk_mode = v;
+        }
+        if let Some(v) = self.status {
+            meta.status = v;
+        }
+        if let Some(v) = self.tags {
+            meta.tags = v;
+        }
+        if let Some(v) = self.owner {
+            meta.owner = v;
+        }
     }
 }
 
@@ -167,11 +181,19 @@ fn meta_path(project_path: &str) -> PathBuf {
 fn load_from_disk(project_path: &str) -> KnowledgeMetaFile {
     let path = meta_path(project_path);
     if !path.exists() {
-        return KnowledgeMetaFile { version: 1, pages: HashMap::new() };
+        return KnowledgeMetaFile {
+            version: 1,
+            pages: HashMap::new(),
+        };
     }
     let raw = match fs::read_to_string(&path) {
         Ok(r) => r,
-        Err(_) => return KnowledgeMetaFile { version: 1, pages: HashMap::new() },
+        Err(_) => {
+            return KnowledgeMetaFile {
+                version: 1,
+                pages: HashMap::new(),
+            }
+        }
     };
     serde_json::from_str(&raw).unwrap_or(KnowledgeMetaFile {
         version: 1,
@@ -250,12 +272,11 @@ fn schedule_flush(state: Arc<KnowledgeMetaState>, app: AppHandle, project_path: 
                 return;
             }
             let path_clone = project_path.clone();
-            let write_result = tokio::task::spawn_blocking(move || {
-                write_to_disk(&path_clone, &snapshot)
-            })
-            .await
-            .map_err(|e| e.to_string())
-            .and_then(|r| r);
+            let write_result =
+                tokio::task::spawn_blocking(move || write_to_disk(&path_clone, &snapshot))
+                    .await
+                    .map_err(|e| e.to_string())
+                    .and_then(|r| r);
             if write_result.is_ok() {
                 // Project-scoped event so multiple open projects don't
                 // cross-fire. Frontend's listener checks the payload.
@@ -296,7 +317,9 @@ pub fn knowledge_meta_patch(
     let now = Utc::now().to_rfc3339();
     let updated_meta = {
         let mut by_proj = state.by_project.lock();
-        let writer = by_proj.get_mut(&project_path).ok_or("project snapshot missing")?;
+        let writer = by_proj
+            .get_mut(&project_path)
+            .ok_or("project snapshot missing")?;
         let entry = writer
             .snapshot
             .pages
@@ -330,4 +353,3 @@ pub fn knowledge_meta_delete(
     schedule_flush(Arc::clone(state.inner()), app, project_path);
     Ok(())
 }
-

@@ -96,8 +96,10 @@ async fn every_delta_reaches_every_stage_in_order_on_the_emit_path() {
     ];
 
     let order = Arc::new(Mutex::new(Vec::new()));
-    let seen: Vec<Arc<Mutex<Vec<String>>>> =
-        STAGES.iter().map(|_| Arc::new(Mutex::new(Vec::new()))).collect();
+    let seen: Vec<Arc<Mutex<Vec<String>>>> = STAGES
+        .iter()
+        .map(|_| Arc::new(Mutex::new(Vec::new())))
+        .collect();
     let mut pipeline = OutboundPipeline::new();
     for (name, seen) in STAGES.iter().zip(&seen) {
         pipeline.push(Arc::new(Stage {

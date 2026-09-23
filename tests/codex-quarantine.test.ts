@@ -21,9 +21,8 @@ import { fileURLToPath } from "node:url";
  * adding a dependency on one is the most ordinary edit there is — it compiles,
  * it passes clippy, and the only symptom is in the shipped binary.
  *
- * This is the same shape as `cersei-containment.test.ts`: an allowlist of
- * manifests permitted to name the dependency, enforced over every manifest
- * Atlas owns.
+ * The shape is an allowlist of manifests permitted to name the dependency,
+ * enforced over every manifest Atlas owns.
  *
  * **#45 opened the first hole in it, on purpose**, and **#54 widened it to its
  * final shape.** The seam crate links the engine — that is what "rewire the
@@ -50,13 +49,6 @@ const VENDOR = path.join(REPO_ROOT, "vendor", "codex");
  * manifest is a claim and this test is what checks it.
  */
 const ALLOWED_CODEX_CONSUMERS = new Set<string>(["crates/atlas-native-agent/Cargo.toml"]);
-
-/** Repo-relative and POSIX-spelled, so the allowlist above reads the same on
- *  Windows — where `path.relative` hands back backslashes and every entry
- *  silently missed, reporting the one allowed consumer as a leak. */
-function repoPath(abs: string): string {
-  return path.relative(REPO_ROOT, abs).split(path.sep).join("/");
-}
 
 function read(file: string): string {
   return readFileSync(file, "utf8");
@@ -149,7 +141,8 @@ describe("nothing that ships depends on the vendored engine", () => {
   it("no Atlas crate declares a codex dependency", () => {
     const offenders = atlasManifests()
       .filter((m) => CODEX_DEP.test(uncommented(read(m))))
-      .map(repoPath)
+      // Forward slashes whatever the OS, so the allowlist matches on Windows.
+      .map((m) => path.relative(REPO_ROOT, m).split(path.sep).join("/"))
       .filter((rel) => !ALLOWED_CODEX_CONSUMERS.has(rel));
     expect(
       offenders,

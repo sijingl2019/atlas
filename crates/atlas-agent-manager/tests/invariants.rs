@@ -252,9 +252,11 @@ async fn a_restart_forgets_the_sessions_on_the_connection_it_replaces() {
     let key = custom("claude-code");
 
     open_session(&manager, key.clone(), server.clone()).await;
-    wait_for(|| (manager.connection_status(&key) == AgentConnectionStatus::Connected).then_some(()))
-        .await
-        .expect("connected");
+    wait_for(|| {
+        (manager.connection_status(&key) == AgentConnectionStatus::Connected).then_some(())
+    })
+    .await
+    .expect("connected");
     assert_eq!(manager.sessions().len(), 1);
 
     settle(manager.restart_connection(key.clone(), server.clone()))
@@ -413,9 +415,11 @@ async fn a_gated_connect_that_is_left_alone_still_connects() {
     gate.open();
 
     settle(entry).await.expect("the connection comes up");
-    wait_for(|| (manager.connection_status(&key) == AgentConnectionStatus::Connected).then_some(()))
-        .await
-        .expect("the entry reaches Connected");
+    wait_for(|| {
+        (manager.connection_status(&key) == AgentConnectionStatus::Connected).then_some(())
+    })
+    .await
+    .expect("the entry reaches Connected");
     assert_eq!(server.connects_cancelled(), 0);
     assert_eq!(server.live_connections(), 1);
 }
@@ -651,7 +655,10 @@ async fn an_unsuperseded_turn_closes_itself() {
         .await
         .expect("the turn runs");
 
-    assert!(!thread.lock().unwrap().is_generating(), "the turn was closed");
+    assert!(
+        !thread.lock().unwrap().is_generating(),
+        "the turn was closed"
+    );
 }
 
 // --------------------------------------------------------- ATL-230: minor
@@ -672,7 +679,9 @@ async fn an_agent_uninstalled_mid_connect_reports_that_it_is_not_installed() {
     catalog.hide_resolver("claude-code");
     let entry = manager.request_connection(custom("claude-code"), server.clone());
 
-    let error = settle(entry).await.expect_err("there is nothing to connect to");
+    let error = settle(entry)
+        .await
+        .expect_err("there is nothing to connect to");
     assert!(
         matches!(&error, LoadError::Unsupported { message } if message.contains("not installed")),
         "the error should say the agent is not installed, not name an internal resolver: {error}"
@@ -753,7 +762,13 @@ async fn a_connection_announces_itself_and_its_failures() {
     .await
     .expect("the failure is announced");
     assert_eq!(failure.0, key);
-    assert!(matches!(failure.1, LoadError::Exited { status: Some(1), .. }));
+    assert!(matches!(
+        failure.1,
+        LoadError::Exited {
+            status: Some(1),
+            ..
+        }
+    ));
 
     server.set_behaviour(ConnectBehaviour::Immediate);
     settle(manager.request_connection(key.clone(), server.clone()))
@@ -799,7 +814,13 @@ async fn a_failed_entry_records_the_error_for_whoever_was_waiting() {
     let error = settle(entry)
         .await
         .expect_err("the entry the caller holds still carries the failure");
-    assert!(matches!(error, LoadError::Exited { status: Some(2), .. }));
+    assert!(matches!(
+        error,
+        LoadError::Exited {
+            status: Some(2),
+            ..
+        }
+    ));
 }
 
 /// A connect that fails with an `anyhow` chain keeps its cause.
@@ -963,7 +984,10 @@ async fn a_restart_replaces_a_stale_connect_but_joins_a_young_one() {
     let outcome = tokio::time::timeout(Duration::from_secs(5), settle(first.clone()))
         .await
         .expect("the stale attempt's waiter is released");
-    assert!(outcome.is_err(), "a cancelled connect does not report success");
+    assert!(
+        outcome.is_err(),
+        "a cancelled connect does not report success"
+    );
     wait_for(|| (server.connects_cancelled() == 1).then_some(()))
         .await
         .expect("the stale attempt was cancelled, not abandoned");
@@ -971,9 +995,11 @@ async fn a_restart_replaces_a_stale_connect_but_joins_a_young_one() {
     // And the fresh one still completes once the server answers.
     gate.open();
     settle(replaced).await.expect("the replacement connects");
-    wait_for(|| (manager.connection_status(&key) == AgentConnectionStatus::Connected).then_some(()))
-        .await
-        .expect("connected");
+    wait_for(|| {
+        (manager.connection_status(&key) == AgentConnectionStatus::Connected).then_some(())
+    })
+    .await
+    .expect("connected");
     assert_eq!(
         server.attempts(),
         server.live_connections() + server.connects_cancelled(),

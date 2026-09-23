@@ -485,13 +485,8 @@ impl TerminalRegistry {
                 output_byte_limit,
                 terminal,
             } => {
-                let mut acp_terminal = AcpTerminal::new(
-                    terminal_id.clone(),
-                    label,
-                    cwd,
-                    output_byte_limit,
-                    terminal,
-                );
+                let mut acp_terminal =
+                    AcpTerminal::new(terminal_id.clone(), label, cwd, output_byte_limit, terminal);
 
                 // Drain anything that arrived first. Order within the buffer is
                 // arrival order, which is the order the PTY produced it.

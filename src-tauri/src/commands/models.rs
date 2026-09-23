@@ -70,7 +70,14 @@ impl ModelEntry {
     }
 }
 
-fn embed_repo(id: &str, name: &str, repo: &str, dim: usize, size_mb: u32, desc: &str) -> ModelEntry {
+fn embed_repo(
+    id: &str,
+    name: &str,
+    repo: &str,
+    dim: usize,
+    size_mb: u32,
+    desc: &str,
+) -> ModelEntry {
     let files = EMBED_FILES
         .iter()
         .map(|f| FileSpec {
@@ -98,17 +105,94 @@ fn embed_repo(id: &str, name: &str, repo: &str, dim: usize, size_mb: u32, desc: 
 pub fn builtin_catalog() -> Vec<ModelEntry> {
     vec![
         // ── Embedding (BERT-family) ──
-        embed_repo("all-MiniLM-L6-v2", "MiniLM-L6-v2", "sentence-transformers/all-MiniLM-L6-v2", 384, 90, "Fast, tiny general-purpose English embeddings."),
-        embed_repo("all-MiniLM-L12-v2", "MiniLM-L12-v2", "sentence-transformers/all-MiniLM-L12-v2", 384, 130, "Higher-quality MiniLM (12 layers); still fast and 384-d."),
-        embed_repo("bge-small-en-v1.5", "BGE-small-en v1.5", "BAAI/bge-small-en-v1.5", 384, 130, "Strong retrieval quality at 384-d; drop-in for MiniLM."),
-        embed_repo("gte-small", "GTE-small", "thenlper/gte-small", 384, 70, "General Text Embeddings, small (384-d)."),
-        embed_repo("e5-small-v2", "E5-small v2", "intfloat/e5-small-v2", 384, 130, "E5 retrieval embeddings (384-d)."),
-        embed_repo("multilingual-e5-small", "Multilingual E5-small", "intfloat/multilingual-e5-small", 384, 490, "Chinese + 100 languages at 384-d; big vocab, so the download is large."),
-        embed_repo("mdbr-leaf-ir", "MDRB-leaf-ir", "MongoDB/mdbr-leaf-ir", 384, 86, "MongoDB's retrieval-focused distillate; #1 open model on BEIR under 100M."),
-        embed_repo("bge-small-zh-v1.5", "BGE-small-zh v1.5", "BAAI/bge-small-zh-v1.5", 512, 97, "Chinese retrieval embeddings, small (512-d). The default; rebuilds the index."),
-        embed_repo("m3e-base", "M3E-base", "moka-ai/m3e-base", 768, 410, "Chinese + English general embeddings (768-d, rebuilds the index)."),
-        embed_repo("bge-base-en-v1.5", "BGE-base-en v1.5", "BAAI/bge-base-en-v1.5", 768, 440, "Higher-quality 768-d embeddings (rebuilds the index)."),
-        embed_repo("gte-base", "GTE-base", "thenlper/gte-base", 768, 220, "General Text Embeddings, base (768-d, rebuilds the index)."),
+        embed_repo(
+            "all-MiniLM-L6-v2",
+            "MiniLM-L6-v2",
+            "sentence-transformers/all-MiniLM-L6-v2",
+            384,
+            90,
+            "Fast, tiny general-purpose English embeddings.",
+        ),
+        embed_repo(
+            "all-MiniLM-L12-v2",
+            "MiniLM-L12-v2",
+            "sentence-transformers/all-MiniLM-L12-v2",
+            384,
+            130,
+            "Higher-quality MiniLM (12 layers); still fast and 384-d.",
+        ),
+        embed_repo(
+            "bge-small-en-v1.5",
+            "BGE-small-en v1.5",
+            "BAAI/bge-small-en-v1.5",
+            384,
+            130,
+            "Strong retrieval quality at 384-d; drop-in for MiniLM.",
+        ),
+        embed_repo(
+            "gte-small",
+            "GTE-small",
+            "thenlper/gte-small",
+            384,
+            70,
+            "General Text Embeddings, small (384-d).",
+        ),
+        embed_repo(
+            "e5-small-v2",
+            "E5-small v2",
+            "intfloat/e5-small-v2",
+            384,
+            130,
+            "E5 retrieval embeddings (384-d).",
+        ),
+        embed_repo(
+            "multilingual-e5-small",
+            "Multilingual E5-small",
+            "intfloat/multilingual-e5-small",
+            384,
+            490,
+            "Chinese + 100 languages at 384-d; big vocab, so the download is large.",
+        ),
+        embed_repo(
+            "mdbr-leaf-ir",
+            "MDRB-leaf-ir",
+            "MongoDB/mdbr-leaf-ir",
+            384,
+            86,
+            "MongoDB's retrieval-focused distillate; #1 open model on BEIR under 100M.",
+        ),
+        embed_repo(
+            "bge-small-zh-v1.5",
+            "BGE-small-zh v1.5",
+            "BAAI/bge-small-zh-v1.5",
+            512,
+            97,
+            "Chinese retrieval embeddings, small (512-d). The default; rebuilds the index.",
+        ),
+        embed_repo(
+            "m3e-base",
+            "M3E-base",
+            "moka-ai/m3e-base",
+            768,
+            410,
+            "Chinese + English general embeddings (768-d, rebuilds the index).",
+        ),
+        embed_repo(
+            "bge-base-en-v1.5",
+            "BGE-base-en v1.5",
+            "BAAI/bge-base-en-v1.5",
+            768,
+            440,
+            "Higher-quality 768-d embeddings (rebuilds the index).",
+        ),
+        embed_repo(
+            "gte-base",
+            "GTE-base",
+            "thenlper/gte-base",
+            768,
+            220,
+            "General Text Embeddings, base (768-d, rebuilds the index).",
+        ),
     ]
 }
 
@@ -143,7 +227,9 @@ pub fn selected_embedding_id(app: &AppHandle) -> String {
 /// Whether every file for `id` exists on disk. Uses the catalog's file list; for an
 /// unknown id (e.g. a legacy/manual dir) falls back to the embedding file triplet.
 pub fn is_downloaded(app: &AppHandle, id: &str) -> bool {
-    let Ok(dir) = model_dir_for(app, id) else { return false };
+    let Ok(dir) = model_dir_for(app, id) else {
+        return false;
+    };
     match find_entry(id) {
         Some(e) => e.dest_files().iter().all(|f| dir.join(f).exists()),
         None => EMBED_FILES.iter().all(|f| dir.join(f).exists()),
@@ -238,7 +324,9 @@ pub async fn download_files(
                 );
             }
         }
-        file.flush().await.map_err(|e| format!("flush {}: {e}", spec.dest))?;
+        file.flush()
+            .await
+            .map_err(|e| format!("flush {}: {e}", spec.dest))?;
         drop(file);
         tokio::fs::rename(&tmp, &dest_path)
             .await
@@ -304,7 +392,14 @@ pub async fn model_download(app: AppHandle, id: String) -> Result<(), String> {
     let entry = find_entry(&id).ok_or_else(|| format!("unknown model '{id}'"))?;
     let dir = model_dir_for(&app, &id)?;
     tokio::spawn(async move {
-        let result = download_files(&app, &id, &dir, &entry.files, "atlas:model-download:progress").await;
+        let result = download_files(
+            &app,
+            &id,
+            &dir,
+            &entry.files,
+            "atlas:model-download:progress",
+        )
+        .await;
         let _ = app.emit(
             "atlas:model-download:done",
             DownloadDone {
@@ -400,10 +495,15 @@ mod tests {
         ids.sort_unstable();
         let count = ids.len();
         ids.dedup();
-        assert_eq!(ids.len(), count, "duplicate model id (would share a download dir)");
+        assert_eq!(
+            ids.len(),
+            count,
+            "duplicate model id (would share a download dir)"
+        );
         for e in &catalog {
             assert!(
-                e.id.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '.' | '_')),
+                e.id.chars()
+                    .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '.' | '_')),
                 "bad catalog entry {}",
                 e.id
             );

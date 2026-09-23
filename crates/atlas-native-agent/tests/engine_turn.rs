@@ -29,7 +29,7 @@ use atlas_native_agent::engine::config::{EngineHome, EngineProvider, EngineSetti
 use atlas_native_agent::engine::connection::EngineConnection;
 use codex_sandboxing::landlock::CODEX_LINUX_SANDBOX_ARG0;
 use codex_test_binary_support::{
-    TestBinaryDispatchGuard, TestBinaryDispatchMode, configure_test_binary_dispatch,
+    configure_test_binary_dispatch, TestBinaryDispatchGuard, TestBinaryDispatchMode,
 };
 use serde_json::json;
 use wiremock::matchers::method;
@@ -98,7 +98,10 @@ fn sse(events: Vec<serde_json::Value>) -> String {
     use std::fmt::Write as _;
     let mut out = String::new();
     for ev in events {
-        let kind = ev.get("type").and_then(|v| v.as_str()).expect("typed event");
+        let kind = ev
+            .get("type")
+            .and_then(|v| v.as_str())
+            .expect("typed event");
         writeln!(&mut out, "event: {kind}").expect("write");
         write!(&mut out, "data: {ev}\n\n").expect("write");
     }
@@ -216,7 +219,9 @@ impl Harness {
     /// The assistant text currently rendered in the newest thread.
     fn assistant_text(&self) -> String {
         let thread = self.thread();
-        let thread = thread.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let thread = thread
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         thread
             .entries()
             .iter()
@@ -257,7 +262,7 @@ async fn harness_configured(
 async fn harness_full(
     mocks: Vec<(Option<u64>, ResponseTemplate)>,
     tune: impl FnOnce(EngineSettings) -> EngineSettings,
-    memory_search: Option<atlas_native_agent::engine::memory::MemorySearch>,
+    session_mcp: Option<Arc<dyn atlas_agent_servers::SessionMcpServers>>,
 ) -> Harness {
     let server = MockServer::start().await;
     for (times, template) in mocks {
@@ -317,7 +322,7 @@ async fn harness_full(
         sink,
         None,
         None,
-        memory_search,
+        session_mcp,
         // The Responses dialect pins its model; no catalogue is fetched.
         None,
     )
@@ -407,7 +412,9 @@ async fn token_usage_reaches_the_thread_the_app_reads() {
         .expect("the turn should complete");
 
     let thread = h.thread();
-    let locked = thread.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let locked = thread
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let usage = locked
         .token_usage()
         .expect("a turn that reported usage must leave it on the thread");
@@ -453,8 +460,7 @@ async fn a_cancelled_turn_ends_aborted_rather_than_hanging_or_ending_normally() 
     // which loses the fact that the answer is incomplete.
     let h = harness_with(vec![(
         None,
-        sse_ok(assistant_turn("this should never be delivered"))
-            .set_delay(Duration::from_secs(30)),
+        sse_ok(assistant_turn("this should never be delivered")).set_delay(Duration::from_secs(30)),
     )])
     .await;
     let session_id = h.open_thread().await;
@@ -637,12 +643,16 @@ async fn the_effort_knob_reaches_the_engine_and_rejects_a_level_it_does_not_know
         .session_effort(&session_id)
         .expect("the native agent must offer the effort knob");
 
-    for level in ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"] {
+    for level in [
+        "none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra",
+    ] {
         effort
             .set_effort(Some(level.to_string()))
             .unwrap_or_else(|e| panic!("{level} should be a valid effort: {e}"));
     }
-    effort.set_effort(None).expect("clearing the override is valid");
+    effort
+        .set_effort(None)
+        .expect("clearing the override is valid");
 
     // Rejected rather than silently defaulted: a level that quietly became
     // "medium" would look like the knob doing nothing.
@@ -677,7 +687,10 @@ async fn a_turn_still_completes_after_switching_into_plan_mode() {
 
     let response = h
         .connection
-        .prompt(acp::PromptRequest::new(session_id, text("what would you do?")))
+        .prompt(acp::PromptRequest::new(
+            session_id,
+            text("what would you do?"),
+        ))
         .await
         .expect("a turn in plan mode should still run");
     assert_eq!(response.stop_reason, acp::StopReason::EndTurn);
@@ -714,7 +727,10 @@ async fn a_mode_switch_during_a_turn_is_refused_rather_than_relabelling_the_pick
     tokio::time::sleep(Duration::from_millis(500)).await;
 
     assert!(
-        modes.set_mode(acp::SessionModeId::new("plan")).await.is_err(),
+        modes
+            .set_mode(acp::SessionModeId::new("plan"))
+            .await
+            .is_err(),
         "a mid-turn mode switch must be refused, not displayed",
     );
     assert_eq!(
@@ -871,7 +887,10 @@ async fn a_command_approval_reaches_the_dialog_with_atlas_own_option_vocabulary(
     // stop has to arrive as a tool-call authorization on the thread — the same
     // event an external ACP agent produces, so the existing dialog renders it.
     let h = harness_with(vec![
-        (Some(1), sse_ok(command_then_done("rm -rf /tmp/atlas-approval-probe"))),
+        (
+            Some(1),
+            sse_ok(command_then_done("rm -rf /tmp/atlas-approval-probe")),
+        ),
         (None, sse_ok(assistant_turn("done"))),
     ])
     .await;
@@ -915,7 +934,10 @@ async fn declining_a_command_lets_the_turn_finish_rather_than_killing_it() {
     // the same answer: "the agent will continue the turn". A decline that
     // aborted would lose whatever the agent was going to say next.
     let h = harness_with(vec![
-        (Some(1), sse_ok(command_then_done("rm -rf /tmp/atlas-approval-probe"))),
+        (
+            Some(1),
+            sse_ok(command_then_done("rm -rf /tmp/atlas-approval-probe")),
+        ),
         (None, sse_ok(assistant_turn("understood"))),
     ])
     .await;
@@ -1002,11 +1024,15 @@ async fn cancelling_mid_tool_stops_the_command_it_started() {
     // Bar item 4's tool clause. The turn reporting `Cancelled` is not enough:
     // an orphaned child keeps writing to the user's disk after the UI says the
     // turn stopped. The marker file is what distinguishes "the turn ended" from
-    // "the work ended".
+    // "the work ended" — and the started marker is what makes its absence mean
+    // anything: without it, a command that never ran (refused, sandboxed out of
+    // the directory, not yet spawned when the cancel landed) passes too.
     let dir = tempfile::tempdir().expect("tempdir");
+    let started = dir.path().join("started");
     let marker = dir.path().join("survived-the-cancel");
     let command = format!(
-        "sleep 5; touch {}",
+        "touch {}; sleep 5; touch {}",
+        started.to_string_lossy(),
         marker.to_string_lossy(),
     );
 
@@ -1022,7 +1048,10 @@ async fn cancelling_mid_tool_stops_the_command_it_started() {
         let session_id = session_id.clone();
         tokio::spawn(async move {
             connection
-                .prompt(acp::PromptRequest::new(session_id, text("do the slow thing")))
+                .prompt(acp::PromptRequest::new(
+                    session_id,
+                    text("do the slow thing"),
+                ))
                 .await
         })
     };
@@ -1031,25 +1060,34 @@ async fn cancelling_mid_tool_stops_the_command_it_started() {
         .await
         .expect("the engine should ask before an untrusted command");
 
-    // Let it get started, then cancel while it is genuinely running.
-    tokio::time::sleep(Duration::from_millis(500)).await;
-    let cancelled = tokio::time::timeout(Duration::from_secs(20), async {
-        while !prompting.is_finished() {
-            h.connection.cancel(&session_id);
-            tokio::time::sleep(Duration::from_millis(100)).await;
+    // Cancel only once the command is provably running.
+    tokio::time::timeout(Duration::from_secs(20), async {
+        while !started.exists() {
+            tokio::time::sleep(Duration::from_millis(20)).await;
         }
     })
-    .await;
-    assert!(cancelled.is_ok(), "the cancel never took effect");
+    .await
+    .expect("the command never started, so a cancel could prove nothing");
+    let started_at = tokio::time::Instant::now();
+    assert!(
+        !prompting.is_finished(),
+        "the turn ended before it was cancelled"
+    );
 
-    let response = prompting
+    // ONE press, like production (#57) — see the note in
+    // `a_cancelled_turn_ends_aborted_rather_than_hanging_or_ending_normally`.
+    // A retry loop here would hide a lost press.
+    h.connection.cancel(&session_id);
+
+    let response = tokio::time::timeout(Duration::from_secs(20), prompting)
         .await
+        .expect("one press must take the turn down — 20s later it was still running")
         .expect("the prompt task should not panic")
         .expect("a cancelled turn is an outcome, not an error");
     assert_eq!(response.stop_reason, acp::StopReason::Cancelled);
 
     // Past when the command would have finished had it survived.
-    tokio::time::sleep(Duration::from_secs(6)).await;
+    tokio::time::sleep_until(started_at + Duration::from_secs(6)).await;
     assert!(
         !marker.exists(),
         "the cancelled command kept running and touched {} — the turn was \
@@ -1167,11 +1205,11 @@ async fn control_an_approved_command_really_does_run() {
 }
 
 // ---------------------------------------------------------------------------
-// #48 — search_memory on the ported engine (acceptance bar item 11).
+// #83 — the memory tool server, handed to the engine as an MCP server.
 // ---------------------------------------------------------------------------
 
-/// A turn that calls `search_memory`, then answers.
-fn memory_lookup_turn(arguments: serde_json::Value) -> String {
+/// A turn that calls the memory server's `memory_search`, then answers.
+fn memory_search_turn(arguments: serde_json::Value) -> String {
     sse(vec![
         json!({"type": "response.created", "response": {"id": "resp-1"}}),
         json!({
@@ -1179,7 +1217,8 @@ fn memory_lookup_turn(arguments: serde_json::Value) -> String {
             "item": {
                 "type": "function_call",
                 "call_id": "call-mem",
-                "name": "search_memory",
+                "namespace": "mcp__atlas_memory",
+                "name": "memory_search",
                 "arguments": arguments.to_string()
             }
         }),
@@ -1197,106 +1236,118 @@ fn memory_lookup_turn(arguments: serde_json::Value) -> String {
     ])
 }
 
-/// What one `search_memory` call was asked: cwd, query, limit.
-type SearchCall = (String, String, usize);
-type SearchLog = Arc<std::sync::Mutex<Vec<SearchCall>>>;
+#[path = "support/memory_server.rs"]
+mod memory_server;
+use memory_server::OfferingMemory;
 
-/// Records what the tool was asked, and answers with one doc.
-fn recording_search() -> (atlas_native_agent::engine::memory::MemorySearch, SearchLog) {
-    let calls = Arc::new(std::sync::Mutex::new(Vec::new()));
-    let seen = calls.clone();
-    let search: atlas_native_agent::engine::memory::MemorySearch =
-        Arc::new(move |cwd: String, query: String, limit: usize| {
-            seen.lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .push((cwd, query.clone(), limit));
-            Box::pin(async move {
-                vec![atlas_native_agent::engine::memory::MemDoc {
-                    title: "ADR-0003".to_string(),
-                    source: "docs/adr".to_string(),
-                    text: format!("the answer to {query}"),
-                }]
-            })
-        });
-    (search, calls)
-}
-
-#[tokio::test]
-async fn search_memory_is_registered_and_returns_live_results() {
-    // Bar item 11. The retrieval itself never moved — `atlas-memory` depends on
-    // neither engine — so what this proves is the projection: the engine knows
-    // the tool exists, calls it, and Atlas answers from the live callback.
-    let (search, calls) = recording_search();
+#[tokio::test(flavor = "multi_thread")]
+async fn the_engine_is_handed_the_memory_server_and_a_turn_calls_memory_search() {
+    let (url, calls) = memory_server::start().await;
+    let offering = Arc::new(OfferingMemory {
+        url,
+        asked: std::sync::Mutex::new(Vec::new()),
+        settled: Arc::default(),
+    });
     let h = harness_full(
         vec![
-            (Some(1), sse_ok(memory_lookup_turn(json!({"query": "how does auth work", "limit": 3})))),
+            (
+                Some(1),
+                sse_ok(memory_search_turn(
+                    json!({"query": "how do we sign tokens"}),
+                )),
+            ),
             (None, sse_ok(assistant_turn("grounded answer"))),
         ],
         |s| s,
-        Some(search),
+        Some(offering.clone() as Arc<dyn atlas_agent_servers::SessionMcpServers>),
     )
     .await;
+    assert!(
+        h.connection.supports_http_mcp(),
+        "the engine takes StreamableHttp MCP servers",
+    );
     let session_id = h.open_thread().await;
+
+    let asked = offering
+        .asked
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone();
+    assert_eq!(asked.len(), 1, "one offer per session request");
+    assert!(asked[0].http_mcp);
+    assert_eq!(asked[0].agent_id.as_str(), "cersei");
+    assert_eq!(
+        asked[0].session_id, None,
+        "a new thread has no id until the engine answers"
+    );
+    assert_eq!(
+        *offering
+            .settled
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner),
+        vec![Some(session_id.to_string())],
+        "the offer is bound to the engine's thread id",
+    );
 
     let response = h
         .connection
-        .prompt(acp::PromptRequest::new(session_id, text("what do we know?")))
+        .prompt(acp::PromptRequest::new(
+            session_id,
+            text("how do we sign tokens?"),
+        ))
         .await
         .expect("the turn should complete");
     assert_eq!(response.stop_reason, acp::StopReason::EndTurn);
 
-    let calls = calls.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
-    assert_eq!(calls.len(), 1, "the engine should have called search_memory once");
-    let (cwd, query, limit) = &calls[0];
-    assert_eq!(query, "how does auth work");
-    assert_eq!(*limit, 3);
-    assert!(
-        !cwd.is_empty(),
-        "retrieval is per project, so the session's cwd has to reach it — the \
-         engine's tool-call request does not carry one",
+    let calls = calls
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone();
+    assert_eq!(
+        calls.len(),
+        1,
+        "the engine should have called memory_search once: {calls:?}"
     );
+    assert_eq!(
+        calls[0].0, "Bearer session-token",
+        "with the session's token"
+    );
+    assert_eq!(calls[0].1, json!({"query": "how do we sign tokens"}));
 }
 
 #[tokio::test]
-async fn the_memory_tool_is_not_advertised_when_there_is_no_retrieval() {
-    // A tool the model is told about and cannot use is worse than one it never
-    // sees: it will call it, fail, and often retry.
-    let h = harness(assistant_turn("ok")).await;
+async fn no_dynamic_memory_tool_is_declared_any_more() {
+    // `search_memory` is gone; `memory_search` over MCP replaced it. A model
+    // that still calls the old name is answered, not left hanging.
+    let h = harness_with(vec![
+        (
+            Some(1),
+            sse_ok(sse(vec![
+                json!({"type": "response.created", "response": {"id": "resp-1"}}),
+                json!({
+                    "type": "response.output_item.done",
+                    "item": {
+                        "type": "function_call",
+                        "call_id": "call-old",
+                        "name": "search_memory",
+                        "arguments": "{\"query\": \"x\"}"
+                    }
+                }),
+                json!({"type": "response.completed", "response": {"id": "resp-1", "usage": {
+                    "input_tokens": 0, "input_tokens_details": null,
+                    "output_tokens": 0, "output_tokens_details": null, "total_tokens": 0}}}),
+            ])),
+        ),
+        (None, sse_ok(assistant_turn("ok"))),
+    ])
+    .await;
     let session_id = h.open_thread().await;
     let response = h
         .connection
         .prompt(acp::PromptRequest::new(session_id, text("hello")))
         .await
-        .expect("a turn without memory retrieval still works");
+        .expect("a call to a tool that no longer exists must not hang the turn");
     assert_eq!(response.stop_reason, acp::StopReason::EndTurn);
-}
-
-#[tokio::test]
-async fn a_memory_call_with_no_query_is_answered_rather_than_left_hanging() {
-    // The model can and does call this with an empty query. An unanswered
-    // dynamic tool call is a turn that stops with no error and no explanation.
-    let (search, calls) = recording_search();
-    let h = harness_full(
-        vec![
-            (Some(1), sse_ok(memory_lookup_turn(json!({"query": "   "})))),
-            (None, sse_ok(assistant_turn("asked instead"))),
-        ],
-        |s| s,
-        Some(search),
-    )
-    .await;
-    let session_id = h.open_thread().await;
-
-    let response = h
-        .connection
-        .prompt(acp::PromptRequest::new(session_id, text("what do we know?")))
-        .await
-        .expect("an empty query must not hang the turn");
-    assert_eq!(response.stop_reason, acp::StopReason::EndTurn);
-    assert!(
-        calls.lock().unwrap_or_else(std::sync::PoisonError::into_inner).is_empty(),
-        "an empty query should never reach retrieval",
-    );
 }
 
 // ---------------------------------------------------------------------------

@@ -135,7 +135,11 @@ pub const GATEWAY_STREAM_MAX_RETRIES: usize = 1;
 
 impl EngineProvider {
     /// A developer-configured provider for the Phase 2 tracer bullet.
-    pub fn dev(id: impl Into<String>, base_url: impl Into<String>, env_key: Option<String>) -> Self {
+    pub fn dev(
+        id: impl Into<String>,
+        base_url: impl Into<String>,
+        env_key: Option<String>,
+    ) -> Self {
         let id = id.into();
         Self {
             name: id.clone(),
@@ -218,7 +222,12 @@ pub struct EngineSettings {
 }
 
 impl EngineSettings {
-    pub fn new(home: EngineHome, provider: EngineProvider, model: Option<String>, cwd: PathBuf) -> Self {
+    pub fn new(
+        home: EngineHome,
+        provider: EngineProvider,
+        model: Option<String>,
+        cwd: PathBuf,
+    ) -> Self {
         let wire = provider.wire;
         Self {
             home,
@@ -394,9 +403,7 @@ impl EngineSettings {
 
         if self.provider.wire == WireDialect::Chat {
             let Some(catalogue) = catalogue else {
-                anyhow::bail!(
-                    "the gateway dialect needs a model catalogue and none was resolved"
-                );
+                anyhow::bail!("the gateway dialect needs a model catalogue and none was resolved");
             };
             // Written before the config is loaded, not after: `model_catalog_json`
             // names a path the loader reads immediately, and a missing file is a
@@ -435,11 +442,8 @@ mod tests {
         use crate::engine::catalog_cache::{CatalogueCache, GatewayCatalogue, GatewayRow};
         let row = |id: &str, entitled: bool| GatewayRow {
             id: id.to_string(),
-            publisher: None,
             entitled,
-            display_name: None,
-            description: None,
-            context_window: None,
+            ..GatewayRow::default()
         };
         let cache = CatalogueCache::new(
             GatewayCatalogue {
@@ -511,13 +515,11 @@ mod tests {
             Some("gpt-5-codex".to_string()),
             tmp.clone(),
         );
-        assert!(
-            keyed
-                .cli_overrides()
-                .iter()
-                .any(|(k, v)| k == "model_providers.byok.env_key"
-                    && v == &TomlValue::String("DEV_KEY".into())),
-        );
+        assert!(keyed
+            .cli_overrides()
+            .iter()
+            .any(|(k, v)| k == "model_providers.byok.env_key"
+                && v == &TomlValue::String("DEV_KEY".into())),);
     }
 
     #[test]
@@ -528,7 +530,10 @@ mod tests {
         let tmp = std::env::temp_dir();
         let overrides = settings(&tmp).config_overrides();
         assert_eq!(overrides.codex_self_exe, std::env::current_exe().ok());
-        assert!(overrides.codex_self_exe.is_some(), "current_exe must resolve in a test binary");
+        assert!(
+            overrides.codex_self_exe.is_some(),
+            "current_exe must resolve in a test binary"
+        );
     }
 
     #[test]
@@ -567,7 +572,10 @@ mod tests {
         let s = settings(tmp.path());
         let config = s.build_config(None).await.expect("config should load");
 
-        assert!(s.home.path().is_dir(), "the engine home must exist after build");
+        assert!(
+            s.home.path().is_dir(),
+            "the engine home must exist after build"
+        );
         assert_eq!(config.model.as_deref(), Some("gpt-5-codex"));
         assert_eq!(
             config.model_provider.base_url.as_deref(),
@@ -626,11 +634,10 @@ mod tests {
 
         // And not on the dev provider, which classifies errors upstream's way.
         let dev = EngineSettings::from_env(Path::new("/tmp/atlas"), PathBuf::from("/tmp"));
-        assert!(
-            !dev.cli_overrides()
-                .iter()
-                .any(|(k, _)| k.ends_with(".request_max_retries")),
-        );
+        assert!(!dev
+            .cli_overrides()
+            .iter()
+            .any(|(k, _)| k.ends_with(".request_max_retries")),);
     }
 
     #[tokio::test]

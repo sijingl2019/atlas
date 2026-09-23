@@ -1,4 +1,4 @@
-﻿use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 
 /// How an indexed document is split before embedding.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -161,7 +161,11 @@ fn split_long_paragraph(paragraph: &str) -> Vec<String> {
             sentence_start = *byte_idx + ch.len_utf8();
         }
         if current.chars().count() >= TARGET_CHARS {
-            let cut = if sentence_start > 0 { sentence_start } else { *byte_idx + ch.len_utf8() };
+            let cut = if sentence_start > 0 {
+                sentence_start
+            } else {
+                *byte_idx + ch.len_utf8()
+            };
             let piece = paragraph[..cut].trim();
             if !piece.is_empty() {
                 out.push(piece.to_string());
@@ -233,7 +237,7 @@ mod tests {
             "h",
             ChunkMode::Paragraph,
         );
-        assert!(chunks.len() >= 1);
+        assert!(!chunks.is_empty());
         assert!(chunks.iter().all(|c| c.text.starts_with("Title\n\n")));
         assert!(chunks.iter().all(|c| c.parent_id == "kb:a"));
         assert!(chunks.iter().all(|c| c.chunk_index < chunks.len()));
@@ -256,7 +260,9 @@ mod tests {
             ChunkMode::Paragraph,
         );
         assert_eq!(chunks.len(), 1);
-        assert!(chunks[0].text.contains("First paragraph.\n\nSecond paragraph."));
+        assert!(chunks[0]
+            .text
+            .contains("First paragraph.\n\nSecond paragraph."));
         assert!(!chunks[0].text.contains('\r'));
     }
 

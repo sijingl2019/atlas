@@ -232,7 +232,10 @@ fn build(
     out.push_str("\n## The question\n\n");
     out.push_str(query);
 
-    RetrieveResult { prompt: out, sources }
+    RetrieveResult {
+        prompt: out,
+        sources,
+    }
 }
 
 const PREAMBLE: &str = "\
@@ -263,13 +266,24 @@ fn brief(detail: &SessionDetail, sources: &mut Vec<SourceRef>) -> String {
     line(&mut out, "Title", s.title.clone().unwrap_or_default());
     line(&mut out, "Agent", s.agent.clone().unwrap_or_default());
     line(&mut out, "Model", s.model.clone().unwrap_or_default());
-    line(&mut out, "Branch", s.branches.first().cloned().unwrap_or_default());
+    line(
+        &mut out,
+        "Branch",
+        s.branches.first().cloned().unwrap_or_default(),
+    );
     line(&mut out, "Started", s.started_at.clone());
-    line(&mut out, "Active time", format!("{} minutes", s.active_seconds / 60));
+    line(
+        &mut out,
+        "Active time",
+        format!("{} minutes", s.active_seconds / 60),
+    );
     line(
         &mut out,
         "Turns",
-        format!("{} messages, {} tool calls", s.message_count, s.tool_call_count),
+        format!(
+            "{} messages, {} tool calls",
+            s.message_count, s.tool_call_count
+        ),
     );
     if s.total_tokens > 0 {
         line(&mut out, "Tokens", format!("{}", s.total_tokens));
@@ -303,19 +317,28 @@ fn brief(detail: &SessionDetail, sources: &mut Vec<SourceRef>) -> String {
     }
 
     // ── Checkpoints ──
-    let checkpoints: Vec<&TimelineEntry> =
-        detail.entries.iter().filter(|e| e.kind == EntryKind::Checkpoint).collect();
+    let checkpoints: Vec<&TimelineEntry> = detail
+        .entries
+        .iter()
+        .filter(|e| e.kind == EntryKind::Checkpoint)
+        .collect();
     if !checkpoints.is_empty() {
         out.push_str("\n## Commits this session produced\n\n");
         for cp in &checkpoints {
             let sha = cp.commit_sha.as_deref().unwrap_or("unknown");
             let short = sha.get(..7).unwrap_or(sha);
-            let subject = cp.commit_subject.as_deref().unwrap_or("(subject unavailable)");
+            let subject = cp
+                .commit_subject
+                .as_deref()
+                .unwrap_or("(subject unavailable)");
             out.push_str(&format!("### {short} — {subject}\n"));
             if let Some(branch) = &cp.branch {
                 out.push_str(&format!("- branch: {branch}\n"));
             }
-            out.push_str(&format!("- diffstat: +{} -{}\n", cp.insertions, cp.deletions));
+            out.push_str(&format!(
+                "- diffstat: +{} -{}\n",
+                cp.insertions, cp.deletions
+            ));
             if !cp.files.is_empty() {
                 out.push_str("- files:\n");
                 for f in cp.files.iter().take(FILES_PER_CHECKPOINT) {
@@ -441,7 +464,11 @@ fn exact_hits(
     for path in &named {
         let mut section = format!("\n## What the session did to `{path}`\n\n");
 
-        for entry in detail.entries.iter().filter(|e| e.kind == EntryKind::ToolCall) {
+        for entry in detail
+            .entries
+            .iter()
+            .filter(|e| e.kind == EntryKind::ToolCall)
+        {
             if !entry.paths.iter().any(|p| p == path) {
                 continue;
             }
@@ -466,7 +493,11 @@ fn exact_hits(
         }
 
         // The commit diff, which is the literal answer to "what changed".
-        for cp in detail.entries.iter().filter(|e| e.kind == EntryKind::Checkpoint) {
+        for cp in detail
+            .entries
+            .iter()
+            .filter(|e| e.kind == EntryKind::Checkpoint)
+        {
             if !cp.files.iter().any(|f| f == path) {
                 continue;
             }
@@ -489,7 +520,11 @@ fn exact_hits(
     }
 
     // ── SHAs ──
-    for cp in detail.entries.iter().filter(|e| e.kind == EntryKind::Checkpoint) {
+    for cp in detail
+        .entries
+        .iter()
+        .filter(|e| e.kind == EntryKind::Checkpoint)
+    {
         let Some(sha) = &cp.commit_sha else { continue };
         let short = sha.get(..7).unwrap_or(sha);
         if !lower.contains(&short.to_ascii_lowercase()) {
@@ -521,7 +556,11 @@ fn git_show_commit(root: &Path, sha: &str) -> Option<String> {
 }
 
 fn run_git(root: &Path, args: &[&str]) -> Option<String> {
-    let out = atlas_process::command("git").current_dir(root).args(args).output().ok()?;
+    let out = atlas_process::command("git")
+        .current_dir(root)
+        .args(args)
+        .output()
+        .ok()?;
     if !out.status.success() {
         return None;
     }
@@ -746,12 +785,24 @@ mod tests {
     #[test]
     fn rank_keeps_only_entries_that_share_a_term() {
         let entries = vec![
-            entry("a", EntryKind::Response, "we changed the watcher and the poller", 1),
-            entry("b", EntryKind::Response, "capture.rs now guards the writer lock", 2),
+            entry(
+                "a",
+                EntryKind::Response,
+                "we changed the watcher and the poller",
+                1,
+            ),
+            entry(
+                "b",
+                EntryKind::Response,
+                "capture.rs now guards the writer lock",
+                2,
+            ),
             entry("c", EntryKind::Response, "unrelated prose about colours", 3),
         ];
-        let ids: Vec<&str> =
-            rank(&entries, "what changed in capture.rs").iter().map(|e| e.id.as_str()).collect();
+        let ids: Vec<&str> = rank(&entries, "what changed in capture.rs")
+            .iter()
+            .map(|e| e.id.as_str())
+            .collect();
         // "a" shares "changed", "b" shares "capture"/"rs" — both are legitimate
         // context. "c" shares nothing and must not consume budget.
         assert!(ids.contains(&"b"));
@@ -763,14 +814,25 @@ mod tests {
         // "session" is in every entry, so it must not decide the outcome; only
         // "capture" is discriminating.
         let entries = vec![
-            entry("common", EntryKind::Response, "session session session session", 1),
+            entry(
+                "common",
+                EntryKind::Response,
+                "session session session session",
+                1,
+            ),
             entry("hit", EntryKind::Response, "session capture", 2),
         ];
-        let ids: Vec<&str> = rank(&entries, "capture session").iter().map(|e| e.id.as_str()).collect();
+        let ids: Vec<&str> = rank(&entries, "capture session")
+            .iter()
+            .map(|e| e.id.as_str())
+            .collect();
         assert_eq!(ids, vec!["common", "hit"], "both match, chronologically");
 
         // With the common term alone dropped from the query, only the hit survives.
-        let ids: Vec<&str> = rank(&entries, "capture").iter().map(|e| e.id.as_str()).collect();
+        let ids: Vec<&str> = rank(&entries, "capture")
+            .iter()
+            .map(|e| e.id.as_str())
+            .collect();
         assert_eq!(ids, vec!["hit"]);
     }
 

@@ -25,7 +25,7 @@
 //! honestly support that. Do not "fix" this later by copying Entire.
 //!
 //! **Cross-source dedupe is explicit work here, not a schema guarantee.** The
-//! UNIQUE constraint covers `(workspace, source, native_id)` and therefore
+//! UNIQUE constraint covers `(project, source, native_id)` and therefore
 //! dedupes *re-imports*. It does **not** dedupe across sources — Atlas's
 //! ACP-hosted Claude Code writes JSONL to the very same directory, so
 //! `('acp', id)` and `('external_jsonl', id)` are both permitted rows. Skipping
@@ -54,7 +54,7 @@ use serde::{Deserialize, Serialize};
 use crate::blobs;
 use crate::capture::{Capture, SessionKey, ToolCallContent, TurnContent};
 use crate::error::{Error, Result};
-use crate::model::{Mode, Role, Source, TokenTotals, ToolStatus, WorkspaceMode};
+use crate::model::{Mode, ProjectMode, Role, Source, TokenTotals, ToolStatus};
 use crate::store::Store;
 use crate::tools::{canonical_name, ToolName};
 
@@ -86,9 +86,9 @@ pub struct ImportOutcome {
 
 /// What a bulk import is about to disclose.
 ///
-/// Importing into a **Cloud** Workspace makes months of terminal conversations
+/// Importing into a **Cloud** Project makes months of terminal conversations
 /// org-visible in one action, which is a bulk disclosure and gets the same
-/// real-numbers confirmation as Local→Cloud promotion. A Local Workspace needs
+/// real-numbers confirmation as Local→Cloud promotion. A Local Project needs
 /// no ceremony, because nothing leaves the machine.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -120,7 +120,9 @@ pub struct TranscriptSource {
 
 impl TranscriptSource {
     pub fn new(directory: impl Into<PathBuf>) -> Self {
-        Self { directory: directory.into() }
+        Self {
+            directory: directory.into(),
+        }
     }
 
     /// Every transcript file, oldest first, so an interrupted import resumes in
@@ -144,7 +146,7 @@ impl TranscriptSource {
 /// Prefer [`preview_with_store`] when a store is at hand — it also reports how
 /// many of the files a real import would take, which is what the disclosure
 /// dialog should headline. Without a store every file counts as new.
-pub fn preview(source: &TranscriptSource, mode: WorkspaceMode) -> ImportPreview {
+pub fn preview(source: &TranscriptSource, mode: ProjectMode) -> ImportPreview {
     preview_inner(source, mode, None)
 }
 
@@ -154,14 +156,14 @@ pub fn preview_with_store(
     store: &Store,
     workspace_id: &str,
     source: &TranscriptSource,
-    mode: WorkspaceMode,
+    mode: ProjectMode,
 ) -> ImportPreview {
     preview_inner(source, mode, Some((store, workspace_id)))
 }
 
 fn preview_inner(
     source: &TranscriptSource,
-    mode: WorkspaceMode,
+    mode: ProjectMode,
     store: Option<(&Store, &str)>,
 ) -> ImportPreview {
     let files = source.files();
@@ -191,7 +193,7 @@ fn preview_inner(
         earliest: timestamps.first().cloned(),
         latest: timestamps.last().cloned(),
         total_bytes,
-        is_bulk_disclosure: mode == WorkspaceMode::Cloud,
+        is_bulk_disclosure: mode == ProjectMode::Cloud,
     }
 }
 
@@ -250,7 +252,7 @@ pub fn import_all(
     store: &mut Store,
     workspace_id: &str,
     source: &TranscriptSource,
-    mode: WorkspaceMode,
+    mode: ProjectMode,
 ) -> Result<ImportOutcome> {
     let mut outcome = ImportOutcome::default();
     for path in source.files() {
@@ -336,7 +338,7 @@ fn import_file(
     store: &mut Store,
     workspace_id: &str,
     path: &Path,
-    mode: WorkspaceMode,
+    mode: ProjectMode,
     outcome: &mut ImportOutcome,
 ) -> Result<()> {
     let size = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
@@ -466,7 +468,11 @@ fn import_file(
             // Sidechain lines are a subagent's own conversation, not this Session's,
             // and including them would double-count work under the wrong Session —
             // consistent with the existing replay behaviour.
-            if value.get("isSidechain").and_then(serde_json::Value::as_bool) == Some(true) {
+            if value
+                .get("isSidechain")
+                .and_then(serde_json::Value::as_bool)
+                == Some(true)
+            {
                 continue;
             }
             // Meta lines are the harness talking to itself — injected context,
@@ -487,10 +493,12 @@ fn import_file(
                 // the finished one is the larger.
                 slot.input_tokens = slot.input_tokens.max(line_usage.totals.input_tokens);
                 slot.output_tokens = slot.output_tokens.max(line_usage.totals.output_tokens);
-                slot.cache_creation_tokens =
-                    slot.cache_creation_tokens.max(line_usage.totals.cache_creation_tokens);
-                slot.cache_read_tokens =
-                    slot.cache_read_tokens.max(line_usage.totals.cache_read_tokens);
+                slot.cache_creation_tokens = slot
+                    .cache_creation_tokens
+                    .max(line_usage.totals.cache_creation_tokens);
+                slot.cache_read_tokens = slot
+                    .cache_read_tokens
+                    .max(line_usage.totals.cache_read_tokens);
             }
             // Assistant lines only: the model is a property of what answered,
             // and a user line that happens to carry one is echoing the client's
@@ -593,8 +601,12 @@ fn import_file(
             // block id is the idempotency key, so re-reads are free.
             let call_turn = turn_seq.max(1);
             for tool_use in &tool_uses {
-                let name =
-                    canonical_name(Some(&tool_use.name), Some(&tool_use.name), None, &tool_use.input);
+                let name = canonical_name(
+                    Some(&tool_use.name),
+                    Some(&tool_use.name),
+                    None,
+                    &tool_use.input,
+                );
                 call_meta.insert(tool_use.id.clone(), (name, call_turn));
                 let arguments = tool_use.input.to_string();
                 match capture.record_tool_call(
@@ -663,10 +675,12 @@ fn import_file(
         for request in usage_by_request.values() {
             usage.input_tokens = usage.input_tokens.saturating_add(request.input_tokens);
             usage.output_tokens = usage.output_tokens.saturating_add(request.output_tokens);
-            usage.cache_creation_tokens =
-                usage.cache_creation_tokens.saturating_add(request.cache_creation_tokens);
-            usage.cache_read_tokens =
-                usage.cache_read_tokens.saturating_add(request.cache_read_tokens);
+            usage.cache_creation_tokens = usage
+                .cache_creation_tokens
+                .saturating_add(request.cache_creation_tokens);
+            usage.cache_read_tokens = usage
+                .cache_read_tokens
+                .saturating_add(request.cache_read_tokens);
         }
         if usage != TokenTotals::default() {
             store.replace_usage_totals(id, &usage)?;
@@ -743,7 +757,12 @@ fn read_usage(value: &serde_json::Value) -> Option<UsageLine> {
         .or_else(|| value.get("uuid").and_then(serde_json::Value::as_str))?
         .to_string();
 
-    let field = |name: &str| usage.get(name).and_then(serde_json::Value::as_u64).unwrap_or(0);
+    let field = |name: &str| {
+        usage
+            .get(name)
+            .and_then(serde_json::Value::as_u64)
+            .unwrap_or(0)
+    };
     let totals = TokenTotals {
         input_tokens: field("input_tokens"),
         output_tokens: field("output_tokens"),
@@ -808,7 +827,9 @@ fn is_envelope(turn: &ImportedTurn) -> bool {
         "<task-notification>",
         "[Request interrupted",
     ];
-    ENVELOPE_PREFIXES.iter().any(|prefix| body.starts_with(prefix))
+    ENVELOPE_PREFIXES
+        .iter()
+        .any(|prefix| body.starts_with(prefix))
 }
 
 fn read_turn(value: &serde_json::Value) -> Option<ImportedTurn> {
@@ -862,7 +883,10 @@ fn read_tool_uses(value: &serde_json::Value) -> Vec<ToolUse> {
                 return None;
             }
             Some(ToolUse {
-                id: block.get("id").and_then(serde_json::Value::as_str)?.to_string(),
+                id: block
+                    .get("id")
+                    .and_then(serde_json::Value::as_str)?
+                    .to_string(),
                 name: block
                     .get("name")
                     .and_then(serde_json::Value::as_str)
@@ -1019,7 +1043,9 @@ mod tests {
     fn a_thinking_only_message_is_recognised_as_thinking() {
         let content = serde_json::json!([{ "type": "thinking", "thinking": "hmm" }]);
         assert!(is_thinking(Some(&content)));
-        assert!(!is_thinking(Some(&serde_json::json!([{ "type": "text", "text": "hi" }]))));
+        assert!(!is_thinking(Some(
+            &serde_json::json!([{ "type": "text", "text": "hi" }])
+        )));
     }
 
     #[test]
@@ -1048,7 +1074,10 @@ mod tests {
                   "is_error": true },
             ] },
         });
-        assert!(read_turn(&line).is_none(), "a result is not a conversation turn");
+        assert!(
+            read_turn(&line).is_none(),
+            "a result is not a conversation turn"
+        );
         let results = read_tool_results(&line);
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].tool_use_id, "toolu_01");
@@ -1087,7 +1116,10 @@ mod tests {
         // two identical lines distinct.
         assert_eq!(synthetic_line_id(3, "same"), synthetic_line_id(3, "same"));
         assert_ne!(synthetic_line_id(3, "same"), synthetic_line_id(4, "same"));
-        assert_ne!(synthetic_line_id(3, "same"), synthetic_line_id(3, "different"));
+        assert_ne!(
+            synthetic_line_id(3, "same"),
+            synthetic_line_id(3, "different")
+        );
     }
 
     #[test]
@@ -1097,7 +1129,10 @@ mod tests {
         // re-aborts on every tick.
         assert!(is_fatal(&Error::AlreadyLocked));
         assert!(is_fatal(&Error::Storage("disk full".into())));
-        assert!(is_fatal(&Error::SchemaTooNew { found: 9, supported: 1 }));
+        assert!(is_fatal(&Error::SchemaTooNew {
+            found: 9,
+            supported: 1
+        }));
         assert!(!is_fatal(&Error::RedactionFailed("panicked".into())));
         assert!(!is_fatal(&Error::Blob("unwritable".into())));
     }

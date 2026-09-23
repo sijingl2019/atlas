@@ -147,11 +147,10 @@ fn build_graph(commits: Vec<GitLogEntry>, refs_info: GitRefs) -> BuiltGraph {
 
         // Top half: every active lane renders from y=0 → y=0.5.
         for (i, owner) in lanes.iter().enumerate() {
-            let Some(owner) = owner.as_deref() else { continue };
-            let color = lane_colors
-                .get(i)
-                .and_then(|c| *c)
-                .unwrap_or(commit_color);
+            let Some(owner) = owner.as_deref() else {
+                continue;
+            };
+            let color = lane_colors.get(i).and_then(|c| *c).unwrap_or(commit_color);
             if owner == c.hash {
                 segments.push(LaneSegment {
                     from_lane: i,
@@ -218,12 +217,7 @@ fn build_graph(commits: Vec<GitLogEntry>, refs_info: GitRefs) -> BuiltGraph {
                     .position(|l| l.as_deref() == Some(parent.as_str()))
                 {
                     Some(idx) => idx,
-                    None => allocate_lane(
-                        &mut lanes,
-                        &mut lane_colors,
-                        &mut color_counter,
-                        parent,
-                    ),
+                    None => allocate_lane(&mut lanes, &mut lane_colors, &mut color_counter, parent),
                 };
                 let color = lane_colors
                     .get(parent_lane)
@@ -253,10 +247,7 @@ fn build_graph(commits: Vec<GitLogEntry>, refs_info: GitRefs) -> BuiltGraph {
             {
                 continue;
             }
-            let color = lane_colors
-                .get(i)
-                .and_then(|c| *c)
-                .unwrap_or(commit_color);
+            let color = lane_colors.get(i).and_then(|c| *c).unwrap_or(commit_color);
             segments.push(LaneSegment {
                 from_lane: i,
                 to_lane: i,
@@ -310,7 +301,8 @@ fn build_graph(commits: Vec<GitLogEntry>, refs_info: GitRefs) -> BuiltGraph {
             }
         }
         // Dedupe by (name, kind) preserving order.
-        let mut seen: std::collections::HashSet<(String, String)> = std::collections::HashSet::new();
+        let mut seen: std::collections::HashSet<(String, String)> =
+            std::collections::HashSet::new();
         badges.retain(|b| seen.insert((b.name.clone(), b.kind.clone())));
 
         // Track visible max from this row's drawing extents.

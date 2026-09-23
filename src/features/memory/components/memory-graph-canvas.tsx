@@ -11,9 +11,11 @@ import {
 import Matter from "matter-js";
 import { invoke } from "@tauri-apps/api/core";
 import { forceLayout, usablePosition } from "@/lib/graph-layout";
-import { GraphRuler, type Viewport } from "@/components/graph-ruler";
 import { isMac } from "@/lib/platform";
-import { graphPalette, type GraphPalette } from "@/features/theme/graph-palette";
+import { destroyPixiApp, registerPixiApp } from "@/lib/pixi-app";
+import { GraphRuler, type Viewport } from "@/components/graph-ruler";
+import { graphPalette, type GraphPalette } from "@/components/graph-palette";
+import { onThemeApplied } from "@/features/theme/theme-values";
 
 /**
  * Force-directed memory graph — a self-contained sibling of the knowledge
@@ -37,13 +39,15 @@ export interface MemoryEdge {
   // Oriented older → newer: `from` plausibly influenced `to`.
   from: string;
   to: string;
+  /** Cosine similarity for a `similarity` edge; always 1 for an explicit `link`. */
+  weight: number;
   kind: string; // "similarity" | "link"
 }
 export interface MemoryGraphData {
   nodes: MemoryNode[];
   edges: MemoryEdge[];
 }
-interface GraphLayout {
+export interface GraphLayout {
   positions: Record<string, { x: number; y: number }>;
 }
 
@@ -87,6 +91,8 @@ interface SceneState {
   /** Hide memories created after this instant (time scrubber). null = show all. */
   cutoff: number | null;
   zoom: number;
+  /** Resolved theme colours. Swapped wholesale on `atlas:theme-applied`. */
+  palette: GraphPalette;
 }
 
 export function MemoryGraphCanvas({
@@ -143,7 +149,7 @@ export function MemoryGraphCanvas({
     <div
       ref={containerRef}
       className="h-full w-full relative"
-      style={{ background: "var(--bg-canvas, var(--bg-base))" }}
+      style={{ background: "var(--atlas-panel-background, var(--background))" }}
     >
       {size.width > 0 && size.height > 0 && layout !== undefined && (
         <Scene
@@ -199,7 +205,20 @@ function Scene({
     draggingNeighbors: new Set(),
     cutoff: cutoffMs,
     zoom: 1,
+    palette: graphPalette(),
   });
+
+  // WebGL cannot inherit a CSS custom property, so a theme switch has to push a
+  // new palette in and force one more frame — replacing the scene OBJECT is
+  // what does the forcing, since the ticker early-outs on `scene === lastScene`
+  // once the simulation has settled.
+  useEffect(
+    () =>
+      onThemeApplied(() => {
+        sceneRef.current = { ...sceneRef.current, palette: graphPalette() };
+      }),
+    [],
+  );
 
   // Forward/backward adjacency (edges are oriented older → newer).
   const adj = useMemo(() => {
@@ -265,6 +284,7 @@ function Scene({
     host.appendChild(canvas);
 
     const app = new Application();
+    registerPixiApp(app);
     createdApp = app;
     void app
       .init({
@@ -283,7 +303,7 @@ function Scene({
       .then(() => {
         if (disposed) {
           try {
-            app.destroy(true, { children: true });
+            destroyPixiApp(app);
           } catch {
             /* ignore */
           }
@@ -327,7 +347,7 @@ function Scene({
       }
       if (createdApp) {
         try {
-          createdApp.destroy(true, { children: true });
+          destroyPixiApp(createdApp);
         } catch {
           /* ignore */
         }
@@ -415,6 +435,8 @@ function buildScene(
     if (!s) {
       s = new TextStyle({
         fontFamily: "Inter, -apple-system, system-ui, sans-serif",
+        // pixi rasterises label text into a WebGL atlas.
+        // ratchet-allow: TextStyle takes a number, and no CSS is in this path.
         fontSize: 11,
         fontWeight: "500",
         fill,
@@ -460,7 +482,7 @@ function buildScene(
 
     const label = new Text({
       text: node.summary || node.title,
-      style: styleFor(graphPalette().secondary),
+      style: styleFor(sceneRef.current.palette.labelSecondary),
     });
     label.anchor.set(0.5, 0); // top-center: hangs below the disc
     labelLayer.addChild(label);
@@ -665,7 +687,6 @@ function buildScene(
   // scene object is unchanged (a static idle graph otherwise repaints every
   // node — incl. per-node Pixi text restyle — at up to 120 Hz).
   let lastScene: typeof sceneRef.current | null = null;
-  let lastPalette: GraphPalette | null = null;
   const tick = (ticker: Ticker) => {
     if (awake) {
       Matter.Engine.update(engine, ticker.deltaMS);
@@ -684,14 +705,20 @@ function buildScene(
     }
 
     const scene = sceneRef.current;
-    // A mode flip is a redraw too — the scene object alone would not show it.
-    const P = graphPalette();
-    if (!awake && scene === lastScene && P === lastPalette) return;
+    if (!awake && scene === lastScene) return;
     lastScene = scene;
-    lastPalette = P;
 
-    const { selectedId, impact, ancestors, matched, draggingId, draggingNeighbors, cutoff, zoom } =
-      scene;
+    const {
+      selectedId,
+      impact,
+      ancestors,
+      matched,
+      draggingId,
+      draggingNeighbors,
+      cutoff,
+      zoom,
+      palette,
+    } = scene;
     const hasSelection = selectedId !== null;
     const hasDrag = !hasSelection && draggingId !== null;
     const hasMatches = !hasSelection && !hasDrag && matched.size > 0;
@@ -701,7 +728,7 @@ function buildScene(
 
     for (const node of nodesById.values()) {
       const future = isFuture(node.ts);
-      let color = P.secondary;
+      let color = palette.secondary;
       let alpha = 1;
       let drawRadius = node.radius;
       let ring = false;
@@ -710,54 +737,54 @@ function buildScene(
 
       if (future) {
         // Not yet "born" at the scrubber's instant.
-        color = P.muted;
+        color = palette.muted;
         alpha = 0.05;
         labelDim = true;
       } else if (hasSelection) {
         if (node.id === selectedId) {
-          color = P.impact;
+          color = palette.primary;
           drawRadius = node.radius * 1.25;
           ring = true;
           lit = true;
         } else if (impact.has(node.id)) {
-          color = P.impact;
+          color = palette.primary;
           lit = true;
         } else if (ancestors.has(node.id)) {
-          color = P.ancestor;
+          color = palette.ancestor;
           alpha = 0.95;
           lit = true;
         } else {
-          color = P.muted;
+          color = palette.muted;
           alpha = 0.28;
           labelDim = true;
         }
       } else if (hasDrag) {
         if (node.id === draggingId) {
-          color = P.primary;
+          color = palette.primary;
           ring = true;
           lit = true;
         } else if (draggingNeighbors.has(node.id)) {
-          color = P.primary;
+          color = palette.primary;
           lit = true;
         } else {
-          color = P.muted;
+          color = palette.muted;
           alpha = 0.4;
           labelDim = true;
         }
       } else if (hasMatches) {
         if (matched.has(node.id)) {
-          color = P.primary;
+          color = palette.primary;
           drawRadius = node.radius * 1.15;
           ring = true;
           lit = true;
         } else {
-          color = P.muted;
+          color = palette.muted;
           alpha = 0.35;
           labelDim = true;
         }
       } else {
         // Neutral: brightness grades with recency (newer = brighter).
-        color = P.secondary;
+        color = palette.secondary;
         alpha = 0.5 + 0.5 * node.recency;
       }
 
@@ -779,16 +806,16 @@ function buildScene(
       if (!showLabels || future) node.label.alpha = 0;
       else if (!hasSelection && !hasDrag && !hasMatches) {
         node.label.alpha = 0.85;
-        node.label.style = styleFor(P.secondary);
+        node.label.style = styleFor(palette.labelSecondary);
       } else if (lit) {
         node.label.alpha = 1;
-        node.label.style = styleFor(P.primary);
+        node.label.style = styleFor(palette.labelPrimary);
       } else if (labelDim) {
         node.label.alpha = 0.25;
-        node.label.style = styleFor(P.muted);
+        node.label.style = styleFor(palette.labelMuted);
       } else {
         node.label.alpha = 0.6;
-        node.label.style = styleFor(P.secondary);
+        node.label.style = styleFor(palette.labelSecondary);
       }
     }
 
@@ -804,34 +831,34 @@ function buildScene(
         // One endpoint not born yet — keep faint.
         edge.graphics.moveTo(a.body.position.x, a.body.position.y);
         edge.graphics.lineTo(b.body.position.x, b.body.position.y);
-        edge.graphics.stroke({ width: 1 * inv, color: P.edgeDim, alpha: 0.04 });
+        edge.graphics.stroke({ width: 1 * inv, color: palette.edgeDim, alpha: 0.04 });
         continue;
       }
 
-      let color = edge.kind === "link" ? P.edgeLink : P.edgeDefault;
+      let color = edge.kind === "link" ? palette.edgeLink : palette.edgeDefault;
       let alpha = edge.kind === "link" ? 0.5 : 0.3;
-      let arrow: string | null = null; // arrowhead color when on an influence path
+      let arrow: number | null = null; // arrowhead color when on an influence path
 
       if (hasSelection) {
         if (litFwd(edge.from) && litFwd(edge.to)) {
-          color = P.impact;
+          color = palette.primary;
           alpha = 0.85;
-          arrow = P.impact;
+          arrow = palette.primary;
         } else if (litBwd(edge.from) && litBwd(edge.to)) {
-          color = P.ancestor;
+          color = palette.ancestor;
           alpha = 0.7;
-          arrow = P.ancestor;
+          arrow = palette.ancestor;
         } else {
-          color = P.edgeDim;
+          color = palette.edgeDim;
           alpha = 0.12;
         }
       } else if (hasDrag) {
         const touches = edge.from === draggingId || edge.to === draggingId;
         if (touches) {
-          color = P.edgeSelected;
+          color = palette.edgeSelected;
           alpha = 0.9;
         } else {
-          color = P.edgeDim;
+          color = palette.edgeDim;
           alpha = 0.15;
         }
       } else if (hasMatches) {

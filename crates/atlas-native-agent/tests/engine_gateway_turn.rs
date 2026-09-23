@@ -48,18 +48,26 @@ const FIXTURE_DEFAULT: &str = FIXTURE_MODELS[0];
 const FIXTURE_LOCKED: &str = "openai/gpt-5.6-sol";
 
 fn catalogue_body() -> Value {
+    // The wire shape after the gateway's metadata commit (e37ea88): the
+    // presentation block rides each row, `default` marks the first, and
+    // `display_name` is left null so the slug-as-name fallback is exercised.
     let mut data: Vec<Value> = FIXTURE_MODELS
         .iter()
-        .map(|id| {
+        .enumerate()
+        .map(|(index, id)| {
             serde_json::json!({
                 "id": id, "object": "model", "created": 1786320000,
                 "owned_by": "google-vertex-ai", "publisher": "test", "entitled": true,
+                "display_name": null, "description": null, "context_window": 200000,
+                "sort_order": index + 1, "default": index == 0, "input_modalities": ["text", "image"],
             })
         })
         .collect();
     data.push(serde_json::json!({
         "id": FIXTURE_LOCKED, "object": "model", "created": 1786320000,
         "owned_by": "google-vertex-ai", "publisher": "openai", "entitled": false,
+        "display_name": null, "description": "No funded route.", "context_window": 200000,
+        "sort_order": 99, "default": false, "input_modalities": null,
     }));
     serde_json::json!({ "object": "list", "data": data, "hasGrant": true })
 }
@@ -178,7 +186,12 @@ struct Harness {
 
 impl Harness {
     async fn open_thread(&self) -> acp::SessionId {
-        let thread = match self.connection.clone().new_session(vec![PathBuf::from(".")]).await {
+        let thread = match self
+            .connection
+            .clone()
+            .new_session(vec![PathBuf::from(".")])
+            .await
+        {
             Ok(thread) => thread,
             Err(err) => panic!("the engine should start a thread: {err:#}"),
         };
@@ -204,7 +217,9 @@ impl Harness {
         else {
             panic!("a thread must be open");
         };
-        let thread = thread.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let thread = thread
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         thread
             .entries()
             .iter()
@@ -228,7 +243,8 @@ impl Harness {
             panic!("the mock server must be recording requests");
         };
         let Some(last) = received
-            .iter().rfind(|r| r.url.path().ends_with("/chat/completions"))
+            .iter()
+            .rfind(|r| r.url.path().ends_with("/chat/completions"))
         else {
             panic!("no completion request reached the gateway");
         };
@@ -246,6 +262,14 @@ async fn harness(mocks: Vec<(Option<u64>, ResponseTemplate)>) -> Harness {
 async fn harness_with_token(
     mocks: Vec<(Option<u64>, ResponseTemplate)>,
     token: Arc<dyn AtlasTokenSource>,
+) -> Harness {
+    harness_full(mocks, token, None).await
+}
+
+async fn harness_full(
+    mocks: Vec<(Option<u64>, ResponseTemplate)>,
+    token: Arc<dyn AtlasTokenSource>,
+    session_mcp: Option<Arc<dyn atlas_agent_servers::SessionMcpServers>>,
 ) -> Harness {
     let server = MockServer::start().await;
     catalogue_mock().mount(&server).await;
@@ -272,7 +296,7 @@ async fn harness_with_token(
         sink,
         Some(external_auth),
         None,
-        None,
+        session_mcp,
         Some(fetcher(&server, token)),
     )
     .await
@@ -363,7 +387,10 @@ async fn the_request_that_leaves_carries_only_what_the_gateway_forwards() {
 
     // Not vacuous: the turn really did carry a prompt and a bounded output.
     assert_eq!(body["model"], serde_json::json!("claude-sonnet-4-6"));
-    assert!(body["max_tokens"].is_number(), "max_tokens must be explicit");
+    assert!(
+        body["max_tokens"].is_number(),
+        "max_tokens must be explicit"
+    );
     let Some(messages) = body["messages"].as_array() else {
         panic!("messages must be an array");
     };
@@ -390,7 +417,8 @@ async fn the_minted_token_is_what_authorises_the_request() {
         panic!("the mock server must be recording requests");
     };
     let Some(last) = received
-        .iter().rfind(|r| r.url.path().ends_with("/chat/completions"))
+        .iter()
+        .rfind(|r| r.url.path().ends_with("/chat/completions"))
     else {
         panic!("no completion request reached the gateway");
     };
@@ -408,13 +436,11 @@ async fn a_stream_that_dies_without_the_sentinel_does_not_end_the_turn_normally(
     // one is the failure the withheld sentinel exists to prevent, and it is
     // invisible to the user by construction — the text that did arrive looks
     // like the whole reply.
-    let half = frames(&[
-        &serde_json::json!({
-            "id": "chatcmpl-1",
-            "choices": [{"index": 0, "delta": {"content": "half an ans"}, "finish_reason": null}],
-        })
-        .to_string(),
-    ]);
+    let half = frames(&[&serde_json::json!({
+        "id": "chatcmpl-1",
+        "choices": [{"index": 0, "delta": {"content": "half an ans"}, "finish_reason": null}],
+    })
+    .to_string()]);
     let h = harness(vec![(None, sse_ok(half))]).await;
     let session_id = h.open_thread().await;
 
@@ -481,10 +507,7 @@ async fn an_expired_token_is_re_minted_and_the_turn_carries_on() {
         "application/json",
     );
     let h = harness_with_token(
-        vec![
-            (Some(1), expired),
-            (None, sse_ok(answer("recovered"))),
-        ],
+        vec![(Some(1), expired), (None, sse_ok(answer("recovered")))],
         Arc::new(RotatingToken::default()),
     )
     .await;
@@ -554,7 +577,10 @@ async fn an_unauthorized_token_is_not_retried_at_all() {
         .connection
         .prompt(acp::PromptRequest::new(session_id, text("hi")))
         .await;
-    assert!(outcome.is_err(), "an unusable credential must fail the turn");
+    assert!(
+        outcome.is_err(),
+        "an unusable credential must fail the turn"
+    );
 
     let Some(received) = h.server.received_requests().await else {
         panic!("the mock server must be recording requests");
@@ -674,11 +700,17 @@ async fn the_model_picker_offers_the_gateway_catalogue_and_nothing_else() {
     // 403 on the next turn, well after the click that caused it — the
     // unentitled row included.
     assert!(
-        selector.select_model(AgentModelId::new("gpt-5.1")).await.is_err(),
+        selector
+            .select_model(AgentModelId::new("gpt-5.1"))
+            .await
+            .is_err(),
         "selecting a model the account cannot use must fail at the click",
     );
     assert!(
-        selector.select_model(AgentModelId::new(FIXTURE_LOCKED)).await.is_err(),
+        selector
+            .select_model(AgentModelId::new(FIXTURE_LOCKED))
+            .await
+            .is_err(),
         "an unentitled row is not selectable either",
     );
 }
@@ -693,14 +725,18 @@ async fn seed_cache(home: &std::path::Path, ids: &[&str], fetched_at: u64) {
         .iter()
         .map(|id| GatewayRow {
             id: id.to_string(),
-            publisher: None,
             entitled: true,
-            display_name: None,
-            description: None,
-            context_window: None,
+            ..GatewayRow::default()
         })
         .collect();
-    let cache = CatalogueCache::new(GatewayCatalogue { has_grant: true, rows }, None, fetched_at);
+    let cache = CatalogueCache::new(
+        GatewayCatalogue {
+            has_grant: true,
+            rows,
+        },
+        None,
+        fetched_at,
+    );
     if let Err(err) = write_cache(&home.join("engine"), &cache).await {
         panic!("seeding the catalogue cache: {err:#}");
     }
@@ -715,7 +751,11 @@ fn now_unix() -> u64 {
 
 async fn picker_ids(connection: &Arc<EngineConnection>) -> Vec<String> {
     use atlas_acp_thread::AgentModelList;
-    let thread = match connection.clone().new_session(vec![PathBuf::from(".")]).await {
+    let thread = match connection
+        .clone()
+        .new_session(vec![PathBuf::from(".")])
+        .await
+    {
         Ok(thread) => thread,
         Err(err) => panic!("the engine should start a thread: {err:#}"),
     };
@@ -758,8 +798,14 @@ async fn no_cache_and_an_unreachable_catalogue_fails_connect_honestly() {
         panic!("with no cache and no catalogue the connect must fail");
     };
     let message = format!("{err:#}");
-    assert!(message.contains("model list"), "the user reads why: {message}");
-    assert!(message.contains("HTTP 404"), "and the cause travels with it: {message}");
+    assert!(
+        message.contains("model list"),
+        "the user reads why: {message}"
+    );
+    assert!(
+        message.contains("HTTP 404"),
+        "and the cause travels with it: {message}"
+    );
     assert!(
         !home.path().join("engine").join("models.json").exists(),
         "no engine catalogue may be written from nothing",
@@ -853,16 +899,25 @@ async fn a_relabelled_catalogue_swaps_in_place_but_a_changed_one_does_not() {
         ids.iter()
             .map(|id| GatewayRow {
                 id: id.to_string(),
-                publisher: None,
                 entitled: true,
                 display_name: named.then(|| format!("Name of {id}")),
-                description: None,
-                context_window: None,
+                // The fixture's window, kept: the context window is part of
+                // the engine-relevant identity, so changing it here would be
+                // a "changed catalogue", not a relabelling.
+                context_window: Some(200_000),
+                ..GatewayRow::default()
             })
             .collect()
     };
     let live_from = |rows: Vec<GatewayRow>| -> LiveCatalogue {
-        let cache = CatalogueCache::new(GatewayCatalogue { has_grant: true, rows }, None, 7);
+        let cache = CatalogueCache::new(
+            GatewayCatalogue {
+                has_grant: true,
+                rows,
+            },
+            None,
+            7,
+        );
         let Some(projected) = project(&cache) else {
             panic!("rows");
         };
@@ -881,7 +936,10 @@ async fn a_relabelled_catalogue_swaps_in_place_but_a_changed_one_does_not() {
         panic!("same slugs, new names must swap in place: {err:#}");
     }
     let after = h.connection.catalogue_snapshot();
-    assert_eq!(&*after.picker[0].name, format!("Name of {FIXTURE_DEFAULT}").as_str());
+    assert_eq!(
+        &*after.picker[0].name,
+        format!("Name of {FIXTURE_DEFAULT}").as_str()
+    );
 
     let mut grown: Vec<&str> = FIXTURE_MODELS.to_vec();
     grown.push("brand-new-model");
@@ -946,7 +1004,10 @@ async fn the_paying_org_rides_every_request_and_follows_a_switch() {
     let org = Arc::new(std::sync::Mutex::new(Some("org_first".to_string())));
     let reader = org.clone();
     atlas_native_agent::engine::set_org_source(Arc::new(move || {
-        reader.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone()
+        reader
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
     }));
 
     let h = harness(vec![(None, sse_ok(answer("ok")))]).await;
@@ -956,7 +1017,8 @@ async fn the_paying_org_rides_every_request_and_follows_a_switch() {
         .prompt(acp::PromptRequest::new(session_id.clone(), text("one")))
         .await;
 
-    *org.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some("org_second".to_string());
+    *org.lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = Some("org_second".to_string());
     let _ = h
         .connection
         .prompt(acp::PromptRequest::new(session_id, text("two")))
@@ -1030,7 +1092,10 @@ async fn the_picked_model_is_what_the_next_turn_requests() {
     let Some(selector) = h.connection.model_selector(&session_id) else {
         panic!("the native agent must publish a model selector");
     };
-    if let Err(err) = selector.select_model(AgentModelId::new("claude-opus-5")).await {
+    if let Err(err) = selector
+        .select_model(AgentModelId::new("claude-opus-5"))
+        .await
+    {
         panic!("a catalogue model must be selectable: {err:#}");
     }
     // The picker's tick mark must move too — it used to reset to the default
@@ -1106,7 +1171,10 @@ async fn status_and_diff_answer_from_this_side_without_spending_a_turn() {
 async fn connection_at(
     home: &std::path::Path,
     server: &MockServer,
-) -> (Arc<EngineConnection>, std::sync::mpsc::Receiver<AcpThreadEvent>) {
+) -> (
+    Arc<EngineConnection>,
+    std::sync::mpsc::Receiver<AcpThreadEvent>,
+) {
     // Mounted per connection: a restart is a new process, and the catalogue
     // it fetches (or, with a fresh cache under `home`, does not) is part of
     // what "restart" means.
@@ -1130,7 +1198,9 @@ async fn connection_at(
 }
 
 fn thread_texts(thread: &atlas_acp_thread::AcpThreadHandle) -> Vec<(String, String)> {
-    let locked = thread.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let locked = thread
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     locked
         .entries()
         .iter()
@@ -1180,7 +1250,10 @@ async fn a_reopened_session_replays_its_whole_conversation() {
             .session_id()
             .clone();
         let response = connection
-            .prompt(acp::PromptRequest::new(id.clone(), text("what is the answer?")))
+            .prompt(acp::PromptRequest::new(
+                id.clone(),
+                text("what is the answer?"),
+            ))
             .await
             .expect("the turn should complete");
         assert_eq!(response.stop_reason, acp::StopReason::EndTurn);
@@ -1258,7 +1331,10 @@ async fn undo_rewinds_the_engine_and_trims_the_transcript_to_match() {
     push_user(&thread, "u1", "first question");
     let _ = h
         .connection
-        .prompt(acp::PromptRequest::new(session_id.clone(), text("first question")))
+        .prompt(acp::PromptRequest::new(
+            session_id.clone(),
+            text("first question"),
+        ))
         .await
         .expect("the first turn should complete");
 
@@ -1272,7 +1348,10 @@ async fn undo_rewinds_the_engine_and_trims_the_transcript_to_match() {
 
     let all = format!(
         "{:?}",
-        thread.lock().unwrap_or_else(std::sync::PoisonError::into_inner).entries()
+        thread
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .entries()
     );
     assert!(
         !all.contains("first question") && !all.contains("a regrettable answer"),
@@ -1310,7 +1389,10 @@ async fn goal_set_is_confirmed_and_readable_back() {
         .await
         .expect("bare /goal should succeed");
     assert!(
-        h.assistant_text().matches("ship the port by friday").count() >= 2,
+        h.assistant_text()
+            .matches("ship the port by friday")
+            .count()
+            >= 2,
         "bare /goal must read the goal back: {}",
         h.assistant_text(),
     );
@@ -1352,8 +1434,7 @@ async fn review_runs_inline_on_this_thread_and_this_model() {
 
     let body = h.last_request_body().await;
     assert_eq!(
-        body["model"],
-        FIXTURE_DEFAULT,
+        body["model"], FIXTURE_DEFAULT,
         "the review must run on the session's model, not a reviewer pin",
     );
     assert!(
@@ -1445,7 +1526,10 @@ async fn cancel_from_a_runtime_less_thread_interrupts_instead_of_aborting() {
     let prompt_session = session_id.clone();
     let turn = tokio::spawn(async move {
         connection
-            .prompt(acp::PromptRequest::new(prompt_session, text("take your time")))
+            .prompt(acp::PromptRequest::new(
+                prompt_session,
+                text("take your time"),
+            ))
             .await
     });
 
@@ -1494,7 +1578,10 @@ async fn compact_is_visible_in_the_thread_not_a_silent_shrug() {
     let session_id = h.open_thread().await;
     let _ = h
         .connection
-        .prompt(acp::PromptRequest::new(session_id.clone(), text("hello there")))
+        .prompt(acp::PromptRequest::new(
+            session_id.clone(),
+            text("hello there"),
+        ))
         .await
         .expect("the first turn should complete");
 
@@ -1520,7 +1607,10 @@ async fn compact_is_visible_in_the_thread_not_a_silent_shrug() {
             .entries()
             .iter()
             .any(|entry| {
-                matches!(entry, atlas_acp_thread::AgentThreadEntry::ContextCompaction(_))
+                matches!(
+                    entry,
+                    atlas_acp_thread::AgentThreadEntry::ContextCompaction(_)
+                )
             });
         if has_compaction {
             seen = true;
@@ -1590,7 +1680,9 @@ async fn an_executed_command_appears_as_a_tool_call_with_its_output() {
         .last()
         .cloned()
         .expect("thread");
-    let locked = thread.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let locked = thread
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let call = locked
         .entries()
         .iter()
@@ -1609,4 +1701,117 @@ async fn an_executed_command_appears_as_a_tool_call_with_its_output() {
         rendered.contains("checkpoint-proof"),
         "the command's real output must be on the row: {rendered}",
     );
+}
+
+#[path = "support/memory_server.rs"]
+mod memory_server;
+
+/// A completion that asks for one tool call and stops.
+fn tool_call(name: &str, arguments: &str) -> String {
+    let call = serde_json::json!({
+        "id": "chatcmpl-1",
+        "object": "chat.completion.chunk",
+        "choices": [{"index": 0, "delta": {"tool_calls": [{
+            "index": 0, "id": "call-mem", "type": "function",
+            "function": {"name": name, "arguments": arguments},
+        }]}, "finish_reason": null}],
+    })
+    .to_string();
+    let finish =
+        r#"{"id":"chatcmpl-1","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}"#;
+    frames(&[&call, finish, "[DONE]"])
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_memory_servers_tools_reach_the_gateway_and_a_call_runs() {
+    // The shipped regression: the engine connected to the memory server, but
+    // this wire dropped every MCP tool on the way out, so the model never saw
+    // `memory_search`. The Responses-wire test could not catch it — that wire
+    // carries namespaces as they are.
+    let (url, calls) = memory_server::start().await;
+    let offering = Arc::new(memory_server::OfferingMemory {
+        url,
+        asked: std::sync::Mutex::new(Vec::new()),
+        settled: Arc::default(),
+    });
+    let h = harness_full(
+        vec![
+            (
+                Some(1),
+                sse_ok(tool_call(
+                    "mcp__atlas_memory__memory_search",
+                    r#"{"query":"how do we sign tokens"}"#,
+                )),
+            ),
+            (None, sse_ok(answer("grounded answer"))),
+        ],
+        Arc::new(StaticToken),
+        Some(offering as Arc<dyn atlas_agent_servers::SessionMcpServers>),
+    )
+    .await;
+    let session_id = h.open_thread().await;
+
+    let response = match h
+        .connection
+        .prompt(acp::PromptRequest::new(
+            session_id,
+            text("how do we sign tokens?"),
+        ))
+        .await
+    {
+        Ok(response) => response,
+        Err(err) => panic!("the turn should complete: {err:#}"),
+    };
+    assert_eq!(response.stop_reason, acp::StopReason::EndTurn);
+
+    let Some(received) = h.server.received_requests().await else {
+        panic!("the mock server must be recording requests");
+    };
+    let bodies: Vec<Value> = received
+        .iter()
+        .filter(|r| r.url.path().ends_with("/chat/completions"))
+        .filter_map(|r| serde_json::from_slice(&r.body).ok())
+        .collect();
+    let offered: Vec<String> = bodies[0]["tools"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|t| t["function"]["name"].as_str().map(str::to_string))
+        .collect();
+    assert!(
+        offered
+            .iter()
+            .any(|n| n == "mcp__atlas_memory__memory_search"),
+        "the model must be offered the memory tool: {offered:?}",
+    );
+
+    let calls = calls
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone();
+    assert_eq!(
+        calls.len(),
+        1,
+        "the engine should have run memory_search once: {calls:?}"
+    );
+    assert_eq!(calls[0].0, "Bearer session-token");
+    assert_eq!(
+        calls[0].1,
+        serde_json::json!({"query": "how do we sign tokens"})
+    );
+
+    // The follow-up replays the call under the name the model used.
+    let replayed: Vec<String> = bodies[1]["messages"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|m| m["tool_calls"].as_array())
+        .flatten()
+        .filter_map(|c| c["function"]["name"].as_str().map(str::to_string))
+        .collect();
+    assert_eq!(
+        replayed,
+        vec!["mcp__atlas_memory__memory_search".to_string()]
+    );
+    assert!(h.assistant_text().contains("grounded answer"));
 }

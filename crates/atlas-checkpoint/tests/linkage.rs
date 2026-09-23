@@ -5,10 +5,11 @@
 //! a silently missing or silently wrong Checkpoint — so each is asserted on the
 //! stored rows rather than on the code path that produced them.
 
-use std::path::Path;
-use std::process::Command;
+mod support;
 
-use atlas_checkpoint::model::WorkspaceMode;
+use std::path::Path;
+
+use atlas_checkpoint::model::ProjectMode;
 use atlas_checkpoint::tools::{resolve_path, ToolName};
 use atlas_checkpoint::{
     hash_written_content, walk_new_commits, Capture, FileWrite, SessionKey, Source, Store,
@@ -24,10 +25,10 @@ struct Fixture {
 
 impl Fixture {
     fn new() -> Self {
-        let fixture = Self { dir: tempfile::tempdir().unwrap() };
-        fixture.git(&["init", "--initial-branch=main"]);
-        fixture.git(&["config", "user.name", "Test Developer"]);
-        fixture.git(&["config", "user.email", "dev@example.com"]);
+        let fixture = Self {
+            dir: tempfile::tempdir().unwrap(),
+        };
+        support::init_repo(fixture.path());
         fixture
     }
 
@@ -36,18 +37,7 @@ impl Fixture {
     }
 
     fn git(&self, args: &[&str]) -> String {
-        let output = Command::new("git")
-            .arg("-C")
-            .arg(self.path())
-            .args(args)
-            .output()
-            .expect("git runs");
-        assert!(
-            output.status.success(),
-            "git {args:?} failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-        String::from_utf8_lossy(&output.stdout).into_owned()
+        support::git(self.path(), args)
     }
 
     fn write(&self, path: &str, content: &str) {
@@ -67,7 +57,7 @@ impl Fixture {
     /// Commit with an explicit (historical) commit date.
     fn commit_all_at(&self, message: &str, date: &str) -> String {
         self.git(&["add", "-A"]);
-        let output = Command::new("git")
+        let output = support::git_command()
             .arg("-C")
             .arg(self.path())
             .env("GIT_COMMITTER_DATE", date)
@@ -88,7 +78,7 @@ impl Fixture {
     }
 
     fn walk(&self, store: &Store) -> atlas_checkpoint::WalkOutcome {
-        walk_new_commits(store, WORKSPACE, self.path(), WorkspaceMode::Local).expect("walk")
+        walk_new_commits(store, WORKSPACE, self.path(), ProjectMode::Local).expect("walk")
     }
 }
 
@@ -101,7 +91,15 @@ fn session_wrote(
     content: &str,
     existed_before: bool,
 ) -> String {
-    session_touched(fixture, store, native_id, path, Some(content), existed_before, false)
+    session_touched(
+        fixture,
+        store,
+        native_id,
+        path,
+        Some(content),
+        existed_before,
+        false,
+    )
 }
 
 /// Record a Session that touched `path`; `content` of `None` means a deletion.
@@ -115,14 +113,21 @@ fn session_touched(
     existed_before: bool,
     deleted: bool,
 ) -> String {
-    let mut capture = Capture::new(store, WorkspaceMode::Local);
+    let mut capture = Capture::new(store, ProjectMode::Local);
     let key = SessionKey {
         workspace_id: WORKSPACE.to_string(),
         source: Source::Acp,
         native_session_id: native_id.to_string(),
     };
     let session_id = capture
-        .record_prompt(&key, &format!("work on {path}"), 1, Some("claude-code"), None, None)
+        .record_prompt(
+            &key,
+            &format!("work on {path}"),
+            1,
+            Some("claude-code"),
+            None,
+            None,
+        )
         .expect("prompt");
 
     let call = capture
@@ -172,7 +177,14 @@ fn committing_after_the_agent_modified_an_existing_file_produces_a_checkpoint() 
     fixture.walk(&store); // establish the cursor
 
     fixture.write("src/lib.rs", "agent version");
-    let session = session_wrote(&fixture, &mut store, "s1", "src/lib.rs", "agent version", true);
+    let session = session_wrote(
+        &fixture,
+        &mut store,
+        "s1",
+        "src/lib.rs",
+        "agent version",
+        true,
+    );
     let commit = fixture.commit_all("agent change");
 
     let outcome = fixture.walk(&store);
@@ -217,8 +229,14 @@ fn a_human_tweak_to_agent_output_still_produces_a_checkpoint() {
     fixture.walk(&store);
 
     fixture.write("README.md", "intro\nagent sentence\n");
-    let session =
-        session_wrote(&fixture, &mut store, "s1", "README.md", "intro\nagent sentence\n", true);
+    let session = session_wrote(
+        &fixture,
+        &mut store,
+        "s1",
+        "README.md",
+        "intro\nagent sentence\n",
+        true,
+    );
 
     // The developer changes one word before committing.
     fixture.write("README.md", "intro\nagent SENTENCE\n");
@@ -259,8 +277,14 @@ fn the_same_tweak_survives_even_when_the_touch_claims_the_agent_created_the_file
     fixture.walk(&store);
 
     fixture.write("README.md", "intro\nagent sentence\n");
-    let session =
-        session_wrote(&fixture, &mut store, "s1", "README.md", "intro\nagent sentence\n", false);
+    let session = session_wrote(
+        &fixture,
+        &mut store,
+        "s1",
+        "README.md",
+        "intro\nagent sentence\n",
+        false,
+    );
 
     fixture.write("README.md", "intro\nagent SENTENCE\n");
     let commit = fixture.commit_all("README: agent sentence, reworded");
@@ -342,7 +366,10 @@ fn a_commit_unrelated_to_any_session_produces_no_checkpoint_and_no_error() {
 
     let outcome = fixture.walk(&store);
     assert_eq!(outcome.commits_seen, 1);
-    assert_eq!(outcome.checkpoints_created, 0, "the ordinary case, not an error");
+    assert_eq!(
+        outcome.checkpoints_created, 0,
+        "the ordinary case, not an error"
+    );
 }
 
 // ── Cardinality ─────────────────────────────────────────────────────────────
@@ -359,9 +386,23 @@ fn two_sessions_contributing_to_one_commit_produce_two_checkpoints() {
     fixture.walk(&store);
 
     fixture.write("a.rs", "changed by first agent");
-    let first = session_wrote(&fixture, &mut store, "s1", "a.rs", "changed by first agent", true);
+    let first = session_wrote(
+        &fixture,
+        &mut store,
+        "s1",
+        "a.rs",
+        "changed by first agent",
+        true,
+    );
     fixture.write("b.rs", "changed by second agent");
-    let second = session_wrote(&fixture, &mut store, "s2", "b.rs", "changed by second agent", true);
+    let second = session_wrote(
+        &fixture,
+        &mut store,
+        "s2",
+        "b.rs",
+        "changed by second agent",
+        true,
+    );
 
     let commit = fixture.commit_all("both agents");
     let outcome = fixture.walk(&store);
@@ -391,8 +432,24 @@ fn one_session_spanning_several_commits_produces_one_checkpoint_each() {
     fixture.walk(&store);
 
     let session = session_wrote(&fixture, &mut store, "s1", "src/a.rs", "agent a", true);
-    session_touched(&fixture, &mut store, "s1", "src/b.rs", Some("agent b"), true, false);
-    session_touched(&fixture, &mut store, "s1", "src/c.rs", Some("agent c"), true, false);
+    session_touched(
+        &fixture,
+        &mut store,
+        "s1",
+        "src/b.rs",
+        Some("agent b"),
+        true,
+        false,
+    );
+    session_touched(
+        &fixture,
+        &mut store,
+        "s1",
+        "src/c.rs",
+        Some("agent c"),
+        true,
+        false,
+    );
 
     for (path, content, message) in [
         ("src/a.rs", "agent a", "first"),
@@ -406,6 +463,70 @@ fn one_session_spanning_several_commits_produces_one_checkpoint_each() {
     fixture.walk(&store);
     let checkpoints = store.checkpoints_for_session(&session).unwrap();
     assert_eq!(checkpoints.len(), 3);
+}
+
+#[test]
+fn one_turn_writing_several_new_files_committed_together_produces_one_checkpoint() {
+    // The (Session, commit) pair is the identity, so two files from separate
+    // tool calls in one turn must not become two Checkpoints on one commit.
+    let fixture = Fixture::new();
+    fixture.write("seed", "seed");
+    fixture.commit_all("initial");
+    let mut store = fixture.store();
+    fixture.walk(&store);
+
+    let one = "pub fn one() {}\n";
+    fixture.write("src/one.rs", one);
+    let session = session_wrote(&fixture, &mut store, "s1", "src/one.rs", one, false);
+
+    // A second tool call in the same turn.
+    let two = "pub fn two() {}\n";
+    fixture.write("src/two.rs", two);
+    let mut capture = Capture::new(&mut store, ProjectMode::Local);
+    let call = capture
+        .record_tool_call(
+            &session,
+            ToolCallContent {
+                turn_seq: 1,
+                native_call_id: Some("s1-two"),
+                tool_name: ToolName::Write,
+                title: None,
+                kind: Some("edit"),
+                status: ToolStatus::Completed,
+                locations: &serde_json::json!([]),
+                arguments: None,
+                result: None,
+            },
+        )
+        .expect("tool call");
+    let resolved = resolve_path("src/two.rs", fixture.path());
+    capture
+        .record_file_write(
+            &session,
+            &call,
+            1,
+            FileWrite {
+                path: &resolved,
+                sha256_after: Some(hash_written_content(two.as_bytes())),
+                sketch_after: atlas_checkpoint::sketch::sketch(two.as_bytes()),
+                existed_before: false,
+                deleted: false,
+            },
+        )
+        .expect("file write");
+
+    let commit = fixture.commit_all("add both");
+    fixture.walk(&store);
+
+    let checkpoints = store.checkpoints_for_session(&session).unwrap();
+    assert_eq!(checkpoints.len(), 1, "one commit should be one Checkpoint");
+    assert_eq!(checkpoints[0].commit_sha, commit);
+    let mut files = checkpoints[0].files_touched.clone();
+    files.sort();
+    assert_eq!(
+        files,
+        vec!["src/one.rs".to_string(), "src/two.rs".to_string()]
+    );
 }
 
 #[test]
@@ -438,7 +559,14 @@ fn the_initial_commit_links_only_files_whose_blobs_match_what_the_agent_wrote() 
     fixture.write("kept.rs", matching);
     let kept = session_wrote(&fixture, &mut store, "s1", "kept.rs", matching, false);
 
-    let replaced = session_wrote(&fixture, &mut store, "s2", "replaced.rs", "agent wrote this", false);
+    let replaced = session_wrote(
+        &fixture,
+        &mut store,
+        "s2",
+        "replaced.rs",
+        "agent wrote this",
+        false,
+    );
     fixture.write("replaced.rs", "human wrote this instead");
 
     fixture.commit_all("initial");
@@ -528,7 +656,11 @@ fn a_rename_only_commit_links_via_the_pre_rename_path() {
     fixture.walk(&store);
 
     let checkpoints = store.checkpoints_for_session(&session).unwrap();
-    assert_eq!(checkpoints.len(), 1, "the rename commit links via the pre-rename path");
+    assert_eq!(
+        checkpoints.len(),
+        1,
+        "the rename commit links via the pre-rename path"
+    );
     assert_eq!(checkpoints[0].commit_sha, commit);
 }
 
@@ -572,8 +704,15 @@ fn commits_on_a_detached_head_produce_checkpoints_with_an_empty_branch() {
 
     fixture.walk(&store);
     let checkpoints = store.checkpoints_for_session(&session).unwrap();
-    assert_eq!(checkpoints.len(), 1, "detached HEAD still produces Checkpoints");
-    assert_eq!(checkpoints[0].branch, None, "the branch field is simply empty");
+    assert_eq!(
+        checkpoints.len(),
+        1,
+        "detached HEAD still produces Checkpoints"
+    );
+    assert_eq!(
+        checkpoints[0].branch, None,
+        "the branch field is simply empty"
+    );
 }
 
 // ── Recorded facts ──────────────────────────────────────────────────────────
@@ -599,7 +738,10 @@ fn the_checkpoint_records_the_git_author_verbatim_and_the_commits_line_counts() 
     fixture.walk(&store);
     let checkpoint = &store.checkpoints_for_session(&session).unwrap()[0];
     assert_eq!(checkpoint.git_author_name.as_deref(), Some("Adib"));
-    assert_eq!(checkpoint.git_author_email.as_deref(), Some("adib@example.com"));
+    assert_eq!(
+        checkpoint.git_author_email.as_deref(),
+        Some("adib@example.com")
+    );
     assert_eq!(checkpoint.insertions, 1);
     assert_eq!(checkpoint.deletions, 0);
     assert_eq!(checkpoint.branch.as_deref(), Some("main"));
@@ -657,8 +799,8 @@ fn commits_made_while_atlas_was_closed_are_picked_up_on_the_next_walk() {
 }
 
 #[test]
-fn a_workspace_that_never_had_a_watcher_is_still_linked_by_the_open_time_walk() {
-    // A watcher exists only for a Workspace activated at least once this app
+fn a_project_that_never_had_a_watcher_is_still_linked_by_the_open_time_walk() {
+    // A watcher exists only for a Project activated at least once this app
     // session, so this walk is the primary mechanism, not a fallback.
     let fixture = Fixture::new();
     fixture.write("src/lib.rs", "original");
@@ -678,7 +820,7 @@ fn a_workspace_that_never_had_a_watcher_is_still_linked_by_the_open_time_walk() 
 #[test]
 fn a_cursor_that_no_longer_resolves_recovers_by_re_scanning_rather_than_stopping() {
     // `rev-list gone..HEAD` fails outright, after which detection would silently
-    // stop forever for this Workspace.
+    // stop forever for this Project.
     let fixture = Fixture::new();
     fixture.write("src/lib.rs", "original");
     fixture.commit_all("initial");
@@ -745,7 +887,7 @@ fn a_non_git_directory_produces_sessions_and_no_checkpoints() {
     let dir = tempfile::tempdir().unwrap();
     let mut store = Store::open(dir.path().join(".atlas")).unwrap();
 
-    let mut capture = Capture::new(&mut store, WorkspaceMode::Local);
+    let mut capture = Capture::new(&mut store, ProjectMode::Local);
     let session = capture
         .record_prompt(
             &SessionKey {
@@ -762,11 +904,11 @@ fn a_non_git_directory_produces_sessions_and_no_checkpoints() {
         .unwrap();
 
     let outcome =
-        walk_new_commits(&store, WORKSPACE, dir.path(), WorkspaceMode::Local).expect("no error");
+        walk_new_commits(&store, WORKSPACE, dir.path(), ProjectMode::Local).expect("no error");
     assert_eq!(outcome.commits_seen, 0);
     assert!(store.checkpoints_for_session(&session).unwrap().is_empty());
     // The Session itself is perfectly real.
-    assert_eq!(store.sessions_for_workspace(WORKSPACE).unwrap().len(), 1);
+    assert_eq!(store.sessions_for_project(WORKSPACE).unwrap().len(), 1);
 }
 
 #[test]
@@ -818,7 +960,14 @@ fn a_later_human_commit_to_the_same_path_does_not_link() {
     fixture.walk(&store);
 
     fixture.write("src/lib.rs", "agent version");
-    let session = session_wrote(&fixture, &mut store, "s1", "src/lib.rs", "agent version", true);
+    let session = session_wrote(
+        &fixture,
+        &mut store,
+        "s1",
+        "src/lib.rs",
+        "agent version",
+        true,
+    );
     fixture.commit_all("agent change");
     fixture.walk(&store);
     assert_eq!(store.checkpoints_for_session(&session).unwrap().len(), 1);
@@ -846,7 +995,14 @@ fn a_replaced_new_file_settles_the_path_so_later_commits_do_not_link() {
     let mut store = fixture.store();
     fixture.walk(&store);
 
-    let session = session_wrote(&fixture, &mut store, "s1", "src/new.rs", "agent wrote this", false);
+    let session = session_wrote(
+        &fixture,
+        &mut store,
+        "s1",
+        "src/new.rs",
+        "agent wrote this",
+        false,
+    );
     fixture.write("src/new.rs", "human wrote this instead");
     fixture.commit_all("my own implementation");
     fixture.walk(&store);
@@ -877,7 +1033,14 @@ fn a_recovery_re_scan_never_links_commits_that_predate_the_session() {
     fixture.commit_all_at("ancient 2", "2020-01-02T00:00:00Z");
 
     let mut store = fixture.store();
-    let session = session_wrote(&fixture, &mut store, "s1", "src/lib.rs", "agent version", true);
+    let session = session_wrote(
+        &fixture,
+        &mut store,
+        "s1",
+        "src/lib.rs",
+        "agent version",
+        true,
+    );
 
     // First walk: no cursor, so the bounded re-scan examines the historical
     // commits — same path, but they predate the Session.
@@ -913,7 +1076,14 @@ fn side_branch_commits_made_while_atlas_was_closed_are_linked_at_the_merge_walk(
     fixture.write("side.rs", "original\n");
     fixture.commit_all("side base");
     fixture.write("side.rs", "agent change\n");
-    let session = session_wrote(&fixture, &mut store, "s1", "side.rs", "agent change\n", true);
+    let session = session_wrote(
+        &fixture,
+        &mut store,
+        "s1",
+        "side.rs",
+        "agent change\n",
+        true,
+    );
     let side_commit = fixture.commit_all("agent work on side");
 
     fixture.git(&["checkout", "main"]);
@@ -924,8 +1094,15 @@ fn side_branch_commits_made_while_atlas_was_closed_are_linked_at_the_merge_walk(
 
     fixture.walk(&store);
     let checkpoints = store.checkpoints_for_session(&session).unwrap();
-    assert_eq!(checkpoints.len(), 1, "the side-branch work links exactly once");
-    assert_eq!(checkpoints[0].commit_sha, side_commit, "at the commit that produced it");
+    assert_eq!(
+        checkpoints.len(),
+        1,
+        "the side-branch work links exactly once"
+    );
+    assert_eq!(
+        checkpoints[0].commit_sha, side_commit,
+        "at the commit that produced it"
+    );
     assert!(
         store.checkpoints_for_commit(&merge).unwrap().is_empty(),
         "the merge commit itself gets no Checkpoint"
@@ -984,7 +1161,10 @@ fn the_first_walk_with_nothing_to_link_just_records_the_cursor() {
     let store = fixture.store();
     let outcome = fixture.walk(&store);
     assert_eq!(outcome.commits_seen, 0, "no per-commit examination");
-    assert_eq!(store.commit_cursor(WORKSPACE).unwrap().as_deref(), Some(head.as_str()));
+    assert_eq!(
+        store.commit_cursor(WORKSPACE).unwrap().as_deref(),
+        Some(head.as_str())
+    );
 }
 
 // ── Imported Sessions ───────────────────────────────────────────────────────
@@ -1000,7 +1180,7 @@ fn an_imported_session_is_never_link_matched() {
     let mut store = fixture.store();
     fixture.walk(&store);
 
-    let mut capture = Capture::new(&mut store, WorkspaceMode::Local);
+    let mut capture = Capture::new(&mut store, ProjectMode::Local);
     let imported = capture
         .record_prompt(
             &SessionKey {
@@ -1028,7 +1208,7 @@ fn an_imported_session_is_never_link_matched() {
 /// A Session whose prompt has been recorded — and nothing else yet. The #31
 /// ordering needs the Session to predate the commit, as it does in production.
 fn session_started(store: &mut Store, native_id: &str) -> String {
-    let mut capture = Capture::new(store, WorkspaceMode::Local);
+    let mut capture = Capture::new(store, ProjectMode::Local);
     let key = SessionKey {
         workspace_id: WORKSPACE.to_string(),
         source: Source::Acp,
@@ -1048,7 +1228,7 @@ fn session_touched_existing(
     content: &str,
     existed_before: bool,
 ) {
-    let mut capture = Capture::new(store, WorkspaceMode::Local);
+    let mut capture = Capture::new(store, ProjectMode::Local);
     let call = capture
         .record_tool_call(
             session_id,
@@ -1119,7 +1299,10 @@ fn a_commit_the_cursor_already_passed_links_when_evaluated_directly() {
 
     // …and a second ordinary walk cannot help: the cursor is already past.
     let outcome = fixture.walk(&store);
-    assert_eq!(outcome.checkpoints_created, 0, "the cursor never looks back");
+    assert_eq!(
+        outcome.checkpoints_created, 0,
+        "the cursor never looks back"
+    );
 
     // Targeted evaluation is what links it.
     let created = atlas_checkpoint::link_commits(
@@ -1127,7 +1310,7 @@ fn a_commit_the_cursor_already_passed_links_when_evaluated_directly() {
         WORKSPACE,
         fixture.path(),
         std::slice::from_ref(&sha),
-        WorkspaceMode::Local,
+        ProjectMode::Local,
     )
     .expect("evaluation runs");
     assert_eq!(created, 1);
@@ -1151,7 +1334,14 @@ fn re_evaluating_the_same_commit_is_idempotent() {
     fixture.write("made.txt", "content");
     let sha = fixture.commit_all("agent: add");
     fixture.walk(&store);
-    session_touched_existing(&mut store, fixture.path(), &session_id, "made.txt", "content", false);
+    session_touched_existing(
+        &mut store,
+        fixture.path(),
+        &session_id,
+        "made.txt",
+        "content",
+        false,
+    );
 
     for _ in 0..2 {
         atlas_checkpoint::link_commits(
@@ -1159,10 +1349,16 @@ fn re_evaluating_the_same_commit_is_idempotent() {
             WORKSPACE,
             fixture.path(),
             std::slice::from_ref(&sha),
-            WorkspaceMode::Local,
+            ProjectMode::Local,
         )
         .expect("evaluation runs");
     }
 
-    assert_eq!(store.checkpoints_for_session(&session_id).expect("query").len(), 1);
+    assert_eq!(
+        store
+            .checkpoints_for_session(&session_id)
+            .expect("query")
+            .len(),
+        1
+    );
 }

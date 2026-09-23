@@ -307,9 +307,12 @@ fn reasoning_is_dropped_because_this_wire_cannot_carry_it() {
         message("user", "hi"),
     ];
     let built = build("claude-sonnet-4-6", &items, &[]);
-    let body = serde_json::to_string(&built.request)
-        .unwrap_or_else(|err| panic!("serialize: {err}"));
-    assert!(!body.contains("opaque"), "reasoning must not reach the wire");
+    let body =
+        serde_json::to_string(&built.request).unwrap_or_else(|err| panic!("serialize: {err}"));
+    assert!(
+        !body.contains("opaque"),
+        "reasoning must not reach the wire"
+    );
     assert_eq!(built.request.messages.len(), 2, "system + user");
 }
 
@@ -493,8 +496,8 @@ fn not_one_of_the_ten_responses_fields_reaches_the_wire() {
     // builder populates that object with `reasoning_summary_delivery`, a key
     // legal nowhere here. A top-level key check would not catch it coming back
     // as a nested field of something else.
-    let rendered = serde_json::to_string(&built.request)
-        .unwrap_or_else(|err| panic!("serialize: {err}"));
+    let rendered =
+        serde_json::to_string(&built.request).unwrap_or_else(|err| panic!("serialize: {err}"));
     assert!(
         !rendered.contains("stream_options"),
         "`stream_options` must not appear at any depth: {rendered}",
@@ -503,7 +506,10 @@ fn not_one_of_the_ten_responses_fields_reaches_the_wire() {
     // Not vacuous: the body really did carry a turn with a tool round trip, so
     // the assertions above ran against a fully populated request.
     assert!(rendered.contains("\"tool_calls\"") && rendered.contains("\"messages\""));
-    assert!(rendered.contains("\"type\":\"text\""), "content parts still use `text`");
+    assert!(
+        rendered.contains("\"type\":\"text\""),
+        "content parts still use `text`"
+    );
 }
 
 fn image_message(text: &str, url: &str) -> ResponseItem {
@@ -548,8 +554,8 @@ fn an_image_survives_the_turn_it_was_attached_to_and_the_one_after() {
         message("user", "and what colour"),
     ];
     let built = build("claude-sonnet-4-6", &items, &[]);
-    let rendered = serde_json::to_string(&built.request)
-        .unwrap_or_else(|err| panic!("serialize: {err}"));
+    let rendered =
+        serde_json::to_string(&built.request).unwrap_or_else(|err| panic!("serialize: {err}"));
     assert!(
         rendered.contains("AAAA"),
         "the image is still one turn old and is still being discussed",
@@ -569,8 +575,8 @@ fn an_older_image_is_described_rather_than_re_uploaded() {
         message("user", "thanks"),
     ];
     let built = build("claude-sonnet-4-6", &items, &[]);
-    let rendered = serde_json::to_string(&built.request)
-        .unwrap_or_else(|err| panic!("serialize: {err}"));
+    let rendered =
+        serde_json::to_string(&built.request).unwrap_or_else(|err| panic!("serialize: {err}"));
 
     assert!(
         !rendered.contains("OLDBYTES"),
@@ -590,10 +596,257 @@ fn an_older_image_is_described_rather_than_re_uploaded() {
 fn eviction_never_takes_the_only_image_in_a_first_turn() {
     // The commonest case by far: one image, one prompt, no history. Evicting
     // here would mean the model never sees the thing it was asked about.
-    let items = [image_message("what is this", "data:image/png;base64,ONLYONE")];
+    let items = [image_message(
+        "what is this",
+        "data:image/png;base64,ONLYONE",
+    )];
     let built = build("claude-sonnet-4-6", &items, &[]);
-    let rendered = serde_json::to_string(&built.request)
-        .unwrap_or_else(|err| panic!("serialize: {err}"));
+    let rendered =
+        serde_json::to_string(&built.request).unwrap_or_else(|err| panic!("serialize: {err}"));
     assert!(rendered.contains("ONLYONE"));
     assert!(!rendered.contains("earlier image omitted"));
+}
+
+#[test]
+fn a_namespace_tool_is_flattened_into_functions_and_mapped_for_the_way_back() {
+    // MCP servers reach the engine as one `namespace` tool per server. This
+    // wire has no namespaces, so dropping it (as it once did) hid every MCP
+    // tool from the model: the shared-memory server was connected and offered,
+    // and the model never saw `memory_search`.
+    let tools = [json!({
+        "type": "namespace",
+        "name": "mcp__atlas_memory__",
+        "description": "Tools in the mcp__atlas_memory__ namespace.",
+        "tools": [
+            {
+                "type": "function",
+                "name": "memory_search",
+                "description": "Search shared memory.",
+                "strict": false,
+                "parameters": {"type": "object", "properties": {"query": {"type": "string"}}},
+            },
+            {
+                "type": "custom",
+                "name": "grammar_tool",
+                "description": "freeform",
+                "format": {"type": "grammar", "syntax": "lark", "definition": "start: ..."},
+            },
+        ],
+    })];
+    let items = [message("user", "hi")];
+    let built = build("claude-sonnet-4-6", &items, &tools);
+
+    let Some(tools) = built.request.tools else {
+        panic!("the namespace's tools must survive the reshape");
+    };
+    assert_eq!(tools.len(), 2);
+    assert_eq!(
+        tools[0]["function"]["name"],
+        json!("mcp__atlas_memory__memory_search")
+    );
+    assert_eq!(
+        tools[0]["function"]["parameters"]["properties"]["query"]["type"],
+        json!("string")
+    );
+    assert_eq!(
+        tools[1]["function"]["name"],
+        json!("mcp__atlas_memory__grammar_tool")
+    );
+    assert_eq!(
+        built
+            .namespaced_tools
+            .get("mcp__atlas_memory__memory_search"),
+        Some(&NamespacedTool {
+            namespace: "mcp__atlas_memory__".to_string(),
+            name: "memory_search".to_string(),
+        })
+    );
+    assert!(
+        built
+            .freeform_tools
+            .contains("mcp__atlas_memory__grammar_tool")
+    );
+}
+
+#[test]
+fn a_namespace_without_a_trailing_separator_gets_one() {
+    assert_eq!(flat_tool_name("orders", "lookup"), "orders__lookup");
+    assert_eq!(
+        flat_tool_name("mcp__orders__", "lookup"),
+        "mcp__orders__lookup"
+    );
+}
+
+#[test]
+fn a_flat_name_is_kept_to_what_every_provider_accepts() {
+    let long = "x".repeat(80);
+    let flat = flat_tool_name("mcp__a.b c__", &long);
+    assert!(flat.len() <= 64, "{flat}");
+    assert!(
+        flat.chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-'),
+        "{flat}"
+    );
+    assert_eq!(
+        flat,
+        flat_tool_name("mcp__a.b c__", &long),
+        "must be stable"
+    );
+    assert_ne!(flat, flat_tool_name("mcp__a.b c__", &"y".repeat(80)));
+}
+
+#[test]
+fn a_replayed_namespaced_call_goes_back_under_its_flat_name() {
+    // The model must see the same name it called, or its own history
+    // references a tool that does not exist.
+    let items = [
+        message("user", "hi"),
+        ResponseItem::FunctionCall {
+            id: None,
+            name: "memory_search".to_string(),
+            namespace: Some("mcp__atlas_memory__".to_string()),
+            arguments: r#"{"query":"jwt"}"#.to_string(),
+            encrypted_function_args: None,
+            call_id: "c1".to_string(),
+            internal_chat_message_metadata_passthrough: None,
+        },
+        output("c1", "[]"),
+    ];
+    let built = build("claude-sonnet-4-6", &items, &[]);
+    let body = body_of(&built);
+    let calls: Vec<&Value> = body["messages"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|m| m.get("tool_calls"))
+        .collect();
+    assert_eq!(
+        calls[0][0]["function"]["name"],
+        json!("mcp__atlas_memory__memory_search")
+    );
+}
+
+#[test]
+fn a_call_in_the_default_namespace_keeps_its_bare_name() {
+    let items = [
+        message("user", "hi"),
+        ResponseItem::FunctionCall {
+            id: None,
+            name: "shell".to_string(),
+            namespace: Some("functions".to_string()),
+            arguments: "{}".to_string(),
+            encrypted_function_args: None,
+            call_id: "c1".to_string(),
+            internal_chat_message_metadata_passthrough: None,
+        },
+        output("c1", "ok"),
+    ];
+    let body = body_of(&build("claude-sonnet-4-6", &items, &[]));
+    let calls: Vec<&Value> = body["messages"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|m| m.get("tool_calls"))
+        .collect();
+    assert_eq!(calls[0][0]["function"]["name"], json!("shell"));
+}
+
+/// Everything before the newest user message is the prompt's cacheable prefix.
+/// If any of it is re-rendered between two turns of one thread, caching misses
+/// on a prefix that only Atlas changed — and the whole transcript is re-read
+/// at full price. Byte identity is the property, so these compare serialized
+/// text rather than `Value`: a key-order change would slip past `Value`
+/// equality and still cost the hit.
+#[test]
+fn a_second_turn_repeats_the_first_turns_prefix_byte_for_byte() {
+    let tools = [json!({
+        "type": "function",
+        "name": "shell",
+        "description": "Run a command.",
+        "strict": false,
+        "parameters": {"type": "object", "properties": {"command": {"type": "string"}}},
+    })];
+
+    let turn_1 = [
+        message("user", "what does this project build?"),
+        assistant("A desktop app."),
+        call("c1", "shell", "{\"command\":\"ls\"}"),
+        output("c1", "Cargo.toml"),
+        message("user", "and what tests it?"),
+    ];
+    // Turn 2 is turn 1, plus what turn 1 produced, plus the new question.
+    let mut turn_2 = turn_1.to_vec();
+    turn_2.push(assistant("Cargo and vitest."));
+    turn_2.push(message("user", "which one is slower?"));
+
+    let first = body_of(&build("claude-sonnet-4-6", &turn_1, &tools));
+    let second = body_of(&build("claude-sonnet-4-6", &turn_2, &tools));
+
+    // The tool array is prefix too, and it is where a nondeterministic
+    // ordering would show up.
+    assert_eq!(
+        serde_json::to_string(&first["tools"]).expect("tools serialize"),
+        serde_json::to_string(&second["tools"]).expect("tools serialize"),
+    );
+    assert_eq!(first["model"], second["model"]);
+    assert_eq!(first["max_tokens"], second["max_tokens"]);
+
+    let (first_messages, second_messages) = (
+        first["messages"].as_array().expect("messages"),
+        second["messages"].as_array().expect("messages"),
+    );
+    assert!(
+        second_messages.len() > first_messages.len(),
+        "turn 2 must extend turn 1, or this proves nothing"
+    );
+    for (index, expected) in first_messages.iter().enumerate() {
+        assert_eq!(
+            serde_json::to_string(expected).expect("message serializes"),
+            serde_json::to_string(&second_messages[index]).expect("message serializes"),
+            "message {index} was re-rendered between turns"
+        );
+    }
+}
+
+/// The same property with the memory namespace present, since a namespace is
+/// serialized as a nested tool list and is the shape most at risk of a
+/// reordering regression.
+#[test]
+fn a_namespaced_tool_list_is_identical_across_turns() {
+    let tools = [json!({
+        "type": "namespace",
+        "name": "mcp__atlas_memory__",
+        "description": "Tools in the mcp__atlas_memory__ namespace.",
+        "tools": [
+            {
+                "type": "function",
+                "name": "memory_briefing",
+                "description": "Call this first in a session.",
+                "strict": false,
+                "parameters": {"type": "object", "properties": {}},
+            },
+            {
+                "type": "function",
+                "name": "memory_search",
+                "description": "Search shared memory.",
+                "strict": false,
+                "parameters": {"type": "object", "properties": {"query": {"type": "string"}}},
+            },
+        ],
+    })];
+
+    let turn_1 = [message("user", "first")];
+    let turn_2 = [
+        message("user", "first"),
+        assistant("answered"),
+        message("user", "second"),
+    ];
+
+    let first = body_of(&build("claude-sonnet-4-6", &turn_1, &tools));
+    let second = body_of(&build("claude-sonnet-4-6", &turn_2, &tools));
+
+    assert_eq!(
+        serde_json::to_string(&first["tools"]).expect("tools serialize"),
+        serde_json::to_string(&second["tools"]).expect("tools serialize"),
+    );
 }

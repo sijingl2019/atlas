@@ -46,7 +46,7 @@ pub fn project_rollout_line(line: &RolloutLine) -> ThreadHistoryChangeSet {
                     additional_details: None,
                     // Replayed history: whatever wait this error announced is
                     // long over, so there is nothing left to count down to.
-                    retry_delay_ms: None
+                    retry_delay_ms: None,
                 }),
                 started_at: event.started_at,
                 completed_at: event.completed_at,

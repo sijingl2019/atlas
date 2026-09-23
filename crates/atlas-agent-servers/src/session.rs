@@ -195,7 +195,10 @@ impl SessionDirectories {
         })
     }
 
-    pub fn into_new_session_request(self, mcp_servers: Vec<acp::McpServer>) -> acp::NewSessionRequest {
+    pub fn into_new_session_request(
+        self,
+        mcp_servers: Vec<acp::McpServer>,
+    ) -> acp::NewSessionRequest {
         let mut request = acp::NewSessionRequest::new(self.cwd);
         request.mcp_servers = mcp_servers;
         if !self.additional_directories.is_empty() {
@@ -276,7 +279,10 @@ impl SessionRegistry {
 
     /// `Some(new_count)` when the session is known, after decrementing.
     pub fn release(&self, session_id: &acp::SessionId) -> Option<usize> {
-        let mut sessions = self.sessions.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut sessions = self
+            .sessions
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let session = sessions.get_mut(session_id)?;
         session.ref_count = session.ref_count.saturating_sub(1);
         let remaining = session.ref_count;
@@ -288,7 +294,10 @@ impl SessionRegistry {
 
     /// Adds a handle to an already-open session, if there is one.
     pub fn acquire(&self, session_id: &acp::SessionId) -> Option<Arc<Mutex<AcpThread>>> {
-        let mut sessions = self.sessions.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut sessions = self
+            .sessions
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let session = sessions.get_mut(session_id)?;
         let thread = session.thread.upgrade()?;
         session.ref_count += 1;
@@ -296,7 +305,10 @@ impl SessionRegistry {
     }
 
     pub fn pending_acquire(&self, session_id: &acp::SessionId) -> bool {
-        let mut pending = self.pending.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut pending = self
+            .pending
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         match pending.get_mut(session_id) {
             Some(entry) => {
                 entry.ref_count += 1;
@@ -323,7 +335,10 @@ impl SessionRegistry {
 
     /// `Some(new_count)` when a load is in flight, after decrementing.
     pub fn pending_release(&self, session_id: &acp::SessionId) -> Option<usize> {
-        let mut pending = self.pending.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut pending = self
+            .pending
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let entry = pending.get_mut(session_id)?;
         entry.ref_count = entry.ref_count.saturating_sub(1);
         let remaining = entry.ref_count;

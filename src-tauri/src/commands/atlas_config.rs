@@ -67,11 +67,17 @@ pub async fn update_atlas_settings(
     state: State<'_, AtlasConfigHandle>,
 ) -> Result<UpdateOutcome, String> {
     let handle = state.inner().clone();
-    let outcome = tokio::task::spawn_blocking(move || handle.lock().apply_patch(&patch, Some(expected_generation)))
-        .await
-        .map_err(|e| e.to_string())?
-        .map_err(|e| e.to_string())?;
-    if let UpdateOutcome::Applied { ref settings, generation } = outcome {
+    let outcome = tokio::task::spawn_blocking(move || {
+        handle.lock().apply_patch(&patch, Some(expected_generation))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())?;
+    if let UpdateOutcome::Applied {
+        ref settings,
+        generation,
+    } = outcome
+    {
         notify_settings_changed(&app, settings, generation);
     }
     Ok(outcome)
@@ -81,7 +87,10 @@ pub async fn update_atlas_settings(
 /// (or just unwanted) `config.toml`. Backs up whatever was there first. See
 /// `update_atlas_settings` for why this runs on a blocking thread.
 #[tauri::command]
-pub async fn reset_atlas_config(app: AppHandle, state: State<'_, AtlasConfigHandle>) -> Result<ConfigSnapshot, String> {
+pub async fn reset_atlas_config(
+    app: AppHandle,
+    state: State<'_, AtlasConfigHandle>,
+) -> Result<ConfigSnapshot, String> {
     let handle = state.inner().clone();
     let snapshot = tokio::task::spawn_blocking(move || handle.lock().reset())
         .await
@@ -95,10 +104,15 @@ pub async fn reset_atlas_config(app: AppHandle, state: State<'_, AtlasConfigHand
 /// Settings UI's error-recovery actions and for a user who just wants to
 /// hand-edit it.
 #[tauri::command]
-pub fn open_atlas_config(app: AppHandle, state: State<'_, AtlasConfigHandle>) -> Result<(), String> {
+pub fn open_atlas_config(
+    app: AppHandle,
+    state: State<'_, AtlasConfigHandle>,
+) -> Result<(), String> {
     use tauri_plugin_opener::OpenerExt;
     let path = state.lock().path().to_string_lossy().into_owned();
-    app.opener().open_path(path, None::<&str>).map_err(|e| e.to_string())
+    app.opener()
+        .open_path(path, None::<&str>)
+        .map_err(|e| e.to_string())
 }
 
 /// The one thing every committer of a new settings snapshot must do —
@@ -135,6 +149,9 @@ pub fn notify_settings_changed(app: &AppHandle, settings: &AppSettings, generati
     //    to be current before that — this covers every commit path, and
     //    `lib.rs` applies it once at boot.
     apply_curated_plugin_sync_gate(settings.curated_plugin_sync);
+    // 5. re-apply the app icon, so an external edit of `appIcon` takes
+    //    effect live like the Settings picker does. A no-op unless it changed.
+    crate::app_icon::apply(app, &settings.app_icon);
 }
 
 /// The gate for the vendored engine's curated-plugin sync
@@ -152,7 +169,10 @@ pub fn apply_curated_plugin_sync_gate(enabled: bool) {
 }
 
 fn emit_error(app: &AppHandle, error: &ConfigError) {
-    let _ = app.emit("atlas:config-error", serde_json::json!({ "error": error.to_string() }));
+    let _ = app.emit(
+        "atlas:config-error",
+        serde_json::json!({ "error": error.to_string() }),
+    );
 }
 
 /// Watch `config.toml`'s parent directory (atomic saves replace the file's
@@ -163,7 +183,7 @@ fn emit_error(app: &AppHandle, error: &ConfigError) {
 /// this is just wiring its result to Tauri events.
 ///
 /// Leaks the debouncer into a background thread for the process lifetime —
-/// there is exactly one `config.toml`, unlike the per-workspace git watcher,
+/// there is exactly one `config.toml`, unlike the per-project git watcher,
 /// so there is nothing to ever tear this down for.
 pub fn start_watcher(app: &AppHandle, handle: AtlasConfigHandle) {
     let watch_dir = {
@@ -196,7 +216,9 @@ pub fn start_watcher(app: &AppHandle, handle: AtlasConfigHandle) {
                 };
                 let touches_config = events.iter().any(|e| {
                     e.paths.iter().any(|p| {
-                        p.file_name().map(|n| n.to_string_lossy() == file_name_for_cb.as_str()).unwrap_or(false)
+                        p.file_name()
+                            .map(|n| n.to_string_lossy() == file_name_for_cb.as_str())
+                            .unwrap_or(false)
                     })
                 });
                 if !touches_config {

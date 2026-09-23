@@ -63,7 +63,10 @@ fn a_path_that_no_longer_exists_still_groups_with_itself() {
 
     assert_eq!(list, PathList::new(&[missing]));
     assert!(list.contains(missing));
-    assert_ne!(list, PathList::new(&[Path::new("/definitely/not/elsewhere")]));
+    assert_ne!(
+        list,
+        PathList::new(&[Path::new("/definitely/not/elsewhere")])
+    );
 }
 
 #[test]

@@ -2,10 +2,11 @@
 //!
 //! Per-project engine that owns a persistent **usearch HNSW** index fed by an
 //! on-device MiniLM [`provider::MiniLmProvider`] (Cersei's `EmbeddingProvider`
-//! trait), plus Cersei **graph memory** for structured facts. Retrieval fuses
-//! the two and returns [`RetrievedDoc`]s; the Tauri layer maps those onto
+//! trait). Retrieval returns [`RetrievedDoc`]s, blending in promoted global
+//! memory when local memory is sparse; the Tauri layer maps those onto
 //! `atlas_cersei::MemDoc` so the frozen `MemorySearchFn` seam — and all three
-//! agents — are unchanged.
+//! agents — are unchanged. The shared-memory record store (`record`) and the
+//! global promotion over it (`global`) live here too.
 //!
 //! This is a LOW crate: it has **no Tauri dependency** and never depends on
 //! `atlas-cersei` (the dependency only ever points the other way, app-side).
@@ -22,56 +23,43 @@ pub mod manifest;
 pub mod provider;
 pub mod store;
 
-// Step 3 (implemented): migrate (legacy index.json import, zero re-embedding).
-pub mod migrate;
-
-// Step 6 (implemented): docstore (id→display-text side-map) + retrieve (RRF fuse
-// of HNSW + graph). `retrieve` only adds an `impl MemoryEngine`, so it is a plain
-// child module (private) — it reaches the engine's private fields as a descendant.
+// Step 6 (implemented): docstore (id→display-text side-map) + retrieve (HNSW,
+// with the global blend). `retrieve` only adds an `impl MemoryEngine`, so it is a
+// plain child module (private) — it reaches the engine's private fields as a
+// descendant.
 pub mod docstore;
 mod retrieve;
 
-// Step 7 (implemented): extract (gated session extraction → memdir + graph).
-// BYOK-free: the LLM call is injected by the Tauri layer via a closure.
+// The extractor's gates, prompt and parser (it writes record entries). The LLM
+// call is injected by the Tauri layer via a closure.
 pub mod extract;
 
-// Step 8 (implemented): shared_import (one-time, idempotent fold of the legacy
-// `.atlas/shared-memory/events.jsonl` log into graph memory).
-pub mod shared_import;
-
-// Step 9a (implemented): consolidate (AutoDream-gated idle consolidation + our
-// own memdir prune; the graph has no delete API, so the prune targets the
-// extracted/*.md memdir we own — see the module docs).
-pub mod consolidate;
-
-// Step 9b (implemented): global cross-project memory under `~/.atlas/memory/`.
-// Deterministic, conservative promotion (preference/constraint, conf ≥ 0.8, seen
-// in ≥2 distinct projects) fed from `consolidate`, blended into `retrieve` when
-// local memory is sparse. Tauri-free; resolves `$HOME` (or an env override).
+// Global cross-repository memory under `~/.atlas/memory/`. Deterministic,
+// conservative promotion over the record table (Fact, conf ≥ 0.8, seen in ≥2
+// repositories), blended into `retrieve` when local memory is sparse.
+// Tauri-free; resolves `$HOME` (or an env override).
 pub mod global;
+
+// Shared memory 03 (#80): the SQLite record store behind the Shared tab — one
+// database per repository scope, with the one-time legacy migration.
+pub mod record;
 
 // ─── Ported-from-Cersei modules ───────────────────────────────────────────────
 //
-// These four were `cersei-embeddings` / `cersei-memory` / `cersei-agent` until
-// 2026-08-22; they are now Atlas's own. `tests/cersei_parity.rs` was written
-// against the SDK versions and passes unchanged against these, which is the
-// evidence that the swap did not move observable behaviour.
-pub mod dream;
+// These were `cersei-embeddings` / `cersei-memory` until 2026-08-22; they are
+// now Atlas's own. `tests/behaviour.rs` pins their observable behaviour (it
+// was written against the SDK versions and passed unchanged after the port).
 pub mod embedding;
-pub mod graph;
 pub mod session;
 
-pub use consolidate::{consolidate, ConsolidateOutcome};
-pub use global::{global_recall, record_candidates, CandidateEntry};
+pub use chunk::{Chunk, ChunkMode};
 pub use docstore::{DocStore, DocText};
 pub use extract::{
-    category_to_memory_type, extract_and_store, should_extract, ExtractState, TranscriptTurn,
+    extract, parse_extracted, should_extract, ExtractState, Extracted, TranscriptTurn, Trigger,
 };
-pub use chunk::{Chunk, ChunkMode};
+pub use global::{global_recall, promote_facts, CandidateEntry};
 pub use manifest::{Diff, Entry, Manifest};
-pub use migrate::{migrate, MigrationOutcome};
 pub use provider::{MiniLmProvider, DIM, PROVIDER_NAME};
-pub use shared_import::{import_shared_memory, ImportOutcome};
 pub use store::HnswStore;
 
 // Step 10: offline 3-agent retrieval-parity tests + an HNSW-vs-brute-force
@@ -82,7 +70,6 @@ mod parity_bench;
 
 use chunk::chunk_document;
 use embedding::EmbeddingProvider;
-use graph::GraphMemory;
 
 /// One corpus document handed to [`MemoryEngine::index_corpus`]. The Tauri layer
 /// builds these by flattening `agent_memory::collect_corpus` (Claude/Codex/Cersei
@@ -90,7 +77,7 @@ use graph::GraphMemory;
 ///
 /// `content_hash` is the caller's stable hash of the embeddable `text` — the
 /// manifest diffs on it, so an unchanged doc is never re-embedded. `corpus` is a
-/// free-form origin tag (`"claude"`, `"codebase"`, `"legacy"`, …) recorded on the
+/// free-form origin tag (`"claude"`, `"codebase"`, `"note"`, …) recorded on the
 /// manifest entry.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CorpusDoc {
@@ -122,8 +109,10 @@ pub struct IndexStats {
 /// `MemDoc` at the `MemorySearchFn` boundary.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct RetrievedDoc {
-    /// Stable doc id. For paragraph chunks this is the chunk id; use
-    /// parent_id to group chunks from the same source document.
+    /// Stable doc id (the corpus id for embedding hits, a synthetic `global::…`
+    /// hash for global hits; the chunk id for paragraph chunks — use
+    /// `parent_id` to group chunks of one source document). Carried so the
+    /// Tauri layer can dedup site-C pushes per session; the `MemDoc` seam drops it.
     pub id: String,
     /// Original corpus/document id. Empty on old persisted indexes, in which
     /// case consumers should fall back to id.
@@ -139,7 +128,7 @@ pub struct RetrievedDoc {
 
 /// Per-project memory engine. One instance per project root, shared behind an
 /// `Arc<RwLock<_>>` by the retrieve closure (read) and the indexer (write).
-/// Holds the HNSW store + manifest (graph memory added in later steps).
+/// Holds the HNSW store + manifest + docstore.
 pub struct MemoryEngine {
     #[allow(dead_code)]
     project_root: PathBuf,
@@ -150,46 +139,31 @@ pub struct MemoryEngine {
     /// id → display text ({title, source, text}), persisted beside the manifest so
     /// retrieval can build [`RetrievedDoc`]s without re-gathering the corpus.
     docstore: DocStore,
-    /// Cersei graph memory (relationships / topic tags). **Empty until Steps 7/9a**
-    /// populate it; [`retrieve`](Self::retrieve) handles an empty graph as a no-op.
-    graph: GraphMemory,
 }
 
 impl MemoryEngine {
     /// Open-or-create the engine for a project. Loads the persisted HNSW +
     /// manifest if present under `<project_root>/.atlas/memory/`, otherwise
     /// starts empty (the dir is created lazily on first [`persist`](Self::persist)).
-    /// Later steps run legacy migration (Step 3) and load the graph here.
     pub fn open(project_root: PathBuf) -> Self {
         let memory_dir = project_root.join(".atlas").join("memory");
-        Self::open_with_dir(project_root, memory_dir, true)
+        Self::open_at_dir(project_root, memory_dir)
     }
 
-    /// Open-or-create an engine at an explicit memory directory without running
-    /// legacy project-memory migration or shared-memory import. Knowledge Base
+    /// Open-or-create an engine at an explicit memory directory. Knowledge Base
     /// recall uses this so its index is fully isolated from agent memory.
     pub fn open_at_dir(project_root: PathBuf, memory_dir: PathBuf) -> Self {
-        Self::open_with_dir(project_root, memory_dir, false)
-    }
-
-    fn open_with_dir(project_root: PathBuf, memory_dir: PathBuf, migrate_legacy: bool) -> Self {
         let manifest_path = memory_dir.join("manifest.json");
         let hnsw_path = memory_dir.join("hnsw.usearch");
 
-        let manifest = Manifest::load(&manifest_path)
-            .unwrap_or_else(|_| Manifest::new(PROVIDER_NAME, DIM));
+        let manifest =
+            Manifest::load(&manifest_path).unwrap_or_else(|_| Manifest::new(PROVIDER_NAME, DIM));
 
         let docstore =
             DocStore::load(&memory_dir.join("docstore.json")).unwrap_or_else(|_| DocStore::new());
 
-        // Graph memory persists at `<memory_dir>/graph`. Open-or-create the dir
-        // first; if Grafeo can't open the path (e.g. a stale/corrupt file), fall
-        // back to an in-memory graph so retrieval still works — it's empty until
-        // Steps 7/9a populate it, so losing persistence here is non-fatal.
-        let graph = open_graph(&memory_dir);
-
         // Open the store at the dim the manifest recorded — a project rebuilt with
-        // a 768-d model reopens at 768, a legacy/fresh project at the 384 default.
+        // a 768-d model reopens at 768, a fresh project at the 384 default.
         // A model switch is reconciled later by `index_params_match` + `reset_index`.
         let store_dim = manifest.dim;
         let store = if hnsw_path.exists() {
@@ -201,46 +175,13 @@ impl MemoryEngine {
             HnswStore::open(store_dim).expect("usearch index create")
         };
 
-        let mut engine = Self {
+        Self {
             project_root,
             memory_dir,
             store,
             manifest,
             docstore,
-            graph,
-        };
-
-        if !migrate_legacy {
-            return engine;
         }
-
-        // Step 3: import a legacy `.atlas/memory-index/index.json` (if present)
-        // into the HNSW store + manifest with zero re-embedding. Idempotent — a
-        // successful import archives the legacy file to `.bak`, so this is a
-        // no-op on every subsequent open. A model/dim mismatch leaves the legacy
-        // file in place for a future rebuild.
-        match migrate::migrate(&mut engine) {
-            Ok(migrate::MigrationOutcome::Imported { count }) => {
-                tracing::info!(count, "migrated legacy memory index into HNSW store");
-            }
-            Ok(_) => {}
-            Err(e) => tracing::warn!("legacy memory migration failed: {e}"),
-        }
-
-        // Step 8: one-time, idempotent fold of the legacy shared cross-agent memory
-        // log (`.atlas/shared-memory/events.jsonl`) into graph memory, AFTER the
-        // Step-3 index migration so the graph already exists. A marker file makes
-        // this a cheap no-op on every subsequent open; the original log is kept in
-        // place (readable for one release) for rollback.
-        match shared_import::import_shared_memory(&mut engine) {
-            Ok(shared_import::ImportOutcome::Imported { count, skipped }) => {
-                tracing::info!(count, skipped, "imported legacy shared-memory log into graph");
-            }
-            Ok(_) => {}
-            Err(e) => tracing::warn!("legacy shared-memory import failed: {e}"),
-        }
-
-        engine
     }
 
     /// On-disk memory dir for this project (`<root>/.atlas/memory/`).
@@ -251,14 +192,6 @@ impl MemoryEngine {
     /// Read access to the HNSW store (retrieve path).
     pub fn store(&self) -> &HnswStore {
         &self.store
-    }
-
-    /// Read access to the project's graph memory (Step 7 session extraction
-    /// writes through this under the engine read lock — `GraphMemory`'s writes
-    /// are `&self`, so the indexer never needs the write lock just to store an
-    /// extracted memory).
-    pub fn graph(&self) -> &GraphMemory {
-        &self.graph
     }
 
     /// Mutable access to the manifest (indexer path).
@@ -277,8 +210,7 @@ impl MemoryEngine {
     /// Wipe the embedding index (HNSW + manifest + docstore) and reopen it empty at
     /// `dim`, tagged with `provider_name`. Used when the selected embedding model
     /// changes: a different model produces vectors in a different space (and often a
-    /// different dimension), so old vectors are invalid and must be re-embedded. The
-    /// graph memory (model-independent text facts) is intentionally left untouched.
+    /// different dimension), so old vectors are invalid and must be re-embedded.
     /// The caller re-indexes afterward to repopulate.
     pub fn reset_index(&mut self, provider_name: &str, dim: usize) -> anyhow::Result<()> {
         self.store = HnswStore::open(dim)?;
@@ -288,8 +220,37 @@ impl MemoryEngine {
         // reload vectors from the old model; persist the fresh empty state.
         let _ = std::fs::remove_file(self.memory_dir.join("hnsw.usearch"));
         self.persist()?;
-        tracing::info!(provider_name, dim, "reset memory index for new embedding model");
+        tracing::info!(
+            provider_name,
+            dim,
+            "reset memory index for new embedding model"
+        );
         Ok(())
+    }
+
+    /// Remove one document from the index, immediately.
+    ///
+    /// [`Self::index_corpus`] only deletes by diffing a freshly gathered corpus
+    /// against the manifest, so a record deleted between two passes stays
+    /// searchable until the next pass runs. `memory_forget` is documented as
+    /// deleting an entry, and a delete that reports success while its text is
+    /// still retrievable is not one — so the forget path evicts here rather
+    /// than waiting for a pass to notice the record is gone.
+    ///
+    /// Returns whether the document was indexed at all. Persists on a hit; a
+    /// miss touches nothing on disk.
+    pub fn evict(&mut self, doc_id: &str) -> anyhow::Result<bool> {
+        let had_text = self.docstore.get(doc_id).is_some();
+        let key = self.manifest.remove(doc_id);
+        if let Some(key) = key {
+            let _ = self.store.remove(key);
+        }
+        if key.is_none() && !had_text {
+            return Ok(false);
+        }
+        self.docstore.remove(doc_id);
+        self.persist()?;
+        Ok(true)
     }
 
     /// Persist HNSW + manifest together under the memory dir, creating it lazily.
@@ -378,7 +339,9 @@ impl MemoryEngine {
                 );
             }
             for (id, vec) in embed_ids.iter().zip(vecs.iter()) {
-                let Some(chunk) = by_id.get(*id) else { continue };
+                let Some(chunk) = by_id.get(*id) else {
+                    continue;
+                };
                 let key = self.manifest.assign_key(id);
                 // An update reuses the same key; drop any prior vector first so
                 // usearch never keeps a stale embedding alongside the new one.
@@ -388,8 +351,7 @@ impl MemoryEngine {
                     .get(chunk.id.as_str())
                     .map(String::as_str)
                     .unwrap_or("unknown");
-                self.manifest
-                    .upsert(id, &chunk.content_hash, corpus, 0);
+                self.manifest.upsert(id, &chunk.content_hash, corpus, 0);
                 let (title, body) = docstore::split_embedded(&chunk.text);
                 self.docstore.upsert(
                     id,
@@ -421,26 +383,91 @@ impl MemoryEngine {
         })
     }
 
-    // `retrieve` (Step 6) is implemented in `retrieve.rs` as an `impl MemoryEngine`.
-}
-
-/// Open the per-project graph at `<memory_dir>/graph`, creating the dir first.
-/// Falls back to an in-memory graph (with a warning) if the on-disk open fails —
-/// the graph is empty until Steps 7/9a populate it, so persistence here is not yet
-/// load-bearing and must never block engine construction.
-fn open_graph(memory_dir: &std::path::Path) -> GraphMemory {
-    let graph_path = memory_dir.join("graph");
-    if let Err(e) = std::fs::create_dir_all(memory_dir) {
-        tracing::warn!("could not create memory dir for graph ({e}); using in-memory graph");
-        return GraphMemory::open_in_memory().expect("in-memory graph");
+    /// The stored vector for `id` while its indexed content still hashes to
+    /// `content_hash`; `None` when the doc is unindexed or its content changed.
+    /// Lets Memory ▸ Graph and the Policy view reuse the index instead of
+    /// re-embedding.
+    pub fn cached_vector(&self, id: &str, content_hash: &str) -> Option<Vec<f32>> {
+        let entry = self.manifest.entries.iter().find(|e| e.id == id)?;
+        if entry.content_hash != content_hash {
+            return None;
+        }
+        self.store.get(entry.key)
     }
-    match GraphMemory::open(&graph_path) {
-        Ok(g) => g,
-        Err(e) => {
-            tracing::warn!("graph open at {graph_path:?} failed ({e}); using in-memory graph");
-            GraphMemory::open_in_memory().expect("in-memory graph")
+
+    /// Add docs the caller has already embedded (Memory ▸ Graph embeds what the
+    /// indexer has not reached yet), replacing any prior vector for the same
+    /// id, and persist. Unlike [`index_corpus`](Self::index_corpus) this never
+    /// deletes docs missing from `docs`.
+    pub fn add_embedded(&mut self, docs: &[(CorpusDoc, Vec<f32>)]) -> anyhow::Result<()> {
+        for (doc, vector) in docs {
+            if vector.len() != self.manifest.dim {
+                anyhow::bail!(
+                    "embedding dim {} != index dim {}",
+                    vector.len(),
+                    self.manifest.dim
+                );
+            }
+            let key = self.manifest.assign_key(&doc.id);
+            let _ = self.store.remove(key);
+            self.store.add(key, vector)?;
+            self.manifest
+                .upsert(&doc.id, &doc.content_hash, &doc.corpus, 0);
+            let (title, body) = docstore::split_embedded(&doc.text);
+            self.docstore.upsert(
+                &doc.id,
+                DocText {
+                    parent_id: doc.id.clone(),
+                    chunk_index: 0,
+                    title,
+                    source: doc.corpus.clone(),
+                    text: body,
+                },
+            );
+        }
+        self.persist()
+    }
+
+    /// Top-`k` `(doc id, similarity)` for an already-embedded query, best first,
+    /// skipping docs whose corpus is in `exclude_corpora`. Memory ▸ Graph's
+    /// natural-language query.
+    pub fn search_ids(
+        &self,
+        query: &[f32],
+        k: usize,
+        exclude_corpora: &[&str],
+    ) -> anyhow::Result<Vec<(String, f32)>> {
+        let corpus_of: std::collections::HashMap<u64, (&str, &str)> = self
+            .manifest
+            .entries
+            .iter()
+            .map(|e| (e.key, (e.id.as_str(), e.corpus.as_str())))
+            .collect();
+        let total = self.store.len();
+        // Excluded corpora (the codebase) can dominate the index, so widen the
+        // search until `k` eligible hits survive the filter or the whole index
+        // has been ranked — rather than always scanning everything.
+        let mut fetch = (k * 4).max(32);
+        loop {
+            let fetch_now = fetch.min(total);
+            let hits: Vec<(String, f32)> = self
+                .store
+                .search(query, fetch_now)?
+                .into_iter()
+                .filter_map(|(key, score)| {
+                    let (id, corpus) = corpus_of.get(&key)?;
+                    (!exclude_corpora.contains(corpus)).then(|| (id.to_string(), score))
+                })
+                .take(k)
+                .collect();
+            if hits.len() >= k || fetch_now >= total {
+                return Ok(hits);
+            }
+            fetch = fetch.saturating_mul(4);
         }
     }
+
+    // `retrieve` (Step 6) is implemented in `retrieve.rs` as an `impl MemoryEngine`.
 }
 
 // Compile-time guarantee the engine can sit behind `Arc<RwLock<_>>` shared
@@ -454,16 +481,15 @@ const _: fn() = || {
 mod index_corpus_tests {
     use super::*;
 
-    fn tmp_root(name: &str) -> PathBuf {
-        let mut p = std::env::temp_dir();
-        p.push(format!(
-            "atlas-memory-index-{}-{}",
-            std::process::id(),
-            name
-        ));
-        let _ = std::fs::remove_dir_all(&p);
-        std::fs::create_dir_all(&p).unwrap();
-        p
+    /// A fresh temp dir. Keep the `TempDir` alive for the test: dropping it
+    /// deletes the directory, panic or not.
+    fn tmp_root(name: &str) -> (tempfile::TempDir, std::path::PathBuf) {
+        let dir = tempfile::Builder::new()
+            .prefix(&format!("atlas-memory-{name}-"))
+            .tempdir()
+            .unwrap();
+        let path = dir.path().to_path_buf();
+        (dir, path)
     }
 
     fn find_model_dir() -> Option<PathBuf> {
@@ -488,8 +514,8 @@ mod index_corpus_tests {
     /// regression in that bookkeeping is caught without an embedder.
     #[test]
     fn diff_drives_manifest_and_store_without_embedding() {
-        let root = tmp_root("plumbing");
-        let mut engine = MemoryEngine::open(root.clone());
+        let (_tmp, root) = tmp_root("plumbing");
+        let mut engine = MemoryEngine::open(root);
 
         // Seed: two docs already indexed (simulate a prior pass).
         let v = |seed: usize| -> Vec<f32> {
@@ -538,26 +564,147 @@ mod index_corpus_tests {
         }
         assert_eq!(engine.store.len(), 2);
         assert!(engine.manifest.key_for("a").is_none());
-
-        std::fs::remove_dir_all(&root).unwrap();
     }
 
-    /// Full `index_corpus` against a real MiniLM model — only runs when
-    /// `ATLAS_MINILM_DIR` points at an installed model (skips cleanly otherwise,
-    /// no network). Asserts the add/update/delete counts and that re-running with
-    /// an identical corpus re-embeds nothing.
+    fn axis(seed: usize) -> Vec<f32> {
+        let mut x = vec![0.0f32; DIM];
+        x[seed % DIM] = 1.0;
+        x
+    }
+
+    /// The Memory ▸ Graph view embeds docs the indexer hasn't reached yet and
+    /// hands those vectors back, so neither it nor the indexer embeds them again.
     #[test]
+    fn embedded_docs_are_reused_only_while_their_content_is_unchanged() {
+        let (_tmp, root) = tmp_root("reuse");
+        let mut engine = MemoryEngine::open(root.clone());
+        engine
+            .add_embedded(&[(doc("note:a", "Title\n\nbody a", "h_a"), axis(3))])
+            .unwrap();
+
+        assert_eq!(engine.cached_vector("note:a", "h_a"), Some(axis(3)));
+        assert_eq!(
+            engine.cached_vector("note:a", "h_changed"),
+            None,
+            "stale content"
+        );
+        assert_eq!(engine.cached_vector("note:missing", "h_a"), None);
+
+        // Persisted: a reopened engine still has it, and the indexer sees the
+        // doc as unchanged (no re-embed).
+        drop(engine);
+        let reopened = MemoryEngine::open(root);
+        assert_eq!(reopened.cached_vector("note:a", "h_a"), Some(axis(3)));
+        let diff = reopened
+            .manifest
+            .diff(&[("note:a".to_string(), "h_a".to_string())]);
+        assert!(diff.add.is_empty() && diff.update.is_empty());
+    }
+
+    /// `memory_forget` deletes the record; the indexed document has to go with
+    /// it. Leaving the text behind is a delete that reports success while the
+    /// content is still searchable, which is the whole of #292.
+    #[test]
+    fn evicting_a_document_removes_its_vector_and_its_text_for_good() {
+        let (_tmp, root) = tmp_root("evict");
+        let mut engine = MemoryEngine::open(root.clone());
+        engine
+            .add_embedded(&[
+                (
+                    doc("shared:fact:44", "Keep me\n\nstill true", "h_keep"),
+                    axis(1),
+                ),
+                (
+                    doc("shared:fact:45", "Forget me\n\nQUOKKA-9042", "h_gone"),
+                    axis(2),
+                ),
+            ])
+            .unwrap();
+
+        assert!(engine.evict("shared:fact:45").unwrap());
+        assert!(
+            !engine.evict("shared:fact:45").unwrap(),
+            "a second evict has nothing to remove"
+        );
+
+        assert!(engine.docstore.get("shared:fact:45").is_none());
+        assert!(engine.manifest.key_for("shared:fact:45").is_none());
+        assert!(
+            engine.docstore.get("shared:fact:44").is_some(),
+            "the neighbour is untouched"
+        );
+
+        // And it stays gone, rather than coming back from disk on reopen.
+        drop(engine);
+        let reopened = MemoryEngine::open(root);
+        assert!(reopened.docstore.get("shared:fact:45").is_none());
+        assert!(reopened.docstore.get("shared:fact:44").is_some());
+    }
+
+    /// Adding the Graph's vectors never drops docs the indexer already holds
+    /// (unlike `index_corpus`, which deletes whatever the given corpus lacks).
+    #[test]
+    fn adding_embedded_docs_keeps_everything_else() {
+        let (_tmp, root) = tmp_root("keep");
+        let mut engine = MemoryEngine::open(root);
+        engine
+            .add_embedded(&[(doc("codebase:src/a.rs", "a", "h1"), axis(1))])
+            .unwrap();
+        engine
+            .add_embedded(&[(doc("note:b", "b", "h2"), axis(2))])
+            .unwrap();
+        assert_eq!(
+            engine.cached_vector("codebase:src/a.rs", "h1"),
+            Some(axis(1))
+        );
+        assert_eq!(engine.cached_vector("note:b", "h2"), Some(axis(2)));
+
+        // Re-adding with new content replaces the vector in place.
+        engine
+            .add_embedded(&[(doc("note:b", "b2", "h3"), axis(9))])
+            .unwrap();
+        assert_eq!(engine.cached_vector("note:b", "h3"), Some(axis(9)));
+        assert_eq!(engine.store.len(), 2);
+    }
+
+    /// Natural-language query over the indexed memory: best first, by doc id,
+    /// skipping the corpora the caller excludes (the Graph omits the codebase).
+    #[test]
+    fn search_ids_ranks_docs_and_skips_excluded_corpora() {
+        let (_tmp, root) = tmp_root("search");
+        let mut engine = MemoryEngine::open(root);
+        let mut near_code = doc("codebase:src/x.rs", "x", "hx");
+        near_code.corpus = "codebase".into();
+        let mut note = doc("note:y", "y", "hy");
+        note.corpus = "note".into();
+        let mut claude = doc("claude:z", "z", "hz");
+        claude.corpus = "claude".into();
+        let mut v_note = axis(5);
+        v_note[6] = 0.4;
+        engine
+            .add_embedded(&[(near_code, axis(5)), (note, v_note), (claude, axis(40))])
+            .unwrap();
+
+        let hits = engine.search_ids(&axis(5), 2, &["codebase"]).unwrap();
+        let ids: Vec<&str> = hits.iter().map(|(id, _)| id.as_str()).collect();
+        assert_eq!(ids, vec!["note:y", "claude:z"]);
+        assert!(hits[0].1 > hits[1].1);
+    }
+
+    /// Full `index_corpus` against a real MiniLM model. Ignored by default; run
+    /// with `ATLAS_MINILM_DIR` pointing at an installed model and `--ignored`
+    /// (no network). Asserts the add/update/delete counts and that re-running
+    /// with an identical corpus re-embeds nothing.
+    #[test]
+    #[ignore = "needs ATLAS_MINILM_DIR"]
     fn index_corpus_end_to_end_when_model_available() {
-        let Some(model) = find_model_dir() else {
-            eprintln!("skipping: no MiniLM model dir (set ATLAS_MINILM_DIR)");
-            return;
-        };
+        let model = find_model_dir().expect("set ATLAS_MINILM_DIR to a MiniLM model dir");
         let embedder = atlas_embed::Embedder::load(&model).expect("load MiniLM");
         let provider = MiniLmProvider::new(std::sync::Arc::new(embedder), "all-MiniLM-L6-v2");
         let rt = tokio::runtime::Runtime::new().unwrap();
 
-        let root = tmp_root("e2e");
-        let mut engine = MemoryEngine::open(root.clone());
+        let (_tmp, root) = tmp_root("e2e");
+        let mut engine = MemoryEngine::open(root);
 
         let docs = vec![
             doc("a", "rust borrow checker notes", "h1"),
@@ -580,7 +727,5 @@ mod index_corpus_tests {
         assert_eq!(stats3.updated, 1);
         assert_eq!(stats3.deleted, 1);
         assert_eq!(engine.store.len(), 1);
-
-        std::fs::remove_dir_all(&root).unwrap();
     }
 }

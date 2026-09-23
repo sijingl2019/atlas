@@ -154,7 +154,10 @@ mod tests {
         // Read-only alone would leave the engine offering to escalate out of
         // plan mode, which turns a read-only mode into a nagging one.
         let (approval, sandbox) = engine_policy("plan");
-        assert!(is_read_only(&sandbox), "plan mode must not be able to write");
+        assert!(
+            is_read_only(&sandbox),
+            "plan mode must not be able to write"
+        );
         assert!(matches!(approval, AskForApproval::Never));
     }
 
@@ -194,7 +197,12 @@ mod tests {
         // The bug this reproduces: matching ids exactly meant "Bypass" arriving
         // as `bypassPermissions` fell through to the default and silently
         // prompted on every action — a mode that looks set and does nothing.
-        for alias in ["bypassPermissions", "danger-full-access", "YOLO", "full_access"] {
+        for alias in [
+            "bypassPermissions",
+            "danger-full-access",
+            "YOLO",
+            "full_access",
+        ] {
             let (approval, sandbox) = engine_policy(alias);
             assert!(
                 matches!(sandbox, SandboxPolicy::DangerFullAccess)
@@ -203,7 +211,10 @@ mod tests {
             );
         }
         for alias in ["read-only", "planMode", "PLAN"] {
-            assert!(is_read_only(&engine_policy(alias).1), "{alias} should be plan");
+            assert!(
+                is_read_only(&engine_policy(alias).1),
+                "{alias} should be plan"
+            );
         }
         for alias in ["auto_edits", "AutoEdit", "accept"] {
             assert!(

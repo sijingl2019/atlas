@@ -159,18 +159,24 @@ pub(crate) fn detect_password_values(input: &str) -> Vec<Region> {
         if !is_real_secret_value(value.as_str()) {
             continue;
         }
-        regions.push(Region::new(value.start(), value.end(), Category::ConnectionString));
+        regions.push(Region::new(
+            value.start(),
+            value.end(),
+            Category::ConnectionString,
+        ));
     }
     regions
 }
 
 fn has_real_password(candidate: &str) -> bool {
-    password_assignment().captures_iter(candidate).any(|captures| {
-        captures
-            .get(1)
-            .map(|m| is_real_secret_value(m.as_str()))
-            .unwrap_or(false)
-    })
+    password_assignment()
+        .captures_iter(candidate)
+        .any(|captures| {
+            captures
+                .get(1)
+                .map(|m| is_real_secret_value(m.as_str()))
+                .unwrap_or(false)
+        })
 }
 
 #[cfg(test)]
@@ -203,7 +209,10 @@ mod tests {
         // The JDBC and database-URL shapes both match here; the merge is what
         // stops that becoming two placeholders.
         assert!(spans("jdbc:postgresql://db/app?user=a&password=hunter2").len() > 1);
-        assert_eq!(scrub("jdbc:postgresql://db/app?user=a&password=hunter2"), "[R]");
+        assert_eq!(
+            scrub("jdbc:postgresql://db/app?user=a&password=hunter2"),
+            "[R]"
+        );
     }
 
     #[test]
@@ -238,7 +247,9 @@ mod tests {
 
     #[test]
     fn a_dsn_with_a_placeholder_password_is_left_alone() {
-        assert!(spans("host=localhost user=app password=<your-password> sslmode=disable").is_empty());
+        assert!(
+            spans("host=localhost user=app password=<your-password> sslmode=disable").is_empty()
+        );
         assert!(spans("Server=db;User Id=app;Password=changeme;Encrypt=true").is_empty());
     }
 

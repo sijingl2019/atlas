@@ -75,7 +75,12 @@ fn the_sidebar_snapshot_survives_a_reopen() {
     {
         let store = CommsStore::open(&path).unwrap();
         store
-            .save_snapshot("org_1", &[conv("c1", "eng")], &[conv("c2", "design")], &reads)
+            .save_snapshot(
+                "org_1",
+                &[conv("c1", "eng")],
+                &[conv("c2", "design")],
+                &reads,
+            )
             .unwrap();
     }
     let reopened = CommsStore::open(&path).unwrap();
@@ -91,7 +96,9 @@ fn the_sidebar_snapshot_survives_a_reopen() {
 fn saving_a_snapshot_does_not_clobber_the_watermark() {
     let store = CommsStore::open_in_memory().unwrap();
     store.set_watermark("org_1", 777).unwrap();
-    store.save_snapshot("org_1", &[conv("c1", "eng")], &[], &[]).unwrap();
+    store
+        .save_snapshot("org_1", &[conv("c1", "eng")], &[], &[])
+        .unwrap();
     assert_eq!(store.watermark("org_1").unwrap(), 777);
 }
 
@@ -108,7 +115,9 @@ fn watermarks_are_per_organisation() {
 fn forgetting_an_org_removes_everything_for_it() {
     let store = CommsStore::open_in_memory().unwrap();
     store.set_watermark("org_1", 100).unwrap();
-    store.save_snapshot("org_1", &[conv("c1", "eng")], &[], &[]).unwrap();
+    store
+        .save_snapshot("org_1", &[conv("c1", "eng")], &[], &[])
+        .unwrap();
     store.forget("org_1").unwrap();
     assert_eq!(store.watermark("org_1").unwrap(), 0);
     assert!(store.snapshot("org_1").unwrap().conversations.is_empty());

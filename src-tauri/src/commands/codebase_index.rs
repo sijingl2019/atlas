@@ -15,7 +15,9 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 
-use atlas_codeindex::{compose_text, scan, structural_text, CodebaseDoc, CodebaseIndex, ScannedFile};
+use atlas_codeindex::{
+    compose_text, scan, structural_text, CodebaseDoc, CodebaseIndex, ScannedFile,
+};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, State};
 
@@ -73,7 +75,14 @@ struct Progress {
 }
 
 fn emit(app: &AppHandle, phase: &'static str, current: usize, total: usize) {
-    let _ = app.emit("atlas:codebase-index:progress", Progress { phase, current, total });
+    let _ = app.emit(
+        "atlas:codebase-index:progress",
+        Progress {
+            phase,
+            current,
+            total,
+        },
+    );
 }
 
 #[tauri::command]
@@ -145,7 +154,8 @@ pub async fn codebase_index_build(
     };
     let save_pp = pp.clone();
     let save_index = index.clone();
-    let _ = tokio::task::spawn_blocking(move || atlas_codeindex::save_index(&save_pp, &save_index)).await;
+    let _ = tokio::task::spawn_blocking(move || atlas_codeindex::save_index(&save_pp, &save_index))
+        .await;
 
     // 6. Re-embed the unified corpus (codebase docs are now in collect_corpus).
     emit(&app, "embedding", 0, 0);
@@ -216,7 +226,11 @@ fn status_of(idx: &CodebaseIndex) -> CodebaseIndexStatus {
     CodebaseIndexStatus {
         indexed: !idx.docs.is_empty(),
         file_count: idx.docs.len(),
-        summary_count: idx.docs.iter().filter(|d| !d.summary.trim().is_empty()).count(),
+        summary_count: idx
+            .docs
+            .iter()
+            .filter(|d| !d.summary.trim().is_empty())
+            .count(),
         built_at_ms: idx.built_at_ms,
     }
 }
@@ -233,7 +247,12 @@ fn apply_summary(docs: &mut [CodebaseDoc], i: usize, summary: String) {
     if summary.is_empty() {
         return;
     }
-    let structural = structural_text(&docs[i].rel, &docs[i].language, &docs[i].symbols, &docs[i].imports);
+    let structural = structural_text(
+        &docs[i].rel,
+        &docs[i].language,
+        &docs[i].symbols,
+        &docs[i].imports,
+    );
     docs[i].text = compose_text(&summary, &structural);
     docs[i].summary = summary;
 }

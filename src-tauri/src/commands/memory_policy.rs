@@ -18,8 +18,8 @@ use sha2::{Digest, Sha256};
 use tauri::{AppHandle, State};
 
 use super::agent_memory::collect_corpus;
-use super::memory_graph::{load_doc_vectors, model_dir, MODEL_FILES};
-use super::memory_indexer::MemoryRegistry;
+use super::memory_graph::{model_dir, MODEL_FILES};
+use super::memory_indexer::{indexed_vectors, MemoryRegistry};
 
 /// Minimum cosine for a probe to claim a statement as its policy value.
 const MATCH_THRESHOLD: f32 = 0.30;
@@ -79,8 +79,17 @@ pub struct Policy {
 fn classify(text: &str) -> &'static str {
     let l = text.to_lowercase();
     const STRONG: &[&str] = &[
-        "must", "never", "always", "do not", "don't", "required", "mandatory",
-        "forbidden", "shall", "only ever", "do NOT",
+        "must",
+        "never",
+        "always",
+        "do not",
+        "don't",
+        "required",
+        "mandatory",
+        "forbidden",
+        "shall",
+        "only ever",
+        "do NOT",
     ];
     if STRONG.iter().any(|m| l.contains(m)) {
         "strong"
@@ -171,14 +180,15 @@ pub async fn memory_policies(
     }
 
     // Shared, load-once MiniLM — no per-distillation model reload.
-    let embedder = registry
+    let provider = registry
         .provider(&app)
         .await
-        .ok_or("model-not-downloaded")?
-        .embedder();
+        .ok_or("model-not-downloaded")?;
+    let embedder = provider.embedder();
+    let doc_vecs = indexed_vectors(&registry, &provider, &project_path, &docs).await;
 
     let pp = project_path.clone();
-    tokio::task::spawn_blocking(move || compute_policies(embedder, pp, docs))
+    tokio::task::spawn_blocking(move || compute_policies(embedder, pp, docs, doc_vecs))
         .await
         .map_err(|e| format!("policy task: {e}"))?
 }
@@ -187,16 +197,19 @@ fn compute_policies(
     embedder: Arc<Embedder>,
     project_path: String,
     docs: Vec<super::agent_memory::MemoryDoc>,
+    mut doc_vecs: HashMap<String, Vec<f32>>,
 ) -> Result<Vec<Policy>, String> {
-    // ── Stage 1: doc-level vectors, reusing the graph's index where built ──
+    // ── Stage 1: doc-level vectors, reusing the retrieval index where built ──
     // This is the expensive part the old version redid per statement; here the
-    // whole-file vectors come free from the graph index, and we only embed the
-    // handful of docs the graph hasn't seen.
-    let mut doc_vecs = load_doc_vectors(&project_path);
+    // whole-file vectors come free from the index (`doc_vecs`), and we only embed
+    // the handful of docs it hasn't seen.
     for d in &docs {
         if !doc_vecs.contains_key(&d.id) {
-            let text = format!("{}\n\n{}", d.title, d.text);
-            let v = embedder.embed_one(&text).map_err(|e| format!("embed doc: {e}"))?;
+            // Same text the index embeds, so these vectors are comparable.
+            let text = super::memory_indexer::to_corpus_doc(d).text;
+            let v = embedder
+                .embed_one(&text)
+                .map_err(|e| format!("embed doc: {e}"))?;
             doc_vecs.insert(d.id.clone(), v);
         }
     }
@@ -231,7 +244,9 @@ fn compute_policies(
                 let v = if let Some(v) = cache.get(&h) {
                     v.clone()
                 } else {
-                    let v = embedder.embed_one(&line).map_err(|e| format!("embed stmt: {e}"))?;
+                    let v = embedder
+                        .embed_one(&line)
+                        .map_err(|e| format!("embed stmt: {e}"))?;
                     cache.insert(h, v.clone());
                     cache_dirty = true;
                     v
@@ -274,8 +289,7 @@ fn compute_policies(
     // transform-gpu for hover jitter"). Surface each as a soft/strong policy row
     // so they show up in the tab. No embedding needed — it's a direct listing.
     // Skip docs already claimed by a probe match above to avoid duplicate rows.
-    let used: std::collections::HashSet<String> =
-        out.iter().map(|p| p.file_path.clone()).collect();
+    let used: std::collections::HashSet<String> = out.iter().map(|p| p.file_path.clone()).collect();
     for d in &docs {
         if d.kind != "feedback" {
             continue;

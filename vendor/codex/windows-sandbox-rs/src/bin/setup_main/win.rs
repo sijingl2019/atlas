@@ -1014,7 +1014,7 @@ mod tests {
     use super::WRITE_ROOT_ALLOW_MASK;
     use super::convert_string_sid_to_sid;
     use super::workspace_write_cap_sids_for_path;
-        use codex_windows_sandbox::ensure_allow_mask_aces;
+    use codex_windows_sandbox::ensure_allow_mask_aces;
     use codex_windows_sandbox::ensure_allow_write_aces;
     use codex_windows_sandbox::load_or_create_cap_sids;
     use codex_windows_sandbox::path_mask_allows;

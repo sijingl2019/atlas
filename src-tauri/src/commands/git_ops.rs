@@ -31,6 +31,16 @@ fn git_mut(app: &AppHandle, path: &str, args: &[&str]) -> Result<String, GitErro
     Ok(out)
 }
 
+/// One buffered git invocation in a repo: `(path, args) -> stdout`.
+///
+/// The history-rewriting operations below (reset, revert, cherry-pick) take
+/// one of these instead of calling [`git_out`] themselves, so their logic —
+/// the flag mapping, the merge-commit revert fallback — runs in tests under a
+/// hermetic git config (no global or system config, a fixed identity).
+/// Production always passes [`git_out`]; the commands add the watcher
+/// notification around it.
+type Git<'a> = &'a dyn Fn(&str, &[&str]) -> Result<String, GitErrorPayload>;
+
 /// spawn_blocking join failure → internal payload (never a raw string).
 fn join_err(e: tokio::task::JoinError) -> GitErrorPayload {
     GitErrorPayload::internal(e.to_string())
@@ -195,7 +205,11 @@ pub async fn git_branch_delete(
 }
 
 #[tauri::command]
-pub async fn git_merge_branch(path: String, branch: String, app: AppHandle) -> Result<String, GitErrorPayload> {
+pub async fn git_merge_branch(
+    path: String,
+    branch: String,
+    app: AppHandle,
+) -> Result<String, GitErrorPayload> {
     tokio::task::spawn_blocking(move || git_mut(&app, &path, &["merge", "--no-edit", &branch]))
         .await
         .map_err(join_err)?
@@ -224,10 +238,13 @@ pub struct MergePreview {
 
 fn merge_preview(path: &str, branch: &str) -> Result<MergePreview, GitErrorPayload> {
     let head = git_out(path, &["rev-parse", "HEAD"])?.trim().to_string();
-    let theirs = git_out(path, &["rev-parse", "--verify", &format!("{branch}^{{commit}}")])
-        .map_err(|_| GitErrorPayload::internal(format!("branch '{branch}' not found")))?
-        .trim()
-        .to_string();
+    let theirs = git_out(
+        path,
+        &["rev-parse", "--verify", &format!("{branch}^{{commit}}")],
+    )
+    .map_err(|_| GitErrorPayload::internal(format!("branch '{branch}' not found")))?
+    .trim()
+    .to_string();
 
     // Unrelated histories → no common ancestor → merge would refuse.
     // `merge-base` exits 1 on no ancestor — an accepted outcome, not an error.
@@ -236,7 +253,11 @@ fn merge_preview(path: &str, branch: &str) -> Result<MergePreview, GitErrorPaylo
         .success_codes(&[0, 1])
         .run()?;
     if base.exit_code != 0 {
-        return Ok(MergePreview { kind: "invalid".into(), commit_count: 0, conflicted_files: 0 });
+        return Ok(MergePreview {
+            kind: "invalid".into(),
+            commit_count: 0,
+            conflicted_files: 0,
+        });
     }
 
     // Commits that merging would bring in: on `branch` but not on HEAD.
@@ -245,7 +266,11 @@ fn merge_preview(path: &str, branch: &str) -> Result<MergePreview, GitErrorPaylo
         .parse::<u32>()
         .unwrap_or(0);
     if commit_count == 0 {
-        return Ok(MergePreview { kind: "uptodate".into(), commit_count: 0, conflicted_files: 0 });
+        return Ok(MergePreview {
+            kind: "uptodate".into(),
+            commit_count: 0,
+            conflicted_files: 0,
+        });
     }
 
     // Conflict detection via `git merge-tree --write-tree` (git 2.38+, with
@@ -268,14 +293,25 @@ fn merge_preview(path: &str, branch: &str) -> Result<MergePreview, GitErrorPaylo
     .run()?;
 
     if mt.exit_code == 0 {
-        return Ok(MergePreview { kind: "clean".into(), commit_count, conflicted_files: 0 });
+        return Ok(MergePreview {
+            kind: "clean".into(),
+            commit_count,
+            conflicted_files: 0,
+        });
     }
 
     // Non-zero: conflicts (exit 1) OR the flags are unsupported on an older git
     // (usage error / exit 129). Degrade gracefully so the merge stays available.
     let stderr = &mt.stderr;
-    if stderr.contains("usage:") || stderr.contains("unknown option") || stderr.contains("not a valid option") {
-        return Ok(MergePreview { kind: "unsupported".into(), commit_count, conflicted_files: 0 });
+    if stderr.contains("usage:")
+        || stderr.contains("unknown option")
+        || stderr.contains("not a valid option")
+    {
+        return Ok(MergePreview {
+            kind: "unsupported".into(),
+            commit_count,
+            conflicted_files: 0,
+        });
     }
 
     // Conflict output (`-z`, `--name-only`): `<tree-oid>\0` then each conflicted
@@ -284,11 +320,18 @@ fn merge_preview(path: &str, branch: &str) -> Result<MergePreview, GitErrorPaylo
     let mut fields = mt.stdout.split('\0').filter(|s| !s.is_empty());
     let _oid = fields.next();
     let conflicted_files = fields.count() as u32;
-    Ok(MergePreview { kind: "conflicts".into(), commit_count, conflicted_files })
+    Ok(MergePreview {
+        kind: "conflicts".into(),
+        commit_count,
+        conflicted_files,
+    })
 }
 
 #[tauri::command]
-pub async fn git_merge_preview(path: String, branch: String) -> Result<MergePreview, GitErrorPayload> {
+pub async fn git_merge_preview(
+    path: String,
+    branch: String,
+) -> Result<MergePreview, GitErrorPayload> {
     tokio::task::spawn_blocking(move || merge_preview(&path, &branch))
         .await
         .map_err(join_err)?
@@ -340,7 +383,13 @@ pub async fn git_fetch(
     app: AppHandle,
 ) -> Result<String, GitErrorPayload> {
     tokio::task::spawn_blocking(move || {
-        run_remote_op(&app, &path, "fetch", op_id, &["fetch", "--all", "--prune", "--progress"])
+        run_remote_op(
+            &app,
+            &path,
+            "fetch",
+            op_id,
+            &["fetch", "--all", "--prune", "--progress"],
+        )
     })
     .await
     .map_err(join_err)?
@@ -378,20 +427,28 @@ pub async fn git_push(
     app: AppHandle,
 ) -> Result<String, GitErrorPayload> {
     tokio::task::spawn_blocking(move || {
-        let mut args = vec!["push", "--progress"];
-        if force_with_lease {
-            args.push("--force-with-lease");
-        }
-        if follow_tags {
-            args.push("--follow-tags");
-        }
-        if let Some(r) = remote.as_deref() {
-            args.push(r);
-        }
+        let args = push_args(force_with_lease, follow_tags, remote.as_deref());
         run_remote_op(&app, &path, "push", op_id, &args)
     })
     .await
     .map_err(join_err)?
+}
+
+/// `git push` arguments for [`git_push`]. No refspec: git pushes the current
+/// branch to its upstream, and fails with `NoUpstream` when there is none —
+/// publishing a branch is [`git_publish_branch`]'s job.
+fn push_args(force_with_lease: bool, follow_tags: bool, remote: Option<&str>) -> Vec<&str> {
+    let mut args = vec!["push", "--progress"];
+    if force_with_lease {
+        args.push("--force-with-lease");
+    }
+    if follow_tags {
+        args.push("--follow-tags");
+    }
+    if let Some(r) = remote {
+        args.push(r);
+    }
+    args
 }
 
 /// Push the current branch to a remote (default `origin`) and set upstream.
@@ -404,7 +461,13 @@ pub async fn git_publish_branch(
 ) -> Result<String, GitErrorPayload> {
     tokio::task::spawn_blocking(move || {
         let r = remote.unwrap_or_else(|| "origin".into());
-        run_remote_op(&app, &path, "push", op_id, &["push", "--progress", "-u", &r, "HEAD"])
+        run_remote_op(
+            &app,
+            &path,
+            "push",
+            op_id,
+            &["push", "--progress", "-u", &r, "HEAD"],
+        )
     })
     .await
     .map_err(join_err)?
@@ -439,7 +502,9 @@ pub async fn git_undo_commit(path: String, app: AppHandle) -> Result<(), GitErro
         GitCommand::new(&path, &["rev-parse", "--verify", "HEAD~1"])
             .read_only()
             .run()
-            .map_err(|_| GitErrorPayload::internal("The first commit of a repository can't be undone."))?;
+            .map_err(|_| {
+                GitErrorPayload::internal("The first commit of a repository can't be undone.")
+            })?;
         // Not already pushed: with an upstream, ahead must be ≥ 1.
         let ahead = GitCommand::new(&path, &["rev-list", "--count", "@{upstream}..HEAD"])
             .read_only()
@@ -470,7 +535,9 @@ pub async fn git_squash_last(
     app: AppHandle,
 ) -> Result<(), GitErrorPayload> {
     if count < 2 {
-        return Err(GitErrorPayload::internal("Squash needs at least 2 commits."));
+        return Err(GitErrorPayload::internal(
+            "Squash needs at least 2 commits.",
+        ));
     }
     tokio::task::spawn_blocking(move || {
         GitCommand::new(&path, &["rev-parse", "--verify", &format!("HEAD~{count}")])
@@ -546,7 +613,11 @@ pub async fn git_remote_add(
 }
 
 #[tauri::command]
-pub async fn git_remote_remove(path: String, name: String, app: AppHandle) -> Result<(), GitErrorPayload> {
+pub async fn git_remote_remove(
+    path: String,
+    name: String,
+    app: AppHandle,
+) -> Result<(), GitErrorPayload> {
     tokio::task::spawn_blocking(move || {
         git_mut(&app, &path, &["remote", "remove", &name])?;
         Ok(())
@@ -560,10 +631,7 @@ pub async fn git_remote_remove(path: String, name: String, app: AppHandle) -> Re
 #[tauri::command]
 pub async fn git_stash_list(path: String) -> Result<Vec<StashEntry>, GitErrorPayload> {
     tokio::task::spawn_blocking(move || {
-        let out = git_out(
-            &path,
-            &["stash", "list", &format!("--format=%gd{US}%gs")],
-        )?;
+        let out = git_out(&path, &["stash", "list", &format!("--format=%gd{US}%gs")])?;
         let stashes = out
             .lines()
             .filter(|l| !l.is_empty())
@@ -612,9 +680,17 @@ pub async fn git_stash_push(
 }
 
 #[tauri::command]
-pub async fn git_stash_apply(path: String, index: u32, app: AppHandle) -> Result<(), GitErrorPayload> {
+pub async fn git_stash_apply(
+    path: String,
+    index: u32,
+    app: AppHandle,
+) -> Result<(), GitErrorPayload> {
     tokio::task::spawn_blocking(move || {
-        git_mut(&app, &path, &["stash", "apply", &format!("stash@{{{index}}}")])?;
+        git_mut(
+            &app,
+            &path,
+            &["stash", "apply", &format!("stash@{{{index}}}")],
+        )?;
         Ok(())
     })
     .await
@@ -622,9 +698,17 @@ pub async fn git_stash_apply(path: String, index: u32, app: AppHandle) -> Result
 }
 
 #[tauri::command]
-pub async fn git_stash_pop(path: String, index: u32, app: AppHandle) -> Result<(), GitErrorPayload> {
+pub async fn git_stash_pop(
+    path: String,
+    index: u32,
+    app: AppHandle,
+) -> Result<(), GitErrorPayload> {
     tokio::task::spawn_blocking(move || {
-        git_mut(&app, &path, &["stash", "pop", &format!("stash@{{{index}}}")])?;
+        git_mut(
+            &app,
+            &path,
+            &["stash", "pop", &format!("stash@{{{index}}}")],
+        )?;
         Ok(())
     })
     .await
@@ -632,9 +716,17 @@ pub async fn git_stash_pop(path: String, index: u32, app: AppHandle) -> Result<(
 }
 
 #[tauri::command]
-pub async fn git_stash_drop(path: String, index: u32, app: AppHandle) -> Result<(), GitErrorPayload> {
+pub async fn git_stash_drop(
+    path: String,
+    index: u32,
+    app: AppHandle,
+) -> Result<(), GitErrorPayload> {
     tokio::task::spawn_blocking(move || {
-        git_mut(&app, &path, &["stash", "drop", &format!("stash@{{{index}}}")])?;
+        git_mut(
+            &app,
+            &path,
+            &["stash", "drop", &format!("stash@{{{index}}}")],
+        )?;
         Ok(())
     })
     .await
@@ -646,7 +738,11 @@ pub async fn git_stash_drop(path: String, index: u32, app: AppHandle) -> Result<
 /// Discard tracked changes (staged + worktree) for `files`, back to HEAD.
 /// Untracked files are left alone (deleting them is destructive).
 #[tauri::command]
-pub async fn git_discard(path: String, files: Vec<String>, app: AppHandle) -> Result<(), GitErrorPayload> {
+pub async fn git_discard(
+    path: String,
+    files: Vec<String>,
+    app: AppHandle,
+) -> Result<(), GitErrorPayload> {
     tokio::task::spawn_blocking(move || {
         let mut args = vec![
             "restore".to_string(),
@@ -691,7 +787,8 @@ pub async fn git_delete_added(
         for f in &files {
             let abs = Path::new(&path).join(f);
             if abs.exists() {
-                std::fs::remove_file(&abs).map_err(|e| GitErrorPayload::internal(format!("Failed to delete {f}: {e}")))?;
+                std::fs::remove_file(&abs)
+                    .map_err(|e| GitErrorPayload::internal(format!("Failed to delete {f}: {e}")))?;
             }
         }
         Ok(())
@@ -708,41 +805,70 @@ pub async fn git_reset(
     app: AppHandle,
 ) -> Result<(), GitErrorPayload> {
     tokio::task::spawn_blocking(move || {
-        let flag = match mode.as_str() {
-            "soft" => "--soft",
-            "hard" => "--hard",
-            _ => "--mixed",
-        };
-        git_mut(&app, &path, &["reset", flag, &target])?;
+        reset(&git_out, &path, &target, &mode)?;
+        emit_synthetic_change(&app, Path::new(&path));
         Ok(())
     })
     .await
     .map_err(join_err)?
 }
 
+/// `git reset` to `target`. `mode` is `"soft"` or `"hard"`; anything else is
+/// git's own default, `--mixed`.
+fn reset(git: Git, path: &str, target: &str, mode: &str) -> Result<(), GitErrorPayload> {
+    let flag = match mode {
+        "soft" => "--soft",
+        "hard" => "--hard",
+        _ => "--mixed",
+    };
+    git(path, &["reset", flag, target])?;
+    Ok(())
+}
+
 #[tauri::command]
-pub async fn git_revert(path: String, sha: String, app: AppHandle) -> Result<String, GitErrorPayload> {
+pub async fn git_revert(
+    path: String,
+    sha: String,
+    app: AppHandle,
+) -> Result<String, GitErrorPayload> {
     tokio::task::spawn_blocking(move || {
-        // Plain revert first; merge commits need a parent (-m 1).
-        match git_mut(&app, &path, &["revert", "--no-edit", &sha]) {
-            Ok(o) => Ok(o),
-            Err(e)
-                if e.raw_stderr.contains("is a merge") || e.raw_stderr.contains("mainline") =>
-            {
-                git_mut(&app, &path, &["revert", "--no-edit", "-m", "1", &sha])
-            }
-            Err(e) => Err(e),
-        }
+        let out = revert(&git_out, &path, &sha)?;
+        emit_synthetic_change(&app, Path::new(&path));
+        Ok(out)
     })
     .await
     .map_err(join_err)?
 }
 
+/// Revert `sha` with a no-edit commit.
+fn revert(git: Git, path: &str, sha: &str) -> Result<String, GitErrorPayload> {
+    // Plain revert first; merge commits need a parent (-m 1).
+    match git(path, &["revert", "--no-edit", sha]) {
+        Ok(o) => Ok(o),
+        Err(e) if e.raw_stderr.contains("is a merge") || e.raw_stderr.contains("mainline") => {
+            git(path, &["revert", "--no-edit", "-m", "1", sha])
+        }
+        Err(e) => Err(e),
+    }
+}
+
 #[tauri::command]
-pub async fn git_cherry_pick(path: String, sha: String, app: AppHandle) -> Result<String, GitErrorPayload> {
-    tokio::task::spawn_blocking(move || git_mut(&app, &path, &["cherry-pick", &sha]))
-        .await
-        .map_err(join_err)?
+pub async fn git_cherry_pick(
+    path: String,
+    sha: String,
+    app: AppHandle,
+) -> Result<String, GitErrorPayload> {
+    tokio::task::spawn_blocking(move || {
+        let out = cherry_pick(&git_out, &path, &sha)?;
+        emit_synthetic_change(&app, Path::new(&path));
+        Ok(out)
+    })
+    .await
+    .map_err(join_err)?
+}
+
+fn cherry_pick(git: Git, path: &str, sha: &str) -> Result<String, GitErrorPayload> {
+    git(path, &["cherry-pick", sha])
 }
 
 // ── Tags ─────────────────────────────────────────────────────────────────
@@ -751,7 +877,11 @@ pub async fn git_cherry_pick(path: String, sha: String, app: AppHandle) -> Resul
 pub async fn git_tags(path: String) -> Result<Vec<String>, GitErrorPayload> {
     tokio::task::spawn_blocking(move || {
         let out = git_out(&path, &["tag", "--sort=-creatordate"])?;
-        Ok(out.lines().filter(|l| !l.is_empty()).map(String::from).collect())
+        Ok(out
+            .lines()
+            .filter(|l| !l.is_empty())
+            .map(String::from)
+            .collect())
     })
     .await
     .map_err(join_err)?
@@ -781,7 +911,11 @@ pub async fn git_create_tag(
 }
 
 #[tauri::command]
-pub async fn git_delete_tag(path: String, name: String, app: AppHandle) -> Result<(), GitErrorPayload> {
+pub async fn git_delete_tag(
+    path: String,
+    name: String,
+    app: AppHandle,
+) -> Result<(), GitErrorPayload> {
     tokio::task::spawn_blocking(move || {
         git_mut(&app, &path, &["tag", "-d", &name])?;
         Ok(())
@@ -798,7 +932,13 @@ pub async fn git_show(path: String, sha: String) -> Result<CommitDetail, GitErro
         let fmt = format!("%H{US}%h{US}%an{US}%ae{US}%ad{US}%s{US}%b");
         let meta = git_out(
             &path,
-            &["log", "-1", "--date=format:%Y-%m-%d %H:%M", &format!("--format={fmt}"), &sha],
+            &[
+                "log",
+                "-1",
+                "--date=format:%Y-%m-%d %H:%M",
+                &format!("--format={fmt}"),
+                &sha,
+            ],
         )?;
         let p: Vec<&str> = meta.trim_end().split(US).collect();
         // Diff only (empty --format suppresses the header).
@@ -878,7 +1018,12 @@ pub(crate) struct OpEmitter {
 
 impl OpEmitter {
     pub(crate) fn new(app: AppHandle, op_id: String, repo: String, kind: &'static str) -> Self {
-        OpEmitter { app, op_id, repo, kind }
+        OpEmitter {
+            app,
+            op_id,
+            repo,
+            kind,
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -918,7 +1063,15 @@ impl OpEmitter {
     }
 
     pub(crate) fn progress(&self, fraction: f32, title: &str) {
-        self.emit("progress", None, None, None, None, Some(fraction * 100.0), Some(title));
+        self.emit(
+            "progress",
+            None,
+            None,
+            None,
+            None,
+            Some(fraction * 100.0),
+            Some(title),
+        );
     }
 }
 
@@ -953,7 +1106,9 @@ impl atlas_git::OpSink for OpEmitter {
 #[cfg(unix)]
 fn is_executable(p: &Path) -> bool {
     use std::os::unix::fs::PermissionsExt;
-    std::fs::metadata(p).map(|m| m.permissions().mode() & 0o111 != 0).unwrap_or(false)
+    std::fs::metadata(p)
+        .map(|m| m.permissions().mode() & 0o111 != 0)
+        .unwrap_or(false)
 }
 #[cfg(not(unix))]
 fn is_executable(_p: &Path) -> bool {
@@ -974,7 +1129,10 @@ fn commit_hooks_present(path: &str) -> bool {
         .map(|o| o.stdout.trim().to_string());
     let hooks_dir = match configured {
         Some(d) => d,
-        None => match GitCommand::new(path, &["rev-parse", "--git-path", "hooks"]).read_only().run() {
+        None => match GitCommand::new(path, &["rev-parse", "--git-path", "hooks"])
+            .read_only()
+            .run()
+        {
             Ok(o) => o.stdout.trim().to_string(),
             Err(_) => return false,
         },
@@ -988,12 +1146,17 @@ fn commit_hooks_present(path: &str) -> bool {
     } else {
         Path::new(path).join(base)
     };
-    ["pre-commit", "prepare-commit-msg", "commit-msg", "post-commit"]
-        .iter()
-        .any(|h| {
-            let hp = base.join(h);
-            hp.is_file() && is_executable(&hp)
-        })
+    [
+        "pre-commit",
+        "prepare-commit-msg",
+        "commit-msg",
+        "post-commit",
+    ]
+    .iter()
+    .any(|h| {
+        let hp = base.join(h);
+        hp.is_file() && is_executable(&hp)
+    })
 }
 
 /// Streaming commit (v2): message via `commit -F -` stdin (multiline-safe),
@@ -1026,7 +1189,11 @@ pub async fn git_commit_v2(
             GitCommand::new(&path, &["commit", "--amend", "--no-edit"]).run_streaming(&emitter)
         } else {
             let mut message = summary.trim().to_string();
-            if let Some(d) = description.as_deref().map(str::trim).filter(|d| !d.is_empty()) {
+            if let Some(d) = description
+                .as_deref()
+                .map(str::trim)
+                .filter(|d| !d.is_empty())
+            {
                 message.push_str("\n\n");
                 message.push_str(d);
             }
@@ -1074,7 +1241,8 @@ pub async fn git_commit_v2(
             Err(mut e) => {
                 if e.code == GitErrorCode::Generic && commit_hooks_present(&path) {
                     e.code = GitErrorCode::HookFailed;
-                    e.message = atlas_git::error::friendly_message(GitErrorCode::HookFailed, &[], None);
+                    e.message =
+                        atlas_git::error::friendly_message(GitErrorCode::HookFailed, &[], None);
                 }
                 emitter.done(Some(&e));
                 Err(e)
@@ -1107,4 +1275,421 @@ pub async fn git_op_control(
     })
     .await
     .map_err(join_err)?
+}
+
+/// Reset, revert, cherry-pick and push against real temporary repositories.
+///
+/// The commands themselves need an `AppHandle` for the watcher notification,
+/// so these drive the helpers under them through a [`Git`] runner that is
+/// [`git_out`] plus a hermetic environment: no global or system git config
+/// (a developer's `commit.gpgsign` or `core.hooksPath` must not decide the
+/// result) and a fixed identity. The remote is a bare repository on disk, so
+/// nothing touches the network.
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    const HERMETIC_ENV: &[(&str, &str)] = &[
+        ("GIT_CONFIG_GLOBAL", "/dev/null"),
+        ("GIT_CONFIG_NOSYSTEM", "1"),
+        ("GIT_AUTHOR_NAME", "Atlas Test"),
+        ("GIT_AUTHOR_EMAIL", "test@atlas.invalid"),
+        ("GIT_COMMITTER_NAME", "Atlas Test"),
+        ("GIT_COMMITTER_EMAIL", "test@atlas.invalid"),
+    ];
+
+    /// The production runner, minus everything outside the repository.
+    fn hermetic(path: &str, args: &[&str]) -> Result<String, GitErrorPayload> {
+        let mut cmd = GitCommand::new(path, args);
+        for (k, v) in HERMETIC_ENV {
+            cmd = cmd.env(k, v);
+        }
+        Ok(cmd.run()?.stdout)
+    }
+
+    /// A scratch directory removed on drop (src-tauri has no `tempfile`).
+    struct Scratch(PathBuf);
+
+    impl Scratch {
+        fn new() -> Self {
+            let dir = std::env::temp_dir().join(format!("atlas-git-ops-{}", uuid::Uuid::new_v4()));
+            std::fs::create_dir_all(&dir).unwrap();
+            Self(dir)
+        }
+    }
+
+    impl Drop for Scratch {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    /// A working repository on `main`, with helpers that panic on failure —
+    /// setup is not what is under test.
+    struct Repo {
+        path: String,
+    }
+
+    impl Repo {
+        fn init(dir: &Path) -> Self {
+            std::fs::create_dir_all(dir).unwrap();
+            let repo = Self {
+                path: dir.to_string_lossy().into_owned(),
+            };
+            repo.git(&["init", "-q", "-b", "main"]);
+            repo
+        }
+
+        fn git(&self, args: &[&str]) -> String {
+            hermetic(&self.path, args).unwrap_or_else(|e| panic!("git {args:?}: {}", e.raw_stderr))
+        }
+
+        fn write(&self, file: &str, contents: &str) {
+            std::fs::write(Path::new(&self.path).join(file), contents).unwrap();
+        }
+
+        fn read(&self, file: &str) -> String {
+            std::fs::read_to_string(Path::new(&self.path).join(file)).unwrap()
+        }
+
+        fn commit(&self, file: &str, contents: &str, message: &str) -> String {
+            self.write(file, contents);
+            self.git(&["add", file]);
+            self.git(&["commit", "-q", "-m", message]);
+            self.head()
+        }
+
+        fn head(&self) -> String {
+            self.rev("HEAD")
+        }
+
+        fn rev(&self, rev: &str) -> String {
+            self.git(&["rev-parse", rev]).trim().to_string()
+        }
+
+        fn subject(&self) -> String {
+            self.git(&["log", "-1", "--format=%s"]).trim().to_string()
+        }
+
+        fn staged(&self) -> String {
+            self.git(&["diff", "--cached", "--name-only"])
+                .trim()
+                .to_string()
+        }
+
+        fn unstaged(&self) -> String {
+            self.git(&["diff", "--name-only"]).trim().to_string()
+        }
+
+        fn has_git_file(&self, name: &str) -> bool {
+            Path::new(&self.path).join(".git").join(name).exists()
+        }
+    }
+
+    /// `a.txt` at "1" then "2": two commits to move between.
+    fn two_commits(dir: &Path) -> (Repo, String, String) {
+        let repo = Repo::init(dir);
+        let first = repo.commit("a.txt", "1\n", "first");
+        let second = repo.commit("a.txt", "2\n", "second");
+        (repo, first, second)
+    }
+
+    // ── reset ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn reset_soft_moves_head_and_keeps_the_change_staged() {
+        let dir = Scratch::new();
+        let (repo, first, _) = two_commits(&dir.0);
+        reset(&hermetic, &repo.path, "HEAD~1", "soft").unwrap();
+        assert_eq!(repo.head(), first);
+        assert_eq!(repo.staged(), "a.txt");
+        assert_eq!(repo.read("a.txt"), "2\n");
+    }
+
+    #[test]
+    fn reset_mixed_and_any_unknown_mode_unstage_but_keep_the_worktree() {
+        for mode in ["mixed", "", "bogus"] {
+            let dir = Scratch::new();
+            let (repo, first, _) = two_commits(&dir.0);
+            reset(&hermetic, &repo.path, "HEAD~1", mode).unwrap();
+            assert_eq!(repo.head(), first, "{mode:?}");
+            assert_eq!(repo.staged(), "", "{mode:?}");
+            assert_eq!(repo.unstaged(), "a.txt", "{mode:?}");
+            assert_eq!(repo.read("a.txt"), "2\n", "{mode:?}");
+        }
+    }
+
+    #[test]
+    fn reset_hard_discards_the_change() {
+        let dir = Scratch::new();
+        let (repo, first, second) = two_commits(&dir.0);
+        repo.write("a.txt", "dirty\n");
+        reset(&hermetic, &repo.path, &first, "hard").unwrap();
+        assert_eq!(repo.head(), first);
+        assert_eq!(repo.staged(), "");
+        assert_eq!(repo.unstaged(), "");
+        assert_eq!(repo.read("a.txt"), "1\n");
+
+        // And forward again to a sha.
+        reset(&hermetic, &repo.path, &second, "hard").unwrap();
+        assert_eq!(repo.read("a.txt"), "2\n");
+    }
+
+    #[test]
+    fn reset_to_an_unknown_target_fails_typed_and_moves_nothing() {
+        let dir = Scratch::new();
+        let (repo, _, second) = two_commits(&dir.0);
+        let err = reset(&hermetic, &repo.path, "no-such-ref", "hard").unwrap_err();
+        assert_eq!(err.code, GitErrorCode::UnknownRef, "{}", err.raw_stderr);
+        assert_eq!(repo.head(), second);
+    }
+
+    // ── revert ────────────────────────────────────────────────────────────
+
+    #[test]
+    fn revert_commits_the_inverse_change() {
+        let dir = Scratch::new();
+        let (repo, _, second) = two_commits(&dir.0);
+        revert(&hermetic, &repo.path, &second).unwrap();
+        assert_eq!(repo.read("a.txt"), "1\n");
+        assert_eq!(repo.subject(), "Revert \"second\"");
+        assert_eq!(repo.rev("HEAD~1"), second, "a new commit, not a rewrite");
+        assert_eq!(repo.unstaged(), "");
+    }
+
+    /// A merge commit refuses a plain revert ("is a merge but no -m option");
+    /// the helper must retry against the first parent.
+    #[test]
+    fn revert_of_a_merge_commit_falls_back_to_the_first_parent() {
+        let dir = Scratch::new();
+        let repo = Repo::init(&dir.0);
+        repo.commit("a.txt", "1\n", "base");
+        repo.git(&["checkout", "-q", "-b", "feature"]);
+        repo.commit("b.txt", "feature\n", "add b");
+        repo.git(&["checkout", "-q", "main"]);
+        repo.commit("c.txt", "main\n", "add c");
+        repo.git(&["merge", "-q", "--no-ff", "--no-edit", "feature"]);
+        let merge = repo.head();
+        assert!(Path::new(&repo.path).join("b.txt").exists());
+
+        revert(&hermetic, &repo.path, &merge).expect("falls back to -m 1");
+        assert!(
+            !Path::new(&repo.path).join("b.txt").exists(),
+            "the feature side is undone"
+        );
+        assert!(
+            Path::new(&repo.path).join("c.txt").exists(),
+            "mainline is kept"
+        );
+        assert_eq!(repo.rev("HEAD~1"), merge);
+    }
+
+    #[test]
+    fn revert_that_conflicts_fails_typed_and_leaves_the_revert_in_progress() {
+        let dir = Scratch::new();
+        let (repo, _, second) = two_commits(&dir.0);
+        repo.commit("a.txt", "3\n", "third");
+        let head = repo.head();
+
+        let err = revert(&hermetic, &repo.path, &second).unwrap_err();
+        // Either conflict code: today a revert lands on MergeConflicts (its
+        // stdout `CONFLICT (`) and a cherry-pick on RebaseConflicts (its
+        // stderr `error: could not apply`). Both route to the conflicts view.
+        assert!(
+            matches!(
+                err.code,
+                GitErrorCode::RebaseConflicts | GitErrorCode::MergeConflicts
+            ),
+            "{:?}: {}",
+            err.code,
+            err.raw_stderr
+        );
+        assert!(
+            repo.has_git_file("REVERT_HEAD"),
+            "the in-progress banner keys off this"
+        );
+        assert_eq!(repo.head(), head, "nothing committed");
+    }
+
+    // ── cherry-pick ───────────────────────────────────────────────────────
+
+    #[test]
+    fn cherry_pick_copies_a_commit_onto_the_current_branch() {
+        let dir = Scratch::new();
+        let repo = Repo::init(&dir.0);
+        repo.commit("a.txt", "1\n", "base");
+        repo.git(&["checkout", "-q", "-b", "feature"]);
+        let picked = repo.commit("b.txt", "from feature\n", "add b");
+        repo.git(&["checkout", "-q", "main"]);
+        // Diverge first: onto its own parent, within the same second, a pick
+        // would reproduce the original commit's sha exactly.
+        let main_before = repo.commit("c.txt", "main\n", "add c");
+
+        cherry_pick(&hermetic, &repo.path, &picked).unwrap();
+        assert_eq!(repo.read("b.txt"), "from feature\n");
+        assert_eq!(repo.subject(), "add b");
+        assert_eq!(repo.rev("HEAD~1"), main_before);
+        assert_ne!(repo.head(), picked, "a copy, not the original commit");
+    }
+
+    #[test]
+    fn cherry_pick_that_conflicts_fails_typed_and_leaves_the_pick_in_progress() {
+        let dir = Scratch::new();
+        let repo = Repo::init(&dir.0);
+        repo.commit("a.txt", "base\n", "base");
+        repo.git(&["checkout", "-q", "-b", "feature"]);
+        let picked = repo.commit("a.txt", "feature\n", "feature edit");
+        repo.git(&["checkout", "-q", "main"]);
+        repo.commit("a.txt", "main\n", "main edit");
+        let head = repo.head();
+
+        let err = cherry_pick(&hermetic, &repo.path, &picked).unwrap_err();
+        assert!(
+            matches!(
+                err.code,
+                GitErrorCode::RebaseConflicts | GitErrorCode::MergeConflicts
+            ),
+            "{:?}: {}",
+            err.code,
+            err.raw_stderr
+        );
+        assert!(repo.has_git_file("CHERRY_PICK_HEAD"));
+        assert!(
+            repo.read("a.txt").contains("<<<<<<<"),
+            "conflict markers in the tree"
+        );
+        assert_eq!(repo.head(), head);
+
+        // And the in-progress pick aborts cleanly back to where it started.
+        repo.git(&["cherry-pick", "--abort"]);
+        assert_eq!(repo.read("a.txt"), "main\n");
+    }
+
+    #[test]
+    fn cherry_pick_of_an_unknown_sha_fails_typed() {
+        let dir = Scratch::new();
+        let (repo, _, _) = two_commits(&dir.0);
+        let err = cherry_pick(
+            &hermetic,
+            &repo.path,
+            "0000000000000000000000000000000000000001",
+        )
+        .unwrap_err();
+        assert!(!err.raw_stderr.is_empty());
+        assert_ne!(err.code, GitErrorCode::RebaseConflicts);
+    }
+
+    // ── push ──────────────────────────────────────────────────────────────
+
+    #[test]
+    fn push_args_map_each_option_to_its_flag() {
+        assert_eq!(push_args(false, false, None), ["push", "--progress"]);
+        assert_eq!(
+            push_args(true, true, Some("upstream")),
+            [
+                "push",
+                "--progress",
+                "--force-with-lease",
+                "--follow-tags",
+                "upstream"
+            ]
+        );
+        assert_eq!(
+            push_args(false, true, None),
+            ["push", "--progress", "--follow-tags"]
+        );
+    }
+
+    /// A clone of a fresh bare remote with one published commit on `main`.
+    fn published(dir: &Path) -> (Repo, String) {
+        let remote = dir.join("remote.git");
+        let remote_path = remote.to_string_lossy().into_owned();
+        std::fs::create_dir_all(&remote).unwrap();
+        hermetic(&remote_path, &["init", "-q", "--bare", "-b", "main"]).unwrap();
+
+        let repo = Repo::init(&dir.join("work"));
+        repo.git(&["remote", "add", "origin", &remote_path]);
+        repo.commit("a.txt", "1\n", "first");
+        // What `git_publish_branch` runs: push HEAD and set the upstream.
+        repo.git(&["push", "-q", "-u", "origin", "HEAD"]);
+        (repo, remote_path)
+    }
+
+    fn remote_main(remote: &str) -> String {
+        hermetic(remote, &["rev-parse", "main"])
+            .unwrap()
+            .trim()
+            .to_string()
+    }
+
+    #[test]
+    fn push_sends_new_commits_to_the_upstream() {
+        let dir = Scratch::new();
+        let (repo, remote) = published(&dir.0);
+        let second = repo.commit("a.txt", "2\n", "second");
+
+        hermetic(&repo.path, &push_args(false, false, None)).unwrap();
+        assert_eq!(remote_main(&remote), second);
+    }
+
+    #[test]
+    fn push_with_follow_tags_sends_annotated_tags() {
+        let dir = Scratch::new();
+        let (repo, remote) = published(&dir.0);
+        repo.commit("a.txt", "2\n", "second");
+        repo.git(&["tag", "-a", "v1", "-m", "release"]);
+
+        hermetic(&repo.path, &push_args(false, true, None)).unwrap();
+        assert!(hermetic(&remote, &["rev-parse", "--verify", "refs/tags/v1"]).is_ok());
+    }
+
+    #[test]
+    fn push_without_an_upstream_fails_as_no_upstream() {
+        let dir = Scratch::new();
+        let (repo, _) = published(&dir.0);
+        repo.git(&["checkout", "-q", "-b", "unpublished"]);
+        repo.commit("b.txt", "b\n", "b");
+
+        let err = hermetic(&repo.path, &push_args(false, false, None)).unwrap_err();
+        assert_eq!(err.code, GitErrorCode::NoUpstream, "{}", err.raw_stderr);
+    }
+
+    /// The remote moved on: a plain push is rejected as non-fast-forward, a
+    /// lease against the stale remote-tracking ref is rejected as stale, and
+    /// the lease succeeds once the tracking ref has been fetched.
+    #[test]
+    fn a_diverged_push_is_rejected_until_forced_with_a_fresh_lease() {
+        let dir = Scratch::new();
+        let (repo, remote) = published(&dir.0);
+
+        let other = Repo::init(&dir.0.join("other"));
+        other.git(&["remote", "add", "origin", &remote]);
+        other.git(&["fetch", "-q", "origin"]);
+        other.git(&["reset", "-q", "--hard", "origin/main"]);
+        let theirs = other.commit("a.txt", "theirs\n", "theirs");
+        other.git(&["push", "-q", "origin", "HEAD:main"]);
+
+        let ours = repo.commit("a.txt", "ours\n", "ours");
+        let err = hermetic(&repo.path, &push_args(false, false, None)).unwrap_err();
+        assert_eq!(err.code, GitErrorCode::NonFastForward, "{}", err.raw_stderr);
+        assert_eq!(remote_main(&remote), theirs);
+
+        let err = hermetic(&repo.path, &push_args(true, false, None)).unwrap_err();
+        assert_eq!(
+            err.code,
+            GitErrorCode::ForcePushRejected,
+            "{}",
+            err.raw_stderr
+        );
+        assert_eq!(
+            remote_main(&remote),
+            theirs,
+            "a stale lease must not overwrite"
+        );
+
+        repo.git(&["fetch", "-q", "origin"]);
+        hermetic(&repo.path, &push_args(true, false, None)).unwrap();
+        assert_eq!(remote_main(&remote), ours);
+    }
 }

@@ -1,10 +1,10 @@
 import { useEffect, useRef } from "react";
 import { Group, Panel, Separator, useDefaultLayout, usePanelRef } from "react-resizable-panels";
 import { useLayoutStore } from "../stores/layout-store";
-import { useProjectStore } from "@/features/project/stores/project-store";
-import { useWorkspaceStore } from "@/features/workspaces/stores/workspace-store";
-import { WorkspaceSidebar } from "@/features/workspaces/components/workspace-sidebar";
-import { useWorkspaceGitPrefetch } from "@/features/workspaces/lib/use-workspace-prefetch";
+import { useAppStore } from "@/features/app/stores/app-store";
+import { useProjectStore } from "@/features/projects/stores/project-store";
+import { ProjectSidebar } from "@/features/projects/components/project-sidebar";
+import { useProjectGitPrefetch } from "@/features/projects/lib/use-project-prefetch";
 import { Titlebar } from "@/components/titlebar";
 import { cn } from "@/lib/utils";
 import { LeftPanel } from "./left-panel";
@@ -21,11 +21,11 @@ const MAIN_LAYOUT_ID = "atlas-main-layout";
 export function AppLayout() {
   const leftPanel = useLayoutStore.use.leftPanel();
   const rightPanel = useLayoutStore.use.rightPanel();
-  const currentProject = useProjectStore.use.currentProject();
-  const sidebarOpen = useWorkspaceStore.use.sidebarOpen();
+  const currentProject = useAppStore.use.currentProject();
+  const sidebarOpen = useProjectStore.use.sidebarOpen();
 
-  // Warm the workspace-pane git data at startup so the first slide is smooth.
-  useWorkspaceGitPrefetch();
+  // Warm the project-pane git data at startup so the first slide is smooth.
+  useProjectGitPrefetch();
 
   // v4 replaced `autoSaveId` with this hook: it owns the localStorage read and
   // write, and the Group takes the result as `defaultLayout` + `onLayoutChanged`.
@@ -50,20 +50,20 @@ export function AppLayout() {
   const showRight = rightPanel.visible && (!!currentProject || rightPanel.mode === "chat");
   return (
     <div className="flex h-screen">
-      {/* DOCKED workspace sidebar — an in-flow left column that pushes the
+      {/* DOCKED project sidebar — an in-flow left column that pushes the
           whole shell right. Full-height so it sits beside the titlebar; the
           sidebar's own top bar already dodges the traffic lights. */}
       {sidebarOpen && (
-        <div className="atlas-workspace-rail h-screen w-[244px] shrink-0 border-r border-contrast/[0.06]">
-          <WorkspaceSidebar />
+        <div className="atlas-project-rail h-screen w-[244px] shrink-0 border-r border-border-subtle">
+          <ProjectSidebar />
         </div>
       )}
 
       {/*
-       * NOT keyed by workspace: keying forced a full unmount/remount of the
+       * NOT keyed by project: keying forced a full unmount/remount of the
        * whole shell on every switch (rebuilding CodeMirror/xterm/virtualizer)
        * — the dominant switch cost. Instead, `switchTo` swaps Zustand state in
-       * place from an in-RAM snapshot (see workspace-snapshot.ts), so the shell
+       * place from an in-RAM snapshot (see project-snapshot.ts), so the shell
        * stays mounted and switching is near-instant.
        */}
       {/* `min-w-0` is load-bearing, not decoration. This column is a flex item
@@ -116,7 +116,7 @@ export function AppLayout() {
             </Panel>
             <Separator
               className={cn(
-                "bg-border-default hover:bg-accent data-[separator=active]:bg-accent transition-colors cursor-col-resize",
+                "w-px bg-border hover:bg-primary data-[separator=active]:bg-primary transition-colors cursor-col-resize",
                 // Kept in the tree (removing it would re-derive the layout, the
                 // very thing we're avoiding) but inert while collapsed.
                 showLeft ? "w-px" : "w-0 pointer-events-none invisible",
@@ -129,7 +129,7 @@ export function AppLayout() {
 
             {showRight && (
               <>
-                <Separator className="w-px bg-border-default hover:bg-accent data-[separator=active]:bg-accent transition-colors cursor-col-resize" />
+                <Separator className="w-px bg-border hover:bg-primary data-[separator=active]:bg-primary transition-colors cursor-col-resize" />
                 <Panel id="atlas-right" defaultSize="18" minSize="12" maxSize="50">
                   <RightPanel />
                 </Panel>

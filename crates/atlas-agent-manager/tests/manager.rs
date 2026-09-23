@@ -10,7 +10,9 @@ use std::time::Duration;
 
 use agent_client_protocol::schema::v1 as acp;
 use anyhow::{anyhow, Result};
-use atlas_acp_thread::{AcpThread, AcpThreadHandle, AgentConnection, AgentId, AgentThreadEntry, LoadError};
+use atlas_acp_thread::{
+    AcpThread, AcpThreadHandle, AgentConnection, AgentId, AgentThreadEntry, LoadError,
+};
 use atlas_agent_manager::{
     Agent, AgentCatalog, AgentConnectedState, AgentConnectionEntry, AgentConnectionStatus,
     AgentManager, AgentManagerEvent,
@@ -168,20 +170,14 @@ impl AgentServer for FakeServer {
         self.attempts.fetch_add(1, Ordering::SeqCst);
         // Default to success once the script runs out, so a test that only
         // scripts a failure still gets a working reconnect.
-        let outcome = self
-            .outcomes
-            .lock()
-            .unwrap()
-            .pop_front()
-            .unwrap_or(Ok(()));
+        let outcome = self.outcomes.lock().unwrap().pop_front().unwrap_or(Ok(()));
         let id = self.id.clone();
         let prompt_fails = self.prompt_fails;
         async move {
             match outcome {
-                Ok(()) => Ok(Arc::new(FakeConnection {
-                    id,
-                    prompt_fails,
-                }) as Arc<dyn AgentConnection>),
+                Ok(()) => {
+                    Ok(Arc::new(FakeConnection { id, prompt_fails }) as Arc<dyn AgentConnection>)
+                }
                 Err(error) => Err(anyhow::Error::from(error)),
             }
         }
@@ -268,6 +264,7 @@ fn connect_options() -> ConnectOptions {
         defaults: AcpConnectionDefaults::default(),
         thread_events,
         request_elicitation_events: Arc::new(|_agent_id| atlas_acp_thread::event_channel().0),
+        session_mcp: None,
         client_name: "atlas-test",
         client_version: "0.0.0".to_string(),
     }
@@ -284,9 +281,7 @@ fn custom(id: &str) -> Agent {
 }
 
 /// Awaits an entry's connect attempt without holding its lock across the await.
-async fn settle(
-    entry: Arc<Mutex<AgentConnectionEntry>>,
-) -> Result<AgentConnectedState, LoadError> {
+async fn settle(entry: Arc<Mutex<AgentConnectionEntry>>) -> Result<AgentConnectedState, LoadError> {
     let task = entry.lock().unwrap().wait_for_connection();
     task.await
 }
@@ -322,13 +317,14 @@ async fn a_connection_request_connects_once_and_is_reused() {
     let second = manager.request_connection(key.clone(), server.clone());
     assert!(Arc::ptr_eq(&first, &second));
 
-    let state = settle(first).await
-        .expect("the connection comes up");
+    let state = settle(first).await.expect("the connection comes up");
     assert_eq!(state.connection.agent_id().as_str(), "claude-code");
 
-    wait_for(|| (manager.connection_status(&key) == AgentConnectionStatus::Connected).then_some(()))
-        .await
-        .expect("the entry reaches Connected");
+    wait_for(|| {
+        (manager.connection_status(&key) == AgentConnectionStatus::Connected).then_some(())
+    })
+    .await
+    .expect("the entry reaches Connected");
     assert_eq!(manager.agent_version(&key).as_deref(), Some("1.0.0"));
 
     // Asking again once connected does not reconnect.
@@ -350,9 +346,14 @@ async fn a_failed_connection_is_dropped_and_the_next_request_reconnects() {
     let key = custom("claude-code");
 
     let entry = manager.request_connection(key.clone(), server.clone());
-    let error = settle(entry).await
-        .expect_err("the first attempt fails");
-    assert!(matches!(error, LoadError::Exited { status: Some(1), .. }));
+    let error = settle(entry).await.expect_err("the first attempt fails");
+    assert!(matches!(
+        error,
+        LoadError::Exited {
+            status: Some(1),
+            ..
+        }
+    ));
 
     // The failure is not cached: the entry is gone, so the agent reads as
     // disconnected rather than permanently broken.
@@ -363,8 +364,7 @@ async fn a_failed_connection_is_dropped_and_the_next_request_reconnects() {
     .expect("the failed entry is dropped");
 
     let retry = manager.request_connection(key.clone(), server.clone());
-    settle(retry).await
-        .expect("the second attempt connects");
+    settle(retry).await.expect("the second attempt connects");
     assert_eq!(attempts.load(Ordering::SeqCst), 2);
 }
 
@@ -375,17 +375,19 @@ async fn restarting_a_connected_agent_reconnects_it() {
     let manager = manager(catalog, server.clone());
     let key = custom("claude-code");
 
-    settle(manager
-        .request_connection(key.clone(), server.clone())).await
+    settle(manager.request_connection(key.clone(), server.clone()))
+        .await
         .expect("connected");
     // A restart while the entry is still settling into `Connected` is a no-op
     // by design, so wait for it to land first.
-    wait_for(|| (manager.connection_status(&key) == AgentConnectionStatus::Connected).then_some(()))
-        .await
-        .expect("connected");
+    wait_for(|| {
+        (manager.connection_status(&key) == AgentConnectionStatus::Connected).then_some(())
+    })
+    .await
+    .expect("connected");
 
-    settle(manager
-        .restart_connection(key.clone(), server.clone())).await
+    settle(manager.restart_connection(key.clone(), server.clone()))
+        .await
         .expect("reconnected");
     assert_eq!(attempts.load(Ordering::SeqCst), 2);
 }
@@ -398,12 +400,14 @@ async fn a_new_version_drops_the_connection_and_announces_itself() {
     let mut events = manager.subscribe();
     let key = custom("claude-code");
 
-    settle(manager
-        .request_connection(key.clone(), server.clone())).await
-        .expect("connected");
-    wait_for(|| (manager.connection_status(&key) == AgentConnectionStatus::Connected).then_some(()))
+    settle(manager.request_connection(key.clone(), server.clone()))
         .await
         .expect("connected");
+    wait_for(|| {
+        (manager.connection_status(&key) == AgentConnectionStatus::Connected).then_some(())
+    })
+    .await
+    .expect("connected");
 
     catalog.announce_new_version("claude-code", "2.0.0");
 
@@ -428,8 +432,8 @@ async fn a_new_version_drops_the_connection_and_announces_itself() {
     .expect("the connection is dropped on a version bump");
 
     // And the next request starts the new binary.
-    settle(manager
-        .request_connection(key, server.clone())).await
+    settle(manager.request_connection(key, server.clone()))
+        .await
         .expect("reconnected on the new version");
     assert_eq!(attempts.load(Ordering::SeqCst), 2);
 }
@@ -446,7 +450,8 @@ async fn install_progress_reaches_subscribers() {
 
     let status = tokio::time::timeout(Duration::from_secs(2), async {
         loop {
-            if let Ok(AgentManagerEvent::LoadingStatusChanged { status, .. }) = events.recv().await {
+            if let Ok(AgentManagerEvent::LoadingStatusChanged { status, .. }) = events.recv().await
+            {
                 return status;
             }
         }
@@ -463,8 +468,8 @@ async fn uninstalling_an_agent_closes_its_connection() {
     let manager = manager(catalog.clone(), server.clone());
     let key = custom("claude-code");
 
-    settle(manager
-        .request_connection(key.clone(), server.clone())).await
+    settle(manager.request_connection(key.clone(), server.clone()))
+        .await
         .expect("connected");
 
     catalog.uninstall("claude-code");
@@ -485,8 +490,8 @@ async fn an_agent_nobody_installed_cannot_be_connected_to() {
     let (server, attempts) = FakeServer::new("cersei", vec![]);
     let manager = manager(catalog, server.clone());
 
-    let error = settle(manager
-        .connect_to(custom("claude-code"))).await
+    let error = settle(manager.connect_to(custom("claude-code")))
+        .await
         .expect_err("an uninstalled agent has nothing to connect to");
     assert!(matches!(error, LoadError::Unsupported { .. }));
     assert_eq!(attempts.load(Ordering::SeqCst), 0, "nothing was spawned");
@@ -500,8 +505,8 @@ async fn the_native_agent_is_always_connectable() {
     let (server, _) = FakeServer::new("cersei", vec![]);
     let manager = manager(catalog, server.clone());
 
-    let state = settle(manager
-        .request_connection(Agent::Native, server.clone())).await
+    let state = settle(manager.request_connection(Agent::Native, server.clone()))
+        .await
         .expect("the native agent connects");
     assert_eq!(state.connection.agent_id().as_str(), "cersei");
 }
@@ -517,7 +522,10 @@ async fn a_turn_opens_and_closes_around_the_prompt() {
         .await
         .expect("a session opens on the native agent");
     let session_id = thread.lock().unwrap().session_id().clone();
-    assert!(manager.session(&session_id).is_some(), "the manager owns it");
+    assert!(
+        manager.session(&session_id).is_some(),
+        "the manager owns it"
+    );
 
     let stop = manager
         .send(
@@ -532,7 +540,10 @@ async fn a_turn_opens_and_closes_around_the_prompt() {
     assert_eq!(stop, acp::StopReason::EndTurn);
     let thread = thread.lock().unwrap();
     assert!(
-        matches!(thread.entries().first(), Some(AgentThreadEntry::UserMessage(_))),
+        matches!(
+            thread.entries().first(),
+            Some(AgentThreadEntry::UserMessage(_))
+        ),
         "the user's message is in the thread before the agent answers"
     );
     assert!(!thread.is_generating(), "the turn was closed");

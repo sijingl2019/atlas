@@ -16,7 +16,7 @@ use atlas_bus::EventBus;
 use tokio::sync::broadcast;
 use uuid::Uuid;
 
-use crate::types::{RateLimitWindow, Message, PlanEntry, SessionStatus, ToolCall, Usage};
+use crate::types::{Message, PlanEntry, RateLimitWindow, SessionStatus, ToolCall, Usage};
 use crate::AgentId;
 
 /// One change to one session. Tagged on the wire by `kind`.

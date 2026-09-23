@@ -48,8 +48,7 @@ export const PlanModePill = memo(function PlanModePill({ tabId }: { tabId: strin
       data-plan-mode={active ? "on" : "off"}
       className={cn(
         composerPillClass(false),
-        active &&
-          "border-[var(--accent-primary)] bg-[var(--accent-primary)]/15 text-[var(--text-primary)]",
+        active && "border-[var(--primary)] bg-[var(--primary)]/15 text-[var(--foreground)]",
       )}
       title={
         active
@@ -61,7 +60,7 @@ export const PlanModePill = memo(function PlanModePill({ tabId }: { tabId: strin
         size={11}
         className={cn(
           "shrink-0",
-          active ? "text-[var(--accent-primary)]" : "text-[var(--text-tertiary)]",
+          active ? "text-[var(--primary)]" : "text-[var(--muted-foreground)]",
         )}
       />
       <span className="ml-1.5 whitespace-nowrap">Plan</span>

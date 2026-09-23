@@ -147,7 +147,12 @@ async fn fetch(http: &reqwest::Client, dir: &Path, url: &str) -> Option<String> 
         return None;
     }
 
-    let ext = extension_for(res.headers().get(reqwest::header::CONTENT_TYPE)?.to_str().ok()?)?;
+    let ext = extension_for(
+        res.headers()
+            .get(reqwest::header::CONTENT_TYPE)?
+            .to_str()
+            .ok()?,
+    )?;
 
     // A declared length over the cap saves us downloading it to find out. It is
     // only a hint — absent or dishonest lengths are caught by the loop below.

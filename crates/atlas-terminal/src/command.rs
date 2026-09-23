@@ -420,11 +420,7 @@ impl CommandTerminals {
 
     #[must_use]
     pub fn get(&self, id: &str) -> Option<Arc<CommandTerminal>> {
-        self.inner
-            .lock()
-            .ok()?
-            .get(id)
-            .map(|e| e.terminal.clone())
+        self.inner.lock().ok()?.get(id).map(|e| e.terminal.clone())
     }
 
     /// Drop a terminal, killing it if it is still running.
@@ -481,8 +477,7 @@ mod tests {
 
     fn run(command: &str, args: &[&str]) -> CommandTerminal {
         let args: Vec<String> = args.iter().map(|s| (*s).to_string()).collect();
-        CommandTerminal::spawn(command, &args, &[], None, DEFAULT_OUTPUT_BYTE_LIMIT)
-            .expect("spawn")
+        CommandTerminal::spawn(command, &args, &[], None, DEFAULT_OUTPUT_BYTE_LIMIT).expect("spawn")
     }
 
     #[tokio::test]
@@ -658,17 +653,14 @@ mod tests {
         // Prints, then stays alive: a watcher must be woken by the print, not
         // left parked until the process ends.
         let term = run("/bin/sh", &["-c", "echo first; sleep 30"]);
-        let woke = tokio::time::timeout(
-            std::time::Duration::from_secs(10),
-            async {
-                loop {
-                    term.output_changed().await;
-                    if term.output().0.contains("first") {
-                        return;
-                    }
+        let woke = tokio::time::timeout(std::time::Duration::from_secs(10), async {
+            loop {
+                term.output_changed().await;
+                if term.output().0.contains("first") {
+                    return;
                 }
-            },
-        )
+            }
+        })
         .await;
         let _ = term.kill();
         assert!(woke.is_ok(), "output_changed never woke for a live command");
@@ -683,7 +675,9 @@ mod tests {
         let _ = term.wait_for_exit().await;
         let returned =
             tokio::time::timeout(std::time::Duration::from_secs(5), term.output_changed()).await;
-        assert!(returned.is_ok(), "a finished command must not park its watcher");
+        assert!(
+            returned.is_ok(),
+            "a finished command must not park its watcher"
+        );
     }
-
 }

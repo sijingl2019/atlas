@@ -147,11 +147,7 @@ async fn a_missing_cache_is_not_an_error() {
 #[tokio::test]
 async fn a_failed_refresh_keeps_the_previous_catalogue() {
     let data_dir = tempfile::tempdir().unwrap();
-    let http = FakeHttp::new().with(
-        REGISTRY_URL,
-        200,
-        index_with(NPX_DISTRIBUTION).into_bytes(),
-    );
+    let http = FakeHttp::new().with(REGISTRY_URL, 200, index_with(NPX_DISTRIBUTION).into_bytes());
     let store = AgentRegistryStore::new(data_dir.path().to_path_buf(), http.clone());
     store.refresh().await.unwrap();
     assert_eq!(store.agents().len(), 1);
@@ -159,7 +155,10 @@ async fn a_failed_refresh_keeps_the_previous_catalogue() {
     http.with(REGISTRY_URL, 404, b"gone".to_vec());
     let error = store.refresh().await.unwrap_err();
 
-    assert!(error.to_string().contains("404"), "unexpected error: {error:#}");
+    assert!(
+        error.to_string().contains("404"),
+        "unexpected error: {error:#}"
+    );
     assert_eq!(store.agents().len(), 1);
     assert!(store.fetch_error().is_some());
     assert!(!store.is_fetching());

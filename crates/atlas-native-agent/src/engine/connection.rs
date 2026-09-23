@@ -38,6 +38,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::RwLock;
 
+use crate::AgentSessionEffort;
 use agent_client_protocol::schema::v1 as acp;
 use anyhow::anyhow;
 use anyhow::Result;
@@ -45,35 +46,34 @@ use atlas_acp_thread::{
     AcpThread, AcpThreadHandle, AgentConnection, AgentId, AgentModelId, AgentModelInfo,
     AgentModelList, AgentModelSelector, AgentSessionModes, AgentSessionRewind, AuthorizationKind,
 };
-use crate::AgentSessionEffort;
-use atlas_agent_servers::ThreadEventSink;
+use atlas_agent_servers::{SessionMcpOffer, SessionMcpRequest, SessionMcpServers, ThreadEventSink};
 use codex_app_server_client::InProcessAppServerClient;
 use codex_app_server_client::InProcessAppServerRequestHandle;
 // The v2 protocol types are re-exported at the crate root
 // (`pub use protocol::v2::*`), so this alias is the whole vocabulary.
+use codex_app_server::in_process::InProcessServerEvent;
 use codex_app_server_protocol as v2;
 use codex_app_server_protocol::ClientRequest;
 use codex_app_server_protocol::RequestId;
 use codex_app_server_protocol::ServerRequest;
-use codex_app_server::in_process::InProcessServerEvent;
 use codex_login::auth::ExternalAuth;
 use codex_protocol::openai_models::ReasoningEffort;
 use futures::future::BoxFuture;
 use futures::FutureExt;
 use tokio::sync::oneshot;
 
+use crate::engine::approvals;
 use crate::engine::auth::SystemClock;
 use crate::engine::catalog_cache::{self, CatalogueFetcher, CatalogueUnavailable};
 use crate::engine::config::EngineHome;
 use crate::engine::config::EngineSettings;
 use crate::engine::config::WireDialect;
-use crate::engine::approvals;
-use crate::engine::memory::{self, MemorySearch};
+use crate::engine::mcp;
 use crate::engine::modes;
 use crate::engine::runtime::start_engine;
 use crate::engine::runtime::EngineRuntime;
-use crate::engine::sink::EngineSessions;
 use crate::engine::sink::apply_notification;
+use crate::engine::sink::EngineSessions;
 
 /// Request ids Atlas mints for the engine.
 ///
@@ -190,14 +190,19 @@ impl TurnWaiters {
     /// Records one retry notice for a turn and returns its attempt number,
     /// counting from 1.
     pub(crate) fn note_retry(&self, turn_id: &str) -> usize {
-        let mut attempts = self.attempts.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut attempts = self
+            .attempts
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let counter = attempts.entry(turn_id.to_string()).or_insert(0);
         *counter += 1;
         *counter
     }
 
     fn unclaimed(&self) -> std::sync::MutexGuard<'_, std::collections::VecDeque<v2::Turn>> {
-        self.unclaimed.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+        self.unclaimed
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
     /// The turn to interrupt for a session, if one is running.
@@ -240,11 +245,15 @@ impl TurnWaiters {
     }
 
     fn starting(&self) -> std::sync::MutexGuard<'_, std::collections::HashSet<String>> {
-        self.starting.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+        self.starting
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
     fn pending_cancel(&self) -> std::sync::MutexGuard<'_, std::collections::HashSet<String>> {
-        self.pending_cancel.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+        self.pending_cancel
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
     fn forget(&self, thread_id: &str, turn_id: &str) {
@@ -256,11 +265,15 @@ impl TurnWaiters {
     }
 
     fn waiters(&self) -> std::sync::MutexGuard<'_, HashMap<String, oneshot::Sender<v2::Turn>>> {
-        self.waiters.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+        self.waiters
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
     fn active(&self) -> std::sync::MutexGuard<'_, HashMap<String, String>> {
-        self.active.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+        self.active
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 }
 
@@ -307,7 +320,11 @@ impl LiveCatalogue {
         }
     }
 
-    fn from_projection(projected: catalog_cache::ProjectedCatalogue, fetched_at: u64, stale: bool) -> Self {
+    fn from_projection(
+        projected: catalog_cache::ProjectedCatalogue,
+        fetched_at: u64,
+        stale: bool,
+    ) -> Self {
         Self {
             picker: projected.picker,
             default_model: projected.default_model,
@@ -347,12 +364,9 @@ pub struct EngineConnection {
     /// fact to remember.
     session_modes: Arc<Mutex<HashMap<acp::SessionId, acp::SessionModeId>>>,
     default_mode: Option<acp::SessionModeId>,
-    /// Atlas's on-device retrieval, if the host injected it.
-    ///
-    /// `None` means the index is not ready; the tool is then not advertised at
-    /// all rather than advertised and failing, because a tool the model is
-    /// told about and cannot use is worse than one it never sees.
-    memory_search: Option<MemorySearch>,
+    /// Decides the MCP servers each thread is handed (the memory tool
+    /// server), projected into the thread's config overrides.
+    session_mcp: Option<Arc<dyn SessionMcpServers>>,
 }
 
 struct PumpHandle(tokio::task::JoinHandle<()>);
@@ -380,7 +394,16 @@ impl EngineConnection {
         external_auth: Option<Arc<dyn ExternalAuth>>,
         default_mode: Option<acp::SessionModeId>,
     ) -> Result<Arc<Self>> {
-        Self::connect_full(id, settings, thread_events, external_auth, default_mode, None, None).await
+        Self::connect_full(
+            id,
+            settings,
+            thread_events,
+            external_auth,
+            default_mode,
+            None,
+            None,
+        )
+        .await
     }
 
     /// Opens the connection.
@@ -397,7 +420,7 @@ impl EngineConnection {
         thread_events: ThreadEventSink,
         external_auth: Option<Arc<dyn ExternalAuth>>,
         default_mode: Option<acp::SessionModeId>,
-        memory_search: Option<MemorySearch>,
+        session_mcp: Option<Arc<dyn SessionMcpServers>>,
         catalogue: Option<Arc<dyn CatalogueFetcher>>,
     ) -> Result<Arc<Self>> {
         let (live, response) = match settings.provider.wire {
@@ -468,7 +491,6 @@ impl EngineConnection {
             sessions.clone(),
             turns.clone(),
             max_retries,
-            memory_search.clone(),
         ));
 
         Ok(Arc::new(Self {
@@ -484,7 +506,7 @@ impl EngineConnection {
             runtime: Arc::new(runtime),
             session_modes: Arc::new(Mutex::new(HashMap::new())),
             default_mode,
-            memory_search,
+            session_mcp,
         }))
     }
 
@@ -550,7 +572,11 @@ impl EngineConnection {
     /// and it takes the approval policy and the sandbox policy separately —
     /// both are needed, because sandbox alone cannot express "ask first" and
     /// approval alone cannot stop a command that never asks.
-    async fn apply_mode(&self, session_id: &acp::SessionId, mode: &acp::SessionModeId) -> Result<()> {
+    async fn apply_mode(
+        &self,
+        session_id: &acp::SessionId,
+        mode: &acp::SessionModeId,
+    ) -> Result<()> {
         let (approval_policy, sandbox_policy) = modes::engine_policy(&mode.0);
         let _: v2::ThreadSettingsUpdateResponse = self
             .call(|request_id| ClientRequest::ThreadSettingsUpdate {
@@ -634,8 +660,7 @@ impl EngineConnection {
             .into_iter()
             .flat_map(|entry| entry.skills)
             .filter(|skill| {
-                skill.enabled
-                    && matches!(skill.scope, v2::SkillScope::User | v2::SkillScope::Repo)
+                skill.enabled && matches!(skill.scope, v2::SkillScope::User | v2::SkillScope::Repo)
             })
             .map(|skill| crate::engine::commands::SkillRef {
                 name: skill.name,
@@ -669,6 +694,27 @@ impl EngineConnection {
             request_ids: self.request_ids.clone(),
             runtime: self.runtime.handle(),
         }))
+    }
+
+    /// What the host offers the thread about to open in `cwd`, and its config
+    /// overrides. The engine takes StreamableHttp servers, so it is asked as
+    /// an agent that advertises HTTP MCP.
+    fn mcp_offer(
+        &self,
+        cwd: &std::path::Path,
+        session_id: Option<&acp::SessionId>,
+    ) -> (SessionMcpOffer, Option<HashMap<String, serde_json::Value>>) {
+        let offer = atlas_agent_servers::session_mcp::offer_for(
+            self.session_mcp.as_ref(),
+            &SessionMcpRequest {
+                agent_id: self.id.clone(),
+                http_mcp: true,
+                cwd: cwd.to_path_buf(),
+                session_id: session_id.cloned(),
+            },
+        );
+        let config = mcp::thread_config(offer.servers());
+        (offer, config)
     }
 
     fn new_thread(
@@ -719,7 +765,6 @@ async fn pump_events(
     sessions: Arc<EngineSessions>,
     turns: Arc<TurnWaiters>,
     max_retries: usize,
-    memory_search: Option<MemorySearch>,
 ) {
     let (answers_tx, mut answers_rx) = tokio::sync::mpsc::unbounded_channel::<ServerAnswer>();
 
@@ -792,7 +837,7 @@ async fn pump_events(
                             apply_notification(&sessions, &turns, max_retries, *notification);
                         }
                         InProcessServerEvent::ServerRequest(request) => {
-                            handle_server_request(&sessions, *request, &answers_tx, &memory_search);
+                            handle_server_request(&sessions, *request, &answers_tx);
                         }
                         InProcessServerEvent::Lagged { skipped } => {
                             // Transport health, not an application event. Worth
@@ -831,8 +876,7 @@ fn coalesce_message_deltas(events: Vec<InProcessServerEvent>) -> Vec<InProcessSe
                 ServerNotification::AgentMessageDelta(delta),
             ) = (last.as_mut(), next.as_ref())
             {
-                if accumulated.thread_id == delta.thread_id
-                    && accumulated.item_id == delta.item_id
+                if accumulated.thread_id == delta.thread_id && accumulated.item_id == delta.item_id
                 {
                     accumulated.delta.push_str(&delta.delta);
                     continue;
@@ -853,26 +897,12 @@ fn handle_server_request(
     sessions: &Arc<EngineSessions>,
     request: ServerRequest,
     answers: &tokio::sync::mpsc::UnboundedSender<ServerAnswer>,
-    memory_search: &Option<MemorySearch>,
 ) {
     use codex_app_server_protocol::ServerRequest as Req;
 
-    // A tool Atlas implements itself, rather than a question for the user.
-    if let Req::DynamicToolCall { request_id, params } = &request {
-        let cwd = sessions
-            .cwd(&acp::SessionId::new(params.thread_id.as_str()))
-            .unwrap_or_default();
-        serve_dynamic_tool(
-            request_id.clone(),
-            params.clone(),
-            cwd,
-            memory_search.clone(),
-            answers.clone(),
-        );
-        return;
-    }
-
-    let (request_id, thread_id, prompt) = match &request {
+    // `surface` and `item_id` exist only for the decision log below: an
+    // approval that is answered and then goes nowhere leaves no other trace.
+    let (request_id, thread_id, prompt, surface, item_id) = match &request {
         Req::CommandExecutionRequestApproval { request_id, params } => (
             request_id.clone(),
             params.thread_id.clone(),
@@ -882,6 +912,8 @@ fn handle_server_request(
                 params.command.clone(),
                 params.reason.clone(),
             ),
+            "command",
+            params.item_id.clone(),
         ),
         Req::FileChangeRequestApproval { request_id, params } => (
             request_id.clone(),
@@ -892,6 +924,8 @@ fn handle_server_request(
                 None,
                 params.reason.clone(),
             ),
+            "file_change",
+            params.item_id.clone(),
         ),
         Req::PermissionsRequestApproval { request_id, params } => (
             request_id.clone(),
@@ -902,6 +936,8 @@ fn handle_server_request(
                 None,
                 params.reason.clone(),
             ),
+            "permissions",
+            params.item_id.clone(),
         ),
         other => {
             // Elicitations, dynamic tool calls, attestation. Refused rather
@@ -929,7 +965,9 @@ fn handle_server_request(
 
     // Take the waiter out under the lock, then await it on its own task.
     let waiter = {
-        let mut thread = thread.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut thread = thread
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         thread.request_tool_call_authorization(
             prompt,
             approvals::options(),
@@ -950,14 +988,25 @@ fn handle_server_request(
     let answers = answers.clone();
     tokio::spawn(async move {
         let decision = approvals::decision_for(&waiter.await);
+        // The one record that an approval was answered, and how. A report of a
+        // turn that stalls after Allow (issue 294) is otherwise undiagnosable:
+        // nothing downstream says which tool the user released, or whether the
+        // engine ever heard the answer.
+        tracing::info!(
+            target: "atlas::approvals",
+            decision = ?decision,
+            surface,
+            item_id = %item_id,
+            "approval answered"
+        );
         // Shaped per request kind: the engine's two approval surfaces take
         // different response types even though the user answered one question.
         let result = match &request {
-            Req::CommandExecutionRequestApproval { .. } => serde_json::to_value(
-                v2::CommandExecutionRequestApprovalResponse {
+            Req::CommandExecutionRequestApproval { .. } => {
+                serde_json::to_value(v2::CommandExecutionRequestApprovalResponse {
                     decision: decision.for_command(),
-                },
-            ),
+                })
+            }
             Req::FileChangeRequestApproval { .. } => {
                 serde_json::to_value(v2::FileChangeRequestApprovalResponse {
                     decision: decision.for_file_change(),
@@ -983,50 +1032,6 @@ fn handle_server_request(
         let _ = answers.send(ServerAnswer {
             request_id,
             result: result.map_err(|e| format!("could not encode the approval: {e}")),
-        });
-    });
-}
-
-/// Answers a tool the engine asked Atlas to run.
-///
-/// Always answers. A dynamic tool call left unanswered is a turn that stops
-/// with no error and no explanation, which is the worst shape a tool failure
-/// can take — so an unknown tool and a failed search both come back as a
-/// result the model can read and move on from.
-fn serve_dynamic_tool(
-    request_id: RequestId,
-    params: v2::DynamicToolCallParams,
-    cwd: String,
-    memory_search: Option<MemorySearch>,
-    answers: tokio::sync::mpsc::UnboundedSender<ServerAnswer>,
-) {
-    tokio::spawn(async move {
-        let (text, success) = if params.tool != memory::TOOL_NAME {
-            (
-                format!("Atlas does not implement the tool {:?}.", params.tool),
-                false,
-            )
-        } else {
-            match (memory_search, memory::parse_arguments(&params.arguments)) {
-                (None, _) => (
-                    "Memory search is unavailable (the index is not ready).".to_string(),
-                    false,
-                ),
-                (_, None) => ("`query` is required.".to_string(), false),
-                (Some(search), Some((query, limit))) => {
-                    let docs = search(cwd, query, limit).await;
-                    (memory::render(&docs), true)
-                }
-            }
-        };
-
-        let result = serde_json::to_value(v2::DynamicToolCallResponse {
-            content_items: memory::output(text, success),
-            success,
-        });
-        let _ = answers.send(ServerAnswer {
-            request_id,
-            result: result.map_err(|e| format!("could not encode the tool result: {e}")),
         });
     });
 }
@@ -1077,6 +1082,9 @@ impl AgentConnection for EngineConnection {
                 .cloned()
                 .unwrap_or_else(|| self.settings.cwd.clone());
 
+            // Offered before the thread id exists; bound to it once the
+            // engine answers, released (dropped unbound) if it never does.
+            let (mcp_offer, mcp_config) = self.mcp_offer(&cwd, None);
             let response: v2::ThreadStartResponse = self
                 .call(|request_id| ClientRequest::ThreadStart {
                     request_id,
@@ -1084,13 +1092,7 @@ impl AgentConnection for EngineConnection {
                         model: Some(self.default_model()),
                         model_provider: Some(self.settings.provider.id.clone()),
                         cwd: Some(cwd.to_string_lossy().into_owned()),
-                        // Declared only when retrieval exists. Advertising a
-                        // tool the host cannot serve teaches the model to call
-                        // something that always fails.
-                        dynamic_tools: self
-                            .memory_search
-                            .as_ref()
-                            .map(|_| vec![memory::tool_spec()]),
+                        config: mcp_config,
                         ..Default::default()
                     },
                 })
@@ -1100,6 +1102,9 @@ impl AgentConnection for EngineConnection {
             // same identifier rather than maintaining a mapping is what lets a
             // stored row resolve without a translation table.
             let session_id = acp::SessionId::new(response.thread.id.as_str());
+            self.sessions
+                .expect_mcp_servers(&response.thread.id, mcp::server_names(mcp_offer.servers()));
+            mcp_offer.bind(&session_id);
             let thread = self.new_thread(session_id.clone(), work_dirs, None);
             self.sessions.insert(
                 session_id.clone(),
@@ -1154,6 +1159,12 @@ impl AgentConnection for EngineConnection {
         true
     }
 
+    /// The engine reads StreamableHttp MCP servers from its configuration,
+    /// which each thread's start and resume carry (`engine::mcp`).
+    fn supports_http_mcp(&self) -> bool {
+        true
+    }
+
     fn supports_session_history(&self) -> bool {
         true
     }
@@ -1181,6 +1192,9 @@ impl AgentConnection for EngineConnection {
                 .cloned()
                 .unwrap_or_else(|| self.settings.cwd.clone());
 
+            // Offered for the stored id; bound below to whichever id the
+            // thread ends up with (a pre-cutover row gets a fresh one).
+            let (mcp_offer, mcp_config) = self.mcp_offer(&cwd, Some(&session_id));
             let resumed: Result<v2::ThreadResumeResponse> = self
                 .call(|request_id| ClientRequest::ThreadResume {
                     request_id,
@@ -1189,6 +1203,7 @@ impl AgentConnection for EngineConnection {
                         cwd: Some(cwd.to_string_lossy().into_owned()),
                         model: Some(self.default_model()),
                         model_provider: Some(self.settings.provider.id.clone()),
+                        config: mcp_config.clone(),
                         ..Default::default()
                     },
                 })
@@ -1218,6 +1233,12 @@ impl AgentConnection for EngineConnection {
                         })
                         .await;
                     match read {
+                        // Known gap: a thread still loaded in the engine keeps
+                        // the MCP config it was started with, so the memory
+                        // server entry offered above does not reach it, and the
+                        // token it holds was revoked when its session ended.
+                        // Its memory tools answer 401 until the engine lets go
+                        // of the thread, and nothing else carries memory to it.
                         Ok(response) => (response.thread.id, response.thread.turns),
                         Err(read_err) => {
                             // `warn!`, not `info!`: this arm is reached by an
@@ -1241,10 +1262,7 @@ impl AgentConnection for EngineConnection {
                                         model: Some(self.default_model()),
                                         model_provider: Some(self.settings.provider.id.clone()),
                                         cwd: Some(cwd.to_string_lossy().into_owned()),
-                                        dynamic_tools: self
-                                            .memory_search
-                                            .as_ref()
-                                            .map(|_| vec![memory::tool_spec()]),
+                                        config: mcp_config.clone(),
                                         ..Default::default()
                                     },
                                 })
@@ -1261,6 +1279,11 @@ impl AgentConnection for EngineConnection {
             // the store row (`resume_thread` compares it to the stored id and
             // adopts, #56); nothing here writes to history.
             let engine_session_id = acp::SessionId::new(engine_thread_id.as_str());
+            self.sessions.expect_mcp_servers(
+                &engine_session_id.to_string(),
+                mcp::server_names(mcp_offer.servers()),
+            );
+            mcp_offer.bind(&engine_session_id);
             let thread = self.new_thread(engine_session_id.clone(), work_dirs, title);
             {
                 // The response carried the thread's whole stored history — the
@@ -1269,7 +1292,9 @@ impl AgentConnection for EngineConnection {
                 // it (see `engine::replay`). A pre-cutover row took the
                 // fresh-thread arm above and has no turns; it opens empty,
                 // which D6 accepted, and now only that row does.
-                let mut locked = thread.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+                let mut locked = thread
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
                 crate::engine::replay::replay_turns(&mut locked, &stored_turns);
             }
             self.sessions.insert(
@@ -1305,7 +1330,10 @@ impl AgentConnection for EngineConnection {
         .boxed()
     }
 
-    fn prompt(&self, params: acp::PromptRequest) -> BoxFuture<'static, Result<acp::PromptResponse>> {
+    fn prompt(
+        &self,
+        params: acp::PromptRequest,
+    ) -> BoxFuture<'static, Result<acp::PromptResponse>> {
         let mut text = crate::engine::sink::flatten_prompt(&params.prompt);
         // `flatten_prompt` above keeps only the text-projectable blocks — image
         // blocks have none, so they're pulled out here as their own
@@ -1373,9 +1401,7 @@ impl AgentConnection for EngineConnection {
                 let sessions = self.sessions.clone();
                 let session_id = params.session_id;
                 return async move {
-                    let cwd = sessions
-                        .cwd(&session_id)
-                        .unwrap_or_else(|| ".".to_string());
+                    let cwd = sessions.cwd(&session_id).unwrap_or_else(|| ".".to_string());
                     // git can chew on a large tree; keep it off the async
                     // runtime's threads.
                     let reply = tokio::task::spawn_blocking(move || {
@@ -1425,19 +1451,22 @@ impl AgentConnection for EngineConnection {
                 let session_id = params.session_id;
                 return async move {
                     let rolled = requests
-                        .request_typed::<v2::ThreadRollbackResponse>(ClientRequest::ThreadRollback {
-                            request_id,
-                            params: v2::ThreadRollbackParams {
-                                thread_id,
-                                num_turns: 1,
+                        .request_typed::<v2::ThreadRollbackResponse>(
+                            ClientRequest::ThreadRollback {
+                                request_id,
+                                params: v2::ThreadRollbackParams {
+                                    thread_id,
+                                    num_turns: 1,
+                                },
                             },
-                        })
+                        )
                         .await;
                     let reply = match rolled {
                         Ok(_) => {
                             if let Some(thread) = sessions.thread(&session_id) {
-                                let mut locked =
-                                    thread.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+                                let mut locked = thread
+                                    .lock()
+                                    .unwrap_or_else(std::sync::PoisonError::into_inner);
                                 // The LAST user entry is "/undo" itself — the
                                 // host pushed it before prompt() ran. The
                                 // exchange being undone starts at the user
@@ -1454,9 +1483,7 @@ impl AgentConnection for EngineConnection {
                                     })
                                     .map(|(ix, _)| ix)
                                     .collect();
-                                if let Some(from) =
-                                    user_indices.iter().rev().nth(1).copied()
-                                {
+                                if let Some(from) = user_indices.iter().rev().nth(1).copied() {
                                     locked.remove_entries_from(from);
                                 } else if let Some(only) = user_indices.last().copied() {
                                     locked.remove_entries_from(only);
@@ -1491,14 +1518,16 @@ impl AgentConnection for EngineConnection {
                     let reply = match objective {
                         Some(objective_text) => {
                             let set = requests
-                                .request_typed::<v2::ThreadGoalSetResponse>(ClientRequest::ThreadGoalSet {
-                                    request_id,
-                                    params: v2::ThreadGoalSetParams {
-                                        thread_id,
-                                        objective: Some(objective_text.clone()),
-                                        ..Default::default()
+                                .request_typed::<v2::ThreadGoalSetResponse>(
+                                    ClientRequest::ThreadGoalSet {
+                                        request_id,
+                                        params: v2::ThreadGoalSetParams {
+                                            thread_id,
+                                            objective: Some(objective_text.clone()),
+                                            ..Default::default()
+                                        },
                                     },
-                                })
+                                )
                                 .await;
                             match set {
                                 Ok(_) => format!("**Goal set:** {objective_text}"),
@@ -1507,18 +1536,19 @@ impl AgentConnection for EngineConnection {
                         }
                         None => {
                             let got = requests
-                                .request_typed::<v2::ThreadGoalGetResponse>(ClientRequest::ThreadGoalGet {
-                                    request_id,
-                                    params: v2::ThreadGoalGetParams { thread_id },
-                                })
+                                .request_typed::<v2::ThreadGoalGetResponse>(
+                                    ClientRequest::ThreadGoalGet {
+                                        request_id,
+                                        params: v2::ThreadGoalGetParams { thread_id },
+                                    },
+                                )
                                 .await;
                             match got {
                                 Ok(response) => response
                                     .goal
                                     .map(|goal| format!("**Goal:** {}", goal.objective))
                                     .unwrap_or_else(|| {
-                                        "No goal set. `/goal <objective>` sets one."
-                                            .to_string()
+                                        "No goal set. `/goal <objective>` sets one.".to_string()
                                     }),
                                 Err(e) => format!("Could not read the goal: {e}"),
                             }
@@ -1611,7 +1641,22 @@ impl AgentConnection for EngineConnection {
         }
 
         let request_ids = self.request_ids.clone();
+        let sessions = self.sessions.clone();
         async move {
+            // A turn lists whichever MCP servers are up when it starts, so a
+            // first prompt sent before the host's servers finish starting
+            // went out without their tools — and the memory tools are the
+            // only way memory reaches the model. Bounded: past it, the turn
+            // goes ahead without them.
+            if !sessions
+                .wait_for_mcp_servers(&thread_id, crate::engine::sink::MCP_STARTUP_WAIT)
+                .await
+            {
+                tracing::warn!(
+                    thread = %thread_id,
+                    "host MCP servers still starting; this turn goes ahead without their tools"
+                );
+            }
             // Opens the window a stop can land in with no turn id to
             // interrupt. Every exit below closes it via `end_prompt` (#57).
             turns.begin_prompt(&thread_id);
@@ -2164,17 +2209,18 @@ impl RewindHandle {
         let mut locked = thread
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let last_user = locked
-            .entries()
-            .iter()
-            .enumerate()
-            .rev()
-            .find_map(|(ix, entry)| match entry {
-                atlas_acp_thread::AgentThreadEntry::UserMessage(msg) => {
-                    Some((ix, msg.content.to_text().to_string()))
-                }
-                _ => None,
-            });
+        let last_user =
+            locked
+                .entries()
+                .iter()
+                .enumerate()
+                .rev()
+                .find_map(|(ix, entry)| match entry {
+                    atlas_acp_thread::AgentThreadEntry::UserMessage(msg) => {
+                        Some((ix, msg.content.to_text().to_string()))
+                    }
+                    _ => None,
+                });
         let Some((from, text)) = last_user else {
             return Err(anyhow!(
                 "rewound the engine's history but the transcript holds no prompt to \
@@ -2379,10 +2425,8 @@ impl AgentModelSelector for EngineModelSelector {
             .map(|m| AgentModelId::new(m.as_str()))
             .unwrap_or_else(|| AgentModelId::new(self.default_model().as_str()));
         let found = self.catalogue().into_iter().find(|m| m.id == selected);
-        async move {
-            found.ok_or_else(|| anyhow!("the selected model is not in the catalogue"))
-        }
-        .boxed()
+        async move { found.ok_or_else(|| anyhow!("the selected model is not in the catalogue")) }
+            .boxed()
     }
 }
 

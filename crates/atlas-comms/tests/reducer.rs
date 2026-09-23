@@ -4,7 +4,9 @@
 //! is embarrassing: an ack that doubles a message, a watermark advanced by a
 //! typing hint, a reply pointing at a message that vanished.
 
-use atlas_comms::state::{apply_frame, optimistic_id, ChatState, MemberChange, PendingSend, SendStatus, StateDelta};
+use atlas_comms::state::{
+    apply_frame, optimistic_id, ChatState, MemberChange, PendingSend, SendStatus, StateDelta,
+};
 use atlas_comms::wire::{self, ServerFrame};
 use std::collections::HashMap;
 
@@ -242,7 +244,12 @@ fn delete_keeps_the_row_and_empties_it() {
 #[test]
 fn deleting_a_pinned_message_clears_the_rail() {
     let (mut state, mut pending) = fresh();
-    apply_frame(&mut state, frame(message_new("m1", 101, "u_o", "x")), &mut pending, NOW);
+    apply_frame(
+        &mut state,
+        frame(message_new("m1", 101, "u_o", "x")),
+        &mut pending,
+        NOW,
+    );
     apply_frame(
         &mut state,
         frame(serde_json::json!({
@@ -275,10 +282,25 @@ fn reactions_are_rows_and_dedupe_per_person_per_emoji() {
             "message_id": "m1", "user_id": user, "emoji": emoji
         })
     };
-    apply_frame(&mut state, frame(add("u_a", "\u{1F525}")), &mut pending, NOW);
-    apply_frame(&mut state, frame(add("u_b", "\u{1F525}")), &mut pending, NOW);
+    apply_frame(
+        &mut state,
+        frame(add("u_a", "\u{1F525}")),
+        &mut pending,
+        NOW,
+    );
+    apply_frame(
+        &mut state,
+        frame(add("u_b", "\u{1F525}")),
+        &mut pending,
+        NOW,
+    );
     // A repeat writes nothing and announces nothing.
-    let deltas = apply_frame(&mut state, frame(add("u_a", "\u{1F525}")), &mut pending, NOW);
+    let deltas = apply_frame(
+        &mut state,
+        frame(add("u_a", "\u{1F525}")),
+        &mut pending,
+        NOW,
+    );
     assert!(deltas.is_empty());
     assert_eq!(state.reactions.get("m1").map(Vec::len), Some(2));
 
@@ -303,7 +325,11 @@ fn presence_is_an_assignment_not_a_delta() {
         &mut pending,
         NOW,
     );
-    assert_eq!(state.online, vec!["u_z"], "the whole set replaces the old one");
+    assert_eq!(
+        state.online,
+        vec!["u_z"],
+        "the whole set replaces the old one"
+    );
 }
 
 #[test]
@@ -317,7 +343,12 @@ fn a_new_message_clears_that_authors_typing_hint() {
     );
     assert!(state.typing["c1"].contains_key("u_other"));
 
-    apply_frame(&mut state, frame(message_new("m1", 101, "u_other", "done")), &mut pending, NOW);
+    apply_frame(
+        &mut state,
+        frame(message_new("m1", 101, "u_other", "done")),
+        &mut pending,
+        NOW,
+    );
     // Better than a timeout: this is exactly when the hint stopped being true.
     assert!(!state.typing["c1"].contains_key("u_other"));
 }
@@ -402,7 +433,10 @@ fn only_journaled_frames_carry_a_watermark() {
     ];
     for f in ephemeral {
         let parsed = frame(f);
-        assert!(!wire::is_journaled(&parsed), "{parsed:?} must not advance the watermark");
+        assert!(
+            !wire::is_journaled(&parsed),
+            "{parsed:?} must not advance the watermark"
+        );
         assert_eq!(wire::frame_seq(&parsed), None);
     }
 
@@ -445,7 +479,10 @@ fn applying_a_replay_twice_is_a_no_op() {
     }
 
     assert_eq!(once.messages("c1").len(), twice.messages("c1").len());
-    assert_eq!(once.reactions.get("m1").map(Vec::len), twice.reactions.get("m1").map(Vec::len));
+    assert_eq!(
+        once.reactions.get("m1").map(Vec::len),
+        twice.reactions.get("m1").map(Vec::len)
+    );
     assert_eq!(once.pins.get("c1"), twice.pins.get("c1"));
     assert_eq!(
         once.messages("c1")[0].message.body,
@@ -457,7 +494,10 @@ fn applying_a_replay_twice_is_a_no_op() {
 fn the_reaction_allowlist_matches_the_contract() {
     assert_eq!(wire::CHAT_REACTION_EMOJI.len(), 20);
     assert!(wire::is_allowed_reaction("\u{1F44D}"));
-    assert!(wire::is_allowed_reaction("\u{2764}\u{FE0F}"), "the heart carries a variation selector");
+    assert!(
+        wire::is_allowed_reaction("\u{2764}\u{FE0F}"),
+        "the heart carries a variation selector"
+    );
     // Drifted entries the mock UI used to offer, which the server refuses.
     assert!(!wire::is_allowed_reaction("\u{1F604}"));
     assert!(!wire::is_allowed_reaction("\u{2615}"));

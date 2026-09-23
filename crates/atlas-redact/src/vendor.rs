@@ -78,7 +78,10 @@ pub(crate) fn detect(input: &str) -> Vec<Region> {
 
     for (index, rule) in VENDOR_RULES.iter().enumerate() {
         if !rule.keywords.is_empty()
-            && !rule.keywords.iter().any(|keyword| haystack.contains(keyword))
+            && !rule
+                .keywords
+                .iter()
+                .any(|keyword| haystack.contains(keyword))
         {
             continue;
         }
@@ -94,7 +97,11 @@ pub(crate) fn detect(input: &str) -> Vec<Region> {
             if !rule.passes_entropy(secret.as_str()) {
                 continue;
             }
-            regions.push(Region::new(secret.start(), secret.end(), Category::VendorRule));
+            regions.push(Region::new(
+                secret.start(),
+                secret.end(),
+                Category::VendorRule,
+            ));
         }
     }
     regions

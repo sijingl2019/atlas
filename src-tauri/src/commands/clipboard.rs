@@ -34,9 +34,9 @@ pub fn clipboard_write_text(text: String) -> Result<(), String> {
 
 #[cfg(target_os = "macos")]
 fn macos_write_text(text: &str) -> Result<(), String> {
+    use objc2::msg_send;
     use objc2::rc::autoreleasepool;
     use objc2::runtime::{AnyClass, AnyObject, Bool};
-    use objc2::msg_send;
     use std::ffi::CString;
 
     autoreleasepool(|_| unsafe {
@@ -92,16 +92,15 @@ pub fn clipboard_file_paths() -> Vec<String> {
 
 #[cfg(target_os = "macos")]
 fn macos_file_paths() -> Vec<String> {
+    use objc2::msg_send;
     use objc2::rc::autoreleasepool;
     use objc2::runtime::{AnyClass, AnyObject};
-    use objc2::msg_send;
     use std::ffi::{CStr, CString};
 
     autoreleasepool(|_| unsafe {
-        let (Some(pb_class), Some(str_class)) = (
-            AnyClass::get(c"NSPasteboard"),
-            AnyClass::get(c"NSString"),
-        ) else {
+        let (Some(pb_class), Some(str_class)) =
+            (AnyClass::get(c"NSPasteboard"), AnyClass::get(c"NSString"))
+        else {
             return Vec::new();
         };
 
@@ -117,8 +116,7 @@ fn macos_file_paths() -> Vec<String> {
         let Ok(type_c) = CString::new("NSFilenamesPboardType") else {
             return Vec::new();
         };
-        let type_str: *mut AnyObject =
-            msg_send![str_class, stringWithUTF8String: type_c.as_ptr()];
+        let type_str: *mut AnyObject = msg_send![str_class, stringWithUTF8String: type_c.as_ptr()];
         if type_str.is_null() {
             return Vec::new();
         }
@@ -188,7 +186,7 @@ pub fn scratch_write_bytes(
         .headers()
         .get("x-filename")
         .and_then(|v| v.to_str().ok())
-        .map(|s| s.trim())
+        .map(str::trim)
         .filter(|s| !s.is_empty())
         .map(percent_decode)
         .unwrap_or_else(|| "pasted.png".to_string());
@@ -214,7 +212,7 @@ pub fn scratch_write_bytes(
         })
         .take(48)
         .collect();
-    let ext: String = ext.chars().filter(|c| c.is_ascii_alphanumeric()).collect();
+    let ext: String = ext.chars().filter(char::is_ascii_alphanumeric).collect();
     let ext = if ext.is_empty() {
         "png".to_string()
     } else {

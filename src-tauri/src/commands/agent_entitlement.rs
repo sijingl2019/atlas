@@ -125,7 +125,6 @@ pub fn classify(status: u16, body: &str) -> Entitlement {
     }
 }
 
-
 /// Asks the gateway what this account may use.
 ///
 /// One command with the switch inside rather than a `cfg`-gated pair: two
@@ -212,11 +211,15 @@ mod tests {
         // The list is entitlement-filtered — exactly what `POST
         // /chat/completions` will accept — so it is worth keeping rather than
         // reducing to a yes/no.
-        let body = r#"{"object":"list","data":[{"id":"claude-sonnet-4-6"},{"id":"gemini-3.6-flash"}]}"#;
+        let body =
+            r#"{"object":"list","data":[{"id":"claude-sonnet-4-6"},{"id":"gemini-3.6-flash"}]}"#;
         assert_eq!(
             classify(200, body),
             Entitlement::Entitled {
-                models: vec!["claude-sonnet-4-6".to_string(), "gemini-3.6-flash".to_string()],
+                models: vec![
+                    "claude-sonnet-4-6".to_string(),
+                    "gemini-3.6-flash".to_string()
+                ],
             },
         );
     }

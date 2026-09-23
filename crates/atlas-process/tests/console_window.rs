@@ -102,7 +102,11 @@ fn spawn_and_watch(no_window: bool) -> usize {
 /// a window on screen, even from a parent that has no console of its own.
 #[test]
 fn no_window_helper_keeps_a_console_child_windowless() {
-    assert_eq!(spawn_and_watch(true), 0, "a flagged child opened a console window");
+    assert_eq!(
+        spawn_and_watch(true),
+        0,
+        "a flagged child opened a console window"
+    );
 }
 
 /// The failure mode this crate exists for, kept as a runnable demonstration

@@ -171,7 +171,9 @@ pub async fn append_project_log(project: String, entry_json: String) -> Result<(
         if let Ok(meta) = fs::metadata(&path) {
             if meta.len() > PROJECT_LOG_CAP_BYTES {
                 if let Ok(content) = fs::read_to_string(&path) {
-                    let keep_from = content.len().saturating_sub((PROJECT_LOG_CAP_BYTES / 2) as usize);
+                    let keep_from = content
+                        .len()
+                        .saturating_sub((PROJECT_LOG_CAP_BYTES / 2) as usize);
                     let start = content[keep_from..]
                         .find('\n')
                         .map(|i| keep_from + i + 1)

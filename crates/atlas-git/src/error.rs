@@ -333,7 +333,12 @@ pub fn friendly_message(code: GitErrorCode, files: &[String], hint: Option<&str>
 }
 
 /// Build the full IPC payload from a failed command's output.
-pub fn payload(command: String, exit_code: Option<i32>, stderr: &str, stdout: &str) -> GitErrorPayload {
+pub fn payload(
+    command: String,
+    exit_code: Option<i32>,
+    stderr: &str,
+    stdout: &str,
+) -> GitErrorPayload {
     let code = classify(stderr, stdout);
     let files = if code == GitErrorCode::LocalChangesOverwritten {
         let mut f = overwritten_files(stderr);
@@ -350,7 +355,11 @@ pub fn payload(command: String, exit_code: Option<i32>, stderr: &str, stdout: &s
         None
     };
     let message = friendly_message(code, &files, hint.as_deref());
-    let raw = if stderr.trim().is_empty() { stdout } else { stderr };
+    let raw = if stderr.trim().is_empty() {
+        stdout
+    } else {
+        stderr
+    };
     GitErrorPayload {
         code,
         message,
@@ -369,7 +378,10 @@ mod tests {
     #[test]
     fn classifies_auth_failures() {
         assert_eq!(
-            classify("fatal: Authentication failed for 'https://github.com/x/y.git/'\n", ""),
+            classify(
+                "fatal: Authentication failed for 'https://github.com/x/y.git/'\n",
+                ""
+            ),
             GitErrorCode::AuthFailed
         );
         assert_eq!(
@@ -390,10 +402,12 @@ mod tests {
         let non_ff = "To github.com:x/y.git\n ! [rejected]        main -> main (non-fast-forward)\nerror: failed to push some refs to 'github.com:x/y.git'\nhint: Updates were rejected because the tip of your current branch is behind\n";
         assert_eq!(classify(non_ff, ""), GitErrorCode::NonFastForward);
 
-        let stale = " ! [rejected]        main -> main (stale info)\nerror: failed to push some refs\n";
+        let stale =
+            " ! [rejected]        main -> main (stale info)\nerror: failed to push some refs\n";
         assert_eq!(classify(stale, ""), GitErrorCode::ForcePushRejected);
 
-        let protected = "remote: error: GH006: Protected branch update failed for refs/heads/main.\n";
+        let protected =
+            "remote: error: GH006: Protected branch update failed for refs/heads/main.\n";
         assert_eq!(classify(protected, ""), GitErrorCode::ProtectedBranch);
     }
 
@@ -431,18 +445,29 @@ mod tests {
     #[test]
     fn nothing_to_commit_and_upstream() {
         assert_eq!(
-            classify("", "On branch main\nnothing to commit, working tree clean\n"),
+            classify(
+                "",
+                "On branch main\nnothing to commit, working tree clean\n"
+            ),
             GitErrorCode::NothingToCommit
         );
         assert_eq!(
-            classify("fatal: The current branch feature-x has no upstream branch.\n", ""),
+            classify(
+                "fatal: The current branch feature-x has no upstream branch.\n",
+                ""
+            ),
             GitErrorCode::NoUpstream
         );
     }
 
     #[test]
     fn unmatched_is_generic_with_raw_preserved() {
-        let p = payload("git frobnicate".into(), Some(1), "error: something odd\n", "");
+        let p = payload(
+            "git frobnicate".into(),
+            Some(1),
+            "error: something odd\n",
+            "",
+        );
         assert_eq!(p.code, GitErrorCode::Generic);
         assert_eq!(p.raw_stderr, "error: something odd");
     }

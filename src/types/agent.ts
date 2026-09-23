@@ -423,9 +423,14 @@ export interface ChatMessage {
   turnSummary?: {
     turnSeq: number;
     files: TurnFile[];
-    /** Whether the workspace was a git repo when the turn ended (gates commit). */
+    /** Whether the project was a git repo when the turn ended (gates commit). */
     repoAtTurn: boolean;
   };
+  /** Wall time of the turn this message ends, in ms: from the user's message to
+   *  turn_finished. Stamped live on the trailing assistant message and NOT
+   *  persisted — replayed timestamps are the load time, not the send time, so a
+   *  restored turn has no honest duration to rebuild and renders without one. */
+  workedMs?: number;
   /** Agent-suggested next steps for this turn's footer. Generated once at
    *  turn end (parse-first, optional BYOK). `turnSeq` guards against a stale
    *  async result landing after a newer turn started. */
@@ -464,6 +469,20 @@ export interface ToolCallDisplay {
   result: string | null;
   status: "pending" | "running" | "completed" | "failed";
   duration: number | null;
+  /**
+   * Epoch ms this call was FIRST SEEN by the store, stamped client-side.
+   *
+   * Not a wire field: the session-delta wire is frozen, and it carries no start
+   * time (`duration` is only ever `null` — see `toChatToolCall`). A `tool_call`
+   * delta is pushed the moment the agent announces the call, so first-sight is
+   * the start to within one IPC hop, which is what the live elapsed figure on a
+   * running block needs and all it needs.
+   *
+   * Absent on calls restored from a transcript snapshot — a reloaded thread has
+   * no live clock to run, and inventing one would date every historical call to
+   * the moment the tab opened.
+   */
+  startedAt?: number;
   /**
    * Structural content the agent attached to this call. Absent for almost every
    * call — only ACP agents that report edits as `ToolCallContent::Diff` (rather

@@ -245,7 +245,10 @@ pub static VENDOR_RULES: &[VendorRule] = &[
     VendorRule {
         id: r#"azure-ad-client-secret"#,
         pattern: r#"(?:^|[\\'"\x60\s>=:(,)])([a-zA-Z0-9_~.]{3}\dQ~[a-zA-Z0-9_~.-]{31,34})(?:$|[\\'"\x60\s<),])"#,
-        keywords: &[r#"0q~"#, r#"1q~"#, r#"2q~"#, r#"3q~"#, r#"4q~"#, r#"5q~"#, r#"6q~"#, r#"7q~"#, r#"8q~"#, r#"9q~"#],
+        keywords: &[
+            r#"0q~"#, r#"1q~"#, r#"2q~"#, r#"3q~"#, r#"4q~"#, r#"5q~"#, r#"6q~"#, r#"7q~"#,
+            r#"8q~"#, r#"9q~"#,
+        ],
         secret_group: 0,
         min_entropy: Some(3.0),
         entropy_inclusive: true,
@@ -1573,7 +1576,11 @@ pub static VENDOR_RULES: &[VendorRule] = &[
     VendorRule {
         id: r#"microsoft-teams-webhook"#,
         pattern: r#"https://[a-z0-9]+\.webhook\.office\.com/webhookb2/[a-z0-9]{8}-([a-z0-9]{4}-){3}[a-z0-9]{12}@[a-z0-9]{8}-([a-z0-9]{4}-){3}[a-z0-9]{12}/IncomingWebhook/[a-z0-9]{32}/[a-z0-9]{8}-([a-z0-9]{4}-){3}[a-z0-9]{12}"#,
-        keywords: &[r#"webhook.office.com"#, r#"webhookb2"#, r#"incomingwebhook"#],
+        keywords: &[
+            r#"webhook.office.com"#,
+            r#"webhookb2"#,
+            r#"incomingwebhook"#,
+        ],
         secret_group: 0,
         min_entropy: None,
         entropy_inclusive: false,
@@ -2085,7 +2092,10 @@ pub static VENDOR_RULES: &[VendorRule] = &[
     VendorRule {
         id: r#"sidekiq-secret"#,
         pattern: r#"(?i)[\w.-]{0,50}?(?:BUNDLE_ENTERPRISE__CONTRIBSYS__COM|BUNDLE_GEMS__CONTRIBSYS__COM)(?:[ \t\w.-]{0,20})[\s'"]{0,3}(?:=|>|:{1,3}=|\|\||:|=>|\?=|,)[\x60'"\s=]{0,5}([a-f0-9]{8}:[a-f0-9]{8})(?:\\?['"\x60]|[\s;]|\\[nr]|$)"#,
-        keywords: &[r#"bundle_enterprise__contribsys__com"#, r#"bundle_gems__contribsys__com"#],
+        keywords: &[
+            r#"bundle_enterprise__contribsys__com"#,
+            r#"bundle_gems__contribsys__com"#,
+        ],
         secret_group: 0,
         min_entropy: None,
         entropy_inclusive: false,
@@ -2237,7 +2247,14 @@ pub static VENDOR_RULES: &[VendorRule] = &[
     VendorRule {
         id: r#"stripe-access-token"#,
         pattern: r#"\b((?:sk|rk)_(?:test|live|prod)_[a-zA-Z0-9]{10,99})(?:\\?['"\x60]|[\s;]|\\[nr]|$)"#,
-        keywords: &[r#"sk_test"#, r#"sk_live"#, r#"sk_prod"#, r#"rk_test"#, r#"rk_live"#, r#"rk_prod"#],
+        keywords: &[
+            r#"sk_test"#,
+            r#"sk_live"#,
+            r#"sk_prod"#,
+            r#"rk_test"#,
+            r#"rk_live"#,
+            r#"rk_prod"#,
+        ],
         secret_group: 0,
         min_entropy: Some(2.0),
         entropy_inclusive: true,

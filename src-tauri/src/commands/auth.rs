@@ -60,7 +60,11 @@ impl AuthState {
 /// because of that: a signed-in relaunch is covered for free, and no future
 /// transition can forget to update who events are attributed to.
 fn broadcast(app: &AppHandle, snapshot: AuthSnapshot) {
-    sync_identity(app, &snapshot, crate::state::atlas_config::read(app).link_telemetry_to_account);
+    sync_identity(
+        app,
+        &snapshot,
+        crate::state::atlas_config::read(app).link_telemetry_to_account,
+    );
     // Team chat's socket follows the active Organisation, and every transition
     // that can change it — launch restore, sign-in, sign-out, `set_active_org`
     // — passes through here. Hooking the funnel rather than each call site is
@@ -155,10 +159,7 @@ pub async fn auth_sign_in(
 ) -> Result<AuthSnapshot, String> {
     let core = state.core();
 
-    let grant = core
-        .start_grant()
-        .await
-        .map_err(|e| e.user_message())?;
+    let grant = core.start_grant().await.map_err(|e| e.user_message())?;
 
     // Never a URL built here — it comes off the wire, so the desktop stays
     // ignorant of the web app's routing. *Which* of the two the server sent is
@@ -182,7 +183,11 @@ pub async fn auth_sign_in(
                 broadcast(&task_app, snap.clone());
                 raise(&task_app);
                 let (org_count, has_active) = match &snap {
-                    AuthSnapshot::SignedIn { orgs, active_org_id, .. } => (
+                    AuthSnapshot::SignedIn {
+                        orgs,
+                        active_org_id,
+                        ..
+                    } => (
                         orgs.as_ref().map(std::vec::Vec::len).unwrap_or(0),
                         active_org_id.is_some(),
                     ),
@@ -217,7 +222,7 @@ pub fn auth_cancel_sign_in(app: AppHandle, state: State<'_, AuthState>) -> AuthS
 
 /// Which organisation the desktop acts for — billing included (#73).
 ///
-/// The org switcher used to be frontend-only: it re-pointed workspaces and
+/// The org switcher used to be frontend-only: it re-pointed projects and
 /// telemetry and told the Rust side nothing, while every gateway request
 /// reads the active org from the auth snapshot. So the switch changed what
 /// the user SAW and not who they BILLED — an unentitled org appeared to work
@@ -502,7 +507,8 @@ pub fn restore_on_launch(app: &AppHandle) {
 
         let settled = {
             let app = app.clone();
-            core.revalidate(move |snapshot| broadcast(&app, snapshot)).await
+            core.revalidate(move |snapshot| broadcast(&app, snapshot))
+                .await
         };
 
         if settled == Validation::Rejected {

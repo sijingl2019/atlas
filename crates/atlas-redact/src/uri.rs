@@ -40,7 +40,11 @@ pub(crate) fn detect(input: &str) -> Vec<Region> {
         if !is_real_secret_value(password) {
             continue;
         }
-        regions.push(Region::new(whole.start(), whole.end(), Category::CredentialedUri));
+        regions.push(Region::new(
+            whole.start(),
+            whole.end(),
+            Category::CredentialedUri,
+        ));
     }
     regions
 }
@@ -61,7 +65,11 @@ pub(crate) fn detect_userinfo_passwords(input: &str) -> Vec<Region> {
         if !is_real_secret_value(password.as_str()) {
             continue;
         }
-        regions.push(Region::new(password.start(), password.end(), Category::CredentialedUri));
+        regions.push(Region::new(
+            password.start(),
+            password.end(),
+            Category::CredentialedUri,
+        ));
     }
     regions
 }

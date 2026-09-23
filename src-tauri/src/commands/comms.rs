@@ -505,7 +505,6 @@ pub async fn comms_load_older(
     })
 }
 
-
 /// A conversation's prompt drafts — REST passthrough, no state. The list is
 /// poll-owned by the renderer (no lifecycle frames exist to keep a cache
 /// honest), so holding it here would only manufacture staleness.
@@ -516,7 +515,11 @@ pub async fn comms_drafts(
 ) -> Result<Vec<atlas_comms::rest::PromptDraft>, String> {
     let mgr = manager(&app)?;
     let org_id = org(&mgr)?;
-    let list = mgr.rest().drafts(&org_id, &conv_id).await.map_err(map_err)?;
+    let list = mgr
+        .rest()
+        .drafts(&org_id, &conv_id)
+        .await
+        .map_err(map_err)?;
     Ok(list.drafts)
 }
 
@@ -644,7 +647,9 @@ pub fn comms_react(
     emoji: String,
     on: bool,
 ) -> Result<(), String> {
-    manager(&app)?.react(&message_id, &emoji, on).map_err(map_err)
+    manager(&app)?
+        .react(&message_id, &emoji, on)
+        .map_err(map_err)
 }
 
 #[tauri::command]
@@ -726,7 +731,11 @@ pub async fn comms_create_channel(
 pub async fn comms_create_dm(app: AppHandle, user_id: String) -> Result<DmResultDto, String> {
     let mgr = manager(&app)?;
     let org_id = org(&mgr)?;
-    let result = mgr.rest().create_dm(&org_id, &user_id).await.map_err(map_err)?;
+    let result = mgr
+        .rest()
+        .create_dm(&org_id, &user_id)
+        .await
+        .map_err(map_err)?;
     Ok(DmResultDto {
         conversation: result.conversation,
         created: result.created,
@@ -892,7 +901,9 @@ pub async fn comms_start_call(
         return Err("mode must be audio or video".into());
     }
     let mgr = manager(&app)?;
-    mgr.start_call(&conv_id, &mode, public).await.map_err(map_err)
+    mgr.start_call(&conv_id, &mode, public)
+        .await
+        .map_err(map_err)
 }
 
 /// Save a call's transcript (CSV) to a path the user picked.
@@ -978,7 +989,10 @@ pub async fn comms_fetch_recording(
     if path.exists() {
         return Ok(path.to_string_lossy().into_owned());
     }
-    let bytes = mgr.download_recording(&url, &track_id).await.map_err(map_err)?;
+    let bytes = mgr
+        .download_recording(&url, &track_id)
+        .await
+        .map_err(map_err)?;
     let tmp = dir.join(format!(".{track_id}.part"));
     std::fs::write(&tmp, &bytes).map_err(|e| e.to_string())?;
     std::fs::rename(&tmp, &path).map_err(|e| e.to_string())?;
@@ -1031,7 +1045,10 @@ async fn cache_attachment(
 
     let bytes = match download_id {
         // Announced, for a ring somewhere: route through the manager.
-        Some(id) => mgr.download_attachment(file_id, id).await.map_err(map_err)?,
+        Some(id) => mgr
+            .download_attachment(file_id, id)
+            .await
+            .map_err(map_err)?,
         // Silent, for inline media that has its own loading treatment.
         None => mgr
             .rest()
@@ -1075,4 +1092,3 @@ pub async fn comms_save_attachment(
     std::fs::copy(&cached, &dest).map_err(|e| e.to_string())?;
     Ok(())
 }
-

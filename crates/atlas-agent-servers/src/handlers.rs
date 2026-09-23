@@ -779,7 +779,12 @@ mod fs_bound_tests {
         std::fs::create_dir_all(&dir).expect("create the directory");
         let roots = std::slice::from_ref(&root);
 
-        for (line, limit) in [(None, Some(0)), (Some(1), Some(0)), (None, None), (Some(1), None)] {
+        for (line, limit) in [
+            (None, Some(0)),
+            (Some(1), Some(0)),
+            (None, None),
+            (Some(1), None),
+        ] {
             assert!(
                 read_text_file(&dir, line, limit, roots).is_err(),
                 "reading a directory answered successfully for line={line:?} limit={limit:?}"
@@ -1113,7 +1118,7 @@ pub fn handle_create_terminal(
 /// stay alive for its own terminal. It ends on any of three things, which
 /// between them cover every way a terminal stops mattering:
 ///
-/// - the command exits (checked after each wake);
+/// - the command exits (checked before each park);
 /// - the thread is gone (the upgrade fails, checked before parking again);
 /// - the terminal is released or the session torn down, both of which kill the
 ///   command — which is an exit, so the first condition fires. Release kills
@@ -1133,26 +1138,28 @@ pub fn follow_terminal_output(
             let Some(alive) = thread.upgrade() else {
                 return;
             };
-            drop(alive);
 
-            terminal.output_changed().await;
-
-            let Some(alive) = thread.upgrade() else {
-                return;
-            };
+            // Register for the next wake BEFORE reporting, then report. The
+            // signal is `notify_waiters`, which keeps no permit: an append that
+            // lands while nobody is registered wakes nobody. Reporting first and
+            // registering after left exactly that gap — and before the first
+            // poll the gap is the whole spawn, so a command that printed once
+            // and then ran quiet (`echo …; sleep`) was never reported at all.
+            // With the registration first, anything the report missed wakes
+            // the park below.
+            let changed = terminal.output_changed();
+            futures::pin_mut!(changed);
+            let exited = futures::poll!(changed.as_mut()).is_ready();
             lock(&alive).note_terminal_output(&terminal_id);
             drop(alive);
 
-            if terminal.exit_status().is_some() {
-                // One last report AFTER the exit was observed: the final append
-                // and the exit signal can arrive together, and the wake above
-                // may have read the buffer a moment before the last write
-                // landed.
-                if let Some(alive) = thread.upgrade() {
-                    lock(&alive).note_terminal_output(&terminal_id);
-                }
+            // `output_changed` is ready at once after an exit, and the reader
+            // records the exit only after its last append, so the report just
+            // made already covers everything the command wrote.
+            if exited {
                 return;
             }
+            changed.await;
         }
     });
 }
@@ -1235,13 +1242,15 @@ pub fn handle_wait_for_terminal_exit(
         // Display-only: the agent owns the process — it announced this
         // terminal through `terminal_info` meta and reports the exit the same
         // way. There is nothing on our side to await.
-        Ok(None) => return respond_err(
-            responder,
-            acp::Error::invalid_params().data(format!(
+        Ok(None) => {
+            return respond_err(
+                responder,
+                acp::Error::invalid_params().data(format!(
                 "terminal {} is agent-owned (display-only); its exit arrives as terminal_exit meta",
                 args.terminal_id
             )),
-        ),
+            )
+        }
         Err(err) => return respond_err(responder, err),
     };
 

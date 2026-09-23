@@ -32,12 +32,12 @@ export function KbScopeToggle({
           onClick={() => onChange(value)}
           title={title}
           className={cn(
-            "flex items-center gap-1 px-1.5 h-full text-[9px] font-semibold uppercase tracking-wider transition-colors cursor-pointer",
+            "flex items-center gap-1 px-1.5 h-full text-3xs font-semibold uppercase tracking-wider transition-colors cursor-pointer",
             scope === value
-              ? "text-text-primary"
-              : "text-text-tertiary hover:bg-bg-hover hover:text-text-secondary",
+              ? "text-foreground"
+              : "text-muted-foreground hover:bg-element-hover hover:text-secondary-foreground",
           )}
-          style={{ background: scope === value ? "var(--bg-active)" : undefined }}
+          style={{ background: scope === value ? "var(--atlas-element-active)" : undefined }}
         >
           <Icon size={9} strokeWidth={2} />
           {label}

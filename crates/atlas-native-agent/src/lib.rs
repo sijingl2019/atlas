@@ -65,5 +65,5 @@ pub trait AgentSessionEffort: Send + Sync {
     fn set_effort(&self, level: Option<String>) -> Result<()>;
 }
 
-pub use engine::EngineAgentServer;
 pub use engine::connection::EngineConnection;
+pub use engine::EngineAgentServer;

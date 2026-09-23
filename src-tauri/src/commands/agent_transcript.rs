@@ -108,6 +108,12 @@ impl TranscriptState {
         }
     }
 
+    /// Where this state's transcripts are persisted — what [`list`] and
+    /// [`read`] take as `config_dir`.
+    pub fn config_dir(&self) -> &Path {
+        &self.config_dir
+    }
+
     /// Record the user's prompt, creating the session's buffer on first use.
     /// `cwd`/`plugin_id` are only consulted when creating.
     ///
@@ -271,7 +277,6 @@ impl TranscriptState {
     pub fn snapshot(&self, session_id: &str) -> Option<StoredTranscript> {
         self.open.lock().get(session_id).cloned()
     }
-
 }
 
 /// `<config>/agent-transcripts/<cwd-hash>/`.
@@ -314,9 +319,15 @@ pub fn save(config_dir: &Path, t: &StoredTranscript) -> std::io::Result<()> {
 
 /// Session ids come from the agent, so they are not guaranteed to be safe as a
 /// filename — `..` or a separator would escape the directory.
-fn sanitize_id(id: &str) -> String {
+pub(crate) fn sanitize_id(id: &str) -> String {
     id.chars()
-        .map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect()
 }
 
@@ -335,7 +346,12 @@ pub fn list(config_dir: &Path, cwd: &str) -> Vec<AgentSessionMeta> {
             // A transcript with no user message has no title and nothing worth
             // reopening — never list it (this is the "empty chat I can't
             // remove" failure mode the Claude sidebar already guards against).
-            let preview = t.messages.iter().find(|m| m.role == "user")?.content.clone();
+            let preview = t
+                .messages
+                .iter()
+                .find(|m| m.role == "user")?
+                .content
+                .clone();
             Some(AgentSessionMeta {
                 id: t.id,
                 file_path: e.path().to_string_lossy().into_owned(),
@@ -353,9 +369,66 @@ pub fn list(config_dir: &Path, cwd: &str) -> Vec<AgentSessionMeta> {
 
 /// Read one transcript back for replay.
 pub fn read(config_dir: &Path, cwd: &str, session_id: &str) -> Option<StoredTranscript> {
-    let path = dir_for(config_dir, cwd).join(format!("{}.json", sanitize_id(session_id)));
+    read_file(&dir_for(config_dir, cwd).join(format!("{}.json", sanitize_id(session_id))))
+}
+
+/// Read one transcript file.
+pub fn read_file(path: &Path) -> Option<StoredTranscript> {
     let bytes = std::fs::read(path).ok()?;
     serde_json::from_slice(&bytes).ok()
+}
+
+/// A recorded session's file, before it is read.
+pub struct TranscriptFile {
+    /// The session id in its file-safe spelling ([`sanitize_id`]) — what the
+    /// file is named, so a caller can match ids without reading the file.
+    pub file_id: String,
+    pub modified: std::time::SystemTime,
+    pub path: PathBuf,
+}
+
+/// Every session file in one project directory (see [`dir_for`]), unread.
+pub fn session_files(dir: &Path) -> Vec<TranscriptFile> {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    entries
+        .filter_map(std::result::Result::ok)
+        .filter_map(|e| {
+            let path = e.path();
+            if path.extension().is_none_or(|x| x != "json") {
+                return None;
+            }
+            let file_id = path.file_stem()?.to_str()?.to_string();
+            let modified = e.metadata().and_then(|m| m.modified()).ok()?;
+            Some(TranscriptFile {
+                file_id,
+                modified,
+                path,
+            })
+        })
+        .collect()
+}
+
+/// Every project directory holding transcripts, with the `cwd` its sessions
+/// ran in. The directory name is a hash, so the `cwd` is read from the first
+/// readable transcript inside — one file per project, not every session.
+pub fn recorded_projects(config_dir: &Path) -> Vec<(String, PathBuf)> {
+    let Ok(entries) = std::fs::read_dir(config_dir.join("agent-transcripts")) else {
+        return Vec::new();
+    };
+    entries
+        .filter_map(std::result::Result::ok)
+        .map(|e| e.path())
+        .filter(|dir| dir.is_dir())
+        .filter_map(|dir| {
+            let cwd = session_files(&dir)
+                .iter()
+                .find_map(|f| read_file(&f.path))?
+                .cwd;
+            Some((cwd, dir))
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -380,8 +453,22 @@ mod tests {
 
     fn state_with_turn() -> (TranscriptState, StoredTranscript) {
         let st = TranscriptState::new(tmp());
-        st.note_prompt("ses_1", "/w", "opencode", "hello there", Vec::new(), "2026-01-01T00:00:00Z".into());
-        st.note_message("ses_1", "assistant", "hi back", Some("gpt-x"), None, "2026-01-01T00:00:01Z".into());
+        st.note_prompt(
+            "ses_1",
+            "/w",
+            "opencode",
+            "hello there",
+            Vec::new(),
+            "2026-01-01T00:00:00Z".into(),
+        );
+        st.note_message(
+            "ses_1",
+            "assistant",
+            "hi back",
+            Some("gpt-x"),
+            None,
+            "2026-01-01T00:00:01Z".into(),
+        );
         let t = st.snapshot("ses_1").unwrap();
         (st, t)
     }
@@ -417,7 +504,14 @@ mod tests {
             }],
             "2026-01-01T00:00:00Z".into(),
         );
-        st.note_message("ses_img", "assistant", "nice screenshot", None, None, "t1".into());
+        st.note_message(
+            "ses_img",
+            "assistant",
+            "nice screenshot",
+            None,
+            None,
+            "t1".into(),
+        );
 
         let t = st.snapshot("ses_img").unwrap();
         save(&dir, &t).unwrap();
@@ -443,7 +537,10 @@ mod tests {
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].id, "ses_1");
         assert_eq!(rows[0].plugin_id, "opencode");
-        assert_eq!(rows[0].preview, "hello there", "title comes from the user's words");
+        assert_eq!(
+            rows[0].preview, "hello there",
+            "title comes from the user's words"
+        );
         assert_eq!(rows[0].message_count, 2);
     }
 
@@ -452,7 +549,14 @@ mod tests {
         // Would be an untitled row the user cannot meaningfully reopen.
         let dir = tmp();
         let st = TranscriptState::new(tmp());
-        st.note_prompt("ses_2", "/w", "opencode", "q", Vec::new(), "2026-01-01T00:00:00Z".into());
+        st.note_prompt(
+            "ses_2",
+            "/w",
+            "opencode",
+            "q",
+            Vec::new(),
+            "2026-01-01T00:00:00Z".into(),
+        );
         let mut t = st.snapshot("ses_2").unwrap();
         t.messages.clear();
         save(&dir, &t).unwrap();
@@ -521,25 +625,49 @@ mod tests {
     #[test]
     fn listing_is_newest_first_and_scoped_to_its_project() {
         let dir = tmp();
-        for (id, when) in [("old", "2026-01-01T00:00:00Z"), ("new", "2026-06-01T00:00:00Z")] {
+        for (id, when) in [
+            ("old", "2026-01-01T00:00:00Z"),
+            ("new", "2026-06-01T00:00:00Z"),
+        ] {
             let st = TranscriptState::new(tmp());
             st.note_prompt(id, "/w", "opencode", "q", Vec::new(), when.to_string());
             save(&dir, &st.snapshot(id).unwrap()).unwrap();
         }
         let st = TranscriptState::new(tmp());
-        st.note_prompt("other", "/elsewhere", "opencode", "q", Vec::new(), "2026-07-01T00:00:00Z".into());
+        st.note_prompt(
+            "other",
+            "/elsewhere",
+            "opencode",
+            "q",
+            Vec::new(),
+            "2026-07-01T00:00:00Z".into(),
+        );
         save(&dir, &st.snapshot("other").unwrap()).unwrap();
 
         let rows = list(&dir, "/w");
-        assert_eq!(rows.iter().map(|r| r.id.as_str()).collect::<Vec<_>>(), ["new", "old"]);
-        assert_eq!(list(&dir, "/elsewhere").len(), 1, "other project is separate");
+        assert_eq!(
+            rows.iter().map(|r| r.id.as_str()).collect::<Vec<_>>(),
+            ["new", "old"]
+        );
+        assert_eq!(
+            list(&dir, "/elsewhere").len(),
+            1,
+            "other project is separate"
+        );
     }
 
     #[test]
     fn a_hostile_session_id_cannot_escape_its_directory() {
         let dir = tmp();
         let st = TranscriptState::new(tmp());
-        st.note_prompt("../../etc/passwd", "/w", "opencode", "q", Vec::new(), "t".into());
+        st.note_prompt(
+            "../../etc/passwd",
+            "/w",
+            "opencode",
+            "q",
+            Vec::new(),
+            "t".into(),
+        );
         save(&dir, &st.snapshot("../../etc/passwd").unwrap()).unwrap();
         // Landed inside the project dir under a sanitized name.
         assert_eq!(list(&dir, "/w").len(), 1);
@@ -558,16 +686,29 @@ mod tests {
 
         // A NEW state over the same directory — this is a resume.
         let fresh = TranscriptState::new(dir.clone());
-        fresh.note_prompt("ses_1", "/w", "opencode", "much later", Vec::new(), "2026-02-01T00:00:00Z".into());
+        fresh.note_prompt(
+            "ses_1",
+            "/w",
+            "opencode",
+            "much later",
+            Vec::new(),
+            "2026-02-01T00:00:00Z".into(),
+        );
         save(&dir, &fresh.snapshot("ses_1").unwrap()).unwrap();
 
         let back = read(&dir, "/w", "ses_1").unwrap();
         assert_eq!(
-            back.messages.iter().map(|m| m.content.as_str()).collect::<Vec<_>>(),
+            back.messages
+                .iter()
+                .map(|m| m.content.as_str())
+                .collect::<Vec<_>>(),
             ["hello there", "hi back", "much later"],
             "the original turns must survive the resume"
         );
-        assert_eq!(back.created_at, "2026-01-01T00:00:00Z", "creation time is the original");
+        assert_eq!(
+            back.created_at, "2026-01-01T00:00:00Z",
+            "creation time is the original"
+        );
     }
 
     #[test]
@@ -578,7 +719,11 @@ mod tests {
         st.note_prompt("s", "/w", "opencode", "first", Vec::new(), "t".into());
         // The agent echoes the prompt we just recorded — already there.
         st.note_user_delta("s", "first", "t".into());
-        assert_eq!(st.snapshot("s").unwrap().messages.len(), 1, "echo is deduped");
+        assert_eq!(
+            st.snapshot("s").unwrap().messages.len(),
+            1,
+            "echo is deduped"
+        );
 
         // A queued send that never passed through `agents_send`.
         st.note_user_delta("s", "queued", "t".into());
@@ -604,7 +749,14 @@ mod tests {
         let dir = tmp();
         let (st, t) = state_with_turn();
         save(&dir, &t).unwrap();
-        st.note_prompt("ses_1", "/w", "opencode", "follow up", Vec::new(), "2026-01-01T00:01:00Z".into());
+        st.note_prompt(
+            "ses_1",
+            "/w",
+            "opencode",
+            "follow up",
+            Vec::new(),
+            "2026-01-01T00:01:00Z".into(),
+        );
         save(&dir, &st.snapshot("ses_1").unwrap()).unwrap();
         assert_eq!(read(&dir, "/w", "ses_1").unwrap().messages.len(), 3);
         assert_eq!(list(&dir, "/w").len(), 1, "still one session, not two");
@@ -641,13 +793,29 @@ mod tests {
             "preview",
             "plugin_id",
         ] {
-            assert!(obj.contains_key(key), "missing `{key}` — the sidebar reads it");
+            assert!(
+                obj.contains_key(key),
+                "missing `{key}` — the sidebar reads it"
+            );
         }
         // …and no camelCase twin snuck in.
-        for key in ["filePath", "startedAt", "lastModified", "messageCount", "pluginId"] {
-            assert!(!obj.contains_key(key), "`{key}` must be snake_case on the wire");
+        for key in [
+            "filePath",
+            "startedAt",
+            "lastModified",
+            "messageCount",
+            "pluginId",
+        ] {
+            assert!(
+                !obj.contains_key(key),
+                "`{key}` must be snake_case on the wire"
+            );
         }
-        assert_eq!(obj.len(), 7, "unexpected field — update the frontend interface too");
+        assert_eq!(
+            obj.len(),
+            7,
+            "unexpected field — update the frontend interface too"
+        );
     }
 
     #[test]

@@ -1201,9 +1201,9 @@ impl ThreadHistoryBuilder {
                 message: payload.message.clone(),
                 codex_error_info: payload.codex_error_info.clone().map(Into::into),
                 additional_details: None,
-                    // Replayed history: whatever wait this error announced is
-                    // long over, so there is nothing left to count down to.
-                    retry_delay_ms: None
+                // Replayed history: whatever wait this error announced is
+                // long over, so there is nothing left to count down to.
+                retry_delay_ms: None,
             });
             tracking_changes.then(|| ThreadHistoryTurnChange::from_pending_turn(turn))
         } else {
@@ -1262,9 +1262,9 @@ impl ThreadHistoryBuilder {
             message: error.message.clone(),
             codex_error_info: error.codex_error_info.clone().map(Into::into),
             additional_details: None,
-                    // Replayed history: whatever wait this error announced is
-                    // long over, so there is nothing left to count down to.
-                    retry_delay_ms: None
+            // Replayed history: whatever wait this error announced is
+            // long over, so there is nothing left to count down to.
+            retry_delay_ms: None,
         });
         let apply_completion = |turn: &mut PendingTurn| {
             if let Some(error) = terminal_error.as_ref() {
@@ -3845,9 +3845,9 @@ mod tests {
                             crate::protocol::v2::CodexErrorInfo::ServerOverloaded,
                         ),
                         additional_details: None,
-                    // Replayed history: whatever wait this error announced is
-                    // long over, so there is nothing left to count down to.
-                    retry_delay_ms: None
+                        // Replayed history: whatever wait this error announced is
+                        // long over, so there is nothing left to count down to.
+                        retry_delay_ms: None
                     }),
                     started_at: Some(10),
                     completed_at: Some(20),
@@ -4320,9 +4320,9 @@ mod tests {
                     }
                 ),
                 additional_details: None,
-                    // Replayed history: whatever wait this error announced is
-                    // long over, so there is nothing left to count down to.
-                    retry_delay_ms: None
+                // Replayed history: whatever wait this error announced is
+                // long over, so there is nothing left to count down to.
+                retry_delay_ms: None
             })
         );
     }

@@ -5,10 +5,11 @@
 //! nothing errors, and "trace any change back to the Session that produced it"
 //! becomes false without anyone noticing.
 
-use std::path::Path;
-use std::process::Command;
+mod support;
 
-use atlas_checkpoint::model::WorkspaceMode;
+use std::path::Path;
+
+use atlas_checkpoint::model::ProjectMode;
 use atlas_checkpoint::tools::{resolve_path, ToolName};
 use atlas_checkpoint::{
     hash_written_content, reconcile_rewrites, walk_new_commits, Capture, FileWrite, LinkState,
@@ -23,10 +24,10 @@ struct Fixture {
 
 impl Fixture {
     fn new() -> Self {
-        let fixture = Self { dir: tempfile::tempdir().unwrap() };
-        fixture.git(&["init", "--initial-branch=main"]);
-        fixture.git(&["config", "user.name", "Test Developer"]);
-        fixture.git(&["config", "user.email", "dev@example.com"]);
+        let fixture = Self {
+            dir: tempfile::tempdir().unwrap(),
+        };
+        support::init_repo(fixture.path());
         fixture
     }
 
@@ -35,18 +36,7 @@ impl Fixture {
     }
 
     fn git(&self, args: &[&str]) -> String {
-        let output = Command::new("git")
-            .arg("-C")
-            .arg(self.path())
-            .args(args)
-            .output()
-            .expect("git runs");
-        assert!(
-            output.status.success(),
-            "git {args:?} failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-        String::from_utf8_lossy(&output.stdout).into_owned()
+        support::git(self.path(), args)
     }
 
     fn write(&self, path: &str, content: &str) {
@@ -68,7 +58,7 @@ impl Fixture {
     }
 
     fn walk(&self, store: &Store) {
-        walk_new_commits(store, WORKSPACE, self.path(), WorkspaceMode::Local).expect("walk");
+        walk_new_commits(store, WORKSPACE, self.path(), ProjectMode::Local).expect("walk");
     }
 
     fn reconcile(&self, store: &Store) -> atlas_checkpoint::ReconcileOutcome {
@@ -86,14 +76,21 @@ fn agent_commit(
     message: &str,
 ) -> String {
     let session_id = {
-        let mut capture = Capture::new(store, WorkspaceMode::Local);
+        let mut capture = Capture::new(store, ProjectMode::Local);
         let key = SessionKey {
             workspace_id: WORKSPACE.to_string(),
             source: Source::Acp,
             native_session_id: native_id.to_string(),
         };
         let session_id = capture
-            .record_prompt(&key, &format!("work on {path}"), 1, Some("claude-code"), None, None)
+            .record_prompt(
+                &key,
+                &format!("work on {path}"),
+                1,
+                Some("claude-code"),
+                None,
+                None,
+            )
             .expect("prompt");
 
         let call = capture
@@ -123,7 +120,7 @@ fn agent_commit(
                 FileWrite {
                     path: &resolved,
                     sha256_after: Some(hash_written_content(content.as_bytes())),
-                sketch_after: atlas_checkpoint::sketch::sketch(content.as_bytes()),
+                    sketch_after: atlas_checkpoint::sketch::sketch(content.as_bytes()),
                     existed_before: true,
                     deleted: false,
                 },
@@ -139,7 +136,11 @@ fn agent_commit(
 
 fn only_checkpoint(store: &Store, session: &str) -> atlas_checkpoint::Checkpoint {
     let checkpoints = store.checkpoints_for_session(session).unwrap();
-    assert_eq!(checkpoints.len(), 1, "expected one Checkpoint, got {checkpoints:?}");
+    assert_eq!(
+        checkpoints.len(),
+        1,
+        "expected one Checkpoint, got {checkpoints:?}"
+    );
     checkpoints[0].clone()
 }
 
@@ -164,7 +165,12 @@ fn an_amend_re_points_the_checkpoint_rather_than_orphaning_it() {
     let before = only_checkpoint(&store, &session);
 
     // A routine fixup must not cost the link.
-    fixture.git(&["commit", "--amend", "-m", "agent change, with a better message"]);
+    fixture.git(&[
+        "commit",
+        "--amend",
+        "-m",
+        "agent change, with a better message",
+    ]);
     let new_sha = fixture.git(&["rev-parse", "HEAD"]).trim().to_string();
     assert_ne!(before.commit_sha, new_sha);
 
@@ -226,7 +232,14 @@ fn a_rewrite_performed_while_atlas_was_closed_is_reconciled_on_next_open() {
     let session = {
         let mut store = fixture.store();
         fixture.walk(&store);
-        agent_commit(&fixture, &mut store, "s1", "src/lib.rs", "agent\n", "agent change")
+        agent_commit(
+            &fixture,
+            &mut store,
+            "s1",
+            "src/lib.rs",
+            "agent\n",
+            "agent change",
+        )
         // Store dropped — Atlas is closed.
     };
 
@@ -257,8 +270,22 @@ fn squashing_orphans_the_affected_checkpoints_rather_than_mis_attaching_them() {
     // path would make the first Session link to the second commit too — correct
     // under the permissive arm of the link rule, but it would obscure what this
     // test is about.
-    let first = agent_commit(&fixture, &mut store, "s1", "src/one.rs", "step one\n", "one");
-    let second = agent_commit(&fixture, &mut store, "s2", "src/two.rs", "step two\n", "two");
+    let first = agent_commit(
+        &fixture,
+        &mut store,
+        "s1",
+        "src/one.rs",
+        "step one\n",
+        "one",
+    );
+    let second = agent_commit(
+        &fixture,
+        &mut store,
+        "s2",
+        "src/two.rs",
+        "step two\n",
+        "two",
+    );
 
     // Squash the two agent commits into one.
     fixture.git(&["reset", "--soft", "HEAD~2"]);
@@ -301,7 +328,10 @@ fn a_conflict_resolved_differently_orphans_rather_than_mis_matching() {
 
     let outcome = fixture.reconcile(&store);
     assert_eq!(outcome.orphaned, 1);
-    assert_eq!(only_checkpoint(&store, &session).link_state, LinkState::Orphaned);
+    assert_eq!(
+        only_checkpoint(&store, &session).link_state,
+        LinkState::Orphaned
+    );
 }
 
 // ── Ambiguity ───────────────────────────────────────────────────────────────
@@ -397,7 +427,10 @@ fn a_patch_id_collision_resolves_to_the_checkpoints_recorded_branch_when_it_can(
     assert_eq!(outcome.relinked, 1, "the recorded branch disambiguates");
     let after = only_checkpoint(&store, &session);
     assert_eq!(after.link_state, LinkState::Linked);
-    assert_ne!(after.commit_sha, original, "re-pointed at the rewritten commit");
+    assert_ne!(
+        after.commit_sha, original,
+        "re-pointed at the rewritten commit"
+    );
 }
 
 #[test]
@@ -432,19 +465,32 @@ fn an_orphan_whose_commit_becomes_reachable_again_is_re_linked() {
     let mut store = fixture.store();
     fixture.walk(&store);
 
-    let session = agent_commit(&fixture, &mut store, "s1", "src/lib.rs", "agent\n", "agent change");
+    let session = agent_commit(
+        &fixture,
+        &mut store,
+        "s1",
+        "src/lib.rs",
+        "agent\n",
+        "agent change",
+    );
     let commit = only_checkpoint(&store, &session).commit_sha;
 
     // Rewind past it, so the commit is unreachable and the Checkpoint orphans.
     fixture.git(&["reset", "--hard", "HEAD~1"]);
     assert_eq!(fixture.reconcile(&store).orphaned, 1);
-    assert_eq!(only_checkpoint(&store, &session).link_state, LinkState::Orphaned);
+    assert_eq!(
+        only_checkpoint(&store, &session).link_state,
+        LinkState::Orphaned
+    );
 
     // The developer undoes the force-push.
     fixture.git(&["reset", "--hard", &commit]);
     let outcome = fixture.reconcile(&store);
     assert_eq!(outcome.recovered, 1);
-    assert_eq!(only_checkpoint(&store, &session).link_state, LinkState::Linked);
+    assert_eq!(
+        only_checkpoint(&store, &session).link_state,
+        LinkState::Linked
+    );
 }
 
 #[test]
@@ -455,7 +501,14 @@ fn reconciliation_is_idempotent() {
     let mut store = fixture.store();
     fixture.walk(&store);
 
-    let session = agent_commit(&fixture, &mut store, "s1", "src/lib.rs", "agent\n", "agent change");
+    let session = agent_commit(
+        &fixture,
+        &mut store,
+        "s1",
+        "src/lib.rs",
+        "agent\n",
+        "agent change",
+    );
     fixture.git(&["commit", "--amend", "-m", "amended"]);
 
     let first = fixture.reconcile(&store);
@@ -468,7 +521,10 @@ fn reconciliation_is_idempotent() {
         assert_eq!(again.orphaned, 0);
         assert_eq!(again.recovered, 0);
     }
-    assert_eq!(only_checkpoint(&store, &session).link_state, LinkState::Linked);
+    assert_eq!(
+        only_checkpoint(&store, &session).link_state,
+        LinkState::Linked
+    );
 }
 
 #[test]
@@ -478,7 +534,14 @@ fn reconciliation_with_everything_reachable_does_nothing() {
     fixture.commit_all("initial");
     let mut store = fixture.store();
     fixture.walk(&store);
-    agent_commit(&fixture, &mut store, "s1", "src/lib.rs", "agent\n", "agent change");
+    agent_commit(
+        &fixture,
+        &mut store,
+        "s1",
+        "src/lib.rs",
+        "agent\n",
+        "agent change",
+    );
 
     assert_eq!(
         fixture.reconcile(&store),
@@ -530,13 +593,23 @@ fn reconciliation_mid_rebase_defers_rather_than_orphaning_prematurely() {
     let mut store = fixture.store();
     fixture.walk(&store);
 
-    let session = agent_commit(&fixture, &mut store, "s1", "src/lib.rs", "agent\n", "agent change");
+    let session = agent_commit(
+        &fixture,
+        &mut store,
+        "s1",
+        "src/lib.rs",
+        "agent\n",
+        "agent change",
+    );
 
     // Simulate the transient state git leaves on disk mid-rebase.
     std::fs::create_dir_all(fixture.path().join(".git/rebase-merge")).unwrap();
 
     let outcome = fixture.reconcile(&store);
-    assert!(outcome.deferred, "must defer while a rewrite is in progress");
+    assert!(
+        outcome.deferred,
+        "must defer while a rewrite is in progress"
+    );
     assert_eq!(outcome.orphaned, 0);
     assert_eq!(
         only_checkpoint(&store, &session).link_state,
@@ -557,12 +630,19 @@ fn orphaned_is_a_queryable_state_that_retains_its_session_link() {
     let mut store = fixture.store();
     fixture.walk(&store);
 
-    let session = agent_commit(&fixture, &mut store, "s1", "src/lib.rs", "agent\n", "agent change");
+    let session = agent_commit(
+        &fixture,
+        &mut store,
+        "s1",
+        "src/lib.rs",
+        "agent\n",
+        "agent change",
+    );
     fixture.git(&["reset", "--hard", "HEAD~1"]);
     fixture.reconcile(&store);
 
     let orphaned: Vec<_> = store
-        .checkpoints_for_workspace(WORKSPACE)
+        .checkpoints_for_project(WORKSPACE)
         .unwrap()
         .into_iter()
         .filter(|cp| cp.link_state == LinkState::Orphaned)
@@ -596,7 +676,14 @@ fn the_production_sequence_survives_an_amend() {
     let mut store = fixture.store();
     fixture.walk(&store);
 
-    let session = agent_commit(&fixture, &mut store, "s1", "src/lib.rs", "agent\n", "agent change");
+    let session = agent_commit(
+        &fixture,
+        &mut store,
+        "s1",
+        "src/lib.rs",
+        "agent\n",
+        "agent change",
+    );
     fixture.git(&["commit", "--amend", "-m", "amended"]);
     let new_sha = fixture.git(&["rev-parse", "HEAD"]).trim().to_string();
 
@@ -614,7 +701,15 @@ fn the_production_sequence_survives_an_amend() {
     // And the next events are no-ops: the sequence is idempotent.
     for _ in 0..3 {
         let again = git_event(&fixture, &store);
-        assert_eq!((again.relinked, again.orphaned, again.recovered, again.failed), (0, 0, 0, 0));
+        assert_eq!(
+            (
+                again.relinked,
+                again.orphaned,
+                again.recovered,
+                again.failed
+            ),
+            (0, 0, 0, 0)
+        );
     }
     assert_eq!(only_checkpoint(&store, &session).commit_sha, new_sha);
 }
@@ -629,7 +724,14 @@ fn reconcile_before_walk_also_survives_an_amend() {
     let mut store = fixture.store();
     fixture.walk(&store);
 
-    let session = agent_commit(&fixture, &mut store, "s1", "src/lib.rs", "agent\n", "agent change");
+    let session = agent_commit(
+        &fixture,
+        &mut store,
+        "s1",
+        "src/lib.rs",
+        "agent\n",
+        "agent change",
+    );
     fixture.git(&["commit", "--amend", "-m", "amended"]);
     let new_sha = fixture.git(&["rev-parse", "HEAD"]).trim().to_string();
 
@@ -650,7 +752,14 @@ fn the_production_sequence_survives_a_rebase() {
     fixture.walk(&store);
 
     fixture.git(&["checkout", "-b", "feature"]);
-    let session = agent_commit(&fixture, &mut store, "s1", "src/lib.rs", "agent\n", "agent work");
+    let session = agent_commit(
+        &fixture,
+        &mut store,
+        "s1",
+        "src/lib.rs",
+        "agent\n",
+        "agent work",
+    );
 
     fixture.git(&["checkout", "main"]);
     fixture.write("other.rs", "other\n");
@@ -668,7 +777,15 @@ fn the_production_sequence_survives_a_rebase() {
     assert_eq!(after.link_state, LinkState::Linked);
 
     let again = git_event(&fixture, &store);
-    assert_eq!((again.relinked, again.orphaned, again.recovered, again.failed), (0, 0, 0, 0));
+    assert_eq!(
+        (
+            again.relinked,
+            again.orphaned,
+            again.recovered,
+            again.failed
+        ),
+        (0, 0, 0, 0)
+    );
     assert_eq!(only_checkpoint(&store, &session).commit_sha, new_sha);
 }
 
@@ -684,8 +801,22 @@ fn the_production_sequence_orphans_a_squash_without_reattaching() {
     let mut store = fixture.store();
     fixture.walk(&store);
 
-    let first = agent_commit(&fixture, &mut store, "s1", "src/one.rs", "step one\n", "one");
-    let second = agent_commit(&fixture, &mut store, "s2", "src/two.rs", "step two\n", "two");
+    let first = agent_commit(
+        &fixture,
+        &mut store,
+        "s1",
+        "src/one.rs",
+        "step one\n",
+        "one",
+    );
+    let second = agent_commit(
+        &fixture,
+        &mut store,
+        "s2",
+        "src/two.rs",
+        "step two\n",
+        "two",
+    );
 
     fixture.git(&["reset", "--soft", "HEAD~2"]);
     fixture.git(&["commit", "-m", "squashed"]);
@@ -708,7 +839,15 @@ fn the_production_sequence_orphans_a_squash_without_reattaching() {
 
     // Repeated events change nothing.
     let again = git_event(&fixture, &store);
-    assert_eq!((again.relinked, again.orphaned, again.recovered, again.failed), (0, 0, 0, 0));
+    assert_eq!(
+        (
+            again.relinked,
+            again.orphaned,
+            again.recovered,
+            again.failed
+        ),
+        (0, 0, 0, 0)
+    );
     assert!(store.checkpoints_for_commit(&squashed).unwrap().is_empty());
 }
 
@@ -722,13 +861,23 @@ fn a_commit_kept_alive_only_by_a_tag_is_not_orphaned() {
     let mut store = fixture.store();
     fixture.walk(&store);
 
-    let session = agent_commit(&fixture, &mut store, "s1", "src/lib.rs", "agent\n", "agent change");
+    let session = agent_commit(
+        &fixture,
+        &mut store,
+        "s1",
+        "src/lib.rs",
+        "agent\n",
+        "agent change",
+    );
     fixture.git(&["tag", "v1.0"]);
     fixture.git(&["reset", "--hard", "HEAD~1"]);
 
     let outcome = git_event(&fixture, &store);
     assert_eq!(outcome.orphaned, 0);
-    assert_eq!(only_checkpoint(&store, &session).link_state, LinkState::Linked);
+    assert_eq!(
+        only_checkpoint(&store, &session).link_state,
+        LinkState::Linked
+    );
 }
 
 #[test]
@@ -757,7 +906,10 @@ fn a_mass_orphan_writes_a_reconcile_note_and_a_clean_pass_zeroes_it() {
     let outcome = git_event(&fixture, &store);
     assert!(outcome.is_mass_orphan());
 
-    let note = store.reconcile_note(WORKSPACE).unwrap().expect("a persisted note");
+    let note = store
+        .reconcile_note(WORKSPACE)
+        .unwrap()
+        .expect("a persisted note");
     let parsed: serde_json::Value = serde_json::from_str(&note).unwrap();
     assert_eq!(parsed["orphaned"], 6);
     assert_eq!(parsed["failed"], 0);
@@ -767,7 +919,10 @@ fn a_mass_orphan_writes_a_reconcile_note_and_a_clean_pass_zeroes_it() {
     // history — an alarm that never clears is an alarm nobody reads.
     let again = git_event(&fixture, &store);
     assert_eq!(again.orphaned, 0);
-    let note = store.reconcile_note(WORKSPACE).unwrap().expect("still present, zeroed");
+    let note = store
+        .reconcile_note(WORKSPACE)
+        .unwrap()
+        .expect("still present, zeroed");
     let parsed: serde_json::Value = serde_json::from_str(&note).unwrap();
     assert_eq!(parsed["orphaned"], 0);
 }
@@ -780,7 +935,14 @@ fn reconciliation_does_not_noticeably_slow_a_repository_with_a_long_history() {
     let mut store = fixture.store();
     fixture.walk(&store);
 
-    agent_commit(&fixture, &mut store, "s1", "src/lib.rs", "agent\n", "agent change");
+    agent_commit(
+        &fixture,
+        &mut store,
+        "s1",
+        "src/lib.rs",
+        "agent\n",
+        "agent change",
+    );
     for i in 0..60 {
         fixture.write("filler.rs", &format!("filler {i}\n"));
         fixture.commit_all(&format!("filler {i}"));
@@ -795,4 +957,3 @@ fn reconciliation_does_not_noticeably_slow_a_repository_with_a_long_history() {
         started.elapsed()
     );
 }
-

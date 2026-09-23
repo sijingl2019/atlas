@@ -156,7 +156,11 @@ mod tests {
         // The exact case the old exact-match rule dropped.
         let agent = sk("pub fn generated() {}\n");
         let committed = sk("pub fn generated() {}\n// reviewed\n");
-        assert!(retains_agent_work(&agent, &committed), "{}", containment(&agent, &committed));
+        assert!(
+            retains_agent_work(&agent, &committed),
+            "{}",
+            containment(&agent, &committed)
+        );
     }
 
     #[test]
@@ -255,7 +259,10 @@ mod tests {
         let mut edited = String::from("// a new header comment\n");
         edited.push_str(&agent);
 
-        let c = containment(&sketch(agent.as_bytes()).unwrap(), &sketch(edited.as_bytes()).unwrap());
+        let c = containment(
+            &sketch(agent.as_bytes()).unwrap(),
+            &sketch(edited.as_bytes()).unwrap(),
+        );
         assert!(c > 0.99, "containment collapsed under truncation: {c}");
     }
 

@@ -75,7 +75,10 @@ fn entry_view(agent: &RegistryAgent, store: &AgentServerStore) -> RegistryEntryV
         // Targets are per-platform, so "any target unpinned" is the honest read.
         RegistryAgent::Binary(binary) => (
             "binary",
-            binary.targets.values().any(|target| target.sha256.is_none()),
+            binary
+                .targets
+                .values()
+                .any(|target| target.sha256.is_none()),
         ),
         RegistryAgent::Npx(_) => ("npx", false),
     };
@@ -154,10 +157,11 @@ pub async fn acp_registry_install(agent_id: String, app: AppHandle) -> Result<()
         // Seeds the per-agent download counts behind the marketplace's trend
         // charts. Opt-in gated by the client; the payload is a registry id,
         // never user content.
-        app.state::<Arc<crate::telemetry::TelemetryClient>>().capture(
-            "acp_agent_installed",
-            serde_json::json!({ "agent_id": agent_id }),
-        );
+        app.state::<Arc<crate::telemetry::TelemetryClient>>()
+            .capture(
+                "acp_agent_installed",
+                serde_json::json!({ "agent_id": agent_id }),
+            );
         super::catalog::emit_catalog_changed(&app, "install");
     }
     result
@@ -199,18 +203,16 @@ async fn install(host: &Arc<AgentHost>, app: &AppHandle, agent_id: &str) -> Resu
 /// — which is what keeps PATH discovery an affordance rather than the spawn
 /// ladder rung it used to be (ADR-0002).
 #[tauri::command]
-pub async fn acp_registry_install_detected(
-    agent_id: String,
-    app: AppHandle,
-) -> Result<(), String> {
+pub async fn acp_registry_install_detected(agent_id: String, app: AppHandle) -> Result<(), String> {
     let host = app.state::<Arc<AgentHost>>().inner().clone();
     let result = install_detected(&host, &app, &agent_id).await;
 
     if result.is_ok() {
-        app.state::<Arc<crate::telemetry::TelemetryClient>>().capture(
-            "acp_agent_installed",
-            serde_json::json!({ "agent_id": agent_id, "from": "detected" }),
-        );
+        app.state::<Arc<crate::telemetry::TelemetryClient>>()
+            .capture(
+                "acp_agent_installed",
+                serde_json::json!({ "agent_id": agent_id, "from": "detected" }),
+            );
         super::catalog::emit_catalog_changed(&app, "install");
     }
     result
@@ -262,9 +264,10 @@ pub async fn acp_registry_uninstall(
     // A connection to an agent that is no longer installed must not survive the
     // uninstall — the next spawn would otherwise reach a process the user
     // believes they removed.
-    host.manager().drop_connection(&atlas_agent_manager::Agent::Custom {
-        id: atlas_acp_thread::AgentId::new(agent_id.as_str()),
-    });
+    host.manager()
+        .drop_connection(&atlas_agent_manager::Agent::Custom {
+            id: atlas_acp_thread::AgentId::new(agent_id.as_str()),
+        });
 
     if purge_cache {
         // Archive agents live at `registry/<id>`, npx agents at
@@ -285,10 +288,11 @@ pub async fn acp_registry_uninstall(
         }
     }
 
-    app.state::<Arc<crate::telemetry::TelemetryClient>>().capture(
-        "acp_agent_uninstalled",
-        serde_json::json!({ "agent_id": agent_id }),
-    );
+    app.state::<Arc<crate::telemetry::TelemetryClient>>()
+        .capture(
+            "acp_agent_uninstalled",
+            serde_json::json!({ "agent_id": agent_id }),
+        );
     super::catalog::emit_catalog_changed(&app, "uninstall");
     Ok(())
 }
@@ -349,11 +353,7 @@ mod tests {
         let (host, dir) = fresh_host();
         host.set_detected_for_tests(vec![detected("found-agent", "/usr/local/bin/found-agent")]);
 
-        let settings = with_entry(
-            &host,
-            "found-agent",
-            host.detected()[0].install_entry(),
-        );
+        let settings = with_entry(&host, "found-agent", host.detected()[0].install_entry());
         persist(&host, &dir, settings).await.expect("it installs");
 
         match host.store().settings().0.get("found-agent") {
@@ -374,7 +374,10 @@ mod tests {
     #[tokio::test]
     async fn an_install_is_written_to_disk_not_just_to_memory() {
         let (host, dir) = fresh_host();
-        assert!(load_installed(&dir).0.is_empty(), "a fresh profile has none");
+        assert!(
+            load_installed(&dir).0.is_empty(),
+            "a fresh profile has none"
+        );
 
         let settings = with_entry(&host, "some-agent", AgentServerSettings::registry());
         persist(&host, &dir, settings).await.expect("it installs");

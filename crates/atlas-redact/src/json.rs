@@ -195,7 +195,9 @@ mod tests {
     fn a_path_field_survives() {
         let input = r#"{"file_path":"/Users/nafiz/Development/atlas/src/lib.rs"}"#;
         let out = redact_json(input);
-        assert!(out.text.contains("/Users/nafiz/Development/atlas/src/lib.rs"));
+        assert!(out
+            .text
+            .contains("/Users/nafiz/Development/atlas/src/lib.rs"));
     }
 
     #[test]
@@ -243,7 +245,8 @@ mod tests {
         let out = redact_json(input);
         assert!(!out.text.contains("hunter2"), "{}", out.text);
         assert!(
-            out.text.contains("mysql://db.internal/app?user=svc&password="),
+            out.text
+                .contains("mysql://db.internal/app?user=svc&password="),
             "link destroyed: {}",
             out.text
         );
@@ -273,6 +276,8 @@ mod tests {
     fn a_base64_image_payload_is_skipped_wholesale() {
         let input = r#"{"type":"image","data":"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ"}"#;
         let out = redact_json(input);
-        assert!(out.text.contains("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ"));
+        assert!(out
+            .text
+            .contains("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ"));
     }
 }

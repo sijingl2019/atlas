@@ -143,7 +143,11 @@ mod tests {
         // retained event; everything still flows afterwards.
         let first = rx.recv().await.unwrap();
         assert!(first >= 6, "oldest retained after overflow, got {first}");
-        assert!(rx.dropped() >= 6, "lag must be counted, got {}", rx.dropped());
+        assert!(
+            rx.dropped() >= 6,
+            "lag must be counted, got {}",
+            rx.dropped()
+        );
         drop(bus);
         // Channel closed → None (not an error loop).
         while rx.recv().await.is_some() {}

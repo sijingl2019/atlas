@@ -24,7 +24,7 @@ pub const SPILL_THRESHOLD_BYTES: usize = 64 * 1024;
 /// How much of a spilled body stays on the row for list rendering.
 pub const PREVIEW_BYTES: usize = 2 * 1024;
 
-/// A content-addressed store under the Workspace's `.atlas/blobs/`.
+/// A content-addressed store under the Project's `.atlas/blobs/`.
 pub struct BlobStore {
     root: PathBuf,
 }
@@ -48,7 +48,8 @@ impl BlobStore {
         }
 
         let parent = path.parent().expect("blob path always has a parent");
-        fs::create_dir_all(parent).map_err(|e| Error::Blob(format!("{}: {e}", parent.display())))?;
+        fs::create_dir_all(parent)
+            .map_err(|e| Error::Blob(format!("{}: {e}", parent.display())))?;
 
         // Write to a temp name, fsync, and rename, so a reader never observes a
         // half-written blob under a key that claims to be complete. The fsync is
@@ -83,7 +84,9 @@ impl BlobStore {
         // the corruption instead of returning garbage as the recorded payload.
         if key_for(&bytes) != key {
             let _ = fs::remove_file(&path);
-            return Err(Error::Blob(format!("blob {key} is corrupt and was removed")));
+            return Err(Error::Blob(format!(
+                "blob {key} is corrupt and was removed"
+            )));
         }
         Ok(bytes)
     }

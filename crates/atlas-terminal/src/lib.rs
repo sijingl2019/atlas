@@ -362,7 +362,18 @@ pub fn cwd_of_pid(pid: u32) -> Option<String> {
 
 #[cfg(unix)]
 fn detect_shell(_choice: Option<&str>) -> String {
-    std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string())
+    std::env::var("SHELL")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| {
+            if cfg!(target_os = "macos") {
+                "/bin/zsh".to_string()
+            } else if std::path::Path::new("/bin/bash").exists() {
+                "/bin/bash".to_string()
+            } else {
+                "/bin/sh".to_string()
+            }
+        })
 }
 
 /// `$SHELL` is unset on Windows, or an MSYS path (`/usr/bin/bash`) when the app
@@ -458,6 +469,14 @@ ZDOTDIR="$ATLAS_USER_ZDOTDIR"
 /// interactive root shell (`sudo -s` / `-i` / `su`) WITH Atlas's shell
 /// integration so command blocks / prompt markers keep working as root.
 pub fn zsh_integration_dir() -> Option<std::path::PathBuf> {
+    let shell = detect_shell(None);
+    let is_zsh = std::path::Path::new(&shell)
+        .file_name()
+        .and_then(|f| f.to_str())
+        .is_some_and(|name| name == "zsh" || name.starts_with("zsh"));
+    if !is_zsh {
+        return None;
+    }
     ensure_zsh_integration_dir()
 }
 

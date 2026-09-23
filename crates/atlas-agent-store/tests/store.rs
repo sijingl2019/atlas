@@ -124,7 +124,10 @@ async fn an_empty_installed_map_registers_no_agents() {
         binary_agent("gemini", "1.0.0", None),
     ]);
 
-    fixture.store.set_settings(AllAgentServersSettings::default()).await;
+    fixture
+        .store
+        .set_settings(AllAgentServersSettings::default())
+        .await;
 
     assert!(fixture.store.external_agents().is_empty());
 }
@@ -135,10 +138,16 @@ async fn a_registry_agent_nobody_installed_is_not_registered() {
 
     fixture
         .store
-        .set_settings(settings(&[("installed", AgentServerSettings::custom("/bin/agent", vec![]))]))
+        .set_settings(settings(&[(
+            "installed",
+            AgentServerSettings::custom("/bin/agent", vec![]),
+        )]))
         .await;
 
-    assert_eq!(fixture.store.external_agents(), vec![AgentId::new("installed")]);
+    assert_eq!(
+        fixture.store.external_agents(),
+        vec![AgentId::new("installed")]
+    );
     assert!(fixture.store.entry(&AgentId::new("catalogued")).is_none());
 }
 
@@ -151,13 +160,19 @@ async fn installing_and_uninstalling_follows_the_settings_map() {
         .store
         .set_settings(settings(&[("some-cli", AgentServerSettings::registry())]))
         .await;
-    assert_eq!(fixture.store.agent_source(&id), Some(ExternalAgentSource::Registry));
+    assert_eq!(
+        fixture.store.agent_source(&id),
+        Some(ExternalAgentSource::Registry)
+    );
     assert_eq!(
         fixture.store.agent_display_name(&id).as_deref(),
         Some("some-cli (registry)")
     );
 
-    fixture.store.set_settings(AllAgentServersSettings::default()).await;
+    fixture
+        .store
+        .set_settings(AllAgentServersSettings::default())
+        .await;
     assert!(fixture.store.entry(&id).is_none());
     // The watch channels go with it — an uninstalled agent has nothing to watch.
     assert!(fixture.store.watch_new_version(&id).is_none());
@@ -220,7 +235,10 @@ async fn a_custom_entry_runs_the_command_the_user_wrote() {
         .unwrap();
 
     assert_eq!(command.path, PathBuf::from("/opt/agent"));
-    assert_eq!(command.args, vec!["--acp".to_string(), "--extra".to_string()]);
+    assert_eq!(
+        command.args,
+        vec!["--acp".to_string(), "--extra".to_string()]
+    );
     assert_eq!(server.version(), None);
 }
 
@@ -461,7 +479,9 @@ async fn a_version_change_notifies_the_live_connection() {
     let mut new_version = fixture.store.watch_new_version(&id).unwrap();
     assert_eq!(*new_version.borrow_and_update(), None);
 
-    fixture.registry.set_agents(vec![npx_agent("test-agent", "2.0.0")]);
+    fixture
+        .registry
+        .set_agents(vec![npx_agent("test-agent", "2.0.0")]);
     fixture.store.registry_updated();
 
     assert_eq!(new_version.borrow_and_update().as_deref(), Some("2.0.0"));
@@ -478,12 +498,16 @@ async fn an_unchanged_version_notifies_nobody() {
         .await;
     let mut new_version = fixture.store.watch_new_version(&id).unwrap();
 
-    fixture.registry.set_agents(vec![npx_agent("test-agent", "1.0.0")]);
+    fixture
+        .registry
+        .set_agents(vec![npx_agent("test-agent", "1.0.0")]);
     fixture.store.registry_updated();
 
     assert_eq!(*new_version.borrow_and_update(), None);
     // …and the watcher survives the rebuild, so the next real bump still lands.
-    fixture.registry.set_agents(vec![npx_agent("test-agent", "3.0.0")]);
+    fixture
+        .registry
+        .set_agents(vec![npx_agent("test-agent", "3.0.0")]);
     fixture.store.registry_updated();
     assert_eq!(new_version.borrow_and_update().as_deref(), Some("3.0.0"));
 }
@@ -502,12 +526,16 @@ async fn a_downgrade_notifies_nobody() {
         .await;
     let mut new_version = fixture.store.watch_new_version(&id).unwrap();
 
-    fixture.registry.set_agents(vec![npx_agent("test-agent", "1.0.0")]);
+    fixture
+        .registry
+        .set_agents(vec![npx_agent("test-agent", "1.0.0")]);
     fixture.store.registry_updated();
     assert_eq!(*new_version.borrow_and_update(), None);
 
     // …and the agent is not left deaf: a genuine bump past 2.0.0 still lands.
-    fixture.registry.set_agents(vec![npx_agent("test-agent", "3.0.0")]);
+    fixture
+        .registry
+        .set_agents(vec![npx_agent("test-agent", "3.0.0")]);
     fixture.store.registry_updated();
     assert_eq!(new_version.borrow_and_update().as_deref(), Some("3.0.0"));
 }
@@ -577,8 +605,14 @@ async fn agents_are_notified_independently() {
         ]))
         .await;
 
-    let mut a = fixture.store.watch_new_version(&AgentId::new("agent-a")).unwrap();
-    let mut b = fixture.store.watch_new_version(&AgentId::new("agent-b")).unwrap();
+    let mut a = fixture
+        .store
+        .watch_new_version(&AgentId::new("agent-a"))
+        .unwrap();
+    let mut b = fixture
+        .store
+        .watch_new_version(&AgentId::new("agent-b"))
+        .unwrap();
 
     fixture.registry.set_agents(vec![
         npx_agent("agent-a", "2.0.0"),
@@ -600,7 +634,9 @@ async fn a_version_change_with_no_watcher_is_harmless() {
         .set_settings(settings(&[("test-agent", AgentServerSettings::registry())]))
         .await;
 
-    fixture.registry.set_agents(vec![npx_agent("test-agent", "2.0.0")]);
+    fixture
+        .registry
+        .set_agents(vec![npx_agent("test-agent", "2.0.0")]);
     fixture.store.registry_updated();
 
     assert_eq!(

@@ -2,8 +2,8 @@ import { toast } from "sonner";
 import { emit } from "@tauri-apps/api/event";
 import { useLayoutStore } from "@/features/layout/stores/layout-store";
 import { useChatStore } from "@/features/chat/stores/chat-store";
-import { useProjectStore } from "@/features/project/stores/project-store";
-import { useWorkspaceStore } from "@/features/workspaces/stores/workspace-store";
+import { useAppStore } from "@/features/app/stores/app-store";
+import { useProjectStore } from "@/features/projects/stores/project-store";
 import { ensureAgent, getAgentSync } from "./agents-api";
 import { errInfo } from "./agent-signin";
 import {
@@ -15,13 +15,14 @@ import {
 import { invalidateLoad } from "./load-tokens";
 import { defaultAgentForNewSession } from "./default-agent";
 import { resumeSessionFast } from "./resume-session";
+import { applyModeOnResume } from "./resume-mode";
 
 /** Active project root, preferring the legacy `currentProject` but falling back
- *  to the active workspace path (mirrors the sidebar's `cwd` resolution). */
+ *  to the active project path (mirrors the sidebar's `cwd` resolution). */
 function activeCwd(): string {
-  const project = useProjectStore.getState().currentProject;
-  const ws = useWorkspaceStore.getState();
-  return project?.path ?? ws.workspaces.find((w) => w.id === ws.activeWorkspaceId)?.path ?? "";
+  const project = useAppStore.getState().currentProject;
+  const ws = useProjectStore.getState();
+  return project?.path ?? ws.projects.find((w) => w.id === ws.activeProjectId)?.path ?? "";
 }
 
 /** Nudge the history sidebar to refetch all three agent session lists. The
@@ -56,10 +57,10 @@ function freshTabId(): string {
 
 /**
  * Open the agent chat focused on a specific ACP session, reloading its
- * transcript from disk. Assumes the target workspace is already active (the
- * caller switches workspaces first). Mirrors `session-sidebar.handleOpenAgent`'s
+ * transcript from disk. Assumes the target project is already active (the
+ * caller switches projects first). Mirrors `session-sidebar.handleOpenAgent`'s
  * load flow (focus-if-open, reuse-idle-tab-else-new) so it can be invoked from
- * anywhere (e.g. the workspace switcher's Chats section).
+ * anywhere (e.g. the project switcher's Chats section).
  */
 export async function openAgentSession({
   acpSessionId,
@@ -162,6 +163,15 @@ export async function openAgentSession({
     setAcpBinding(targetTabId, agent.agent_id, acpSessionId, cwd);
     // Restore live status + docked plan AFTER the bind (which clears the plan).
     hydrateSessionSnapshot(targetTabId, snapshot.status, snapshot.plan);
+    // This path seeded the mode pill from the stored preference but never told
+    // the agent, so the pill could read Bypass while the engine enforced Ask.
+    // Applied before `setResumePending(false)`, which is what releases a queued
+    // prompt: after it, the first turn can beat the mode to the agent.
+    await applyModeOnResume(
+      targetTabId,
+      { agent_id: agent.agent_id, session_id: acpSessionId },
+      snapshot,
+    );
     setTranscriptLoading(targetTabId, false);
     setResumePending(targetTabId, false);
   } catch (err) {

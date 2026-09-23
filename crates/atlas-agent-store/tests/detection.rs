@@ -93,7 +93,10 @@ fn detects_an_installed_binary_agent_and_offers_it_as_a_custom_entry() {
     let dir = tempfile::tempdir().unwrap();
     write_executable(dir.path(), "some-cli");
 
-    let detected = detect_on_path(&[binary_agent("some-cli", "./some-cli")], Some(&path_var(&[dir.path()])));
+    let detected = detect_on_path(
+        &[binary_agent("some-cli", "./some-cli")],
+        Some(&path_var(&[dir.path()])),
+    );
 
     assert_eq!(detected.len(), 1);
     assert_eq!(detected[0].id, "some-cli");
@@ -104,10 +107,7 @@ fn detects_an_installed_binary_agent_and_offers_it_as_a_custom_entry() {
     // entry. A `Registry` entry would ignore the find and download our own.
     let entry = detected[0].install_entry();
     assert!(matches!(entry, AgentServerSettings::Custom { .. }));
-    assert_eq!(
-        entry.command().unwrap().path,
-        dir.path().join("some-cli")
-    );
+    assert_eq!(entry.command().unwrap().path, dir.path().join("some-cli"));
 }
 
 /// "Node exists" is not "this agent is installed". Probing for `node` would

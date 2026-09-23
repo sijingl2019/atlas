@@ -35,12 +35,17 @@ fn secrets_are_redacted() {
 
 #[test]
 fn assignment_secret_redacted() {
-    assert!(redact("API_KEY=supersecretvalue123").text.contains("[REDACTED]"));
+    assert!(redact("API_KEY=supersecretvalue123")
+        .text
+        .contains("[REDACTED]"));
 }
 
 #[test]
 fn ordinary_words_not_redacted() {
-    assert_eq!(redact("the quick brown fox jumps").text, "the quick brown fox jumps");
+    assert_eq!(
+        redact("the quick brown fox jumps").text,
+        "the quick brown fox jumps"
+    );
 }
 
 // ── One case per prefix in memory_delta's `looks_secret` table ──────────────

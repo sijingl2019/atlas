@@ -182,7 +182,8 @@ impl CommsStore {
 }
 
 fn parse_or_empty<T: serde::de::DeserializeOwned>(raw: Option<&str>) -> Vec<T> {
-    raw.and_then(|s| serde_json::from_str(s).ok()).unwrap_or_default()
+    raw.and_then(|s| serde_json::from_str(s).ok())
+        .unwrap_or_default()
 }
 
 fn now_ms() -> i64 {

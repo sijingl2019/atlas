@@ -1,8 +1,8 @@
 import { useEffect, useRef } from "react";
 import { Application, Container, Graphics, Text, TextStyle, type Ticker } from "pixi.js";
 import { isMac } from "@/lib/platform";
-import { currentMode } from "@/features/theme/mode";
-import { graphPalette } from "@/features/theme/graph-palette";
+import { useThemeVersion } from "@/features/theme/theme-values";
+import { graphPalette } from "@/components/graph-palette";
 import type { ProjectGraph } from "../stores/knowledge-graph-store";
 
 /**
@@ -398,6 +398,8 @@ export function KnowledgeGraph3D({
     return () => window.removeEventListener("keydown", handler);
   }, [selectedId, onSelect]);
 
+  // Colours are baked into the pixi scene, so a theme switch rebuilds it.
+  const themeVersion = useThemeVersion();
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
@@ -458,9 +460,9 @@ export function KnowledgeGraph3D({
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [graph, width, height]);
+  }, [graph, width, height, themeVersion]);
 
-  return <div ref={hostRef} style={{ width: "100%", height: "100%" }} />;
+  return <div ref={hostRef} className="h-full w-full" />;
 }
 
 function buildOrbitScene(
@@ -476,7 +478,7 @@ function buildOrbitScene(
   onSelect: (id: string | null) => void,
   onActivate: (id: string) => void,
 ): () => void {
-  const light = currentMode() === "light";
+  const light = document.documentElement.dataset.themeAppearance === "light";
   const { bodies, rings, extent } = buildSystem(graph, light ? BELT_HUE_LIGHT : BELT_HUE_DARK);
   const indexById = new Map<string, number>();
   bodies.forEach((b, i) => indexById.set(b.id, i));
@@ -515,6 +517,8 @@ function buildOrbitScene(
     if (!s) {
       s = new TextStyle({
         fontFamily: "Inter, -apple-system, system-ui, sans-serif",
+        // pixi rasterises label text into a WebGL atlas.
+        // ratchet-allow: TextStyle takes a number, and no CSS is in this path.
         fontSize: 11,
         fontWeight: "500",
         fill,
@@ -804,7 +808,7 @@ function buildOrbitScene(
     }
     const shown = wanted.slice(0, MAX_LABELS);
     while (labelPool.length < shown.length) {
-      const text = new Text({ text: "", style: styleFor(P.secondary) });
+      const text = new Text({ text: "", style: styleFor(P.labelSecondary) });
       text.anchor.set(0.5, 0);
       labelLayer.addChild(text);
       labelPool.push(text);
@@ -815,7 +819,7 @@ function buildOrbitScene(
       label.visible = true;
       label.position.set(b.sx, b.sy + b.sr + 5);
       const focused = selectedId === b.id || neighbors.has(b.id);
-      label.style = styleFor(focused ? P.primary : P.secondary);
+      label.style = styleFor(focused ? P.labelPrimary : P.labelSecondary);
       label.alpha = focused ? 1 : hasFocus ? 0.3 : 0.75;
     });
     for (let i = shown.length; i < labelPool.length; i += 1) labelPool[i]!.visible = false;

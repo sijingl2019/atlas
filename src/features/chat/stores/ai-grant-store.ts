@@ -10,6 +10,7 @@
 // The probe is owned by exactly one caller (`useAiGrantProbe`, mounted in
 // `message-input.tsx`) and everything else reads.
 
+import { useSettingsStore } from "@/features/settings/stores/settings-store";
 import { create } from "zustand";
 import { useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
@@ -18,7 +19,6 @@ import { useAuthStore } from "@/features/auth/stores/auth-store";
 import { useOrgStore } from "@/features/organisations/stores/org-store";
 import { isOrgSynced } from "@/features/organisations/lib/org-sync";
 import type { Organisation } from "@/features/organisations/types";
-import { useProjectStore } from "@/features/project/stores/project-store";
 
 /** What the gateway said about this account's AI access — or, for a local
  *  organisation, the answer Atlas can give without asking: the native agent
@@ -154,7 +154,7 @@ export function isLocalOrg(org: Organisation | null, personalSync: boolean): boo
  * Drives the probe from the composer.
  *
  * Safe to mount N times — one per open chat tab, which split view and
- * background workspaces both produce. `ensureProbed` collapses them to a
+ * background projects both produce. `ensureProbed` collapses them to a
  * single gateway call per org; without that, every tab would probe on mount
  * and each one's reset would wipe the answer the others just fetched.
  *
@@ -165,7 +165,7 @@ export function useAiGrantProbe(): void {
   const snapshot = useAuthStore((s) => s.snapshot);
   const signedIn = snapshot.status === "signed-in";
   const org = useActiveOrganisation();
-  const personalSync = useProjectStore((s) => s.settings.personalSync);
+  const personalSync = useSettingsStore((s) => s.settings.personalSync);
   const local = isLocalOrg(org, personalSync);
   const localId = org?.id ?? null;
   // A synced org is asked about under its gateway identity — the same id the
@@ -188,7 +188,7 @@ export function useAiGrantProbe(): void {
 export function useActiveGatewayOrgId(): string | null {
   const snapshot = useAuthStore((s) => s.snapshot);
   const org = useActiveOrganisation();
-  const personalSync = useProjectStore((s) => s.settings.personalSync);
+  const personalSync = useSettingsStore((s) => s.settings.personalSync);
   if (snapshot.status !== "signed-in" || isLocalOrg(org, personalSync)) return null;
   return org?.remoteId ?? null;
 }

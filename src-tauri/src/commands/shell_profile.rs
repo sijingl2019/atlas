@@ -78,7 +78,11 @@ pub fn scan_candidates(home: &Path, shell: &str) -> Vec<PathBuf> {
                 // shells read .bashrc. Both are common homes for exports.
                 vec![home.join(".bashrc"), home.join(".bash_profile")]
             } else {
-                vec![home.join(".zshrc"), home.join(".zprofile"), home.join(".zshenv")]
+                vec![
+                    home.join(".zshrc"),
+                    home.join(".zprofile"),
+                    home.join(".zshenv"),
+                ]
             };
             // Read by every POSIX login shell — checked last so a shell-specific
             // file wins as the edit target.
@@ -167,7 +171,9 @@ fn strip_trailing_comment(value: &str) -> &str {
 
 fn is_var_name(s: &str) -> bool {
     !s.is_empty()
-        && s.chars().next().is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+        && s.chars()
+            .next()
+            .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
         && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
@@ -277,7 +283,11 @@ pub fn remove(content: &str, var: &str) -> String {
         if empty {
             out.remove(pos);
             // Collapse the blank line we added ahead of the block.
-            if pos > 0 && out.get(pos.wrapping_sub(1)).is_some_and(|l| l.trim().is_empty()) {
+            if pos > 0
+                && out
+                    .get(pos.wrapping_sub(1))
+                    .is_some_and(|l| l.trim().is_empty())
+            {
                 out.remove(pos - 1);
             }
         }
@@ -359,7 +369,11 @@ export XAI_API_KEY=sk-x  # trailing comment
     #[test]
     fn ignores_lines_that_are_not_assignments() {
         let content = "echo hello\nif [ -f x ]; then\nfi\nexport PATH\nsource ~/.other\n";
-        assert!(parse_assignments(content).is_empty(), "{:?}", parse_assignments(content));
+        assert!(
+            parse_assignments(content).is_empty(),
+            "{:?}",
+            parse_assignments(content)
+        );
     }
 
     #[test]
@@ -387,7 +401,8 @@ export XAI_API_KEY=sk-x  # trailing comment
 
     #[test]
     fn upsert_rewrites_in_place_and_preserves_everything_else() {
-        let content = "# header\nexport PATH=/usr/bin\nexport OPENAI_API_KEY=old\nalias ll='ls -l'\n";
+        let content =
+            "# header\nexport PATH=/usr/bin\nexport OPENAI_API_KEY=old\nalias ll='ls -l'\n";
         let out = upsert(content, "OPENAI_API_KEY", "new", ShellKind::Posix);
         assert_eq!(
             out,
@@ -403,7 +418,12 @@ export XAI_API_KEY=sk-x  # trailing comment
 
     #[test]
     fn upsert_appends_under_a_marked_block_when_new() {
-        let out = upsert("export PATH=/usr/bin\n", "GROQ_API_KEY", "gsk", ShellKind::Posix);
+        let out = upsert(
+            "export PATH=/usr/bin\n",
+            "GROQ_API_KEY",
+            "gsk",
+            ShellKind::Posix,
+        );
         assert_eq!(
             out,
             format!("export PATH=/usr/bin\n\n{BLOCK_HEADER}\nexport GROQ_API_KEY='gsk'\n")

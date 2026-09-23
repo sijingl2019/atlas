@@ -79,11 +79,7 @@ fn resolve_title(project_path: &str, entry_id: &str) -> String {
             }
         }
     }
-    entry_id
-        .rsplit('/')
-        .next()
-        .unwrap_or(entry_id)
-        .to_string()
+    entry_id.rsplit('/').next().unwrap_or(entry_id).to_string()
 }
 
 #[derive(Debug, Clone)]
@@ -165,7 +161,7 @@ pub async fn knowledge_export_workspace_md(
     .map_err(|e| e.to_string())?
 }
 
-/// Write a multi-file HTML site for the entire knowledge workspace. The
+/// Write a multi-file HTML site for the entire knowledge project. The
 /// target is a directory; an `index.html` and a flat `notes/<slug>.html`
 /// tree are written underneath it.
 #[tauri::command]
@@ -185,7 +181,7 @@ pub async fn knowledge_export_workspace_html(
             fs::write(&out_path, page).map_err(|e| e.to_string())?;
         }
         let index_body = if notes.is_empty() {
-            "<p>No notes in this workspace yet.</p>".to_string()
+            "<p>No notes in this project yet.</p>".to_string()
         } else {
             format!(
                 "<h1>Knowledge</h1><p>{} note{} exported.</p>",
@@ -293,11 +289,7 @@ pub async fn knowledge_export_server(
         let target_dir = std::env::temp_dir().join("atlas-kb-server-target");
 
         let output = atlas_process::command("cargo")
-            .args([
-                "build",
-                "--release",
-                "--manifest-path",
-            ])
+            .args(["build", "--release", "--manifest-path"])
             .arg(&server_manifest)
             .arg("--target-dir")
             .arg(&target_dir)
@@ -313,7 +305,11 @@ pub async fn knowledge_export_server(
         }
 
         // 3. Copy the built binary to the user's chosen path.
-        let bin_name = if cfg!(windows) { "atlas-kb-server.exe" } else { "atlas-kb-server" };
+        let bin_name = if cfg!(windows) {
+            "atlas-kb-server.exe"
+        } else {
+            "atlas-kb-server"
+        };
         let built = target_dir.join("release").join(bin_name);
         if !built.exists() {
             return Err(format!("built binary missing at {}", built.display()));
@@ -325,7 +321,9 @@ pub async fn knowledge_export_server(
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let mut perms = fs::metadata(&target_path).map_err(|e| e.to_string())?.permissions();
+            let mut perms = fs::metadata(&target_path)
+                .map_err(|e| e.to_string())?
+                .permissions();
             perms.set_mode(0o755);
             let _ = fs::set_permissions(&target_path, perms);
         }

@@ -744,7 +744,10 @@ fn parse_frontmatter(raw: &str) -> (Frontmatter, String) {
 fn render_skill_md(name: &str, description: &str, body: &str) -> String {
     // Keep values single-line; frontmatter is scalar-only here.
     let desc = description.replace(['\n', '\r'], " ");
-    format!("---\nname: {name}\ndescription: {desc}\n---\n\n{}\n", body.trim_end())
+    format!(
+        "---\nname: {name}\ndescription: {desc}\n---\n\n{}\n",
+        body.trim_end()
+    )
 }
 
 // ── Disk helpers ───────────────────────────────────────────────────────────────
@@ -794,12 +797,7 @@ fn relative_symlink_target(skills_dir_rel: &Path, safe_name: &str) -> PathBuf {
 /// Best symlink target for a projection: relative when the tool dir is under
 /// `<root>` (keeps the link valid if the tree moves), absolute otherwise (env
 /// override relocated the dir outside `<root>`).
-fn canonical_symlink_target(
-    root: &Path,
-    def: &ToolDef,
-    scope: &str,
-    safe_name: &str,
-) -> PathBuf {
+fn canonical_symlink_target(root: &Path, def: &ToolDef, scope: &str, safe_name: &str) -> PathBuf {
     let dir = tool_skills_dir(def, scope, root);
     if let Ok(rel) = dir.strip_prefix(root) {
         relative_symlink_target(rel, safe_name)
@@ -823,12 +821,7 @@ fn clear_entry(link: &Path) -> Result<(), String> {
 
 /// Create a relative symlink from the tool skills dir to the canonical skill.
 /// Idempotent: a stale entry is removed first, then recreated.
-fn create_symlink(
-    root: &Path,
-    def: &ToolDef,
-    scope: &str,
-    safe_name: &str,
-) -> Result<(), String> {
+fn create_symlink(root: &Path, def: &ToolDef, scope: &str, safe_name: &str) -> Result<(), String> {
     let link = tool_link_path(root, def, scope, safe_name);
     if let Some(parent) = link.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
@@ -839,12 +832,7 @@ fn create_symlink(
 }
 
 /// Materialize a copy projection: recursively copy canonical → tool dir.
-fn create_copy(
-    root: &Path,
-    def: &ToolDef,
-    scope: &str,
-    safe_name: &str,
-) -> Result<(), String> {
+fn create_copy(root: &Path, def: &ToolDef, scope: &str, safe_name: &str) -> Result<(), String> {
     let canonical = canonical_skill_dir(&skills_base(root), safe_name)?;
     if !canonical.join("SKILL.md").is_file() {
         return Err(format!("canonical skill not found: {safe_name}"));
@@ -858,12 +846,7 @@ fn create_copy(
 }
 
 /// Remove a tool's projection for a skill (symlink or copy). Best-effort.
-fn remove_symlink(
-    root: &Path,
-    def: &ToolDef,
-    scope: &str,
-    safe_name: &str,
-) -> Result<(), String> {
+fn remove_symlink(root: &Path, def: &ToolDef, scope: &str, safe_name: &str) -> Result<(), String> {
     let link = tool_link_path(root, def, scope, safe_name);
     clear_entry(&link)
 }
@@ -997,13 +980,7 @@ fn write_ledger(root: &Path, ledger: &Ledger) -> Result<(), String> {
     atomic_write(&ledger_path(root), &payload)
 }
 
-fn ledger_record(
-    ledger: &mut Ledger,
-    safe_name: &str,
-    tool_id: &str,
-    mode: &str,
-    hash: &str,
-) {
+fn ledger_record(ledger: &mut Ledger, safe_name: &str, tool_id: &str, mode: &str, hash: &str) {
     ledger
         .projections
         .entry(safe_name.to_string())
@@ -1142,8 +1119,7 @@ fn project(
         }
         // Cross-ledger guard: never silently clobber a projection an installed
         // pack owns. The pack ledger is only read here — Skills never writes it.
-        if let Some(owner) =
-            pack_owner_of_skill(root, &read_pack_proj(root), def, scope, safe_name)
+        if let Some(owner) = pack_owner_of_skill(root, &read_pack_proj(root), def, scope, safe_name)
         {
             return Err(format!(
                 "'{safe_name}' in {} is managed by pack '{owner}' — manage it from the Packs tab (or use force)",
@@ -1279,16 +1255,18 @@ fn list_skills(root: &Path, scope: &str) -> Result<Vec<SkillMeta>, String> {
             };
             let (fm, _body) = parse_frontmatter(&raw);
 
-            let meta = by_name.entry(safe_name.clone()).or_insert_with(|| SkillMeta {
-                name: fm.name.clone().unwrap_or_else(|| safe_name.clone()),
-                description: fm.description.clone().unwrap_or_default(),
-                scope: scope.to_string(),
-                enabled_agents: Vec::new(),
-                path: skill_md.to_string_lossy().to_string(),
-                delivery: "native-dir".to_string(),
-                managed: false,
-                pack: None,
-            });
+            let meta = by_name
+                .entry(safe_name.clone())
+                .or_insert_with(|| SkillMeta {
+                    name: fm.name.clone().unwrap_or_else(|| safe_name.clone()),
+                    description: fm.description.clone().unwrap_or_default(),
+                    scope: scope.to_string(),
+                    enabled_agents: Vec::new(),
+                    path: skill_md.to_string_lossy().to_string(),
+                    delivery: "native-dir".to_string(),
+                    managed: false,
+                    pack: None,
+                });
             if !meta.enabled_agents.iter().any(|a| a == def.id) {
                 meta.enabled_agents.push(def.id.to_string());
             }
@@ -1779,10 +1757,7 @@ fn reconcile(root: &Path, scope: &str, home: &Path) -> Result<ReconcileView, Str
                 .as_ref()
                 .map(|m| !m.file_type().is_symlink() && m.is_dir())
                 .unwrap_or(false);
-            let ledger_entry = ledger
-                .projections
-                .get(name)
-                .and_then(|t| t.get(def.id));
+            let ledger_entry = ledger.projections.get(name).and_then(|t| t.get(def.id));
 
             let (status, mode) = if is_symlink {
                 // A symlink projection always reflects canonical (it IS the file).
@@ -2001,18 +1976,23 @@ pub async fn skills_set_enabled(
 ) -> Result<(), String> {
     let root = root_for(&scope, project_path.as_deref())?;
     let (name_ev, agent_ev) = (name.clone(), agent.clone());
-    let res = tokio::task::spawn_blocking(move || set_enabled(&root, &scope, &name, &agent, enabled))
-        .await
-        .map_err(|e| e.to_string())?;
+    let res =
+        tokio::task::spawn_blocking(move || set_enabled(&root, &scope, &name, &agent, enabled))
+            .await
+            .map_err(|e| e.to_string())?;
     if res.is_ok() {
-        app.state::<Arc<crate::telemetry::TelemetryClient>>().capture(
-            if enabled { "skill_enabled" } else { "skill_disabled" },
-            serde_json::json!({ "skill": telemetry_skill_id(&name_ev), "agent": agent_ev }),
-        );
+        app.state::<Arc<crate::telemetry::TelemetryClient>>()
+            .capture(
+                if enabled {
+                    "skill_enabled"
+                } else {
+                    "skill_disabled"
+                },
+                serde_json::json!({ "skill": telemetry_skill_id(&name_ev), "agent": agent_ev }),
+            );
     }
     res
 }
-
 
 /// A skill name is user-authored for project-scoped skills, so the analytics
 /// event carries a stable hash instead — enough to count and correlate,
@@ -2038,10 +2018,11 @@ pub async fn skills_delete(
         .await
         .map_err(|e| e.to_string())?;
     if res.is_ok() {
-        app.state::<Arc<crate::telemetry::TelemetryClient>>().capture(
-            "skill_deleted",
-            serde_json::json!({ "skill": telemetry_skill_id(&name_ev), "scope": scope_ev }),
-        );
+        app.state::<Arc<crate::telemetry::TelemetryClient>>()
+            .capture(
+                "skill_deleted",
+                serde_json::json!({ "skill": telemetry_skill_id(&name_ev), "scope": scope_ev }),
+            );
     }
     res
 }
@@ -2082,8 +2063,8 @@ pub async fn agents_list_skill_targets(
 ) -> Result<Vec<AgentTarget>, String> {
     let root = root_for(&scope, project_path.as_deref())?;
     tokio::task::spawn_blocking(move || list_targets(&root, &scope))
-            .await
-            .map_err(|e| e.to_string())
+        .await
+        .map_err(|e| e.to_string())
 }
 
 // ── Tauri commands (Control Plane) ───────────────────────────────────────────────
@@ -2096,8 +2077,8 @@ pub async fn tools_list(
 ) -> Result<Vec<AgentTarget>, String> {
     let root = root_for(&scope, project_path.as_deref())?;
     tokio::task::spawn_blocking(move || list_targets(&root, &scope))
-            .await
-            .map_err(|e| e.to_string())
+        .await
+        .map_err(|e| e.to_string())
 }
 
 /// Build the reconciled skill × tool matrix for a scope.
@@ -2153,10 +2134,7 @@ pub async fn skills_unproject(
 
 /// Promote a project skill to the global library + re-project at global scope.
 #[tauri::command]
-pub async fn skills_promote(
-    name: String,
-    project_path: String,
-) -> Result<SkillMeta, String> {
+pub async fn skills_promote(name: String, project_path: String) -> Result<SkillMeta, String> {
     let project_root = root_for("project", Some(&project_path))?;
     let home = home_dir().ok_or_else(|| "could not resolve home directory".to_string())?;
     tokio::task::spawn_blocking(move || promote(&project_root, &home, &name))
@@ -2166,10 +2144,7 @@ pub async fn skills_promote(
 
 /// Freeze every Atlas symlink projection into a real copy (uninstall safety).
 #[tauri::command]
-pub async fn skills_freeze(
-    scope: String,
-    project_path: Option<String>,
-) -> Result<(), String> {
+pub async fn skills_freeze(scope: String, project_path: Option<String>) -> Result<(), String> {
     let root = root_for(&scope, project_path.as_deref())?;
     tokio::task::spawn_blocking(move || freeze(&root, &scope))
         .await
@@ -2301,7 +2276,12 @@ fn collect_kind(
                     dir.file_name().map(|s| s.to_string_lossy().to_string()),
                 ) {
                     let description = read_component_description(kind, &dir);
-                    out.push(PackComponent { kind, rel_path: rel, name, description });
+                    out.push(PackComponent {
+                        kind,
+                        rel_path: rel,
+                        name,
+                        description,
+                    });
                 }
             }
         }
@@ -2318,7 +2298,12 @@ fn collect_kind(
             (pack_rel(pack_root, &file), component_file_name(kind, &file))
         {
             let description = read_component_description(kind, &file);
-            out.push(PackComponent { kind, rel_path: rel, name, description });
+            out.push(PackComponent {
+                kind,
+                rel_path: rel,
+                name,
+                description,
+            });
         }
     }
 }
@@ -2376,7 +2361,12 @@ fn collect_manifest_path(
             component_file_name(kind, &candidate),
         ) {
             let description = read_component_description(kind, &candidate);
-            out.push(PackComponent { kind, rel_path, name, description });
+            out.push(PackComponent {
+                kind,
+                rel_path,
+                name,
+                description,
+            });
         }
     }
 }
@@ -2871,14 +2861,15 @@ pub async fn pack_install_remote(
     .await
     .map_err(|e| e.to_string())?;
     if let Ok(result) = &res {
-        app.state::<Arc<crate::telemetry::TelemetryClient>>().capture(
-            "pack_installed",
-            serde_json::json!({
-                "source": source_ev,
-                "scope": scope_ev,
-                "skill_count": result.pack.components.len(),
-            }),
-        );
+        app.state::<Arc<crate::telemetry::TelemetryClient>>()
+            .capture(
+                "pack_installed",
+                serde_json::json!({
+                    "source": source_ev,
+                    "scope": scope_ev,
+                    "skill_count": result.pack.components.len(),
+                }),
+            );
     }
     res
 }
@@ -2972,15 +2963,16 @@ pub async fn pack_install_skill(
     .await
     .map_err(|e| e.to_string())?;
     if let Ok(meta) = &res {
-        app.state::<Arc<crate::telemetry::TelemetryClient>>().capture(
-            "skill_downloaded",
-            serde_json::json!({
-                "skill": meta.name,
-                "skill_id": skill_id_ev,
-                "source": source_ev,
-                "scope": scope_ev,
-            }),
-        );
+        app.state::<Arc<crate::telemetry::TelemetryClient>>()
+            .capture(
+                "skill_downloaded",
+                serde_json::json!({
+                    "skill": meta.name,
+                    "skill_id": skill_id_ev,
+                    "source": source_ev,
+                    "scope": scope_ev,
+                }),
+            );
     }
     res
 }
@@ -3706,9 +3698,7 @@ fn pack_components(root: &Path) -> Vec<PackComponentMeta> {
             });
         }
     }
-    out.sort_by(|a, b| {
-        (a.kind.as_str(), &a.name).cmp(&(b.kind.as_str(), &b.name))
-    });
+    out.sort_by(|a, b| (a.kind.as_str(), &a.name).cmp(&(b.kind.as_str(), &b.name)));
     out
 }
 
@@ -3773,8 +3763,7 @@ pub async fn pack_uninstall(
         // 2. Delete the canonical store dir.
         let store = pack_store_dir(&root, &safe)?;
         if store.exists() {
-            fs::remove_dir_all(&store)
-                .map_err(|e| format!("remove {}: {e}", store.display()))?;
+            fs::remove_dir_all(&store).map_err(|e| format!("remove {}: {e}", store.display()))?;
         }
         // 3. Drop the lock entry.
         let mut lock = read_pack_lock(&root);
@@ -3906,7 +3895,10 @@ mod tests {
 
         // Canonical SKILL.md exists, symlink exists for claude-code.
         assert!(root.join(".agents/skills/pdf-extract/SKILL.md").is_file());
-        assert!(root.join(".claude/skills/pdf-extract").symlink_metadata().is_ok());
+        assert!(root
+            .join(".claude/skills/pdf-extract")
+            .symlink_metadata()
+            .is_ok());
         // `.agents/skills/pdf-extract` IS the canonical dir above, not a separate
         // codex projection — same path, no symlink involved.
 
@@ -3921,7 +3913,15 @@ mod tests {
     #[test]
     fn symlink_target_resolves_to_canonical() {
         let root = tmp_root();
-        create_skill(&root, "project", "demo", "d", "body", &["claude-code".to_string()]).unwrap();
+        create_skill(
+            &root,
+            "project",
+            "demo",
+            "d",
+            "body",
+            &["claude-code".to_string()],
+        )
+        .unwrap();
         let link = root.join(".claude/skills/demo");
         // Following the link reaches the canonical SKILL.md.
         let resolved = fs::canonicalize(link.join("SKILL.md")).unwrap();
@@ -4030,7 +4030,10 @@ mod tests {
         project(&root, def, "project", "p", false).unwrap();
         let link = root.join(".claude/skills/p");
         assert!(link.symlink_metadata().unwrap().file_type().is_symlink());
-        assert_eq!(read_ledger(&root).projections["p"]["claude-code"].mode, "symlink");
+        assert_eq!(
+            read_ledger(&root).projections["p"]["claude-code"].mode,
+            "symlink"
+        );
 
         unproject(&root, def, "project", "p").unwrap();
         assert!(link.symlink_metadata().is_err());
@@ -4046,7 +4049,14 @@ mod tests {
         // (ADR 0003), so it reads synced too without an explicit projection;
         // atlas's dedicated dir is untouched → absent.
         create_skill(&root, "project", "owned", "d", "b", &[]).unwrap();
-        project(&root, tool_def("claude-code").unwrap(), "project", "owned", false).unwrap();
+        project(
+            &root,
+            tool_def("claude-code").unwrap(),
+            "project",
+            "owned",
+            false,
+        )
+        .unwrap();
         // A hand-authored skill living only in claude-code's project dir →
         // external. (Planting one in codex's project dir is no longer a
         // distinct "external" case — that dir IS the canonical store now, so
@@ -4059,22 +4069,41 @@ mod tests {
         let owned = view.skills.iter().find(|s| s.name == "owned").unwrap();
         assert!(owned.managed);
         assert_eq!(
-            owned.cells.iter().find(|c| c.tool == "claude-code").unwrap().status,
+            owned
+                .cells
+                .iter()
+                .find(|c| c.tool == "claude-code")
+                .unwrap()
+                .status,
             "synced"
         );
         assert_eq!(
-            owned.cells.iter().find(|c| c.tool == "codex").unwrap().status,
+            owned
+                .cells
+                .iter()
+                .find(|c| c.tool == "codex")
+                .unwrap()
+                .status,
             "synced"
         );
         assert_eq!(
-            owned.cells.iter().find(|c| c.tool == "atlas").unwrap().status,
+            owned
+                .cells
+                .iter()
+                .find(|c| c.tool == "atlas")
+                .unwrap()
+                .status,
             "absent"
         );
 
         let wild = view.skills.iter().find(|s| s.name == "wild").unwrap();
         assert!(!wild.managed);
         assert_eq!(
-            wild.cells.iter().find(|c| c.tool == "claude-code").unwrap().status,
+            wild.cells
+                .iter()
+                .find(|c| c.tool == "claude-code")
+                .unwrap()
+                .status,
             "external"
         );
         fs::remove_dir_all(&root).ok();
@@ -4084,14 +4113,27 @@ mod tests {
     fn freeze_converts_symlink_projection_to_real_copy() {
         let root = tmp_root();
         create_skill(&root, "project", "f", "d", "b", &[]).unwrap();
-        project(&root, tool_def("claude-code").unwrap(), "project", "f", false).unwrap();
+        project(
+            &root,
+            tool_def("claude-code").unwrap(),
+            "project",
+            "f",
+            false,
+        )
+        .unwrap();
         let link = root.join(".claude/skills/f");
         assert!(link.symlink_metadata().unwrap().file_type().is_symlink());
 
         freeze(&root, "project").unwrap();
         let meta = link.symlink_metadata().unwrap();
-        assert!(!meta.file_type().is_symlink(), "freeze must replace the symlink");
-        assert!(link.join("SKILL.md").is_file(), "frozen copy keeps the skill file");
+        assert!(
+            !meta.file_type().is_symlink(),
+            "freeze must replace the symlink"
+        );
+        assert!(
+            link.join("SKILL.md").is_file(),
+            "frozen copy keeps the skill file"
+        );
         fs::remove_dir_all(&root).ok();
     }
 
@@ -4113,7 +4155,9 @@ mod tests {
         let root = tmp_root();
         assert!(skill_path(&root, "ghost").is_err());
         create_skill(&root, "project", "ghost", "d", "b", &[]).unwrap();
-        assert!(skill_path(&root, "ghost").unwrap().ends_with("ghost/SKILL.md"));
+        assert!(skill_path(&root, "ghost")
+            .unwrap()
+            .ends_with("ghost/SKILL.md"));
         fs::remove_dir_all(&root).ok();
     }
 
@@ -4167,7 +4211,10 @@ mod tests {
         .unwrap();
 
         let listed = list_skills(&root, "global").unwrap();
-        assert!(listed.is_empty(), "container dir must not be listed: {listed:?}");
+        assert!(
+            listed.is_empty(),
+            "container dir must not be listed: {listed:?}"
+        );
         fs::remove_dir_all(&root).ok();
     }
 
@@ -4198,10 +4245,18 @@ mod tests {
         assert!(root.join(".agents/skills/foo/SKILL.md").is_file());
         // The original real dir was replaced by a symlink into canonical.
         let claude_link = root.join(".claude/skills/foo");
-        assert!(claude_link.symlink_metadata().unwrap().file_type().is_symlink());
+        assert!(claude_link
+            .symlink_metadata()
+            .unwrap()
+            .file_type()
+            .is_symlink());
         // And the other detected tool (codex, global dir) got a symlink too.
         let codex_link = root.join(".codex/skills/foo");
-        assert!(codex_link.symlink_metadata().unwrap().file_type().is_symlink());
+        assert!(codex_link
+            .symlink_metadata()
+            .unwrap()
+            .file_type()
+            .is_symlink());
         // Both resolve to the canonical SKILL.md.
         let expected = fs::canonicalize(root.join(".agents/skills/foo/SKILL.md")).unwrap();
         assert_eq!(
@@ -4312,7 +4367,10 @@ mod tests {
         let listed = list_skills(&root, "global").unwrap();
         let s = listed.iter().find(|s| s.name == "demo").unwrap();
         assert_eq!(s.description, "new content wins");
-        assert!(legacy_dir.exists(), "legacy copy is left in place, not deleted");
+        assert!(
+            legacy_dir.exists(),
+            "legacy copy is left in place, not deleted"
+        );
         fs::remove_dir_all(&root).ok();
     }
 
@@ -4325,7 +4383,10 @@ mod tests {
         // Projecting is a no-op success recorded as "native" in the ledger —
         // there is nothing to symlink, the skill already lives where codex reads.
         project(&root, def, "project", "native", false).unwrap();
-        assert_eq!(read_ledger(&root).projections["native"]["codex"].mode, "native");
+        assert_eq!(
+            read_ledger(&root).projections["native"]["codex"].mode,
+            "native"
+        );
         assert!(
             root.join(".agents/skills/native")
                 .symlink_metadata()
@@ -4360,12 +4421,30 @@ mod tests {
 
     #[test]
     fn component_kind_maps_known_dir_names_and_rejects_others() {
-        assert_eq!(ComponentKind::from_dir_name("skills"), Some(ComponentKind::Skill));
-        assert_eq!(ComponentKind::from_dir_name("agents"), Some(ComponentKind::Agent));
-        assert_eq!(ComponentKind::from_dir_name("commands"), Some(ComponentKind::Command));
-        assert_eq!(ComponentKind::from_dir_name("hooks"), Some(ComponentKind::Hook));
-        assert_eq!(ComponentKind::from_dir_name("rules"), Some(ComponentKind::Rule));
-        assert_eq!(ComponentKind::from_dir_name("scripts"), Some(ComponentKind::Script));
+        assert_eq!(
+            ComponentKind::from_dir_name("skills"),
+            Some(ComponentKind::Skill)
+        );
+        assert_eq!(
+            ComponentKind::from_dir_name("agents"),
+            Some(ComponentKind::Agent)
+        );
+        assert_eq!(
+            ComponentKind::from_dir_name("commands"),
+            Some(ComponentKind::Command)
+        );
+        assert_eq!(
+            ComponentKind::from_dir_name("hooks"),
+            Some(ComponentKind::Hook)
+        );
+        assert_eq!(
+            ComponentKind::from_dir_name("rules"),
+            Some(ComponentKind::Rule)
+        );
+        assert_eq!(
+            ComponentKind::from_dir_name("scripts"),
+            Some(ComponentKind::Script)
+        );
         assert_eq!(ComponentKind::from_dir_name("docs"), None);
         assert_eq!(ComponentKind::from_dir_name(""), None);
     }
@@ -4385,8 +4464,14 @@ mod tests {
             let agent = tool_home(cc, ComponentKind::Agent, scope).unwrap();
             assert_eq!(agent.rel, ".claude/agents");
             assert_eq!(agent.style, HomeStyle::Dir);
-            assert_eq!(tool_home(cc, ComponentKind::Command, scope).unwrap().rel, ".claude/commands");
-            assert_eq!(tool_home(cc, ComponentKind::Rule, scope).unwrap().rel, ".claude/rules");
+            assert_eq!(
+                tool_home(cc, ComponentKind::Command, scope).unwrap().rel,
+                ".claude/commands"
+            );
+            assert_eq!(
+                tool_home(cc, ComponentKind::Rule, scope).unwrap().rel,
+                ".claude/rules"
+            );
             // Hooks merge into settings.json.
             let hook = tool_home(cc, ComponentKind::Hook, scope).unwrap();
             assert_eq!(hook.rel, ".claude/settings.json");
@@ -4401,7 +4486,9 @@ mod tests {
         let codex = tool_def("codex").unwrap();
         // Commands are global-only for Codex.
         assert_eq!(
-            tool_home(codex, ComponentKind::Command, "global").unwrap().rel,
+            tool_home(codex, ComponentKind::Command, "global")
+                .unwrap()
+                .rel,
             ".codex/prompts"
         );
         assert!(tool_home(codex, ComponentKind::Command, "project").is_none());
@@ -4424,7 +4511,10 @@ mod tests {
             component_kind: ComponentKind::Skill,
         };
         let json = serde_json::to_string(&entry).unwrap();
-        assert!(!json.contains("component_kind"), "skill entry must not write the kind: {json}");
+        assert!(
+            !json.contains("component_kind"),
+            "skill entry must not write the kind: {json}"
+        );
 
         // A non-skill entry writes the kind, and both directions round-trip.
         let agent_entry = LedgerEntry {
@@ -4433,11 +4523,13 @@ mod tests {
             component_kind: ComponentKind::Agent,
         };
         let agent_json = serde_json::to_string(&agent_entry).unwrap();
-        assert!(agent_json.contains("\"component_kind\":\"agent\""), "{agent_json}");
+        assert!(
+            agent_json.contains("\"component_kind\":\"agent\""),
+            "{agent_json}"
+        );
 
         // Legacy JSON with no kind key deserializes back to Skill.
-        let legacy: LedgerEntry =
-            serde_json::from_str(r#"{"mode":"symlink","hash":"x"}"#).unwrap();
+        let legacy: LedgerEntry = serde_json::from_str(r#"{"mode":"symlink","hash":"x"}"#).unwrap();
         assert_eq!(legacy.component_kind, ComponentKind::Skill);
     }
 
@@ -4482,9 +4574,18 @@ mod tests {
     fn pack_parse_infers_all_kinds_from_layout() {
         let dir = tmp_pack_dir();
         // A full Claude Code plugin layout, no manifest.
-        write_file(&dir.join("skills/foo/SKILL.md"), "---\nname: foo\n---\nbody");
-        write_file(&dir.join("skills/bar/SKILL.md"), "---\nname: bar\n---\nbody");
-        write_file(&dir.join("skills/not-a-skill/README.md"), "no skill md here");
+        write_file(
+            &dir.join("skills/foo/SKILL.md"),
+            "---\nname: foo\n---\nbody",
+        );
+        write_file(
+            &dir.join("skills/bar/SKILL.md"),
+            "---\nname: bar\n---\nbody",
+        );
+        write_file(
+            &dir.join("skills/not-a-skill/README.md"),
+            "no skill md here",
+        );
         write_file(&dir.join("agents/review.md"), "agent");
         write_file(&dir.join("commands/ship.md"), "command");
         write_file(&dir.join("commands/ns/deep.md"), "nested command");
@@ -4496,7 +4597,10 @@ mod tests {
 
         let pack = pack_parse(&dir).unwrap();
         // No manifest → name from dir basename (sanitized).
-        assert_eq!(pack.name, sanitize_name(dir.file_name().unwrap().to_str().unwrap()).unwrap());
+        assert_eq!(
+            pack.name,
+            sanitize_name(dir.file_name().unwrap().to_str().unwrap()).unwrap()
+        );
         assert!(pack.manifest.is_none());
 
         // Skills: only dirs with SKILL.md; the README-only dir is excluded.
@@ -4505,8 +4609,14 @@ mod tests {
         assert_eq!(skills, vec!["bar".to_string(), "foo".to_string()]);
 
         // Agents / rules use the stem.
-        assert_eq!(comp_names(&pack, ComponentKind::Agent), vec!["review".to_string()]);
-        assert_eq!(comp_names(&pack, ComponentKind::Rule), vec!["style".to_string()]);
+        assert_eq!(
+            comp_names(&pack, ComponentKind::Agent),
+            vec!["review".to_string()]
+        );
+        assert_eq!(
+            comp_names(&pack, ComponentKind::Rule),
+            vec!["style".to_string()]
+        );
 
         // Commands recurse into namespaces (stem only).
         let mut cmds = comp_names(&pack, ComponentKind::Command);
@@ -4514,13 +4624,25 @@ mod tests {
         assert_eq!(cmds, vec!["deep".to_string(), "ship".to_string()]);
 
         // Hooks = JSON files (stem).
-        assert_eq!(comp_names(&pack, ComponentKind::Hook), vec!["hooks".to_string()]);
+        assert_eq!(
+            comp_names(&pack, ComponentKind::Hook),
+            vec!["hooks".to_string()]
+        );
 
         // Scripts keep their extension; dotfiles are skipped.
-        assert_eq!(comp_names(&pack, ComponentKind::Script), vec!["setup.js".to_string()]);
+        assert_eq!(
+            comp_names(&pack, ComponentKind::Script),
+            vec!["setup.js".to_string()]
+        );
 
         // `docs/` is not a recognized component dir → contributes nothing.
-        assert_eq!(pack.components.iter().filter(|c| c.rel_path.starts_with("docs/")).count(), 0);
+        assert_eq!(
+            pack.components
+                .iter()
+                .filter(|c| c.rel_path.starts_with("docs/"))
+                .count(),
+            0
+        );
 
         // Output is deterministically sorted by (kind, rel_path).
         let mut sorted = pack.components.clone();
@@ -4544,7 +4666,10 @@ mod tests {
         let m = pack.manifest.as_ref().expect("manifest parsed");
         assert_eq!(m.version.as_deref(), Some("1.2.0"));
         assert_eq!(m.description.as_deref(), Some("hi"));
-        assert_eq!(comp_names(&pack, ComponentKind::Agent), vec!["a".to_string()]);
+        assert_eq!(
+            comp_names(&pack, ComponentKind::Agent),
+            vec!["a".to_string()]
+        );
         fs::remove_dir_all(&dir).ok();
     }
 
@@ -4556,7 +4681,10 @@ mod tests {
         write_file(&dir.join("skills/x/SKILL.md"), "---\nname: x\n---\n");
         let pack = pack_parse(&dir).unwrap();
         assert!(pack.manifest.is_none());
-        assert_eq!(comp_names(&pack, ComponentKind::Skill), vec!["x".to_string()]);
+        assert_eq!(
+            comp_names(&pack, ComponentKind::Skill),
+            vec!["x".to_string()]
+        );
         fs::remove_dir_all(&dir).ok();
     }
 
@@ -4581,7 +4709,10 @@ mod tests {
 
     #[test]
     fn parse_owner_repo_accepts_shorthand_url_and_extra() {
-        assert_eq!(parse_owner_repo("openai/skills").unwrap(), ("openai".into(), "skills".into()));
+        assert_eq!(
+            parse_owner_repo("openai/skills").unwrap(),
+            ("openai".into(), "skills".into())
+        );
         // Extra path segments (the skillId) are ignored — we install the repo.
         assert_eq!(
             parse_owner_repo("openai/skills/pdf").unwrap(),
@@ -4650,7 +4781,10 @@ mod tests {
             &dir.join(".claude-plugin/plugin.json"),
             &format!(r#"{{"name":"demo-pack","description":"{name_marker}"}}"#),
         );
-        write_file(&dir.join("skills/foo/SKILL.md"), "---\nname: foo\n---\nbody");
+        write_file(
+            &dir.join("skills/foo/SKILL.md"),
+            "---\nname: foo\n---\nbody",
+        );
         write_file(&dir.join("agents/rev.md"), "agent");
         dir
     }
@@ -4676,11 +4810,22 @@ mod tests {
         assert_eq!(r2.state, PackInstallState::AlreadyInstalled);
 
         // Mutate the source → Updated, installed_at preserved, updated content lands.
-        write_file(&src.join("skills/foo/SKILL.md"), "---\nname: foo\n---\nCHANGED");
-        let before = read_pack_lock(&root).packs.get("demo-pack").unwrap().installed_at;
+        write_file(
+            &src.join("skills/foo/SKILL.md"),
+            "---\nname: foo\n---\nCHANGED",
+        );
+        let before = read_pack_lock(&root)
+            .packs
+            .get("demo-pack")
+            .unwrap()
+            .installed_at;
         let r3 = install_pack_from_dir(&root, &src, "o/r", "c2", false).unwrap();
         assert_eq!(r3.state, PackInstallState::Updated);
-        let entry = read_pack_lock(&root).packs.get("demo-pack").unwrap().clone();
+        let entry = read_pack_lock(&root)
+            .packs
+            .get("demo-pack")
+            .unwrap()
+            .clone();
         assert_eq!(entry.installed_at, before); // preserved
         assert_eq!(entry.commit, "c2");
         let stored = fs::read_to_string(store.join("skills/foo/SKILL.md")).unwrap();
@@ -4726,8 +4871,16 @@ mod tests {
         assert_eq!(listed[0].pack.name, "demo-pack");
         assert_eq!(listed[0].source, "owner/repo");
         // foo skill + rev agent both surface as components.
-        assert!(listed[0].pack.components.iter().any(|c| c.kind == ComponentKind::Skill));
-        assert!(listed[0].pack.components.iter().any(|c| c.kind == ComponentKind::Agent));
+        assert!(listed[0]
+            .pack
+            .components
+            .iter()
+            .any(|c| c.kind == ComponentKind::Skill));
+        assert!(listed[0]
+            .pack
+            .components
+            .iter()
+            .any(|c| c.kind == ComponentKind::Agent));
 
         fs::remove_dir_all(&root).ok();
         fs::remove_dir_all(&src).ok();
@@ -4738,8 +4891,14 @@ mod tests {
     /// A richer pack fixture: skill + agent + command + rule + hooks + script.
     fn make_full_src_pack() -> PathBuf {
         let dir = tmp_pack_dir();
-        write_file(&dir.join(".claude-plugin/plugin.json"), r#"{"name":"demo-pack"}"#);
-        write_file(&dir.join("skills/foo/SKILL.md"), "---\nname: foo\n---\nbody");
+        write_file(
+            &dir.join(".claude-plugin/plugin.json"),
+            r#"{"name":"demo-pack"}"#,
+        );
+        write_file(
+            &dir.join("skills/foo/SKILL.md"),
+            "---\nname: foo\n---\nbody",
+        );
         write_file(&dir.join("agents/rev.md"), "agent");
         write_file(&dir.join("commands/ship.md"), "command");
         write_file(&dir.join("rules/style.md"), "rule body");
@@ -4770,7 +4929,10 @@ mod tests {
             &dir.join(".claude-plugin/plugin.json"),
             r#"{"name":"mani","skills":"./.claude/skills","hooks":"./plugin/hooks/hooks.json"}"#,
         );
-        write_file(&dir.join(".claude/skills/foo/SKILL.md"), "---\nname: foo\n---\nbody");
+        write_file(
+            &dir.join(".claude/skills/foo/SKILL.md"),
+            "---\nname: foo\n---\nbody",
+        );
         write_file(&dir.join("plugin/hooks/hooks.json"), r#"{"hooks":{}}"#);
         write_file(&dir.join("scripts/build.js"), "console.log(1)"); // build tooling, not a component
 
@@ -4779,9 +4941,15 @@ mod tests {
             .components
             .iter()
             .any(|c| c.kind == ComponentKind::Skill && c.name == "foo"));
-        assert!(pack.components.iter().any(|c| c.kind == ComponentKind::Hook));
+        assert!(pack
+            .components
+            .iter()
+            .any(|c| c.kind == ComponentKind::Hook));
         assert!(
-            !pack.components.iter().any(|c| c.kind == ComponentKind::Script),
+            !pack
+                .components
+                .iter()
+                .any(|c| c.kind == ComponentKind::Script),
             "manifest-declared pack must not ingest top-level build scripts"
         );
 
@@ -4797,8 +4965,14 @@ mod tests {
         write_file(&dir.join("scripts/setup.js"), "x");
 
         let pack = pack_parse(&dir).unwrap();
-        assert!(pack.components.iter().any(|c| c.kind == ComponentKind::Agent));
-        assert!(pack.components.iter().any(|c| c.kind == ComponentKind::Script));
+        assert!(pack
+            .components
+            .iter()
+            .any(|c| c.kind == ComponentKind::Agent));
+        assert!(pack
+            .components
+            .iter()
+            .any(|c| c.kind == ComponentKind::Script));
 
         fs::remove_dir_all(&dir).ok();
     }
@@ -4808,18 +4982,29 @@ mod tests {
         let src = make_full_src_pack();
         let root = installed_root(&src);
 
-        let report = project_pack(&root, "global", "demo-pack", "claude-code", None, false).unwrap();
+        let report =
+            project_pack(&root, "global", "demo-pack", "claude-code", None, false).unwrap();
 
         // Agent file is a symlink in .claude/agents.
         let agent_link = root.join(".claude/agents/rev.md");
-        assert!(agent_link.symlink_metadata().unwrap().file_type().is_symlink());
+        assert!(agent_link
+            .symlink_metadata()
+            .unwrap()
+            .file_type()
+            .is_symlink());
         // Skill projected into .claude/skills/foo and resolves through the link.
         let skill_link = root.join(".claude/skills/foo");
         assert!(skill_link.symlink_metadata().is_ok());
         assert!(skill_link.join("SKILL.md").is_file());
         // Command + rule also landed (dir-style for claude).
-        assert!(root.join(".claude/commands/ship.md").symlink_metadata().is_ok());
-        assert!(root.join(".claude/rules/style.md").symlink_metadata().is_ok());
+        assert!(root
+            .join(".claude/commands/ship.md")
+            .symlink_metadata()
+            .is_ok());
+        assert!(root
+            .join(".claude/rules/style.md")
+            .symlink_metadata()
+            .is_ok());
         // Hook merged into settings.json.
         assert!(root.join(".claude/settings.json").is_file());
 
@@ -4833,7 +5018,12 @@ mod tests {
 
         // Ledger recorded the agent + skill entries.
         let proj = read_pack_proj(&root);
-        let entries = proj.projections.get("demo-pack").unwrap().get("claude-code").unwrap();
+        let entries = proj
+            .projections
+            .get("demo-pack")
+            .unwrap()
+            .get("claude-code")
+            .unwrap();
         assert!(entries
             .iter()
             .any(|e| e.kind == ComponentKind::Agent && e.target_rel == ".claude/agents/rev.md"));
@@ -4854,7 +5044,15 @@ mod tests {
         );
 
         let kinds = [ComponentKind::Hook];
-        project_pack(&root, "global", "demo-pack", "claude-code", Some(&kinds), false).unwrap();
+        project_pack(
+            &root,
+            "global",
+            "demo-pack",
+            "claude-code",
+            Some(&kinds),
+            false,
+        )
+        .unwrap();
 
         let read = |root: &Path| -> serde_json::Value {
             serde_json::from_str(&fs::read_to_string(root.join(".claude/settings.json")).unwrap())
@@ -4871,7 +5069,15 @@ mod tests {
         assert_eq!(tagged, 1);
 
         // Re-project → still exactly one tagged entry (no dupes), X still there.
-        project_pack(&root, "global", "demo-pack", "claude-code", Some(&kinds), false).unwrap();
+        project_pack(
+            &root,
+            "global",
+            "demo-pack",
+            "claude-code",
+            Some(&kinds),
+            false,
+        )
+        .unwrap();
         let v2 = read(&root);
         let arr2 = v2["hooks"]["PreToolUse"].as_array().unwrap();
         let tagged2 = arr2
@@ -4890,8 +5096,15 @@ mod tests {
         let src = make_full_src_pack();
         let root = installed_root(&src);
 
-        project_pack(&root, "global", "demo-pack", "claude-code", Some(&[ComponentKind::Hook]), false)
-            .unwrap();
+        project_pack(
+            &root,
+            "global",
+            "demo-pack",
+            "claude-code",
+            Some(&[ComponentKind::Hook]),
+            false,
+        )
+        .unwrap();
 
         let settings: serde_json::Value =
             serde_json::from_str(&fs::read_to_string(root.join(".claude/settings.json")).unwrap())
@@ -4903,12 +5116,21 @@ mod tests {
         let store = root.join(".atlas/packs/demo-pack");
         let store_str = store.to_string_lossy().to_string();
         // The unresolved `${...}` placeholder is gone, replaced by the store dir.
-        assert!(!cmd.contains("${CLAUDE_PLUGIN_ROOT}"), "placeholder not rewritten: {cmd}");
-        assert!(cmd.contains(&store_str), "command should point at store dir: {cmd}");
+        assert!(
+            !cmd.contains("${CLAUDE_PLUGIN_ROOT}"),
+            "placeholder not rewritten: {cmd}"
+        );
+        assert!(
+            cmd.contains(&store_str),
+            "command should point at store dir: {cmd}"
+        );
         assert!(cmd.ends_with("/scripts/setup.js"));
         // …and the root is exported so runtime env lookups resolve too.
         assert!(
-            cmd.starts_with(&format!("CLAUDE_PLUGIN_ROOT={} ", sh_single_quote(&store_str))),
+            cmd.starts_with(&format!(
+                "CLAUDE_PLUGIN_ROOT={} ",
+                sh_single_quote(&store_str)
+            )),
             "command should export plugin root: {cmd}"
         );
 
@@ -4922,15 +5144,25 @@ mod tests {
         // (note the inner `process.env.CLAUDE_PLUGIN_ROOT=r` must NOT be mistaken
         // for a leading shell assignment).
         let src = tmp_pack_dir();
-        write_file(&src.join(".claude-plugin/plugin.json"), r#"{"name":"boot-pack"}"#);
+        write_file(
+            &src.join(".claude-plugin/plugin.json"),
+            r#"{"name":"boot-pack"}"#,
+        );
         write_file(
             &src.join("hooks/hooks.json"),
             r#"{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"node -e \"var r=process.env.CLAUDE_PLUGIN_ROOT;process.env.CLAUDE_PLUGIN_ROOT=r;require(r)\""}]}]}}"#,
         );
         let root = installed_root(&src);
 
-        project_pack(&root, "global", "boot-pack", "claude-code", Some(&[ComponentKind::Hook]), false)
-            .unwrap();
+        project_pack(
+            &root,
+            "global",
+            "boot-pack",
+            "claude-code",
+            Some(&[ComponentKind::Hook]),
+            false,
+        )
+        .unwrap();
 
         let settings: serde_json::Value =
             serde_json::from_str(&fs::read_to_string(root.join(".claude/settings.json")).unwrap())
@@ -4938,9 +5170,15 @@ mod tests {
         let cmd = settings["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
             .as_str()
             .unwrap();
-        let store_str = root.join(".atlas/packs/boot-pack").to_string_lossy().to_string();
+        let store_str = root
+            .join(".atlas/packs/boot-pack")
+            .to_string_lossy()
+            .to_string();
         assert!(
-            cmd.starts_with(&format!("CLAUDE_PLUGIN_ROOT={} node -e", sh_single_quote(&store_str))),
+            cmd.starts_with(&format!(
+                "CLAUDE_PLUGIN_ROOT={} node -e",
+                sh_single_quote(&store_str)
+            )),
             "runtime-env hook should be prefixed with the root: {cmd}"
         );
 
@@ -4976,12 +5214,18 @@ mod tests {
         let root = installed_root(&src);
         project_pack(&root, "global", "demo-pack", "claude-code", None, false).unwrap();
         project_pack(&root, "global", "demo-pack", "codex", None, false).unwrap();
-        assert!(root.join(".claude/agents/rev.md").symlink_metadata().is_ok());
+        assert!(root
+            .join(".claude/agents/rev.md")
+            .symlink_metadata()
+            .is_ok());
         assert!(root.join("AGENTS.md").is_file());
 
         // Unproject claude-code: agent link gone, our hook entry stripped.
         unproject_pack(&root, "demo-pack", "claude-code").unwrap();
-        assert!(root.join(".claude/agents/rev.md").symlink_metadata().is_err());
+        assert!(root
+            .join(".claude/agents/rev.md")
+            .symlink_metadata()
+            .is_err());
         let v: serde_json::Value =
             serde_json::from_str(&fs::read_to_string(root.join(".claude/settings.json")).unwrap())
                 .unwrap();
@@ -5013,11 +5257,18 @@ mod tests {
 
         project_pack(&root, "global", "demo-pack", "claude-code", None, false).unwrap();
         unproject_pack(&root, "demo-pack", "claude-code").unwrap();
-        assert!(root.join(".claude/agents/rev.md").symlink_metadata().is_err());
+        assert!(root
+            .join(".claude/agents/rev.md")
+            .symlink_metadata()
+            .is_err());
 
         // Re-project after unproject works again.
-        let report = project_pack(&root, "global", "demo-pack", "claude-code", None, false).unwrap();
-        assert!(root.join(".claude/agents/rev.md").symlink_metadata().is_ok());
+        let report =
+            project_pack(&root, "global", "demo-pack", "claude-code", None, false).unwrap();
+        assert!(root
+            .join(".claude/agents/rev.md")
+            .symlink_metadata()
+            .is_ok());
         assert!(report
             .iter()
             .any(|r| r.kind == ComponentKind::Agent && r.status == "projected"));
@@ -5034,16 +5285,39 @@ mod tests {
         write_file(&root.join(".claude/agents/rev.md"), "FOREIGN");
 
         let kinds = [ComponentKind::Agent];
-        let report =
-            project_pack(&root, "global", "demo-pack", "claude-code", Some(&kinds), false).unwrap();
+        let report = project_pack(
+            &root,
+            "global",
+            "demo-pack",
+            "claude-code",
+            Some(&kinds),
+            false,
+        )
+        .unwrap();
         assert!(report
             .iter()
             .any(|r| r.kind == ComponentKind::Agent && r.status == "conflict"));
-        assert_eq!(fs::read_to_string(root.join(".claude/agents/rev.md")).unwrap(), "FOREIGN");
+        assert_eq!(
+            fs::read_to_string(root.join(".claude/agents/rev.md")).unwrap(),
+            "FOREIGN"
+        );
 
         // Force overwrites with our symlink.
-        project_pack(&root, "global", "demo-pack", "claude-code", Some(&kinds), true).unwrap();
-        assert!(root.join(".claude/agents/rev.md").symlink_metadata().unwrap().file_type().is_symlink());
+        project_pack(
+            &root,
+            "global",
+            "demo-pack",
+            "claude-code",
+            Some(&kinds),
+            true,
+        )
+        .unwrap();
+        assert!(root
+            .join(".claude/agents/rev.md")
+            .symlink_metadata()
+            .unwrap()
+            .file_type()
+            .is_symlink());
 
         fs::remove_dir_all(&root).ok();
         fs::remove_dir_all(&src).ok();
@@ -5174,7 +5448,10 @@ mod tests {
         assert!(installed.contains("name: atlas-self-configure"));
 
         let recorded_hash = fs::read_to_string(dir.join(BUNDLED_HASH_FILE)).unwrap();
-        assert_eq!(recorded_hash.trim(), sha256_hex(ATLAS_SELF_CONFIGURE_SKILL_MD));
+        assert_eq!(
+            recorded_hash.trim(),
+            sha256_hex(ATLAS_SELF_CONFIGURE_SKILL_MD)
+        );
 
         fs::remove_dir_all(&root).ok();
     }
@@ -5185,7 +5462,10 @@ mod tests {
         ensure_bundled_skills_at(&root);
 
         let skills = list_skills(&root, "global").expect("list_skills succeeds");
-        let entry = skills.iter().find(|s| s.name == BUNDLED_SKILL_NAME).expect("bundled skill is discoverable");
+        let entry = skills
+            .iter()
+            .find(|s| s.name == BUNDLED_SKILL_NAME)
+            .expect("bundled skill is discoverable");
         assert!(entry.managed);
         assert_eq!(entry.scope, "global");
 
@@ -5254,7 +5534,10 @@ mod tests {
 
         ensure_bundled_skills_at(&root);
 
-        assert_eq!(fs::read_to_string(&skill_md).unwrap(), "user-modified content");
+        assert_eq!(
+            fs::read_to_string(&skill_md).unwrap(),
+            "user-modified content"
+        );
         fs::remove_dir_all(&root).ok();
     }
 
@@ -5271,7 +5554,10 @@ mod tests {
 
         ensure_bundled_skills_at(&root);
 
-        assert_eq!(fs::read_to_string(dir.join("SKILL.md")).unwrap(), "hand-authored, no sidecar");
+        assert_eq!(
+            fs::read_to_string(dir.join("SKILL.md")).unwrap(),
+            "hand-authored, no sidecar"
+        );
         assert!(!dir.join(BUNDLED_HASH_FILE).exists());
         fs::remove_dir_all(&root).ok();
     }

@@ -138,10 +138,7 @@ fn collect_content_blocks(value: &serde_json::Value, out: &mut Vec<ToolContentBl
                     ) {
                         out.push(ToolContentBlock::Diff {
                             path: path.to_string(),
-                            old_text: o
-                                .get("oldText")
-                                .and_then(|t| t.as_str())
-                                .map(str::to_owned),
+                            old_text: o.get("oldText").and_then(|t| t.as_str()).map(str::to_owned),
                             new_text: new_text.to_string(),
                         });
                     }

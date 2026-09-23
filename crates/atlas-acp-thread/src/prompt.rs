@@ -49,9 +49,11 @@ pub fn from_text(text: impl Into<String>) -> Vec<ContentBlock> {
 #[must_use]
 pub fn compose(text: impl Into<String>, images: Vec<ImageAttachment>) -> Vec<ContentBlock> {
     let mut content = from_text(text);
-    content.extend(images.into_iter().map(|att| {
-        ContentBlock::Image(ImageContent::new(att.data_base64, att.mime_type))
-    }));
+    content.extend(
+        images
+            .into_iter()
+            .map(|att| ContentBlock::Image(ImageContent::new(att.data_base64, att.mime_type))),
+    );
     content
 }
 
@@ -250,7 +252,10 @@ mod tests {
 
     #[test]
     fn no_links_leaves_the_content_untouched() {
-        assert_eq!(with_resource_links(from_text("hi"), Vec::new()), from_text("hi"));
+        assert_eq!(
+            with_resource_links(from_text("hi"), Vec::new()),
+            from_text("hi")
+        );
     }
 
     /// Every agent MUST accept ResourceLink, so the capability filter must
@@ -259,7 +264,10 @@ mod tests {
     fn resource_links_survive_an_agent_that_advertises_nothing() {
         let content = with_resource_links(
             from_text("hi"),
-            vec![ResourceLinkSpec { uri: "file:///a".into(), name: "a".into() }],
+            vec![ResourceLinkSpec {
+                uri: "file:///a".into(),
+                name: "a".into(),
+            }],
         );
         assert_eq!(strip_unsupported(content.clone(), false), content);
     }

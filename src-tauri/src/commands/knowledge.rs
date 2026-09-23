@@ -57,7 +57,9 @@ fn kb_dir(project_path: &str) -> PathBuf {
 }
 
 fn sources_path(project_path: &str) -> PathBuf {
-    Path::new(project_path).join(".atlas").join("knowledge-sources.json")
+    Path::new(project_path)
+        .join(".atlas")
+        .join("knowledge-sources.json")
 }
 
 /// Linked folders for a project. Missing or corrupt file → none.
@@ -84,7 +86,10 @@ fn save_sources(project_path: &str, sources: &[KbSource]) -> Result<(), String> 
 pub(crate) fn resolve_kb_path(project_path: &str, id: &str) -> Result<PathBuf, String> {
     let id = kb_rel(id)?;
     let (head, rest) = id.split_once('/').unwrap_or((id, ""));
-    if let Some(src) = load_sources(project_path).into_iter().find(|s| s.name == head) {
+    if let Some(src) = load_sources(project_path)
+        .into_iter()
+        .find(|s| s.name == head)
+    {
         let mut p = PathBuf::from(src.path);
         if !rest.is_empty() {
             p.push(rest);
@@ -107,7 +112,8 @@ fn linked_source_for(project_path: &str, path: &Path) -> Option<(PathBuf, PathBu
 /// (never the OS separator — on Windows `\` broke the tree and `kb_rel`).
 /// Hidden entries (`.obsidian`, `.trash`, `.git`, …) are skipped.
 pub(crate) fn walk_kb(project_path: &str) -> Vec<(String, PathBuf)> {
-    walk_kb_files(project_path).into_iter()
+    walk_kb_files(project_path)
+        .into_iter()
         .filter(|(_, path)| path.extension().and_then(|e| e.to_str()) == Some("md"))
         .collect()
 }
@@ -133,7 +139,11 @@ fn walk_files(dir: &Path, prefix: &str, out: &mut Vec<(String, PathBuf)>) {
             continue;
         }
         let path = entry.path();
-        let id_part = if prefix.is_empty() { name.clone() } else { format!("{prefix}/{name}") };
+        let id_part = if prefix.is_empty() {
+            name.clone()
+        } else {
+            format!("{prefix}/{name}")
+        };
         if path.is_dir() {
             walk_files(&path, &id_part, out);
         } else if path.is_file() {
@@ -152,10 +162,20 @@ pub(crate) fn note_file(project_path: &str, id: &str) -> Result<PathBuf, String>
 
 fn read_entry(id: String, path: &Path) -> Option<KnowledgeEntry> {
     let is_note = path.extension().and_then(|e| e.to_str()) == Some("md");
-    let content = if is_note { fs::read_to_string(path).ok()? } else { String::new() };
+    let content = if is_note {
+        fs::read_to_string(path).ok()?
+    } else {
+        String::new()
+    };
 
-    let filename = if is_note { path.file_stem() } else { path.file_name() }
-        .unwrap_or_default().to_string_lossy().to_string();
+    let filename = if is_note {
+        path.file_stem()
+    } else {
+        path.file_name()
+    }
+    .unwrap_or_default()
+    .to_string_lossy()
+    .to_string();
 
     // Use only the filename as the wire-side title fallback. The
     // user-edited page-header title lives in `_meta.json` and is
@@ -165,18 +185,26 @@ fn read_entry(id: String, path: &Path) -> Option<KnowledgeEntry> {
     // which was confusing and inconsistent with the page header.
     let title = filename.clone();
 
-    let source = if !is_note { "file" }
-        else if filename.starts_with("paper-") { "paper" }
-        else if filename.starts_with("chat-") { "chat" }
-        else { "note" };
+    let source = if !is_note {
+        "file"
+    } else if filename.starts_with("paper-") {
+        "paper"
+    } else if filename.starts_with("chat-") {
+        "chat"
+    } else {
+        "note"
+    };
 
-    let updated_at = fs::metadata(path).ok()
+    let updated_at = fs::metadata(path)
+        .ok()
         .and_then(|m| m.modified().ok())
         .map(|t| {
             let d = t.duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
             chrono::DateTime::from_timestamp(d.as_secs() as i64, 0)
-                .map(|dt| dt.to_rfc3339()).unwrap_or_default()
-        }).unwrap_or_default();
+                .map(|dt| dt.to_rfc3339())
+                .unwrap_or_default()
+        })
+        .unwrap_or_default();
 
     Some(KnowledgeEntry {
         id,
@@ -244,9 +272,15 @@ fn unique_dest(dest: &Path) -> std::path::PathBuf {
     if !dest.exists() {
         return dest.to_path_buf();
     }
-    let stem = dest.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+    let stem = dest
+        .file_stem()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_default();
     let ext = dest.extension().map(|e| e.to_string_lossy().to_string());
-    let parent = dest.parent().map(std::path::Path::to_path_buf).unwrap_or_default();
+    let parent = dest
+        .parent()
+        .map(std::path::Path::to_path_buf)
+        .unwrap_or_default();
     for n in 1.. {
         let name = match &ext {
             Some(e) => format!("{stem}-{n}.{e}"),
@@ -319,10 +353,7 @@ pub async fn import_into_knowledge(
 
 /// Delete a knowledge note
 #[tauri::command]
-pub async fn delete_knowledge_note(
-    project_path: String,
-    id: String,
-) -> Result<(), String> {
+pub async fn delete_knowledge_note(project_path: String, id: String) -> Result<(), String> {
     tokio::task::spawn_blocking(move || delete_note_sync(&project_path, &id))
         .await
         .map_err(|e| e.to_string())?
@@ -332,7 +363,8 @@ pub async fn delete_knowledge_note(
 /// convention, recoverable) — never hard-deleted from the user's vault.
 fn delete_note_sync(project_path: &str, id: &str) -> Result<(), String> {
     kb_rel(id)?;
-    let filepath = walk_kb_files(project_path).into_iter()
+    let filepath = walk_kb_files(project_path)
+        .into_iter()
         .find(|(entry_id, _)| entry_id == id)
         .map(|(_, path)| path)
         .unwrap_or(note_file(project_path, id)?);
@@ -400,7 +432,11 @@ pub async fn link_knowledge_folder(
     .map_err(|e| e.to_string())?
 }
 
-fn link_folder_sync(project_path: &str, path: &str, name: Option<&str>) -> Result<KbSource, String> {
+fn link_folder_sync(
+    project_path: &str,
+    path: &str,
+    name: Option<&str>,
+) -> Result<KbSource, String> {
     let dir = Path::new(path);
     if !dir.is_dir() {
         return Err(format!("not a folder: {path}"));
@@ -414,12 +450,22 @@ fn link_folder_sync(project_path: &str, path: &str, name: Option<&str>) -> Resul
         .or_else(|| dir.file_name().map(|n| n.to_string_lossy().to_string()))
         .ok_or_else(|| format!("cannot link a drive root: {path}"))?;
     kb_rel(&base)?;
-    let taken = |n: &str| sources.iter().any(|s| s.name == n) || kb_dir(project_path).join(n).exists();
+    let taken =
+        |n: &str| sources.iter().any(|s| s.name == n) || kb_dir(project_path).join(n).exists();
     let mount = (1..)
-        .map(|i| if i == 1 { base.clone() } else { format!("{base}-{i}") })
+        .map(|i| {
+            if i == 1 {
+                base.clone()
+            } else {
+                format!("{base}-{i}")
+            }
+        })
         .find(|n| !taken(n))
         .unwrap_or(base);
-    let src = KbSource { name: mount, path: path.to_string() };
+    let src = KbSource {
+        name: mount,
+        path: path.to_string(),
+    };
     sources.push(src.clone());
     save_sources(project_path, &sources)?;
     Ok(src)
@@ -579,10 +625,7 @@ pub async fn log_interaction(
 
 /// Save editor state (open tabs, active file) per project
 #[tauri::command]
-pub async fn save_editor_state(
-    project_path: String,
-    state_json: String,
-) -> Result<(), String> {
+pub async fn save_editor_state(project_path: String, state_json: String) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
         let atlas_dir = Path::new(&project_path).join(".atlas");
         fs::create_dir_all(&atlas_dir).map_err(|e| e.to_string())?;
@@ -598,7 +641,9 @@ pub async fn save_editor_state(
 #[tauri::command]
 pub async fn load_editor_state(project_path: String) -> Result<String, String> {
     tokio::task::spawn_blocking(move || {
-        let state_path = Path::new(&project_path).join(".atlas").join("editor-state.json");
+        let state_path = Path::new(&project_path)
+            .join(".atlas")
+            .join("editor-state.json");
         if state_path.exists() {
             fs::read_to_string(&state_path).map_err(|e| e.to_string())
         } else {
@@ -717,7 +762,9 @@ pub async fn fetch_readable(url: String) -> Result<ReadableContent, String> {
     let response = response.ok_or_else(|| "too many redirects".to_string())?;
 
     let final_url = response.url().to_string();
-    let html = response.text().await
+    let html = response
+        .text()
+        .await
         .map_err(|e| format!("Read failed: {e}"))?;
 
     let title = extract_html_title(&html).unwrap_or_else(|| url.clone());
@@ -759,11 +806,53 @@ fn sanitize_html(html: &str, base_url: &str) -> String {
     // links against the page URL, and rejects every scheme but the two named.
     use std::collections::HashSet;
     let tags: HashSet<&str> = [
-        "a", "abbr", "b", "blockquote", "br", "code", "dd", "del", "details",
-        "div", "dl", "dt", "em", "h1", "h2", "h3", "h4", "h5", "h6", "hr",
-        "i", "ins", "kbd", "li", "main", "mark", "ol", "p", "pre", "q", "s",
-        "section", "small", "span", "strong", "sub", "summary", "sup",
-        "table", "tbody", "td", "tfoot", "th", "thead", "time", "tr", "u",
+        "a",
+        "abbr",
+        "b",
+        "blockquote",
+        "br",
+        "code",
+        "dd",
+        "del",
+        "details",
+        "div",
+        "dl",
+        "dt",
+        "em",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "hr",
+        "i",
+        "ins",
+        "kbd",
+        "li",
+        "main",
+        "mark",
+        "ol",
+        "p",
+        "pre",
+        "q",
+        "s",
+        "section",
+        "small",
+        "span",
+        "strong",
+        "sub",
+        "summary",
+        "sup",
+        "table",
+        "tbody",
+        "td",
+        "tfoot",
+        "th",
+        "thead",
+        "time",
+        "tr",
+        "u",
         "ul",
     ]
     .into();
@@ -800,18 +889,33 @@ mod sanitize_tests {
         let base = "https://example.com/a/";
         for (input, must_not_contain) in [
             (r#"<p onclick="fetch('https://evil/x')">hi</p>"#, "onclick"),
-            (r#"<img src='x' onerror='alert(1)' onload=alert(2)>"#, "onerror"),
+            (
+                r#"<img src='x' onerror='alert(1)' onload=alert(2)>"#,
+                "onerror",
+            ),
             (r#"<body ONLOAD="evil()">x</body>"#, "onload"),
-            (r#"<meta http-equiv="refresh" content="0;url=https://evil/">"#, "http-equiv"),
+            (
+                r#"<meta http-equiv="refresh" content="0;url=https://evil/">"#,
+                "http-equiv",
+            ),
             (r#"<base href="https://evil/">"#, "<base"),
             (r#"<link rel="stylesheet" href="//evil/x.css">"#, "<link"),
             (r#"<a href=javascript:alert(1)>x</a>"#, "javascript:"),
-            (r#"<a href="data:text/html,<script>alert(1)</script>">x</a>"#, "data:"),
+            (
+                r#"<a href="data:text/html,<script>alert(1)</script>">x</a>"#,
+                "data:",
+            ),
             (r#"<script>alert(1)</script >leftover"#, "<script"),
             (r#"<svg><script>alert(1)</script></svg>"#, "<script"),
-            (r#"<math><mi xlink:href="javascript:alert(1)">x</mi></math>"#, "javascript:"),
+            (
+                r#"<math><mi xlink:href="javascript:alert(1)">x</mi></math>"#,
+                "javascript:",
+            ),
             (r#"<iframe src="https://evil/"></iframe>"#, "<iframe"),
-            (r#"<p style="background:url(https://evil/beacon)">x</p>"#, "style="),
+            (
+                r#"<p style="background:url(https://evil/beacon)">x</p>"#,
+                "style=",
+            ),
         ] {
             let out = sanitize_html(input, base).to_lowercase();
             assert!(
@@ -826,7 +930,12 @@ mod sanitize_tests {
         let html = "<html><body><h1>Title</h1><p>let one = 1; only = 5 café</p>\
             <ul><li>a</li></ul><pre><code>x</code></pre></body></html>";
         let out = sanitize_html(html, "https://example.com/");
-        for keep in ["Title", "let one = 1; only = 5 café", "<li>a</li>", "<code>x</code>"] {
+        for keep in [
+            "Title",
+            "let one = 1; only = 5 café",
+            "<li>a</li>",
+            "<code>x</code>",
+        ] {
             assert!(out.contains(keep), "lost `{keep}`: {out}");
         }
     }
@@ -893,7 +1002,10 @@ mod linked_source_tests {
             assert_eq!(entry.source, "file");
             assert!(entry.content.is_empty());
         }
-        assert_eq!(entries.iter().find(|e| e.id == "note").unwrap().content, "# Searchable body");
+        assert_eq!(
+            entries.iter().find(|e| e.id == "note").unwrap().content,
+            "# Searchable body"
+        );
         assert_eq!(walk_kb(&tmp.to_string_lossy()).len(), 1);
         fs::remove_dir_all(tmp).unwrap();
     }
@@ -915,7 +1027,11 @@ mod linked_source_tests {
 
         let src = link_folder_sync(&p, &v, None).unwrap();
         assert_eq!(src.name, "Vault");
-        assert_eq!(link_folder_sync(&p, &v, None).unwrap(), src, "relinking the same path is a no-op");
+        assert_eq!(
+            link_folder_sync(&p, &v, None).unwrap(),
+            src,
+            "relinking the same path is a no-op"
+        );
 
         // Ids use `/` on every OS; hidden dirs are skipped.
         let mut ids: Vec<String> = walk_kb(&p).into_iter().map(|(id, _)| id).collect();
@@ -923,13 +1039,18 @@ mod linked_source_tests {
         assert_eq!(ids, ["Vault/sub/note", "sub/local"]);
 
         let files = list_knowledge_sync(&p).unwrap();
-        assert!(files.iter().any(|e| e.id == "Vault/sub/photo.jpg" && e.content.is_empty()));
+        assert!(files
+            .iter()
+            .any(|e| e.id == "Vault/sub/photo.jpg" && e.content.is_empty()));
         delete_note_sync(&p, "Vault/sub/photo.jpg").unwrap();
         assert!(!vault.join("sub/photo.jpg").exists());
         assert!(vault.join(".trash/sub/photo.jpg").exists());
 
         // Writes land in the vault, not a copy.
-        assert_eq!(note_file(&p, "Vault/sub/x").unwrap(), vault.join("sub").join("x.md"));
+        assert_eq!(
+            note_file(&p, "Vault/sub/x").unwrap(),
+            vault.join("sub").join("x.md")
+        );
         assert!(resolve_kb_path(&p, "Vault/../..").is_err());
 
         // Delete moves to the vault's .trash; local notes are removed.
@@ -942,7 +1063,12 @@ mod linked_source_tests {
         // A name that would shadow a local KB folder gets a suffix.
         let other = tmp.join("x").join("sub");
         fs::create_dir_all(&other).unwrap();
-        assert_eq!(link_folder_sync(&p, &other.to_string_lossy(), None).unwrap().name, "sub-2");
+        assert_eq!(
+            link_folder_sync(&p, &other.to_string_lossy(), None)
+                .unwrap()
+                .name,
+            "sub-2"
+        );
 
         // Unlinking leaves the vault's files alone.
         let mut sources = load_sources(&p);
@@ -976,10 +1102,20 @@ mod ssrf_tests {
             "::ffff:127.0.0.1", // v4-mapped loopback
         ];
         for a in private {
-            assert!(!ip_is_public(&a.parse::<IpAddr>().unwrap()), "{a} should be refused");
+            assert!(
+                !ip_is_public(&a.parse::<IpAddr>().unwrap()),
+                "{a} should be refused"
+            );
         }
-        for a in ["93.184.216.34", "140.82.112.3", "2606:2800:220:1:248:1893:25c8:1946"] {
-            assert!(ip_is_public(&a.parse::<IpAddr>().unwrap()), "{a} should pass");
+        for a in [
+            "93.184.216.34",
+            "140.82.112.3",
+            "2606:2800:220:1:248:1893:25c8:1946",
+        ] {
+            assert!(
+                ip_is_public(&a.parse::<IpAddr>().unwrap()),
+                "{a} should pass"
+            );
         }
     }
 }
@@ -995,24 +1131,32 @@ mod cover_guard_tests {
         std::fs::write(dir.join(".atlas/knowledge/covers/c.png"), b"png").unwrap();
         let root = dir.to_string_lossy().to_string();
 
-        let ok = knowledge_cover_data_url(root.clone(), "covers/c.png".into()).await.unwrap();
+        let ok = knowledge_cover_data_url(root.clone(), "covers/c.png".into())
+            .await
+            .unwrap();
         assert!(ok.starts_with("data:image/png;base64,"));
 
         // Gradient refs pass through untouched — CSS, not files.
         assert_eq!(
-            knowledge_cover_data_url(root.clone(), "gradient:a,b".into()).await.unwrap(),
+            knowledge_cover_data_url(root.clone(), "gradient:a,b".into())
+                .await
+                .unwrap(),
             "gradient:a,b"
         );
 
         // The audit's exfil shape.
-        assert!(knowledge_cover_data_url(root.clone(), "../../../.ssh/id_rsa".into())
-            .await
-            .is_err());
+        assert!(
+            knowledge_cover_data_url(root.clone(), "../../../.ssh/id_rsa".into())
+                .await
+                .is_err()
+        );
 
         // Size cap: decorative images do not get to be 8MB IPC strings.
         let big = vec![0u8; 3 * 1024 * 1024];
         std::fs::write(dir.join(".atlas/knowledge/covers/big.png"), &big).unwrap();
-        let err = knowledge_cover_data_url(root, "covers/big.png".into()).await.unwrap_err();
+        let err = knowledge_cover_data_url(root, "covers/big.png".into())
+            .await
+            .unwrap_err();
         assert!(err.contains("too large"), "{err}");
         let _ = std::fs::remove_dir_all(&dir);
     }

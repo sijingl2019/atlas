@@ -6,7 +6,7 @@
  */
 import { useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { useProjectStore } from "@/features/project/stores/project-store";
+import { useAppStore } from "@/features/app/stores/app-store";
 import {
   ensureGlobalRoot,
   ensureLinkedGlobally,
@@ -19,7 +19,7 @@ import {
 export function useKbRoot(): string | null {
   const scope = useKbScopeStore.use.scope();
   const globalRoot = useKbScopeStore.use.globalRoot();
-  const currentProject = useProjectStore.use.currentProject();
+  const currentProject = useAppStore.use.currentProject();
   useEffect(() => {
     void ensureGlobalRoot().catch(() => {});
   }, []);
@@ -30,7 +30,7 @@ export function useKbRoot(): string | null {
 export function kbRootPath(): string | null {
   const { scope, globalRoot } = useKbScopeStore.getState();
   if (scope === "global") return globalRoot;
-  return useProjectStore.getState().currentProject?.path ?? null;
+  return useAppStore.getState().currentProject?.path ?? null;
 }
 
 /**

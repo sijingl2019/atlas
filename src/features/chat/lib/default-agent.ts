@@ -18,15 +18,15 @@
 // synchronous and total -- the value is already in memory, so there is no
 // "not decided yet".
 
+import { useSettingsStore } from "@/features/settings/stores/settings-store";
 import { NATIVE_AGENT_ID, type SwitchableAgent } from "@/types/agent";
 import { switchableAgentIds } from "@/features/agents/lib/agent-meta";
 import { useAgentRegistryStore } from "@/features/agents/stores/agent-registry-store";
-import { useProjectStore } from "@/features/project/stores/project-store";
 
 /** The agent a new chat starts on. Synchronous and total: there is nothing to
  *  probe, so there is no "not decided yet". */
 export function defaultAgentForNewSession(): SwitchableAgent {
-  const configured = useProjectStore.getState().settings.defaultAgent;
+  const configured = useSettingsStore.getState().settings.defaultAgent;
   if (!configured || configured === NATIVE_AGENT_ID) return NATIVE_AGENT_ID;
 
   // An empty catalog is "not answered yet", never "you have no agents": boot

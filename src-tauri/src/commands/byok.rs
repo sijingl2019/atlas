@@ -59,7 +59,14 @@ use super::shell_profile::{self, ShellKind};
 const ENV_KEY_VARS: &[(&str, &[&str])] = &[
     ("anthropic", &["ANTHROPIC_API_KEY", "CLAUDE_API_KEY"]),
     ("openai", &["OPENAI_API_KEY", "OPENAI_KEY"]),
-    ("google", &["GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY"]),
+    (
+        "google",
+        &[
+            "GEMINI_API_KEY",
+            "GOOGLE_API_KEY",
+            "GOOGLE_GENERATIVE_AI_API_KEY",
+        ],
+    ),
     ("openrouter", &["OPENROUTER_API_KEY", "OPEN_ROUTER_API_KEY"]),
     ("mistral", &["MISTRAL_API_KEY"]),
     ("cohere", &["COHERE_API_KEY", "CO_API_KEY"]),
@@ -67,7 +74,14 @@ const ENV_KEY_VARS: &[(&str, &[&str])] = &[
     ("deepseek", &["DEEPSEEK_API_KEY"]),
     ("ai21", &["AI21_API_KEY"]),
     ("groq", &["GROQ_API_KEY"]),
-    ("together", &["TOGETHER_API_KEY", "TOGETHER_AI_API_KEY", "TOGETHERAI_API_KEY"]),
+    (
+        "together",
+        &[
+            "TOGETHER_API_KEY",
+            "TOGETHER_AI_API_KEY",
+            "TOGETHERAI_API_KEY",
+        ],
+    ),
     ("fireworks", &["FIREWORKS_API_KEY", "FIREWORKS_AI_API_KEY"]),
     ("deepinfra", &["DEEPINFRA_API_KEY", "DEEPINFRA_API_TOKEN"]),
     ("cerebras", &["CEREBRAS_API_KEY"]),
@@ -76,10 +90,20 @@ const ENV_KEY_VARS: &[(&str, &[&str])] = &[
     ("litellm", &["LITELLM_API_KEY", "LITELLM_MASTER_KEY"]),
     ("azure", &["AZURE_API_KEY", "AZURE_OPENAI_API_KEY"]),
     ("voyage", &["VOYAGE_API_KEY", "VOYAGEAI_API_KEY"]),
-    ("huggingface", &["HF_TOKEN", "HUGGING_FACE_HUB_TOKEN", "HUGGINGFACE_API_KEY"]),
+    (
+        "huggingface",
+        &["HF_TOKEN", "HUGGING_FACE_HUB_TOKEN", "HUGGINGFACE_API_KEY"],
+    ),
     ("jina", &["JINA_API_KEY"]),
-    ("elevenlabs", &["ELEVENLABS_API_KEY", "ELEVEN_API_KEY", "XI_API_KEY"]),
+    (
+        "elevenlabs",
+        &["ELEVENLABS_API_KEY", "ELEVEN_API_KEY", "XI_API_KEY"],
+    ),
     ("empero", &["EMPERO_API_KEY"]),
+    (
+        "orcarouter",
+        &["ORCAROUTER_API_KEY", "ORCA_ROUTER_API_KEY", "ORCA_API_KEY"],
+    ),
 ];
 
 /// One env-imported key: which provider it maps to, the variable it came from,
@@ -189,15 +213,16 @@ pub fn ensure_shell_probe(app: &AppHandle) {
 /// ahead of the printf can't contaminate the first value. Values may not
 /// contain `` (unit separator) — a safe assumption for API keys.
 fn shell_env_values() -> BTreeMap<String, String> {
-    let vars: Vec<&str> = ENV_KEY_VARS.iter().flat_map(|(_, vs)| vs.iter().copied()).collect();
+    let vars: Vec<&str> = ENV_KEY_VARS
+        .iter()
+        .flat_map(|(_, vs)| vs.iter().copied())
+        .collect();
     let fmt: String = vars
         .iter()
         .map(|v| format!("\"${{{v}}}\""))
         .collect::<Vec<_>>()
         .join(" ");
-    let script = format!(
-        "printf 'ATLAS_ENV_PROBE\x1f'; printf '%s\x1f' {fmt}"
-    );
+    let script = format!("printf 'ATLAS_ENV_PROBE\x1f'; printf '%s\x1f' {fmt}");
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
     let child = atlas_process::command(&shell)
         .args(["-lic", &script])
@@ -205,7 +230,9 @@ fn shell_env_values() -> BTreeMap<String, String> {
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::null())
         .spawn();
-    let Ok(child) = child else { return BTreeMap::new() };
+    let Ok(child) = child else {
+        return BTreeMap::new();
+    };
     let pid = child.id();
     let (tx, rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
@@ -214,7 +241,9 @@ fn shell_env_values() -> BTreeMap<String, String> {
     let out = match rx.recv_timeout(std::time::Duration::from_secs(5)) {
         Ok(Ok(out)) if out.status.success() => out,
         _ => {
-            let _ = atlas_process::command("kill").args(["-9", &pid.to_string()]).status();
+            let _ = atlas_process::command("kill")
+                .args(["-9", &pid.to_string()])
+                .status();
             return BTreeMap::new();
         }
     };
@@ -250,7 +279,15 @@ pub fn byok_env_list(app: AppHandle) -> Vec<EnvKeyMeta> {
         .map(|k| EnvKeyMeta {
             provider: k.provider.clone(),
             env_var: k.env_var.clone(),
-            last4: k.key.chars().rev().take(4).collect::<Vec<_>>().into_iter().rev().collect(),
+            last4: k
+                .key
+                .chars()
+                .rev()
+                .take(4)
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
+                .collect(),
         })
         .collect()
 }
@@ -301,7 +338,6 @@ pub fn sync_agent_key_env(app: &AppHandle) {
         host.store().set_byok_env(agent_key_env());
     }
 }
-
 
 // ── Shell-profile view + editor ───────────────────────────────────────────────
 
@@ -383,7 +419,8 @@ fn locate_in_profiles(var: &str) -> Option<(PathBuf, shell_profile::Assignment)>
         };
         // Last assignment wins — that is what the shell ends up with.
         if let Some(a) = shell_profile::parse_assignments(&content)
-            .into_iter().rfind(|a| a.var == var)
+            .into_iter()
+            .rfind(|a| a.var == var)
         {
             return Some((path, a));
         }
@@ -420,7 +457,9 @@ pub fn byok_env_entries(app: AppHandle) -> Vec<EnvEntry> {
             provider: provider.to_string(),
             env_var: var.to_string(),
             last4: last4(&value),
-            file: located.as_ref().map(|(p, _)| p.to_string_lossy().into_owned()),
+            file: located
+                .as_ref()
+                .map(|(p, _)| p.to_string_lossy().into_owned()),
             line: located.as_ref().map(|(_, a)| a.line),
             editable: located.is_some(),
         });
@@ -486,7 +525,9 @@ fn write_atomic(path: &Path, content: &str) -> Result<(), String> {
         use std::os::unix::fs::PermissionsExt;
         // Match the file we are replacing; a file we create ourselves holds
         // secrets and starts owner-only.
-        let mode = fs::metadata(path).ok().map(|m| m.permissions().mode() & 0o777);
+        let mode = fs::metadata(path)
+            .ok()
+            .map(|m| m.permissions().mode() & 0o777);
         let _ = fs::set_permissions(&tmp, fs::Permissions::from_mode(mode.unwrap_or(0o600)));
     }
     fs::rename(&tmp, path).map_err(|e| format!("replace {}: {e}", path.display()))?;
@@ -526,7 +567,9 @@ pub fn byok_env_set(app: AppHandle, env_var: String, value: String) -> Result<St
         return Err("Value is empty.".into());
     }
     if !known_vars().iter().any(|(_, v)| *v == env_var) {
-        return Err(format!("'{env_var}' is not a recognised provider key variable."));
+        return Err(format!(
+            "'{env_var}' is not a recognised provider key variable."
+        ));
     }
     let home = home_dir().ok_or("No home directory.")?;
     let shell = user_shell();
@@ -554,9 +597,7 @@ pub fn byok_env_set(app: AppHandle, env_var: String, value: String) -> Result<St
 pub fn byok_env_unset(app: AppHandle, env_var: String) -> Result<(), String> {
     let Some((path, _)) = locate_in_profiles(&env_var) else {
         // Live-env-only: nothing of ours to delete, and we will not guess.
-        return Err(
-            "This key is set outside your shell profile, so Atlas can't remove it.".into(),
-        );
+        return Err("This key is set outside your shell profile, so Atlas can't remove it.".into());
     };
     let content = fs::read_to_string(&path).map_err(|e| format!("read {}: {e}", path.display()))?;
     let updated = shell_profile::remove(&content, &env_var);
@@ -577,7 +618,6 @@ pub fn byok_get(_app: AppHandle, provider: String) -> Result<Option<String>, Str
 }
 
 // ── Auth-checklist env probes (agents_auth_env_status) ──────────────────────
-
 
 /// The env vars that satisfy a provider, in preference order. Empty for a
 /// provider the BYOK table has never heard of.
@@ -657,9 +697,7 @@ fn probe_shell_vars(vars: &[&str]) -> BTreeMap<String, String> {
         .map(|v| format!("\"${{{v}}}\""))
         .collect::<Vec<_>>()
         .join(" ");
-    let script = format!(
-        "printf 'ATLAS_ENV_PROBE\x1f'; printf '%s\x1f' {fmt}"
-    );
+    let script = format!("printf 'ATLAS_ENV_PROBE\x1f'; printf '%s\x1f' {fmt}");
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
     let child = atlas_process::command(&shell)
         .args(["-lic", &script])
@@ -667,7 +705,9 @@ fn probe_shell_vars(vars: &[&str]) -> BTreeMap<String, String> {
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::null())
         .spawn();
-    let Ok(child) = child else { return BTreeMap::new() };
+    let Ok(child) = child else {
+        return BTreeMap::new();
+    };
     let pid = child.id();
     let (tx, rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
@@ -676,7 +716,9 @@ fn probe_shell_vars(vars: &[&str]) -> BTreeMap<String, String> {
     let out = match rx.recv_timeout(std::time::Duration::from_secs(5)) {
         Ok(Ok(out)) if out.status.success() => out,
         _ => {
-            let _ = atlas_process::command("kill").args(["-9", &pid.to_string()]).status();
+            let _ = atlas_process::command("kill")
+                .args(["-9", &pid.to_string()])
+                .status();
             return BTreeMap::new();
         }
     };
@@ -690,4 +732,22 @@ fn probe_shell_vars(vars: &[&str]) -> BTreeMap<String, String> {
         .filter(|(_, v)| !v.trim().is_empty())
         .map(|(var, v)| ((*var).to_string(), v.trim().to_string()))
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_orcarouter_env_vars() {
+        let entry = ENV_KEY_VARS
+            .iter()
+            .find(|(provider, _)| *provider == "orcarouter");
+        assert!(entry.is_some(), "orcarouter must be in ENV_KEY_VARS");
+        let (_, vars) = entry.unwrap();
+        assert_eq!(
+            vars,
+            &["ORCAROUTER_API_KEY", "ORCA_ROUTER_API_KEY", "ORCA_API_KEY"]
+        );
+    }
 }

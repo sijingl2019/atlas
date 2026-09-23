@@ -138,7 +138,10 @@ pub async fn terminal_create(
                 continue;
             }
             last_probe = Instant::now();
-            if let Some(raw) = probe.as_ref().and_then(atlas_terminal::TtyModeProbe::is_raw) {
+            if let Some(raw) = probe
+                .as_ref()
+                .and_then(atlas_terminal::TtyModeProbe::is_raw)
+            {
                 if last_raw != Some(raw) {
                     last_raw = Some(raw);
                     let _ = app_handle.emit(
@@ -204,7 +207,9 @@ pub async fn terminal_write_text(
     text: String,
 ) -> Result<(), String> {
     let manager = state.manager.lock().await;
-    manager.write(&id, text.as_bytes()).map_err(|e| e.to_string())
+    manager
+        .write(&id, text.as_bytes())
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -228,10 +233,7 @@ pub async fn terminal_kill_foreground(
 }
 
 #[tauri::command]
-pub async fn terminal_close(
-    state: State<'_, TerminalState>,
-    id: String,
-) -> Result<(), String> {
+pub async fn terminal_close(state: State<'_, TerminalState>, id: String) -> Result<(), String> {
     {
         let mut manager = state.manager.lock().await;
         manager.close(&id);
@@ -412,20 +414,25 @@ pub async fn terminal_list_commands() -> Result<Vec<String>, String> {
 }
 
 const SHELL_BUILTINS: &[&str] = &[
-    "cd", "pwd", "echo", "export", "alias", "unalias", "source", ".", "exit", "history",
-    "jobs", "fg", "bg", "kill", "set", "unset", "which", "type", "clear", "pushd", "popd",
-    "dirs", "read", "trap", "wait", "umask", "let", "local", "return", "eval", "exec", "time",
+    "cd", "pwd", "echo", "export", "alias", "unalias", "source", ".", "exit", "history", "jobs",
+    "fg", "bg", "kill", "set", "unset", "which", "type", "clear", "pushd", "popd", "dirs", "read",
+    "trap", "wait", "umask", "let", "local", "return", "eval", "exec", "time",
 ];
 
 fn scan_commands() -> Vec<String> {
     use std::collections::BTreeSet;
-    let mut set: BTreeSet<String> = SHELL_BUILTINS.iter().map(std::string::ToString::to_string).collect();
+    let mut set: BTreeSet<String> = SHELL_BUILTINS
+        .iter()
+        .map(std::string::ToString::to_string)
+        .collect();
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         if let Ok(path) = std::env::var("PATH") {
             for dir in path.split(':').filter(|d| !d.is_empty()) {
-                let Ok(read) = std::fs::read_dir(dir) else { continue };
+                let Ok(read) = std::fs::read_dir(dir) else {
+                    continue;
+                };
                 for entry in read {
                     let Ok(entry) = entry else { continue };
                     let Ok(meta) = entry.metadata() else { continue };

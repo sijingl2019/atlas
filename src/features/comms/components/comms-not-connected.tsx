@@ -1,10 +1,10 @@
-﻿import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useSettingsStore } from "@/features/settings/stores/settings-store";
 import { Loader2, MessageCircle, Rss } from "lucide-react";
 import { useAuthStore } from "@/features/auth/stores/auth-store";
 import { useOrgStore } from "@/features/organisations/stores/org-store";
+import { themeDerived } from "@/features/theme/theme-values";
 import type { Organisation } from "@/features/organisations/types";
-import { useProjectStore } from "@/features/project/stores/project-store";
-import { inkRgb, useResolvedMode } from "@/features/theme/mode";
 
 /**
  * What the chat panel shows when the active organisation is local-only.
@@ -23,7 +23,7 @@ export function CommsNotConnected({ org }: { org: Organisation | null }) {
   const { enableSync } = useOrgStore.use.actions();
   // Master switch: with personal sync off there is nothing to connect to, so
   // the one action this screen offers would contradict the setting.
-  const personalSync = useProjectStore((s) => s.settings.personalSync);
+  const personalSync = useSettingsStore((s) => s.settings.personalSync);
   const [syncing, setSyncing] = useState(false);
 
   const connect = () => {
@@ -41,17 +41,17 @@ export function CommsNotConnected({ org }: { org: Organisation | null }) {
   return (
     <div className="relative flex min-w-0 flex-1 flex-col items-center justify-center gap-2.5 overflow-hidden px-8 text-center">
       <DitherBackdrop />
-      <span className="relative flex h-9 w-9 items-center justify-center rounded-full bg-bg-elevated text-text-secondary">
+      <span className="relative flex h-9 w-9 items-center justify-center rounded-full bg-card text-secondary-foreground">
         <MessageCircle size={16} />
       </span>
       {/* Text hierarchy is one rung brighter than the chrome's default. This is
-          the only content on the panel, so `--text-ghost` (#333) — the rung for
+          the only content on the panel, so `--atlas-text-disabled` — the dim rung for
           decoration and disabled state — left the one explanation unreadable
           against the near-black surface. */}
-      <div className="relative text-[12px] font-medium text-text-primary">
+      <div className="relative text-sm font-medium text-foreground">
         {org ? `${org.name} isn't connected` : "No organisation selected"}
       </div>
-      <p className="relative max-w-[220px] text-[11px] leading-relaxed text-text-secondary">
+      <p className="relative max-w-[220px] text-xs leading-relaxed text-secondary-foreground">
         {!org
           ? "Select an organisation to use team chat."
           : personalSync
@@ -68,7 +68,7 @@ export function CommsNotConnected({ org }: { org: Organisation | null }) {
           // one element — the vibrant-panel rule bans transform ANIMATION near
           // blur, not a still frosted control (the drop overlay already blurs
           // inside this panel).
-          className="relative mt-1 flex h-[30px] items-center gap-1.5 rounded-full border border-contrast/15 bg-contrast/10 px-4 text-[11.5px] font-medium text-text-primary shadow-[inset_0_1px_0_color-mix(in_srgb,var(--contrast)_12%,transparent)] backdrop-blur-md transition-colors hover:bg-contrast/15 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
+          className="relative mt-1 flex h-control-lg items-center gap-1.5 rounded-full border border-border-strong bg-[var(--atlas-element-active)] px-4 text-sm font-medium text-foreground inset-highlight backdrop-blur-md transition-colors hover:bg-[var(--atlas-element-emphasis)] disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
         >
           {syncing ? (
             <Loader2 size={12} className="shrink-0 animate-spin" />
@@ -101,9 +101,6 @@ export function CommsNotConnected({ org }: { org: Organisation | null }) {
  */
 function DitherBackdrop() {
   const ref = useRef<HTMLCanvasElement>(null);
-  // The ink is read per draw, but the loop parks while the tab is hidden, so
-  // an appearance flip has to redraw the field itself.
-  const themeMode = useResolvedMode();
 
   useEffect(() => {
     const canvas = ref.current;
@@ -129,7 +126,19 @@ function DitherBackdrop() {
       if (!ctx) return;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, w, h);
-      ctx.fillStyle = `rgba(${inkRgb()},0.16)`;
+      // A canvas takes a colour as a VALUE, so it cannot name the variable and
+      // has to read the resolved one. `element.emphasis` is the theme's own
+      // foreground at 16% — identical to the white it used to hardcode on a
+      // dark theme, and an equally visible dark speckle on a light one, where
+      // hardcoded white was invisible.
+      //
+      // theme-subscription-allow: re-read on every frame rather than cached at
+      // construction, and this loop never parks except while the document is
+      // hidden — so a switch lands within one 80ms step with nothing to
+      // subscribe to. (`dither-field` looks identical but DOES park, under
+      // `prefers-reduced-motion`, which is why that one takes `useThemeVersion`
+      // as an effect dependency.)
+      ctx.fillStyle = themeDerived("element.emphasis");
 
       // Wind: mostly sideways, a little lift, plus a slow phase evolution so
       // shapes morph rather than only translate.
@@ -199,7 +208,7 @@ function DitherBackdrop() {
       document.removeEventListener("visibilitychange", onVisibility);
       ro?.disconnect();
     };
-  }, [themeMode]);
+  }, []);
 
   return (
     <canvas ref={ref} aria-hidden className="pointer-events-none absolute inset-0 h-full w-full" />

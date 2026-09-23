@@ -160,7 +160,9 @@ impl Harness {
 }
 
 fn lock(thread: &AcpThreadHandle) -> std::sync::MutexGuard<'_, AcpThread> {
-    thread.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+    thread
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 fn text_chunk(text: &str) -> serde_json::Value {
@@ -556,7 +558,9 @@ async fn rate_limits_are_announced_once_per_change() {
     lock(&harness.thread).update_rate_limits(Some(limits.clone()));
     harness.expect(1);
     match &harness.recorder.deltas()[0] {
-        SessionDelta::RateLimits { primary, plan_type, .. } => {
+        SessionDelta::RateLimits {
+            primary, plan_type, ..
+        } => {
             assert_eq!(primary.as_ref().map(|w| w.used_percent), Some(40));
             assert_eq!(plan_type.as_deref(), Some("plus"));
         }
@@ -564,7 +568,11 @@ async fn rate_limits_are_announced_once_per_change() {
     }
 
     lock(&harness.thread).update_rate_limits(Some(limits.clone()));
-    assert_eq!(harness.recorder.kinds().len(), 1, "an unchanged snapshot is silence");
+    assert_eq!(
+        harness.recorder.kinds().len(),
+        1,
+        "an unchanged snapshot is silence"
+    );
 
     let mut moved = limits;
     moved.primary.as_mut().expect("primary").used_percent = 55;
@@ -590,9 +598,11 @@ async fn a_cache_only_turn_still_counts_as_a_split() {
 async fn the_host_announces_what_the_thread_cannot() {
     let harness = Harness::start();
 
-    harness
-        .projector
-        .note_turn_failed(&harness.session_id, "the model refused", Some("auth".into()));
+    harness.projector.note_turn_failed(
+        &harness.session_id,
+        "the model refused",
+        Some("auth".into()),
+    );
     harness
         .projector
         .note_model_changed(&harness.session_id, "anthropic/claude");
@@ -734,8 +744,7 @@ fn a_snapshot_carries_the_whole_conversation_including_the_user() {
     }));
 
     let thread = lock(&harness.thread);
-    let messages =
-        atlas_agent_delta::project::snapshot_messages(&thread, Some("claude-opus-5"));
+    let messages = atlas_agent_delta::project::snapshot_messages(&thread, Some("claude-opus-5"));
     drop(thread);
 
     let shape: Vec<(&str, &str)> = messages
@@ -853,7 +862,10 @@ async fn create_terminal(harness: &Harness, terminal_id: &str, args: &[&str]) {
     let terminal = std::sync::Arc::new(
         atlas_terminal::command::CommandTerminal::spawn(
             echo_binary(),
-            &args.iter().map(std::string::ToString::to_string).collect::<Vec<_>>(),
+            &args
+                .iter()
+                .map(std::string::ToString::to_string)
+                .collect::<Vec<_>>(),
             &[],
             None,
             4096,
@@ -1044,7 +1056,10 @@ async fn a_prompt_the_agent_abandoned_before_the_drain_is_still_announced_then_r
         resolved_at.is_some(),
         "and must be resolved so no pill is left open: {kinds:?}"
     );
-    assert!(request_at < resolved_at, "announced before resolved: {kinds:?}");
+    assert!(
+        request_at < resolved_at,
+        "announced before resolved: {kinds:?}"
+    );
 }
 
 /// #32 — the authoritative echo of a config-option set is the RESPONSE, not a
@@ -1354,7 +1369,10 @@ async fn a_first_empty_plan_still_says_nothing() {
     harness.pump();
 
     assert!(
-        !harness.recorder.kinds().contains(&"plan_updated".to_string()),
+        !harness
+            .recorder
+            .kinds()
+            .contains(&"plan_updated".to_string()),
         "an empty plan nobody had announced produced a delta: {:?}",
         harness.recorder.kinds()
     );

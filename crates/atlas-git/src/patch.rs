@@ -77,7 +77,11 @@ pub fn parse_file_diff(text: &str) -> Option<FilePatch> {
     if header.is_empty() && hunks.is_empty() {
         return None;
     }
-    Some(FilePatch { header, hunks, binary })
+    Some(FilePatch {
+        header,
+        hunks,
+        binary,
+    })
 }
 
 /// `-l[,s] +l[,s] @@[ heading]`
@@ -127,17 +131,31 @@ pub fn hunk_signature(h: &Hunk) -> Vec<(u8, &str)> {
 /// Find the hunk in `fresh` whose content matches `displayed_body` — the
 /// body the UI showed, one `(marker, content)` per line in order, markers
 /// being `' '`, `'+'`, `'-'` (no-newline markers omitted).
-pub fn find_matching_hunk(
-    fresh: &FilePatch,
-    displayed_body: &[(u8, String)],
-) -> Option<usize> {
-    let want: Vec<(u8, &str)> = displayed_body.iter().map(|(m, c)| (*m, c.as_str())).collect();
+pub fn find_matching_hunk(fresh: &FilePatch, displayed_body: &[(u8, String)]) -> Option<usize> {
+    let want: Vec<(u8, &str)> = displayed_body
+        .iter()
+        .map(|(m, c)| (*m, c.as_str()))
+        .collect();
     fresh.hunks.iter().position(|h| hunk_signature(h) == want)
 }
 
-fn format_hunk_header(old_start: u32, old_count: u32, new_start: u32, new_count: u32, heading: &str) -> String {
-    let old = if old_count == 1 { format!("{old_start}") } else { format!("{old_start},{old_count}") };
-    let new = if new_count == 1 { format!("{new_start}") } else { format!("{new_start},{new_count}") };
+fn format_hunk_header(
+    old_start: u32,
+    old_count: u32,
+    new_start: u32,
+    new_count: u32,
+    heading: &str,
+) -> String {
+    let old = if old_count == 1 {
+        format!("{old_start}")
+    } else {
+        format!("{old_start},{old_count}")
+    };
+    let new = if new_count == 1 {
+        format!("{new_start}")
+    } else {
+        format!("{new_start},{new_count}")
+    };
     if heading.is_empty() {
         format!("@@ -{old} +{new} @@")
     } else {
@@ -349,7 +367,10 @@ diff --git a/g.txt b/g.txt
 
     #[test]
     fn binary_flag() {
-        let d = parse_file_diff("diff --git a/x.png b/x.png\nBinary files a/x.png and b/x.png differ\n").unwrap();
+        let d = parse_file_diff(
+            "diff --git a/x.png b/x.png\nBinary files a/x.png and b/x.png differ\n",
+        )
+        .unwrap();
         assert!(d.binary);
         assert!(d.hunks.is_empty());
     }

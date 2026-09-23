@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
+import { withAlpha } from "@/features/theme/color";
+import { themeBase, useThemeVersion } from "@/features/theme/theme-values";
 import { cn } from "@/lib/utils";
-import { inkRgb, useResolvedMode } from "@/features/theme/mode";
 
 /**
  * A retro ordered-dither noise field that drifts like slow cloud cover — the
@@ -17,7 +18,13 @@ import { inkRgb, useResolvedMode } from "@/features/theme/mode";
  * layer sees a still element. Parks while the tab is hidden, while the
  * element is off screen, and entirely under prefers-reduced-motion (one
  * still frame). A 4×4 Bayer threshold turns intensity into density, and a
- * radial hollow keeps the middle calm so copy sits on the base.
+ * radial hollow keeps the middle calm so copy sits on black.
+ *
+ * The ink is the theme's `foreground`, read as a RESOLVED value rather than a
+ * `var()`: a canvas cannot resolve a custom property. It used to be a hardcoded
+ * white, which made the chat welcome's hero art invisible on any light theme. The
+ * effect takes `useThemeVersion()` as a dependency, so a live theme switch tears
+ * the loop down and repaints in the new ink.
  */
 export function DitherField({
   mode = "glyphs",
@@ -40,9 +47,7 @@ export function DitherField({
   const ref = useRef<HTMLCanvasElement>(null);
   const hollowStart = hollow?.[0];
   const hollowSpan = hollow?.[1];
-  // The ink is read per draw, but under prefers-reduced-motion there is only
-  // ever one draw — so an appearance flip has to redraw the field itself.
-  const themeMode = useResolvedMode();
+  const themeVersion = useThemeVersion();
 
   useEffect(() => {
     const canvas = ref.current;
@@ -102,12 +107,10 @@ export function DitherField({
       const maxR = Math.hypot(cx, cy);
       // Landing parity: 0.3 for glyphs, 0.16 for dots (`landing/index.html`).
       const alpha = Math.min(1, (mode === "glyphs" ? 0.3 : 0.16) * ink);
+      ctx.fillStyle = withAlpha(themeBase("foreground"), alpha);
       if (mode === "glyphs") {
         ctx.font = "11px ui-monospace, SFMono-Regular, Menlo, monospace";
         ctx.textBaseline = "top";
-        ctx.fillStyle = `rgba(${inkRgb()},${alpha})`;
-      } else {
-        ctx.fillStyle = `rgba(${inkRgb()},${alpha})`;
       }
       for (let gy = 0; gy < h / CELL; gy++) {
         for (let gx = 0; gx < w / CELL; gx++) {
@@ -167,7 +170,7 @@ export function DitherField({
       io.disconnect();
       ro.disconnect();
     };
-  }, [mode, hollowStart, hollowSpan, ink, themeMode]);
+  }, [mode, hollowStart, hollowSpan, ink, themeVersion]);
 
   return (
     <canvas

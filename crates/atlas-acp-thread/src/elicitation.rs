@@ -151,9 +151,9 @@ impl ElicitationStore {
         events: Option<EventSink<E>>,
         responded: impl FnOnce(ElicitationEntryId) -> E + Send + 'static,
     ) -> acp::CreateElicitationResponse {
-        let response = response_rx
-            .await
-            .unwrap_or_else(|_| acp::CreateElicitationResponse::new(acp::ElicitationAction::Cancel));
+        let response = response_rx.await.unwrap_or_else(|_| {
+            acp::CreateElicitationResponse::new(acp::ElicitationAction::Cancel)
+        });
         if let Some(events) = events {
             let _ = events.send(responded(id));
         }

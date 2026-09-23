@@ -1,5 +1,5 @@
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from "react";
-import { useProjectStore } from "@/features/project/stores/project-store";
+import { useAppStore } from "@/features/app/stores/app-store";
 import { terminalSessions } from "../lib/terminal-session";
 import { useTerminalStore } from "../stores/terminal-store";
 import type { BlockTerminalProps } from "./block-terminal";
@@ -21,7 +21,7 @@ export const ClassicTerminal = memo(function ClassicTerminal({
     () =>
       terminalSessions.acquire(terminalKey, {
         tabId,
-        cwd: useProjectStore.getState().currentProject?.path ?? "~",
+        cwd: useAppStore.getState().currentProject?.path ?? "~",
       }),
     [terminalKey, tabId],
   );
@@ -69,7 +69,7 @@ export const ClassicTerminal = memo(function ClassicTerminal({
 
   return (
     <div
-      className="relative h-full w-full bg-[var(--term-bg,#000)] px-2 py-1"
+      className="relative h-full w-full bg-[var(--atlas-terminal-background)] px-2 py-1"
       onClick={() => {
         onFocus();
         session.focusXterm();

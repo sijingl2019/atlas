@@ -18,6 +18,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
 use super::backoff::{Backoff, BASE, CEILING};
+use super::config::resolve_auth_base;
 use super::core::AuthFailure;
 use super::*;
 
@@ -170,7 +171,9 @@ impl Stub {
                 let handle = Arc::clone(&handle);
                 tokio::spawn(async move {
                     let mut buf = vec![0u8; 8192];
-                    let Ok(n) = sock.read(&mut buf).await else { return };
+                    let Ok(n) = sock.read(&mut buf).await else {
+                        return;
+                    };
                     let req = String::from_utf8_lossy(&buf[..n]).to_string();
                     let path = req
                         .lines()
@@ -182,7 +185,10 @@ impl Stub {
                     let reply = {
                         let mut s = handle.lock().unwrap();
                         *s.hits.entry(path.clone()).or_insert(0) += 1;
-                        s.seen.entry(path.clone()).or_default().push(Seen::parse(&req));
+                        s.seen
+                            .entry(path.clone())
+                            .or_default()
+                            .push(Seen::parse(&req));
                         let queue = s.replies.get_mut(&path);
                         match queue {
                             Some(q) if q.len() > 1 => q.remove(0),
@@ -222,16 +228,32 @@ impl Stub {
     }
 
     fn on(&self, path: &str, replies: Vec<Reply>) {
-        self.script.lock().unwrap().replies.insert(path.into(), replies);
+        self.script
+            .lock()
+            .unwrap()
+            .replies
+            .insert(path.into(), replies);
     }
 
     fn hits(&self, path: &str) -> u32 {
-        self.script.lock().unwrap().hits.get(path).copied().unwrap_or(0)
+        self.script
+            .lock()
+            .unwrap()
+            .hits
+            .get(path)
+            .copied()
+            .unwrap_or(0)
     }
 
     /// Every request the stub received for a path, in order.
     fn seen(&self, path: &str) -> Vec<Seen> {
-        self.script.lock().unwrap().seen.get(path).cloned().unwrap_or_default()
+        self.script
+            .lock()
+            .unwrap()
+            .seen
+            .get(path)
+            .cloned()
+            .unwrap_or_default()
     }
 
     /// A grant that is immediately pollable, with no artificial delay.
@@ -382,18 +404,24 @@ const PIXELS: &str = "not-really-a-png-but-nothing-here-decodes-it";
 
 #[test]
 fn auth_base_prefers_the_environment_and_trims_slashes() {
-    // Serialised implicitly: this is the only test touching the process env.
-    std::env::set_var("ATLAS_AUTH_URL", "http://localhost:8787/api/auth/");
-    assert_eq!(auth_base(), "http://localhost:8787/api/auth");
-
-    std::env::set_var("ATLAS_AUTH_URL", "   ");
-    assert!(
-        auth_base().starts_with("https://"),
-        "a blank override must fall through to the built-in default"
+    let staging = Some("https://staging.example/api/auth");
+    assert_eq!(
+        resolve_auth_base(Some("http://localhost:8787/api/auth/"), staging),
+        "http://localhost:8787/api/auth"
     );
-
-    std::env::remove_var("ATLAS_AUTH_URL");
-    assert_eq!(auth_base(), "https://auth.tryatlas.cc/api/auth");
+    assert_eq!(
+        resolve_auth_base(Some("   "), staging),
+        "https://staging.example/api/auth",
+        "a blank override falls through to the next rung"
+    );
+    assert_eq!(
+        resolve_auth_base(None, staging),
+        "https://staging.example/api/auth"
+    );
+    assert_eq!(
+        resolve_auth_base(None, None),
+        "https://auth.tryatlas.cc/api/auth"
+    );
 }
 
 // ----------------------------------------------------------------- storage
@@ -435,7 +463,11 @@ async fn the_credential_file_is_owner_only() {
         .unwrap()
         .permissions()
         .mode();
-    assert_eq!(mode & 0o777, 0o600, "credential must not be group/world readable");
+    assert_eq!(
+        mode & 0o777,
+        0o600,
+        "credential must not be group/world readable"
+    );
 }
 
 #[tokio::test]
@@ -444,7 +476,10 @@ async fn clearing_is_idempotent_and_returns_to_signed_out() {
     let dir = TempDir::new();
     let auth = core(&stub, &dir);
 
-    assert!(auth.clear_session().is_ok(), "clearing when absent must succeed");
+    assert!(
+        auth.clear_session().is_ok(),
+        "clearing when absent must succeed"
+    );
     stub.grant_ready(600);
     stub.on("/device/token", vec![Reply::ok(TOKEN_OK)]);
     let grant = auth.start_grant().await.unwrap();
@@ -498,7 +533,9 @@ async fn a_transient_failure_does_not_discard_an_approval() {
 
     let auth = core(&stub, &dir);
     let grant = auth.start_grant().await.unwrap();
-    auth.run_grant(&grant).await.expect("transient errors must not end the grant");
+    auth.run_grant(&grant)
+        .await
+        .expect("transient errors must not end the grant");
     assert!(signed_in(&auth.snapshot()));
 }
 
@@ -509,13 +546,18 @@ async fn slow_down_backs_off_and_keeps_going() {
     stub.grant_ready(600);
     stub.on(
         "/device/token",
-        vec![Reply::err(400, r#"{"error":"slow_down"}"#), Reply::ok(TOKEN_OK)],
+        vec![
+            Reply::err(400, r#"{"error":"slow_down"}"#),
+            Reply::ok(TOKEN_OK),
+        ],
     );
 
     let auth = core(&stub, &dir);
     let grant = auth.start_grant().await.unwrap();
     let started = std::time::Instant::now();
-    auth.run_grant(&grant).await.expect("slow_down is not terminal");
+    auth.run_grant(&grant)
+        .await
+        .expect("slow_down is not terminal");
 
     assert!(
         started.elapsed() >= Duration::from_secs(5),
@@ -529,7 +571,10 @@ async fn denial_is_terminal_and_stores_nothing() {
     let stub = Stub::start().await;
     let dir = TempDir::new();
     stub.grant_ready(600);
-    stub.on("/device/token", vec![Reply::err(400, r#"{"error":"access_denied"}"#)]);
+    stub.on(
+        "/device/token",
+        vec![Reply::err(400, r#"{"error":"access_denied"}"#)],
+    );
 
     let auth = core(&stub, &dir);
     let grant = auth.start_grant().await.unwrap();
@@ -542,7 +587,10 @@ async fn a_server_expired_code_is_terminal() {
     let stub = Stub::start().await;
     let dir = TempDir::new();
     stub.grant_ready(600);
-    stub.on("/device/token", vec![Reply::err(400, r#"{"error":"expired_token"}"#)]);
+    stub.on(
+        "/device/token",
+        vec![Reply::err(400, r#"{"error":"expired_token"}"#)],
+    );
 
     let auth = core(&stub, &dir);
     let grant = auth.start_grant().await.unwrap();
@@ -555,7 +603,10 @@ async fn the_local_deadline_ends_a_grant_the_server_never_finishes() {
     let stub = Stub::start().await;
     let dir = TempDir::new();
     stub.grant_ready(1); // expires almost immediately
-    stub.on("/device/token", vec![Reply::err(400, r#"{"error":"authorization_pending"}"#)]);
+    stub.on(
+        "/device/token",
+        vec![Reply::err(400, r#"{"error":"authorization_pending"}"#)],
+    );
 
     let auth = core(&stub, &dir);
     let grant = auth.start_grant().await.unwrap();
@@ -568,7 +619,10 @@ async fn cancelling_ends_the_grant_and_stops_polling() {
     let stub = Stub::start().await;
     let dir = TempDir::new();
     stub.grant_ready(600);
-    stub.on("/device/token", vec![Reply::err(400, r#"{"error":"authorization_pending"}"#)]);
+    stub.on(
+        "/device/token",
+        vec![Reply::err(400, r#"{"error":"authorization_pending"}"#)],
+    );
 
     let auth = Arc::new(core(&stub, &dir));
     let grant = auth.start_grant().await.unwrap();
@@ -588,7 +642,11 @@ async fn cancelling_ends_the_grant_and_stops_polling() {
     // Nothing keeps polling after cancellation.
     let after = stub.hits("/device/token");
     tokio::time::sleep(Duration::from_millis(250)).await;
-    assert_eq!(stub.hits("/device/token"), after, "poll loop must be stopped");
+    assert_eq!(
+        stub.hits("/device/token"),
+        after,
+        "poll loop must be stopped"
+    );
 }
 
 #[tokio::test]
@@ -598,7 +656,10 @@ async fn a_second_start_resumes_the_same_grant_instead_of_minting_another() {
     let stub = Stub::start().await;
     let dir = TempDir::new();
     stub.grant_ready(600);
-    stub.on("/device/token", vec![Reply::err(400, r#"{"error":"authorization_pending"}"#)]);
+    stub.on(
+        "/device/token",
+        vec![Reply::err(400, r#"{"error":"authorization_pending"}"#)],
+    );
 
     let auth = core(&stub, &dir);
     let first = auth.start_grant().await.unwrap();
@@ -606,7 +667,11 @@ async fn a_second_start_resumes_the_same_grant_instead_of_minting_another() {
 
     assert_eq!(first.user_code, second.user_code);
     assert_eq!(first.device_code, second.device_code);
-    assert_eq!(stub.hits("/device/code"), 1, "must not mint a competing code");
+    assert_eq!(
+        stub.hits("/device/code"),
+        1,
+        "must not mint a competing code"
+    );
 }
 
 #[tokio::test]
@@ -645,7 +710,11 @@ async fn the_connecting_snapshot_exposes_the_code_but_never_the_secret() {
     let grant = auth.start_grant().await.unwrap();
 
     match auth.snapshot() {
-        AuthSnapshot::Connecting { user_code, verification_uri, .. } => {
+        AuthSnapshot::Connecting {
+            user_code,
+            verification_uri,
+            ..
+        } => {
             assert_eq!(user_code, "ABCD-1234");
             // The PLAIN url, for manual entry. The pre-filled variant is used
             // to open the browser from Rust and never needs to cross over.
@@ -668,7 +737,10 @@ async fn an_unreachable_server_fails_to_start_without_leaking_the_url() {
 
     match auth.start_grant().await {
         Err(GrantError::Start(msg)) => {
-            assert!(!msg.contains("127.0.0.1:1"), "error text must not carry the URL");
+            assert!(
+                !msg.contains("127.0.0.1:1"),
+                "error text must not carry the URL"
+            );
         }
         other => panic!("expected a start failure, got {other:?}"),
     }
@@ -763,7 +835,10 @@ async fn a_server_error_never_costs_the_credential() {
         auth.validate_once().await,
         Validation::Indeterminate { retry_after: None }
     );
-    assert!(auth.stored().is_some(), "an outage says nothing about the session");
+    assert!(
+        auth.stored().is_some(),
+        "an outage says nothing about the session"
+    );
     assert_eq!(user_of(&auth.snapshot()).name, "Ada Lovelace");
 }
 
@@ -789,7 +864,10 @@ async fn an_offline_launch_renders_a_fully_populated_signed_in_state() {
     let dir = TempDir::new();
     scripted_grant(&stub);
     stub.profile("Ada Lovelace", Some(&stub.url("/photo.png")));
-    stub.on("/photo.png", vec![Reply::with_content_type("image/png", PIXELS)]);
+    stub.on(
+        "/photo.png",
+        vec![Reply::with_content_type("image/png", PIXELS)],
+    );
 
     let auth = core(&stub, &dir);
     sign_in(&auth).await;
@@ -802,7 +880,10 @@ async fn an_offline_launch_renders_a_fully_populated_signed_in_state() {
     offline.validate_once().await;
     let after = user_of(&offline.snapshot());
     assert_eq!(after, known, "a failed validation must change nothing");
-    assert!(after.avatar_path.is_some(), "the cached photo is the whole point");
+    assert!(
+        after.avatar_path.is_some(),
+        "the cached photo is the whole point"
+    );
     assert!(!after.name.is_empty());
 }
 
@@ -837,16 +918,27 @@ async fn two_failures_then_a_success_end_signed_in_with_no_user_action() {
 
     stub.on(
         "/token",
-        vec![Reply::err(503, "down"), Reply::err(500, "down"), Reply::ok(JWT_OK)],
+        vec![
+            Reply::err(503, "down"),
+            Reply::err(500, "down"),
+            Reply::ok(JWT_OK),
+        ],
     );
 
     let mut settled_with = None;
     assert_eq!(
-        auth.revalidate(|snapshot| settled_with = Some(snapshot)).await,
+        auth.revalidate(|snapshot| settled_with = Some(snapshot))
+            .await,
         Validation::Confirmed
     );
-    assert!(signed_in(&settled_with.expect("the loop must report once, at the end")));
-    assert_eq!(stub.hits("/token"), 3, "it kept trying without being asked to");
+    assert!(signed_in(
+        &settled_with.expect("the loop must report once, at the end")
+    ));
+    assert_eq!(
+        stub.hits("/token"),
+        3,
+        "it kept trying without being asked to"
+    );
 }
 
 #[tokio::test]
@@ -886,7 +978,10 @@ fn backoff_grows_and_is_bounded() {
 
     for attempt in 0..40 {
         let delay = schedule.next();
-        assert!(delay <= CEILING, "attempt {attempt} exceeded the ceiling: {delay:?}");
+        assert!(
+            delay <= CEILING,
+            "attempt {attempt} exceeded the ceiling: {delay:?}"
+        );
         // Each delay is drawn from [cap/2, cap] and cap doubles, so the lowest
         // a delay can be is the highest the previous one could have been.
         // Growth therefore holds without depending on the jitter — until the
@@ -919,7 +1014,10 @@ fn a_hostile_retry_after_cannot_escape_the_window() {
         BASE,
         "a zero must not turn the loop into a spin against a server asking for quiet"
     );
-    assert_eq!(schedule.next_after(Some(Duration::from_secs(30))), Duration::from_secs(30));
+    assert_eq!(
+        schedule.next_after(Some(Duration::from_secs(30))),
+        Duration::from_secs(30)
+    );
 }
 
 // ---------------------------------------------------------------- identity
@@ -963,7 +1061,10 @@ async fn the_identity_snapshot_is_written_on_sign_in_and_survives_a_restart() {
     let dir = TempDir::new();
     scripted_grant(&stub);
     stub.profile("Ada Lovelace", Some(&stub.url("/photo.png")));
-    stub.on("/photo.png", vec![Reply::with_content_type("image/png", PIXELS)]);
+    stub.on(
+        "/photo.png",
+        vec![Reply::with_content_type("image/png", PIXELS)],
+    );
 
     let auth = core(&stub, &dir);
     sign_in(&auth).await;
@@ -993,7 +1094,10 @@ async fn a_photo_that_has_not_changed_is_never_fetched_again() {
     let dir = TempDir::new();
     scripted_grant(&stub);
     stub.profile("Ada Lovelace", Some(&stub.url("/photo.png")));
-    stub.on("/photo.png", vec![Reply::with_content_type("image/png", PIXELS)]);
+    stub.on(
+        "/photo.png",
+        vec![Reply::with_content_type("image/png", PIXELS)],
+    );
 
     let auth = core(&stub, &dir);
     sign_in(&auth).await;
@@ -1003,7 +1107,11 @@ async fn a_photo_that_has_not_changed_is_never_fetched_again() {
     let relaunched = core(&stub, &dir);
     let snapshot = validated(&relaunched).await;
 
-    assert_eq!(stub.hits("/photo.png"), 1, "a relaunch must reuse the cache");
+    assert_eq!(
+        stub.hits("/photo.png"),
+        1,
+        "a relaunch must reuse the cache"
+    );
     assert_eq!(user_of(&snapshot).avatar_path, first);
     assert!(
         stub.hits("/get-session") >= 2,
@@ -1017,7 +1125,10 @@ async fn a_changed_photo_url_re_fetches_and_drops_the_old_file() {
     let dir = TempDir::new();
     scripted_grant(&stub);
     stub.profile("Ada Lovelace", Some(&stub.url("/photo.png")));
-    stub.on("/photo.png", vec![Reply::with_content_type("image/png", PIXELS)]);
+    stub.on(
+        "/photo.png",
+        vec![Reply::with_content_type("image/png", PIXELS)],
+    );
 
     let auth = core(&stub, &dir);
     sign_in(&auth).await;
@@ -1025,15 +1136,25 @@ async fn a_changed_photo_url_re_fetches_and_drops_the_old_file() {
 
     // The user changed their photo; the provider hands back a new URL.
     stub.profile("Ada Lovelace", Some(&stub.url("/photo-v2.png")));
-    stub.on("/photo-v2.png", vec![Reply::with_content_type("image/png", "new-pixels")]);
+    stub.on(
+        "/photo-v2.png",
+        vec![Reply::with_content_type("image/png", "new-pixels")],
+    );
 
     let snapshot = validated(&core(&stub, &dir)).await;
     let new = user_of(&snapshot).avatar_path.expect("second photo");
 
     assert_eq!(stub.hits("/photo-v2.png"), 1, "a changed URL must re-fetch");
-    assert_ne!(new, old, "a new photo must land at a new path, or the webview caches the old face");
+    assert_ne!(
+        new, old,
+        "a new photo must land at a new path, or the webview caches the old face"
+    );
     assert_eq!(std::fs::read_to_string(&new).unwrap(), "new-pixels");
-    assert_eq!(cached_avatars(&dir).len(), 1, "the superseded file must not linger");
+    assert_eq!(
+        cached_avatars(&dir).len(),
+        1,
+        "the superseded file must not linger"
+    );
 }
 
 #[tokio::test]
@@ -1046,7 +1167,10 @@ async fn a_failed_re_fetch_keeps_the_photo_it_already_had() {
     let dir = TempDir::new();
     scripted_grant(&stub);
     stub.profile("Ada Lovelace", Some(&stub.url("/photo.png")));
-    stub.on("/photo.png", vec![Reply::with_content_type("image/png", PIXELS)]);
+    stub.on(
+        "/photo.png",
+        vec![Reply::with_content_type("image/png", PIXELS)],
+    );
 
     let auth = core(&stub, &dir);
     sign_in(&auth).await;
@@ -1077,7 +1201,11 @@ async fn a_failed_re_fetch_keeps_the_photo_it_already_had() {
     let new = user_of(&recovered).avatar_path.expect("second photo");
     assert_ne!(new, known_good, "the retry must land the new photo");
     assert_eq!(std::fs::read_to_string(&new).unwrap(), "new-pixels");
-    assert_eq!(cached_avatars(&dir).len(), 1, "and only then drop the old one");
+    assert_eq!(
+        cached_avatars(&dir).len(),
+        1,
+        "and only then drop the old one"
+    );
 }
 
 #[tokio::test]
@@ -1093,13 +1221,22 @@ async fn a_photo_that_fails_to_fetch_falls_back_without_blocking_sign_in() {
 
     let user = user_of(&auth.snapshot());
     assert_eq!(user.avatar_path, None, "a failed fetch renders as initials");
-    assert_eq!(user.name, "Ada Lovelace", "and must not cost the rest of the identity");
+    assert_eq!(
+        user.name, "Ada Lovelace",
+        "and must not cost the rest of the identity"
+    );
     assert!(auth.stored().is_some(), "least of all the credential");
-    assert!(cached_avatars(&dir).is_empty(), "nothing half-written on disk");
+    assert!(
+        cached_avatars(&dir).is_empty(),
+        "nothing half-written on disk"
+    );
 
     // Self-healing: the recorded URL matches but no file exists, so the next
     // launch tries again rather than treating the failure as permanent.
-    stub.on("/gone.png", vec![Reply::with_content_type("image/png", PIXELS)]);
+    stub.on(
+        "/gone.png",
+        vec![Reply::with_content_type("image/png", PIXELS)],
+    );
     let snapshot = validated(&core(&stub, &dir)).await;
     assert!(
         user_of(&snapshot).avatar_path.is_some(),
@@ -1115,7 +1252,10 @@ async fn an_oversized_photo_is_refused_however_the_length_is_declared() {
 
     scripted_grant(&stub);
     stub.profile("Ada Lovelace", Some(&stub.url("/huge.png")));
-    stub.on("/huge.png", vec![Reply::with_content_type("image/png", &huge)]);
+    stub.on(
+        "/huge.png",
+        vec![Reply::with_content_type("image/png", &huge)],
+    );
 
     let auth = core(&stub, &dir);
     sign_in(&auth).await;
@@ -1159,7 +1299,10 @@ async fn a_response_that_is_not_an_image_is_never_written_to_disk() {
     sign_in(&auth).await;
 
     assert_eq!(user_of(&auth.snapshot()).avatar_path, None);
-    assert!(cached_avatars(&dir).is_empty(), "only image types reach the disk");
+    assert!(
+        cached_avatars(&dir).is_empty(),
+        "only image types reach the disk"
+    );
 }
 
 #[tokio::test]
@@ -1204,7 +1347,10 @@ async fn a_validation_that_fails_keeps_the_last_known_identity() {
     let dir = TempDir::new();
     scripted_grant(&stub);
     stub.profile("Ada Lovelace", Some(&stub.url("/photo.png")));
-    stub.on("/photo.png", vec![Reply::with_content_type("image/png", PIXELS)]);
+    stub.on(
+        "/photo.png",
+        vec![Reply::with_content_type("image/png", PIXELS)],
+    );
 
     let auth = core(&stub, &dir);
     sign_in(&auth).await;
@@ -1222,13 +1368,19 @@ async fn the_signed_in_snapshot_identifies_the_user_and_carries_no_credential() 
     let dir = TempDir::new();
     scripted_grant(&stub);
     stub.profile("Ada Lovelace", Some(&stub.url("/photo.png")));
-    stub.on("/photo.png", vec![Reply::with_content_type("image/png", PIXELS)]);
+    stub.on(
+        "/photo.png",
+        vec![Reply::with_content_type("image/png", PIXELS)],
+    );
 
     let auth = core(&stub, &dir);
     sign_in(&auth).await;
 
     let json = serde_json::to_string(&auth.snapshot()).unwrap();
-    assert!(json.contains("ada@atlas.example"), "identity is what the frontend is for");
+    assert!(
+        json.contains("ada@atlas.example"),
+        "identity is what the frontend is for"
+    );
     assert!(
         !json.contains("session-tok"),
         "the session token must never cross to the frontend"
@@ -1347,7 +1499,10 @@ async fn an_account_in_no_organisation_yields_a_deliberate_empty_state() {
     sign_in(&auth).await;
 
     let snapshot = auth.snapshot();
-    assert!(signed_in(&snapshot), "no organisation is not a failed sign-in");
+    assert!(
+        signed_in(&snapshot),
+        "no organisation is not a failed sign-in"
+    );
     assert_eq!(
         orgs_of(&snapshot),
         Some(Vec::new()),
@@ -1569,7 +1724,11 @@ async fn organisations_that_were_never_fetched_are_unknown_rather_than_none() {
     stub.on("/token", vec![Reply::ok(JWT_OK)]);
     stub.on("/organization/list", vec![Reply::err(500, "boom")]);
     assert_eq!(auth.validate_once().await, Validation::Confirmed);
-    assert_eq!(orgs_of(&auth.snapshot()), None, "still unknown, still silent");
+    assert_eq!(
+        orgs_of(&auth.snapshot()),
+        None,
+        "still unknown, still silent"
+    );
 
     // And is settled the moment one lands.
     stub.org_list(&[("org_1", "Atlas")]);
@@ -1640,12 +1799,16 @@ async fn the_desktop_can_set_the_active_organisation_it_bills() {
 
     // Survives a restart: the choice lives in the credential file.
     let reopened = core(&stub, &dir);
-    assert_eq!(active_org_of(&reopened.snapshot()).as_deref(), Some("org_b"));
+    assert_eq!(
+        active_org_of(&reopened.snapshot()).as_deref(),
+        Some("org_b")
+    );
 
     // Clearing returns billing to the documented fallback (web-set value, else
     // first) — but the SOCKET honours the choice: a local-only org (no server
     // id) has nothing to dial.
-    auth.set_active_org(None).expect("clearing is a valid state");
+    auth.set_active_org(None)
+        .expect("clearing is a valid state");
     assert_eq!(active_org_of(&auth.snapshot()).as_deref(), Some("org_a"));
     assert_eq!(comms_org_of(&auth.snapshot()), None);
 }
@@ -1683,7 +1846,8 @@ async fn an_explicit_choice_survives_an_identity_refresh_none_included() {
     let auth = core(&stub, &dir);
     sign_in(&auth).await;
 
-    auth.set_active_org(Some("org_1".to_string())).expect("switch");
+    auth.set_active_org(Some("org_1".to_string()))
+        .expect("switch");
     stub.profile_active_org("Ada Lovelace", None, Some("org_2"));
     stub.org_list(&[("org_1", "First"), ("org_2", "Chosen")]);
     stub.on("/token", vec![Reply::ok(JWT_OK)]);
@@ -1693,13 +1857,18 @@ async fn an_explicit_choice_survives_an_identity_refresh_none_included() {
 
     // A local-only org: the socket is OFF, and stays off across a refresh
     // even though the web still names org_2.
-    auth.set_active_org(None).expect("clearing is a valid state");
+    auth.set_active_org(None)
+        .expect("clearing is a valid state");
     assert_eq!(comms_org_of(&auth.snapshot()), None);
     stub.profile_active_org("Ada Lovelace", None, Some("org_2"));
     stub.org_list(&[("org_1", "First"), ("org_2", "Chosen")]);
     stub.on("/token", vec![Reply::ok(JWT_OK)]);
     assert_eq!(auth.validate_once().await, Validation::Confirmed);
-    assert_eq!(comms_org_of(&auth.snapshot()), None, "the web's seed must not re-arm");
+    assert_eq!(
+        comms_org_of(&auth.snapshot()),
+        None,
+        "the web's seed must not re-arm"
+    );
     // Billing keeps its documented fallback — list order, since the pinned
     // "none" is honoured over the web's seed there too. The two are allowed
     // to differ: billing needs *some* org, the socket needs the truth.
@@ -1737,7 +1906,8 @@ async fn a_switch_during_a_refresh_is_not_undone() {
         tokio::spawn(async move { auth.validate_once().await })
     };
     tokio::time::sleep(Duration::from_millis(50)).await;
-    auth.set_active_org(Some("org_1".to_string())).expect("switch mid-refresh");
+    auth.set_active_org(Some("org_1".to_string()))
+        .expect("switch mid-refresh");
     assert_eq!(refreshing.await.unwrap(), Validation::Confirmed);
 
     assert_eq!(
@@ -1820,10 +1990,16 @@ fn user_of_opt(snapshot: &AuthSnapshot) -> Option<AccountUser> {
 async fn signed_in_with_a_photo(stub: &Stub, dir: &TempDir) -> AuthCore {
     scripted_grant(stub);
     stub.profile("Ada Lovelace", Some(&stub.url("/photo.png")));
-    stub.on("/photo.png", vec![Reply::with_content_type("image/png", PIXELS)]);
+    stub.on(
+        "/photo.png",
+        vec![Reply::with_content_type("image/png", PIXELS)],
+    );
     let auth = core(stub, dir);
     sign_in(&auth).await;
-    assert!(!cached_avatars(dir).is_empty(), "the photo should be cached");
+    assert!(
+        !cached_avatars(dir).is_empty(),
+        "the photo should be cached"
+    );
     auth
 }
 
@@ -1842,7 +2018,10 @@ async fn signing_out_clears_everything_local_before_the_server_is_told() {
         !dir.path().join("atlas-session.json").exists(),
         "the identity snapshot lives in the credential file and goes with it"
     );
-    assert!(cached_avatars(&dir).is_empty(), "the cached photo must be gone too");
+    assert!(
+        cached_avatars(&dir).is_empty(),
+        "the cached photo must be gone too"
+    );
     assert_eq!(
         stub.hits("/sign-out"),
         0,
@@ -1856,7 +2035,10 @@ async fn signing_out_clears_everything_local_before_the_server_is_told() {
     assert_eq!(relaunched.snapshot(), AuthSnapshot::SignedOut);
     assert_eq!(relaunched.validate_once().await, Validation::NoCredential);
 
-    assert!(auth.revoke(ticket).await, "a 200 is the session confirmed gone");
+    assert!(
+        auth.revoke(ticket).await,
+        "a 200 is the session confirmed gone"
+    );
     assert_eq!(
         stub.seen("/sign-out"),
         vec![Seen {
@@ -1875,13 +2057,19 @@ async fn a_failed_revocation_is_reported_once_and_never_retried() {
     let auth = signed_in_with_a_photo(&stub, &dir).await;
 
     let ticket = auth.sign_out().expect("signed in");
-    assert!(!auth.revoke(ticket).await, "a 500 leaves the server session up");
+    assert!(
+        !auth.revoke(ticket).await,
+        "a 500 leaves the server session up"
+    );
 
     // The local state a retry would protect is already gone, so there is
     // nothing left for a backoff schedule to defend — see `revoke`.
     tokio::time::sleep(Duration::from_millis(150)).await;
     assert_eq!(stub.hits("/sign-out"), 1, "fired once and forgotten");
-    assert!(auth.stored().is_none(), "and the failure never resurrects the credential");
+    assert!(
+        auth.stored().is_none(),
+        "and the failure never resurrects the credential"
+    );
 }
 
 #[tokio::test]

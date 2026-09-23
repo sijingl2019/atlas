@@ -8,11 +8,11 @@
 use std::path::PathBuf;
 
 use agent_client_protocol::schema::v1 as acp;
-use chrono::{TimeZone, Utc};
 use atlas_thread_metadata::{
     LiveThreadUpdate, PathList, ThreadFilter, ThreadId, ThreadMetadata, ThreadMetadataStore,
     ThreadStoreEvent, WorktreePaths,
 };
+use chrono::{TimeZone, Utc};
 
 fn open(dir: &tempfile::TempDir) -> ThreadMetadataStore {
     ThreadMetadataStore::open(dir.path().join("threads.db")).expect("store opens")
@@ -162,7 +162,11 @@ fn an_untitled_thread_shows_the_default_title() {
     store.save_one(saved.clone());
 
     assert_eq!(
-        store.thread(saved.thread_id).unwrap().display_title().as_ref(),
+        store
+            .thread(saved.thread_id)
+            .unwrap()
+            .display_title()
+            .as_ref(),
         atlas_thread_metadata::DEFAULT_THREAD_TITLE
     );
 }
@@ -187,7 +191,7 @@ fn threads_are_grouped_by_project_across_every_project() {
     assert!(ids.contains(&atlas_one.thread_id) && ids.contains(&atlas_two.thread_id));
 
     // The other project is still there — the store is app-level, not
-    // per-workspace, which is the whole point of ADR-0001.
+    // per-project, which is the whole point of ADR-0001.
     assert_eq!(
         store
             .threads_for_path(&PathList::new(&[PathBuf::from("/tmp/other")]))
@@ -307,7 +311,11 @@ fn a_live_update_keeps_the_paths_an_archived_thread_was_archived_with() {
     store.flush().unwrap();
 
     assert_eq!(
-        store.thread(saved.thread_id).unwrap().folder_paths().paths(),
+        store
+            .thread(saved.thread_id)
+            .unwrap()
+            .folder_paths()
+            .paths(),
         &[PathBuf::from("/tmp/atlas")]
     );
 }
@@ -351,8 +359,6 @@ fn deleting_a_thread_removes_it_everywhere() {
 
     assert!(open(&dir).threads().is_empty(), "and it stays deleted");
 }
-
-
 
 #[test]
 fn rapid_updates_leave_the_newest_value_on_disk() {
@@ -469,7 +475,10 @@ fn a_store_written_by_a_newer_build_is_refused_rather_than_migrated_blind() {
         Ok(_) => panic!("a future schema must be refused, not opened"),
     };
     assert!(
-        matches!(err, atlas_thread_metadata::Error::SchemaTooNew { found: 99, .. }),
+        matches!(
+            err,
+            atlas_thread_metadata::Error::SchemaTooNew { found: 99, .. }
+        ),
         "got {err}"
     );
 }
@@ -529,7 +538,11 @@ fn the_history_view_orders_by_when_a_thread_started() {
         "the history view buckets by when work started"
     );
     assert_eq!(
-        store.threads().into_iter().map(|t| t.thread_id).collect::<Vec<_>>(),
+        store
+            .threads()
+            .into_iter()
+            .map(|t| t.thread_id)
+            .collect::<Vec<_>>(),
         vec![old_but_busy.thread_id, new_but_idle.thread_id],
         "the active list orders by when work last happened"
     );
@@ -585,9 +598,16 @@ fn a_project_that_gains_a_worktree_moves_its_threads_but_not_its_archived_ones()
     store.flush().unwrap();
 
     let reopened = open(&dir);
-    assert_eq!(reopened.thread(active.thread_id).unwrap().worktree_paths, widened);
     assert_eq!(
-        reopened.thread(shelved.thread_id).unwrap().folder_paths().paths(),
+        reopened.thread(active.thread_id).unwrap().worktree_paths,
+        widened
+    );
+    assert_eq!(
+        reopened
+            .thread(shelved.thread_id)
+            .unwrap()
+            .folder_paths()
+            .paths(),
         &[PathBuf::from("/tmp/atlas")],
         "an archived thread keeps the paths it was archived with"
     );
@@ -618,7 +638,11 @@ fn working_directories_are_not_rewritten_under_an_archived_thread() {
     store.flush().unwrap();
 
     assert_eq!(
-        store.thread(shelved.thread_id).unwrap().folder_paths().paths(),
+        store
+            .thread(shelved.thread_id)
+            .unwrap()
+            .folder_paths()
+            .paths(),
         &[PathBuf::from("/tmp/atlas")]
     );
 }
@@ -632,7 +656,12 @@ fn clearing_the_history_view_deletes_every_thread_it_showed() {
     store.save_all(vec![one, two.clone()]);
     store.archive(two.thread_id);
 
-    store.delete_all(store.history(ThreadFilter::All).into_iter().map(|t| t.thread_id));
+    store.delete_all(
+        store
+            .history(ThreadFilter::All)
+            .into_iter()
+            .map(|t| t.thread_id),
+    );
     store.flush().unwrap();
 
     assert!(open(&dir).threads().is_empty());
@@ -715,7 +744,11 @@ fn the_chat_you_are_looking_at_is_not_also_listed_beneath_itself() {
 
     assert_eq!(projects.len(), 1);
     assert_eq!(
-        projects[0].threads.iter().map(|t| t.thread_id).collect::<Vec<_>>(),
+        projects[0]
+            .threads
+            .iter()
+            .map(|t| t.thread_id)
+            .collect::<Vec<_>>(),
         vec![sent.thread_id],
         "a draft is the open tab, not a history row"
     );

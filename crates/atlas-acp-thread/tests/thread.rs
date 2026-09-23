@@ -74,7 +74,11 @@ impl AgentConnection for StubAgentConnection {
 
 // ------------------------------------------------------------------ fixtures
 
-fn new_thread() -> (AcpThread, EventStream<AcpThreadEvent>, Arc<StubAgentConnection>) {
+fn new_thread() -> (
+    AcpThread,
+    EventStream<AcpThreadEvent>,
+    Arc<StubAgentConnection>,
+) {
     let (tx, rx) = event_channel();
     let connection = StubAgentConnection::new();
     let thread = AcpThread::new(
@@ -167,7 +171,9 @@ fn fallback_title_ignores_atlas_injected_context() {
     );
 
     assert_eq!(
-        thread.fallback_title().as_deref(),
+        thread
+            .fallback_title(atlas_agent_transcript::strip_injected_context)
+            .as_deref(),
         Some("Fix the sidebar title")
     );
 }
@@ -184,7 +190,7 @@ fn agent_title_ignores_atlas_injected_context() {
         ))
         .unwrap();
 
-    assert_eq!(thread.title().map(|title| title.as_ref()), Some("abc"));
+    assert_eq!(thread.title().map(AsRef::as_ref), Some("abc"));
 }
 
 #[test]
@@ -209,9 +215,15 @@ fn an_injected_only_agent_title_is_ignored() {
 async fn user_chunks_split_on_a_changed_protocol_message_id() {
     let (mut thread, _events, _conn) = new_thread();
 
-    thread.handle_session_update(user_chunk("one ", Some("m1"))).unwrap();
-    thread.handle_session_update(user_chunk("two", Some("m1"))).unwrap();
-    thread.handle_session_update(user_chunk("three", Some("m2"))).unwrap();
+    thread
+        .handle_session_update(user_chunk("one ", Some("m1")))
+        .unwrap();
+    thread
+        .handle_session_update(user_chunk("two", Some("m1")))
+        .unwrap();
+    thread
+        .handle_session_update(user_chunk("three", Some("m2")))
+        .unwrap();
 
     assert_eq!(user_messages(&thread), vec!["one two", "three"]);
 }
@@ -238,7 +250,9 @@ async fn a_protocol_chunk_does_not_merge_into_the_optimistic_prompt() {
     let (mut thread, _events, _conn) = new_thread();
 
     thread.push_user_content_block(Some(ClientUserMessageId::new()), text_block("typed"));
-    thread.handle_session_update(user_chunk("from agent", Some("m1"))).unwrap();
+    thread
+        .handle_session_update(user_chunk("from agent", Some("m1")))
+        .unwrap();
 
     assert_eq!(user_messages(&thread), vec!["typed", "from agent"]);
 }
@@ -250,9 +264,38 @@ async fn an_echoed_user_chunk_is_not_rendered_twice() {
 
     thread.push_user_content_block(Some(ClientUserMessageId::new()), text_block("hello"));
     // The server echoes the prompt back with no id of its own.
-    thread.handle_session_update(user_chunk("hello", None)).unwrap();
+    thread
+        .handle_session_update(user_chunk("hello", None))
+        .unwrap();
 
     assert_eq!(user_messages(&thread), vec!["hello"]);
+}
+
+/// Atlas-specific: the fallback title is the first line of the first user
+/// message *after* the host's cleaning, so a prefix the host added never
+/// becomes the name.
+#[tokio::test]
+async fn the_fallback_title_is_taken_after_the_hosts_cleaning() {
+    let (mut thread, _events, _conn) = new_thread();
+    assert_eq!(thread.fallback_title(str::to_string), None);
+
+    thread.push_user_content_block(
+        None,
+        text_block("[host context]\n\nrename the parser\nplease"),
+    );
+
+    let strip = |text: &str| text.replace("[host context]", "");
+    assert_eq!(
+        thread.fallback_title(strip).as_deref(),
+        Some("rename the parser")
+    );
+    assert_eq!(
+        thread.fallback_title(str::to_string).as_deref(),
+        Some("[host context]")
+    );
+
+    // Cleaning that leaves nothing is no title, not an empty one.
+    assert_eq!(thread.fallback_title(|_| String::new()), None);
 }
 
 /// Adapted from `test_assistant_chunks_use_protocol_message_id_boundaries`.
@@ -260,9 +303,15 @@ async fn an_echoed_user_chunk_is_not_rendered_twice() {
 async fn assistant_chunks_split_on_a_changed_protocol_message_id() {
     let (mut thread, _events, _conn) = new_thread();
 
-    thread.handle_session_update(agent_chunk("one ", Some("a1"))).unwrap();
-    thread.handle_session_update(agent_chunk("two", Some("a1"))).unwrap();
-    thread.handle_session_update(agent_chunk("three", Some("a2"))).unwrap();
+    thread
+        .handle_session_update(agent_chunk("one ", Some("a1")))
+        .unwrap();
+    thread
+        .handle_session_update(agent_chunk("two", Some("a1")))
+        .unwrap();
+    thread
+        .handle_session_update(agent_chunk("three", Some("a2")))
+        .unwrap();
 
     assert_eq!(
         assistant_chunk_texts(&thread),
@@ -278,9 +327,15 @@ async fn assistant_chunks_split_on_a_changed_protocol_message_id() {
 async fn thoughts_concatenate_but_never_merge_into_the_message() {
     let (mut thread, _events, _conn) = new_thread();
 
-    thread.handle_session_update(thought_chunk("think ", None)).unwrap();
-    thread.handle_session_update(thought_chunk("more", None)).unwrap();
-    thread.handle_session_update(agent_chunk("answer", None)).unwrap();
+    thread
+        .handle_session_update(thought_chunk("think ", None))
+        .unwrap();
+    thread
+        .handle_session_update(thought_chunk("more", None))
+        .unwrap();
+    thread
+        .handle_session_update(agent_chunk("answer", None))
+        .unwrap();
 
     assert_eq!(
         assistant_chunk_texts(&thread),
@@ -299,7 +354,10 @@ async fn an_update_for_an_unknown_tool_call_becomes_a_failed_entry() {
     let (mut thread, _events, _conn) = new_thread();
 
     thread
-        .update_tool_call(tool_call_update("ghost", Some(acp::ToolCallStatus::Completed)))
+        .update_tool_call(tool_call_update(
+            "ghost",
+            Some(acp::ToolCallStatus::Completed),
+        ))
         .unwrap();
 
     assert_eq!(status_of(&thread, "ghost"), "Failed");
@@ -652,7 +710,10 @@ async fn end_turn_still_announces_a_stop_with_no_turn_open() {
             stopped = true;
         }
     }
-    assert!(stopped, "the stop is announced whether or not a turn was open");
+    assert!(
+        stopped,
+        "the stop is announced whether or not a turn was open"
+    );
 }
 
 /// The counterpart guard: resolving entries unconditionally must not start
@@ -733,14 +794,18 @@ async fn a_plan_update_replaces_the_plan_and_reports_stats() {
         acp::PlanEntryStatus::Pending,
     );
 
-    thread.handle_session_update(acp::SessionUpdate::Plan(acp::Plan::new(vec![
-        done, running, todo,
-    ])))
-    .unwrap();
+    thread
+        .handle_session_update(acp::SessionUpdate::Plan(acp::Plan::new(vec![
+            done, running, todo,
+        ])))
+        .unwrap();
 
     let stats = thread.plan().stats();
     assert_eq!(stats.completed, 1);
-    assert_eq!(stats.pending, 2, "an in-progress entry still counts as pending");
+    assert_eq!(
+        stats.pending, 2,
+        "an in-progress entry still counts as pending"
+    );
     assert_eq!(
         stats.in_progress_entry.map(|e| e.content.as_str()),
         Some("running")
@@ -837,7 +902,10 @@ async fn a_bare_permission_request_for_an_unknown_call_still_yields_a_prompt() {
         )
         .expect("a bare update must not be refused");
 
-    assert_eq!(status_of(&thread, "never-announced"), "Waiting for confirmation");
+    assert_eq!(
+        status_of(&thread, "never-announced"),
+        "Waiting for confirmation"
+    );
 }
 
 /// The synthesized placeholder takes whatever the update DID carry — an agent
@@ -856,6 +924,8 @@ async fn a_titled_permission_request_for_an_unknown_call_keeps_its_title() {
         )
         .unwrap();
 
-    let (_, call) = thread.tool_call(&acp::ToolCallId::new("t9")).expect("the call exists");
+    let (_, call) = thread
+        .tool_call(&acp::ToolCallId::new("t9"))
+        .expect("the call exists");
     assert_eq!(call.label, "Delete the database");
 }

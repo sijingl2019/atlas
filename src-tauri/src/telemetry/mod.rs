@@ -37,7 +37,7 @@
 pub mod device;
 
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 use std::time::Duration;
 
 use parking_lot::RwLock;
@@ -163,24 +163,35 @@ impl OrgIdentity {
 pub struct RemoteUpdateConfig {
     /// Latest version, raw string (e.g. `"0.1.21"`).
     pub version: String,
-    /// Direct download URL of the release DMG **for this machine's
-    /// architecture** — see [`update_uri_flag`].
+    /// Direct download URL of the release installer (DMG or MSI) **for this
+    /// machine's platform and architecture** — see [`update_uri_flag`].
     pub uri: String,
 }
 
-/// Which remote-config key holds the DMG this machine should download.
+/// Which remote-config key holds the installer this machine should download.
 ///
-/// Atlas builds one DMG per architecture (`scripts/build-dmg.sh arm|intel`),
-/// so PostHog carries one URI for each: `uri_mac_arm` and `uri_mac_intel`.
-/// There is deliberately no plain `uri` fallback — a single URL cannot be right
-/// for both, and silently serving an x86 DMG to an Apple Silicon Mac (or the
-/// reverse) produces an app that either runs translated or does not run at all.
-/// A missing key means no update is offered, which is the safe answer.
+/// Atlas builds one installer per platform and architecture — DMGs from
+/// `scripts/build-dmg.sh arm|intel`, the x64 MSI from `bun run build:app:win`
+/// — so PostHog carries one URI for each: `uri_mac_arm`, `uri_mac_intel` and
+/// `uri_win_intel`. There is deliberately no plain `uri` fallback — a single
+/// URL cannot be right for all of them, and silently serving an x86 DMG to an
+/// Apple Silicon Mac (or the reverse) produces an app that either runs
+/// translated or does not run at all. A missing key means no update is
+/// offered, which is the safe answer.
 ///
-/// Compile-time architecture is *almost* the whole story, since each build is
-/// single-arch. The exception is an Intel build running under **Rosetta** on
-/// Apple Silicon: that machine can run the native ARM app, and keying off the
-/// binary alone would pin it to the translated build forever.
+/// On Windows the x64 MSI is the only build: Windows on ARM runs it under its
+/// x64 emulation, so there is no second key to choose between.
+#[cfg(target_os = "windows")]
+fn update_uri_flag() -> &'static str {
+    "uri_win_intel"
+}
+
+/// macOS (and, until it has an updater, Linux): the architecture picks the
+/// DMG. Compile-time architecture is *almost* the whole story, since each
+/// build is single-arch. The exception is an Intel build running under
+/// **Rosetta** on Apple Silicon: that machine can run the native ARM app, and
+/// keying off the binary alone would pin it to the translated build forever.
+#[cfg(not(target_os = "windows"))]
 fn update_uri_flag() -> &'static str {
     // Short-circuit: an ARM build is only ever on ARM hardware, so the sysctl
     // below never runs there.
@@ -199,6 +210,7 @@ fn update_uri_flag() -> &'static str {
 /// change while the process is alive.
 #[cfg(target_os = "macos")]
 fn running_under_rosetta() -> bool {
+    use std::sync::OnceLock;
     static TRANSLATED: OnceLock<bool> = OnceLock::new();
     *TRANSLATED.get_or_init(|| {
         std::process::Command::new("/usr/sbin/sysctl")
@@ -210,7 +222,8 @@ fn running_under_rosetta() -> bool {
     })
 }
 
-#[cfg(not(target_os = "macos"))]
+/// Not macOS (and not Windows, which never asks): nothing is ever translated.
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 fn running_under_rosetta() -> bool {
     false
 }
@@ -417,8 +430,9 @@ impl TelemetryClient {
         }
     }
 
-    /// Fetch the two auto-update remote-config values — `version`, and the
-    /// architecture's own URI key (`uri_mac_arm` / `uri_mac_intel`) — from
+    /// Fetch the two auto-update remote-config values — `version`, and this
+    /// platform's own URI key (`uri_mac_arm` / `uri_mac_intel` /
+    /// `uri_win_intel`) — from
     /// PostHog using the official `posthog-rs` SDK's feature-flag evaluation
     /// (`evaluate_flags` → `/flags/?v=2`), keyed on the project token + anon
     /// distinct id. Both values are stored as PostHog **remote-config flag
@@ -440,11 +454,17 @@ impl TelemetryClient {
             )
             .await
             .ok()?;
-        let version = flags.get_flag_payload("version").as_ref().and_then(payload_string)?;
-        // Architecture-specific: `uri_mac_arm` or `uri_mac_intel`, never a
-        // shared `uri` — see `update_uri_flag`.
+        let version = flags
+            .get_flag_payload("version")
+            .as_ref()
+            .and_then(payload_string)?;
+        // Platform-specific: `uri_mac_arm`, `uri_mac_intel` or `uri_win_intel`,
+        // never a shared `uri` — see `update_uri_flag`.
         let uri_flag = update_uri_flag();
-        let uri = flags.get_flag_payload(uri_flag).as_ref().and_then(payload_string)?;
+        let uri = flags
+            .get_flag_payload(uri_flag)
+            .as_ref()
+            .and_then(payload_string)?;
         if version.trim().is_empty() || uri.trim().is_empty() {
             tracing::warn!(
                 target: "atlas::updater",
@@ -759,8 +779,7 @@ impl TelemetryClient {
 
     fn inject_common(&self, properties: &mut Value) {
         if let Value::Object(map) = properties {
-            map.entry("$lib")
-                .or_insert_with(|| json!("atlas-rust"));
+            map.entry("$lib").or_insert_with(|| json!("atlas-rust"));
             map.entry("app_version")
                 .or_insert_with(|| json!(self.app_version));
             map.entry("os").or_insert_with(|| json!(self.os));
@@ -774,7 +793,8 @@ impl TelemetryClient {
             if let Some(org) = self.identity.read().org.clone() {
                 map.entry("$groups").or_insert_with(|| org.groups());
                 map.entry("atlas_org_id").or_insert_with(|| json!(org.id));
-                map.entry("atlas_org_kind").or_insert_with(|| json!(org.kind));
+                map.entry("atlas_org_kind")
+                    .or_insert_with(|| json!(org.kind));
             }
         }
     }
@@ -826,12 +846,7 @@ pub(crate) async fn run_flush_loop(
     }
 }
 
-async fn send_batch(
-    http: &reqwest::Client,
-    url: &str,
-    api_key: &str,
-    buf: &mut Vec<QueuedEvent>,
-) {
+async fn send_batch(http: &reqwest::Client, url: &str, api_key: &str, buf: &mut Vec<QueuedEvent>) {
     if buf.is_empty() {
         return;
     }
@@ -861,12 +876,24 @@ async fn send_batch(
 mod tests {
     use super::*;
 
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn the_update_uri_key_is_the_x64_msi_on_windows() {
+        // Never the old shared key, and never a DMG key: the one Windows
+        // build is the x64 MSI, whatever the hardware.
+        assert_eq!(update_uri_flag(), "uri_win_intel");
+    }
+
+    #[cfg(not(target_os = "windows"))]
     #[test]
     fn the_update_uri_key_matches_the_architecture_that_can_run_the_dmg() {
         let flag = update_uri_flag();
         // Never the old shared key: one URL cannot serve both architectures.
         assert_ne!(flag, "uri");
-        assert!(matches!(flag, "uri_mac_arm" | "uri_mac_intel"), "unexpected key {flag}");
+        assert!(
+            matches!(flag, "uri_mac_arm" | "uri_mac_intel"),
+            "unexpected key {flag}"
+        );
 
         if cfg!(target_arch = "aarch64") {
             // An ARM build only ever runs on ARM hardware.
@@ -880,6 +907,7 @@ mod tests {
         }
     }
 
+    #[cfg(not(target_os = "windows"))]
     #[test]
     fn rosetta_detection_is_stable_and_false_on_native_hardware() {
         // Cached behind a `OnceLock`, so it must not change between calls.
@@ -916,7 +944,6 @@ mod tests {
         assert!(r.contains("error for"));
         assert!(r.contains("here"));
     }
-
 
     /// Build a client without an `AppHandle` (which `resolve_keys` would need).
     /// `enabled` is the consent gate; the returned receiver is the queue tail.
@@ -1012,13 +1039,22 @@ mod tests {
         let events = drain(&mut rx);
         let before = &events[0];
         assert_eq!(before.0, "app_started");
-        assert_eq!(before.1, "device-uuid", "pre-sign-in event keeps the device id");
+        assert_eq!(
+            before.1, "device-uuid",
+            "pre-sign-in event keeps the device id"
+        );
 
-        let ident = events.iter().find(|e| e.0 == "$identify").expect("$identify");
+        let ident = events
+            .iter()
+            .find(|e| e.0 == "$identify")
+            .expect("$identify");
         assert_eq!(ident.1, "user-1");
         assert_eq!(ident.2["$anon_distinct_id"], json!("device-uuid"));
         assert_eq!(ident.2["$set"]["email"], json!("a@example.com"));
-        assert_eq!(ident.2["$set_once"]["atlas_device_id"], json!("device-uuid"));
+        assert_eq!(
+            ident.2["$set_once"]["atlas_device_id"],
+            json!("device-uuid")
+        );
 
         // Sign-in does NOT define the group — the active Organisation is a
         // local fact owned by `set_active_org`.
@@ -1076,7 +1112,10 @@ mod tests {
         }));
 
         let events = drain(&mut rx);
-        let group = events.iter().find(|e| e.0 == "$groupidentify").expect("group");
+        let group = events
+            .iter()
+            .find(|e| e.0 == "$groupidentify")
+            .expect("group");
         assert_eq!(group.2["$group_key"], json!("org-1"));
         assert_eq!(group.2["$group_set"]["name"], json!("Acme"));
         assert_eq!(group.2["$group_set"]["role"], json!("admin"));
@@ -1095,7 +1134,10 @@ mod tests {
         };
         c.set_active_org(Some(org.clone()));
         c.set_active_org(Some(org));
-        let groups = drain(&mut rx).into_iter().filter(|e| e.0 == "$groupidentify").count();
+        let groups = drain(&mut rx)
+            .into_iter()
+            .filter(|e| e.0 == "$groupidentify")
+            .count();
         assert_eq!(groups, 1);
     }
 
@@ -1126,7 +1168,10 @@ mod tests {
         let (c, mut rx) = client(true, false);
         c.identify_account(&account("user-1"));
         c.identify_account(&account("user-1"));
-        let identifies = drain(&mut rx).into_iter().filter(|e| e.0 == "$identify").count();
+        let identifies = drain(&mut rx)
+            .into_iter()
+            .filter(|e| e.0 == "$identify")
+            .count();
         assert_eq!(identifies, 1);
     }
 
@@ -1139,7 +1184,10 @@ mod tests {
         c.identify_account(&account("user-1"));
         c.identify_account(&account("user-2"));
 
-        let identifies: Vec<_> = drain(&mut rx).into_iter().filter(|e| e.0 == "$identify").collect();
+        let identifies: Vec<_> = drain(&mut rx)
+            .into_iter()
+            .filter(|e| e.0 == "$identify")
+            .collect();
         assert_eq!(identifies.len(), 2);
         assert_eq!(identifies[0].2["$anon_distinct_id"], json!("device-uuid"));
         assert!(
@@ -1193,7 +1241,10 @@ mod tests {
         c.set_enabled(true);
         let events = drain(&mut rx);
         assert_eq!(events[0].0, "telemetry_opt_in");
-        let ident = events.iter().find(|e| e.0 == "$identify").expect("$identify");
+        let ident = events
+            .iter()
+            .find(|e| e.0 == "$identify")
+            .expect("$identify");
         assert_eq!(ident.1, "user-1");
         assert_eq!(ident.2["$anon_distinct_id"], json!("device-uuid"));
     }

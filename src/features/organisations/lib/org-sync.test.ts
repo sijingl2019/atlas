@@ -7,8 +7,8 @@ import { describe, expect, it, vi } from "vitest";
  * about zustand wiring (the reactive `useIsOrgSynced` wrapper is covered by
  * the components that read it).
  */
-vi.mock("@/features/project/stores/project-store", () => ({
-  useProjectStore: Object.assign(() => false, {
+vi.mock("@/features/settings/stores/settings-store", () => ({
+  useSettingsStore: Object.assign(() => false, {
     getState: () => ({ settings: { personalSync: false } }),
   }),
 }));

@@ -35,7 +35,11 @@ fn gather(plugin_id: &str, data_dir: &Path) -> String {
         env!("CARGO_PKG_VERSION"),
         chrono::Local::now().to_rfc3339()
     ));
-    out.push_str(&format!("os: {} {}\n\n", std::env::consts::OS, std::env::consts::ARCH));
+    out.push_str(&format!(
+        "os: {} {}\n\n",
+        std::env::consts::OS,
+        std::env::consts::ARCH
+    ));
 
     // 1. The agent's install directory.
     let install_dir = data_dir
@@ -52,7 +56,10 @@ fn gather(plugin_id: &str, data_dir: &Path) -> String {
             }
         }
         let node_modules = install_dir.join("node_modules");
-        out.push_str(&format!("node_modules present: {}\n", node_modules.is_dir()));
+        out.push_str(&format!(
+            "node_modules present: {}\n",
+            node_modules.is_dir()
+        ));
         out.push_str(&format!(
             "package-lock.json present: {}\n",
             install_dir.join("package-lock.json").is_file()
@@ -71,11 +78,14 @@ fn gather(plugin_id: &str, data_dir: &Path) -> String {
                     "install state for {}/{}: {}\n",
                     platform.os,
                     platform.cpu,
-                    state.reinstall_reason().unwrap_or_else(|| "complete".to_owned())
+                    state
+                        .reinstall_reason()
+                        .unwrap_or_else(|| "complete".to_owned())
                 ));
-                for entry in
-                    block_on(atlas_agent_store::platform_optionals(&install_dir, platform))
-                {
+                for entry in block_on(atlas_agent_store::platform_optionals(
+                    &install_dir,
+                    platform,
+                )) {
                     out.push_str(&format!(
                         "  {}: present={} inert={}\n",
                         entry.key, entry.present, entry.inert
@@ -92,7 +102,12 @@ fn gather(plugin_id: &str, data_dir: &Path) -> String {
     let node_root = data_dir.join("node");
     out.push_str(&format!("\n## managed node: {}\n", node_root.display()));
     let mut node_dirs: Vec<PathBuf> = std::fs::read_dir(&node_root)
-        .map(|rd| rd.flatten().map(|e| e.path()).filter(|p| p.is_dir()).collect())
+        .map(|rd| {
+            rd.flatten()
+                .map(|e| e.path())
+                .filter(|p| p.is_dir())
+                .collect()
+        })
         .unwrap_or_default();
     node_dirs.sort();
     if node_dirs.is_empty() {
@@ -100,7 +115,11 @@ fn gather(plugin_id: &str, data_dir: &Path) -> String {
     }
     for dir in &node_dirs {
         let bin = dir.join("bin").join("node");
-        out.push_str(&format!("{}: node binary present: {}\n", dir.display(), bin.is_file()));
+        out.push_str(&format!(
+            "{}: node binary present: {}\n",
+            dir.display(),
+            bin.is_file()
+        ));
     }
 
     // 3. The most recent npm log.
@@ -112,7 +131,9 @@ fn gather(plugin_id: &str, data_dir: &Path) -> String {
     match npm_log {
         Some(path) => {
             out.push_str(&format!("{}\n", path.display()));
-            out.push_str(&tail(&path, NPM_TAIL_LINES, |line| !line.contains(" silly ")));
+            out.push_str(&tail(&path, NPM_TAIL_LINES, |line| {
+                !line.contains(" silly ")
+            }));
             // `failed optional dependency` is npm's only trace of a dropped
             // platform package, logged at verbose and easily outside the
             // tail — list every occurrence on its own.

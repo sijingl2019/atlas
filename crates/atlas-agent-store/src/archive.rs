@@ -25,8 +25,8 @@ use std::time::{Duration, SystemTime};
 use anyhow::{bail, Context as _, Result};
 use futures::StreamExt as _;
 use percent_encoding::percent_decode_str;
-use tokio::io::AsyncWriteExt as _;
 use sha2::{Digest, Sha256};
+use tokio::io::AsyncWriteExt as _;
 use url::Url;
 
 use crate::http::{get_body, HttpClient};
@@ -50,7 +50,9 @@ pub enum RegistryArchiveKind {
     /// The archive URL points directly at an executable, per the ACP registry
     /// schema: "URL to download archive (.zip, .tar.gz, .tgz, .tar.bz2, .tbz2,
     /// or raw binary)".
-    RawBinary { file_name: String },
+    RawBinary {
+        file_name: String,
+    },
 }
 
 /// Ported verbatim from `agent_server_store.rs:906-948`.
@@ -460,10 +462,12 @@ pub async fn install_archive_with_limits(
         RegistryArchiveKind::Archive(asset_kind) => {
             let (payload, destination, asset_kind) =
                 (payload.clone(), extracted.clone(), *asset_kind);
-            tokio::task::spawn_blocking(move || extract(&payload, &destination, asset_kind, limits))
-                .await
-                .context("extraction task panicked")?
-                .with_context(|| format!("extracting {url} into {extracted:?}"))?;
+            tokio::task::spawn_blocking(move || {
+                extract(&payload, &destination, asset_kind, limits)
+            })
+            .await
+            .context("extraction task panicked")?
+            .with_context(|| format!("extracting {url} into {extracted:?}"))?;
         }
         RegistryArchiveKind::RawBinary { file_name } => {
             let binary_path = extracted.join(file_name);
@@ -643,17 +647,13 @@ fn unpack_tar(reader: impl std::io::Read, destination: &Path, limits: InstallLim
     // the decoder; entries are counted as they go, because bytes alone do not
     // bound them: a tar of empty files costs about 4.7 wire-bytes per inode,
     // so the byte ceiling on its own still permits millions of them.
-    let mut archive = tar::Archive::new(LimitedReader::new(
-        reader,
-        limits.max_uncompressed_bytes,
-    ));
+    let mut archive = tar::Archive::new(LimitedReader::new(reader, limits.max_uncompressed_bytes));
     // Zed turns mtime preservation off (`github_download.rs:288-292`): it is
     // irrelevant to a downloaded archive, and some filesystems error when asked
     // to apply it after extraction.
     archive.set_preserve_mtime(false);
 
-    std::fs::create_dir_all(destination)
-        .with_context(|| format!("creating {destination:?}"))?;
+    std::fs::create_dir_all(destination).with_context(|| format!("creating {destination:?}"))?;
 
     let mut seen = 0usize;
     for entry in archive.entries().context("reading the tar index")? {

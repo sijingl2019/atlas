@@ -93,7 +93,11 @@ fn the_dispatch_table() {
     // runtime), so assert its absence separately.
     let embedded = format!(r#"{{"url": "https://{github_pat}@github.com/org/repo"}}"#);
     let out = redact_auto(&embedded);
-    assert!(!out.text.contains(&github_pat), "provider token survived: {}", out.text);
+    assert!(
+        !out.text.contains(&github_pat),
+        "provider token survived: {}",
+        out.text
+    );
     assert!(out.counts.total() > 0);
 }
 
@@ -105,12 +109,19 @@ fn json_output_is_always_valid_json() {
     let inputs = [
         r#"{"content": "he said \"API_KEY=supersecretvalue123\" loudly"}"#.to_string(),
         r#"{"url": "postgres://app:hunter2@db/x", "note": "line\nbreak"}"#.to_string(),
-        format!(r#"{{"args": {{"cmd": "git clone https://{}@github.com/org/repo"}}}}"#, fixtures::github_pat()),
+        format!(
+            r#"{{"args": {{"cmd": "git clone https://{}@github.com/org/repo"}}}}"#,
+            fixtures::github_pat()
+        ),
     ];
     for input in inputs {
         let out = redact_auto(&input);
-        serde_json::from_str::<serde_json::Value>(&out.text)
-            .unwrap_or_else(|e| panic!("invalid JSON after redaction of {input:?}: {e}\n  output: {}", out.text));
+        serde_json::from_str::<serde_json::Value>(&out.text).unwrap_or_else(|e| {
+            panic!(
+                "invalid JSON after redaction of {input:?}: {e}\n  output: {}",
+                out.text
+            )
+        });
     }
 }
 
@@ -134,7 +145,11 @@ fn counts_flow_through_the_dispatch() {
 fn a_json_array_takes_the_structured_path_too() {
     let input = r#"[{"message_id": "xJ3kQ9vB2mZ7pL5rT8wN4cF6yH1sD0gA"}, {"password": "hunter2"}]"#;
     let out = redact_auto(input);
-    assert!(out.text.contains("xJ3kQ9vB2mZ7pL5rT8wN4cF6yH1sD0gA"), "{}", out.text);
+    assert!(
+        out.text.contains("xJ3kQ9vB2mZ7pL5rT8wN4cF6yH1sD0gA"),
+        "{}",
+        out.text
+    );
     assert!(!out.text.contains("hunter2"), "{}", out.text);
     assert!(out.text.contains(PLACEHOLDER));
 }
@@ -154,12 +169,28 @@ fn a_jsonl_payload_takes_the_structured_path_too() {
     );
     let out = redact_auto(input);
 
-    assert!(!out.text.contains("supersecretvalue123"), "secret survived: {}", out.text);
-    assert!(!out.text.contains("hunter2"), "secret survived: {}", out.text);
-    for id in ["xJ3kQ9vB2mZ7pL5rT8wN4cF6yH1sD0gA", "aB9zQ2vX7mK4pL8rT3wN6cF1yH5sD0gE"] {
+    assert!(
+        !out.text.contains("supersecretvalue123"),
+        "secret survived: {}",
+        out.text
+    );
+    assert!(
+        !out.text.contains("hunter2"),
+        "secret survived: {}",
+        out.text
+    );
+    for id in [
+        "xJ3kQ9vB2mZ7pL5rT8wN4cF6yH1sD0gA",
+        "aB9zQ2vX7mK4pL8rT3wN6cF1yH5sD0gE",
+    ] {
         assert!(out.text.contains(id), "message id shredded: {}", out.text);
     }
-    assert_eq!(out.counts.total(), 2, "counted per line, not per secret: {}", out.text);
+    assert_eq!(
+        out.counts.total(),
+        2,
+        "counted per line, not per secret: {}",
+        out.text
+    );
     for line in out.text.split('\n') {
         serde_json::from_str::<serde_json::Value>(line)
             .unwrap_or_else(|e| panic!("line no longer parses: {e}\n  {line}"));
@@ -173,8 +204,16 @@ fn a_multi_line_payload_that_is_not_jsonl_still_takes_the_flat_path() {
     // brace would come back re-serialised line by line.
     let input = "{\"tool\": \"read\"}\nthen it printed API_KEY=supersecretvalue123";
     let out = redact_auto(input);
-    assert!(!out.text.contains("supersecretvalue123"), "secret survived: {}", out.text);
-    assert!(out.text.contains("then it printed API_KEY="), "prose lost: {}", out.text);
+    assert!(
+        !out.text.contains("supersecretvalue123"),
+        "secret survived: {}",
+        out.text
+    );
+    assert!(
+        out.text.contains("then it printed API_KEY="),
+        "prose lost: {}",
+        out.text
+    );
 }
 
 #[test]
@@ -191,7 +230,10 @@ fn redact_auto_is_idempotent() {
         r#"{"password": "hunter2"}"#.to_string(),
         r#"{"url": "postgres://app:hunter2@db/x"}"#.to_string(),
         r#"note: {"password": "hunter2"} failed"#.to_string(),
-        format!(r#"{{"url": "https://{}@github.com/org/repo"}}"#, fixtures::github_pat()),
+        format!(
+            r#"{{"url": "https://{}@github.com/org/repo"}}"#,
+            fixtures::github_pat()
+        ),
         r#"password: "hunter2""#.to_string(),
         "{\"message_id\": \"xJ3kQ9vB2mZ7pL5rT8wN4cF6yH1sD0gA\"}\n{\"password\": \"hunter2\"}"
             .to_string(),
@@ -199,7 +241,10 @@ fn redact_auto_is_idempotent() {
     for input in inputs {
         let once = redact_auto(&input);
         let twice = redact_auto(&once.text);
-        assert_eq!(twice.text, once.text, "second pass changed the output for {input:?}");
+        assert_eq!(
+            twice.text, once.text,
+            "second pass changed the output for {input:?}"
+        );
         assert_eq!(
             twice.counts.total(),
             0,

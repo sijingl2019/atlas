@@ -21,7 +21,10 @@ export const CommsAvatar = memo(function CommsAvatar({
 }: {
   member: OrgMemberProfile | null;
   size?: number;
-  /** Omit entirely to draw no dot (e.g. inside a channel transcript). */
+  /** Omit entirely to draw no dot — for avatars too small or too overlapped to
+   *  carry one (a mention chip, a 16px byline, the header's facepile), and for
+   *  an unresolved member, where `false` would assert "offline" about someone
+   *  we cannot even name. */
   online?: boolean;
   className?: string;
 }) {
@@ -48,8 +51,11 @@ export const CommsAvatar = memo(function CommsAvatar({
             width: size,
             height: size,
             fontSize: Math.round(size * 0.4),
-            backgroundColor: member ? `hsl(${avatarHue(member.id)} 42% 40%)` : "#2a2a2a",
+            // ratchet-allow: an identity hue derived from the member id, not a theme colour.
+            backgroundColor: member ? `hsl(${avatarHue(member.id)} 42% 40%)` : "var(--muted)",
           }}
+          // ratchet-allow: the initials ride on that same identity hue, which is
+          // saturated at a fixed lightness; white is what reads on all of them.
           className="flex items-center justify-center rounded-full font-medium leading-none text-white/90 select-none tracking-tight"
         >
           {initials(label)}
@@ -60,8 +66,8 @@ export const CommsAvatar = memo(function CommsAvatar({
           aria-label={online ? "Online" : "Offline"}
           style={{ width: dot, height: dot }}
           className={cn(
-            "absolute -bottom-px -right-px rounded-full border-2 border-[var(--comms-surface)]",
-            online ? "bg-[var(--comms-unread)]" : "bg-border-strong",
+            "absolute -bottom-px -right-px rounded-full border-2 border-[var(--background)]",
+            online ? "bg-[var(--atlas-status-success-foreground)]" : "bg-border-strong",
           )}
         />
       )}
@@ -86,7 +92,7 @@ export function CommsAvatarStack({
           member={m}
           size={i === 0 ? Math.round(size * 0.72) : Math.round(size * 0.72)}
           className={cn(
-            "absolute ring-2 ring-[var(--comms-surface)] rounded-full",
+            "absolute ring-2 ring-[var(--background)] rounded-full",
             i === 0 ? "left-0 top-0" : "right-0 bottom-0",
           )}
         />

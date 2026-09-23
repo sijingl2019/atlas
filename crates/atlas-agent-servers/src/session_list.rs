@@ -19,12 +19,11 @@ use std::sync::Arc;
 
 use agent_client_protocol::schema::v1 as acp;
 use agent_client_protocol::{Agent, ConnectionTo};
-use chrono::{DateTime, Utc};
 use anyhow::Result;
 use atlas_acp_thread::{
-    AgentId, AgentSessionInfo, AgentSessionList, AgentSessionListRequest,
-    AgentSessionListResponse,
+    AgentId, AgentSessionInfo, AgentSessionList, AgentSessionListRequest, AgentSessionListResponse,
 };
+use chrono::{DateTime, Utc};
 use futures::future::BoxFuture;
 use futures::FutureExt;
 
