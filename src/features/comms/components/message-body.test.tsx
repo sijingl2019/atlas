@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 
 import { MessageBody } from "./message-body";
@@ -38,6 +38,15 @@ async function show(body: string, me = "u_ada") {
   await waitFor(() => expect(view.container.querySelector(".whitespace-pre-wrap")).toBe(null));
   return view;
 }
+
+// The lazy chunk behind `MessageBody` is the whole markdown graph
+// (react-markdown + remark + rehype + highlight.js, ~554 KB). Vitest transforms
+// it on first import, and under a full parallel run that lands well past
+// `waitFor`'s 1s default, which made the first two tests here flake. Pay it
+// once, in a hook, rather than inside whichever render happens to go first.
+beforeAll(async () => {
+  await import("./message-body-impl");
+});
 
 afterEach(() => {
   cleanup();

@@ -132,6 +132,14 @@ const ALLOWED: Allowed[] = [
   },
   { file: "features/comms/lib/mention-pill.ts", snippet: "text-white/90", reason: COLORED_FILL },
   {
+    // The checkmark drawn on a selected colour swatch. The swatch hues are a
+    // fixed palette (not theme tokens), so a white tick stays legible on every
+    // one of them in both modes; the unselected/`default` swatch uses a token.
+    file: "features/workspaces/components/project-icon-picker.tsx",
+    snippet: `c.value ? "text-white"`,
+    reason: COLORED_FILL,
+  },
+  {
     file: "features/explorer/components/file-tree-confirm-delete.tsx",
     snippet: `"text-white bg-[var(--status-error)]`,
     reason: COLORED_FILL,

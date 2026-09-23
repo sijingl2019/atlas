@@ -93,6 +93,7 @@ const WorkspaceRow = memo(function WorkspaceRow({
   groups,
   indented,
   expanded,
+  mounted,
   onToggleProject,
 }: {
   ws: Workspace;
@@ -101,6 +102,9 @@ const WorkspaceRow = memo(function WorkspaceRow({
   groups: WorkspaceGroup[];
   indented?: boolean;
   expanded: boolean;
+  /** The workspace is MOUNTED (in the hot set) — the store's definition of an
+   *  open project. Drives the folder-open badge on the glyph. */
+  mounted: boolean;
   onToggleProject: (id: string) => void;
 }) {
   const {
@@ -176,7 +180,21 @@ const WorkspaceRow = memo(function WorkspaceRow({
       )}
       title={ws.path}
     >
-      <ProjectGlyph icon={ws.icon} color={ws.color} size={13} />
+      {/* The configured glyph always shows. A project that is OPEN — its
+          workspace is mounted in the hot set — marks itself with a small
+          folder-open badge on the glyph's corner rather than swapping the
+          glyph out for a folder. */}
+      <span className="relative flex size-[13px] shrink-0 items-center justify-center">
+        <ProjectGlyph icon={ws.icon} color={ws.color} size={13} />
+        {mounted && (
+          <FolderOpen
+            size={8}
+            strokeWidth={2.5}
+            aria-hidden
+            className="absolute -right-1 -top-1 rounded-[2px] bg-[var(--bg-sidebar)] text-[var(--text-tertiary)]"
+          />
+        )}
+      </span>
       <GitDot summary={summary} className="size-1.5" />
       {/* `pr-20` clears the right slot (pill at rest, actions on hover) on both
           lines, so neither can run under it. */}
@@ -729,6 +747,11 @@ export function WorkspaceSidebar() {
   // Highlight the clicked workspace INSTANTLY (optimistic), falling back to the
   // real active id once the switch settles.
   const displayActiveId = optimisticActiveId ?? activeWorkspaceId;
+  // A project is "open" when its workspace is in the hot set — i.e. mounted in
+  // CenterPanel. That is the store's own definition of an open project, and it
+  // is what the sidebar's folder-open badge marks.
+  const mountedWorkspaceIds = useWorkspaceStore.use.mountedWorkspaceIds();
+  const mountedIds = useMemo(() => new Set(mountedWorkspaceIds), [mountedWorkspaceIds]);
   const { addWorkspace } = useWorkspaceStore.use.actions();
   const { addTab, toggleRightPanelMode } = useLayoutStore.use.actions();
   // Which occupant the right slot shows, or null when closed — drives the
@@ -1034,6 +1057,7 @@ export function WorkspaceSidebar() {
           groups={groups}
           activeId={displayActiveId}
           runningKeys={runningChatKeys}
+          mountedIds={mountedIds}
           onToggle={toggle}
           onToggleProject={toggleProject}
           onOpenRecent={openRecent}
@@ -1188,6 +1212,8 @@ interface RailRowCtx {
   groups: WorkspaceGroup[];
   activeId: string | null;
   runningKeys: Set<string>;
+  /** Ids of workspaces currently MOUNTED (open) — the row badges these. */
+  mountedIds: Set<string>;
   onToggle: (id: string) => void;
   onToggleProject: (id: string) => void;
   onOpenRecent: (path: string) => void;
@@ -1230,6 +1256,7 @@ function renderRailRow(row: Row, ctx: RailRowCtx) {
           groups={ctx.groups}
           indented={row.indented}
           expanded={row.expanded}
+          mounted={ctx.mountedIds.has(row.ws.id)}
           onToggleProject={ctx.onToggleProject}
         />
       );
