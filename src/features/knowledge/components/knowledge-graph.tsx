@@ -265,7 +265,11 @@ export function KnowledgeGraph() {
       className="h-full w-full relative"
       style={{ background: "var(--atlas-panel-background)" }}
     >
-      <div className="absolute left-3 top-3 z-10 flex items-center">
+      {/* Both switches clear the 18px ruler bands drawn by `graph-ruler.tsx`
+          (26 = band + 8px breathing room, the same inset the memory graph
+          overlays use). At `top-3`/`left-3` the flat view's band tint and
+          hairline cut straight across them. */}
+      <div className="absolute left-[26px] top-[26px] z-10 flex items-center">
         <KbScopeToggle
           scope={graphScope}
           onChange={setGraphScope}
@@ -273,7 +277,7 @@ export function KnowledgeGraph() {
           viewTitle="The global graph, with this workspace's knowledge lit up"
         />
       </div>
-      <div className="absolute right-3 top-3 z-10 flex items-center">
+      <div className="absolute right-3 top-[26px] z-10 flex items-center">
         <GraphModeToggle mode={mode} onChange={setModeOverride} />
       </div>
       {!globalRoot || loading ? (

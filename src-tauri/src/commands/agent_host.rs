@@ -1006,9 +1006,9 @@ impl AgentHost {
         let acp_id = acp::SessionId::new(session_id.as_str());
         let thread = self
             .manager
-            .load_session(record.agent.clone(), acp_id, vec![cwd.clone()], None)
+            .load_session(record.agent.clone(), acp_id.clone(), vec![cwd.clone()], None)
             .await
-            .map_err(HostError::from)?;
+            .map_err(|err| self.hide_if_archived_by_agent(&acp_id, HostError::from(err)))?;
         self.bind(agent_id, &record, cwd, thread);
         Ok(key)
     }
@@ -1748,7 +1748,7 @@ impl AgentHost {
                         thread.title(),
                     )
                     .await
-                    .map_err(HostError::from)?;
+                    .map_err(|err| self.hide_if_archived_by_agent(&session_id, HostError::from(err)))?;
                 // The agent may have answered with a different session id than
                 // the stored one — the engine's fresh-thread fallback for a
                 // pre-cutover row does exactly that. The row is bound to the
@@ -2056,6 +2056,21 @@ impl AgentHost {
             .await
             .map(Some)
             .map_err(HostError::from)
+    }
+
+    /// Codex refuses to open a session archived on its side ("session <id> is
+    /// archived. Run `codex unarchive …`"). Archive Atlas's row too, so the
+    /// sidebar stops offering a conversation that cannot be opened. It stays
+    /// in the history view; unarchiving in codex makes it openable again.
+    fn hide_if_archived_by_agent(&self, session_id: &acp::SessionId, err: HostError) -> HostError {
+        if err.message.contains("is archived") {
+            if let Some(history) = self.history() {
+                if let Some(thread) = history.store().thread_for_session(session_id) {
+                    history.store().archive(thread.thread_id);
+                }
+            }
+        }
+        err
     }
 
     fn history_or_err(&self) -> Result<&ThreadRecorder> {

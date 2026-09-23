@@ -187,15 +187,24 @@ const ProjectRow = memo(function ProjectRow({
       {/* The configured glyph always shows. A project that is OPEN — its
           workspace is mounted in the hot set — marks itself with a small
           folder-open badge on the glyph's corner rather than swapping the
-          glyph out for a folder. */}
+          glyph out for a folder. The badge rides with the EXPANDED row only:
+          a folded row already reads as closed, so a folder-open mark on it
+          said the opposite of what the row looked like. */}
       <span className="relative flex size-[13px] shrink-0 items-center justify-center">
         <ProjectGlyph icon={ws.icon} color={ws.color} size={13} />
-        {mounted && (
+        {/* Tinted to the glyph's own colour (and left muted when the project
+            has none) so the corner mark reads as part of the icon rather than
+            as a second, grey one. */}
+        {mounted && expanded && (
           <FolderOpen
             size={8}
             strokeWidth={2.5}
             aria-hidden
-            className="absolute -right-1 -top-1 rounded-sm bg-[var(--sidebar)] text-[var(--muted-foreground)]"
+            style={ws.color ? { color: ws.color } : undefined}
+            className={cn(
+              "absolute -right-1 -top-1 rounded-sm bg-[var(--sidebar)]",
+              ws.color ? undefined : "text-[var(--muted-foreground)]",
+            )}
           />
         )}
       </span>
