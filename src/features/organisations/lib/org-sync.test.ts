@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 /**
  * `isOrgSynced` is the single predicate every account-only surface funnels
- * through, so its truth table is the whole contract of the Personal sync
+ * through, so its truth table is the whole contract of the Chat Sync
  * master switch. The store is mocked: these cases are about the predicate, not
  * about zustand wiring (the reactive `useIsOrgSynced` wrapper is covered by
  * the components that read it).

@@ -135,7 +135,7 @@ export async function switchOrg(id: string): Promise<void> {
     //    `auth_set_active_org` triggers the auth broadcast, and Rust re-points
     //    the socket from there — so every other path that changes the active
     //    org is correct for free.
-    // Personal sync is the master switch: when it is off, never hand Rust a
+    // Chat Sync is the master switch: when it is off, never hand Rust a
     // server org id, even for an org that still has a stored `remoteId`.
     // Pinning "none" keeps the chat socket closed while the local switch
     // continues normally.
@@ -249,7 +249,7 @@ export async function deleteOrgAndData(id: string): Promise<boolean> {
   // anyway"). A non-admin who stays a member on the server may see it return on
   // the next sync; that is the accepted tradeoff. Only signed-in, only if the
   // org was ever linked.
-  // Personal sync off means "local only": never delete the server row.
+  // Chat Sync off means "local only": never delete the server row.
   if (
     targetRemoteId &&
     isOrgSynced(target, { personalSync }) &&

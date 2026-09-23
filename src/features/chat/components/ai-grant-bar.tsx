@@ -101,13 +101,13 @@ export function AiGrantBar() {
   // this machine — so the only action is turning on sync, which lives in the
   // org switcher, not here.
   if (entitlement?.state === "localOrg" && local) {
-    // Personal sync off: this is not "a local org you could sync" — the user
+    // Chat Sync off: this is not "a local org you could sync" — the user
     // switched sync off on purpose, so offering "Turn on sync" here would
     // contradict the setting (the store refuses it anyway). Point at the
     // switch instead.
     if (!personalSync) {
       return (
-        <div data-testid="ai-grant-bar" className={STRIP} title="Personal sync is off">
+        <div data-testid="ai-grant-bar" className={STRIP} title="Chat Sync is off">
           <span className="min-w-0 truncate">
             <span className="font-semibold text-[var(--foreground)]">Atlas Agent</span>
             <span className="text-[var(--muted-foreground)]">

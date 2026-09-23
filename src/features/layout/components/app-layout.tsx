@@ -3,6 +3,7 @@ import { Group, Panel, Separator, useDefaultLayout, usePanelRef } from "react-re
 import { useLayoutStore } from "../stores/layout-store";
 import { useAppStore } from "@/features/app/stores/app-store";
 import { useProjectStore } from "@/features/projects/stores/project-store";
+import { useSettingsStore } from "@/features/settings/stores/settings-store";
 import { ProjectSidebar } from "@/features/projects/components/project-sidebar";
 import { useProjectGitPrefetch } from "@/features/projects/lib/use-project-prefetch";
 import { Titlebar } from "@/components/titlebar";
@@ -23,6 +24,7 @@ export function AppLayout() {
   const rightPanel = useLayoutStore.use.rightPanel();
   const currentProject = useAppStore.use.currentProject();
   const sidebarOpen = useProjectStore.use.sidebarOpen();
+  const personalSync = useSettingsStore((s) => s.settings.personalSync);
 
   // Warm the project-pane git data at startup so the first slide is smooth.
   useProjectGitPrefetch();
@@ -46,8 +48,10 @@ export function AppLayout() {
     else if (!showLeft && !panel.isCollapsed()) panel.collapse();
   }, [showLeft]);
   // Source control needs a project; team chat is org-scoped and is reachable
-  // with no project open, so the slot stays available in chat mode.
-  const showRight = rightPanel.visible && (!!currentProject || rightPanel.mode === "chat");
+  // with no project open, so the slot stays available in chat mode — unless
+  // Chat Sync is off, where chat has nothing to show but "not connected".
+  const showRight =
+    rightPanel.visible && (rightPanel.mode === "chat" ? personalSync : !!currentProject);
   return (
     <div className="flex h-screen">
       {/* DOCKED project sidebar — an in-flow left column that pushes the

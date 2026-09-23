@@ -72,7 +72,7 @@ export function CreateOrgDialog({
 }) {
   const { createOrgSynced } = useOrgStore.use.actions();
   const signedIn = useAuthStore.use.snapshot().status === "signed-in";
-  // Personal sync is the master switch: with it off there is nothing to sync
+  // Chat Sync is the master switch: with it off there is nothing to sync
   // to, so Cloud is unavailable rather than merely unselected — same treatment
   // as signed-out.
   const personalSync = useSettingsStore((s) => s.settings.personalSync);
@@ -280,7 +280,7 @@ export function CreateOrgDialog({
                           !isDisabled
                             ? undefined
                             : !personalSync
-                              ? "Turn on Personal sync in Settings → Behaviour to create a cloud organisation"
+                              ? "Turn on Chat Sync in Settings → Behaviour to create a cloud organisation"
                               : "Sign in to create a cloud organisation"
                         }
                         onClick={() => setMode(id)}

@@ -18,7 +18,7 @@ const uuid = (): string =>
     : `org-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 /**
- * The app-wide **Personal sync** master switch, read non-reactively.
+ * The app-wide **Chat Sync** master switch, read non-reactively.
  *
  * Only the write paths below consult it — they are actions, not render paths,
  * so `getState()` is the right accessor (a subscription here would re-create
@@ -351,7 +351,7 @@ export const useOrgStore = createSelectors(
       },
 
       mergeServerOrgs: (serverOrgs) => {
-        // Personal sync is the master switch. Keep the local list untouched
+        // Chat Sync is the master switch. Keep the local list untouched
         // while it is off; toggling it back on re-runs this merge from App.
         if (!personalSyncEnabled()) return;
 
@@ -443,11 +443,11 @@ export const useOrgStore = createSelectors(
         if (!org) return;
         if (isSyncedOrg(org)) return; // already linked
 
-        // Personal sync is the master switch: with it off the org stays
+        // Chat Sync is the master switch: with it off the org stays
         // local-only, so refuse the upload and point at the setting rather than
         // linking silently behind the user's back.
         if (!personalSyncEnabled()) {
-          toast.error("Personal sync is off — turn it on in Settings → Behaviour.");
+          toast.error("Chat Sync is off — turn it on in Settings → Behaviour.");
           return;
         }
 

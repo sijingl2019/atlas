@@ -472,7 +472,7 @@ export function OrgSwitcher() {
                 <div
                   title={
                     !personalSync
-                      ? "Personal sync is off — turn it on in Settings → Behaviour"
+                      ? "Chat Sync is off — turn it on in Settings → Behaviour"
                       : activeIsSynced
                         ? "Sign in to manage members"
                         : "Turn on sync to manage members"
@@ -506,7 +506,7 @@ export function OrgSwitcher() {
                   title={
                     personalSync
                       ? "Turn on sync to give this organisation an ID"
-                      : "Personal sync is off — turn it on in Settings → Behaviour"
+                      : "Chat Sync is off — turn it on in Settings → Behaviour"
                   }
                   className="mx-1 mb-1 flex h-control-md w-[calc(100%-8px)] shrink-0 cursor-not-allowed items-center gap-2 rounded-md px-1.5 text-xs text-[var(--secondary-foreground)] opacity-40 select-none"
                 >
@@ -533,11 +533,11 @@ export function OrgSwitcher() {
                 </div>
               ) : !personalSync ? (
                 <div
-                  title="Personal sync is off — turn it on in Settings → Behaviour"
+                  title="Chat Sync is off — turn it on in Settings → Behaviour"
                   className="mx-1 my-1 flex h-control-md w-[calc(100%-8px)] items-center gap-2 rounded-md px-1.5 text-xs text-[var(--secondary-foreground)] select-none"
                 >
                   <CloudOff size={12} className="shrink-0 text-[var(--muted-foreground)]" />
-                  <span className="flex-1 text-left truncate">Personal sync is off</span>
+                  <span className="flex-1 text-left truncate">Chat Sync is off</span>
                 </div>
               ) : isSyncedOrg(active) ? (
                 <div

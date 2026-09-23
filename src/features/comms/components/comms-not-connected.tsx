@@ -56,7 +56,7 @@ export function CommsNotConnected({ org }: { org: Organisation | null }) {
           ? "Select an organisation to use team chat."
           : personalSync
             ? "Team chat needs this organisation synced to your Atlas account."
-            : "Personal sync is off. Turn it on in Settings → Behaviour to use team chat."}
+            : "Chat Sync is off. Turn it on in Settings → Behaviour to use team chat."}
       </p>
       {org && personalSync && (
         <button

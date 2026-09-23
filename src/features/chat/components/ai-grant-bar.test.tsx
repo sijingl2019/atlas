@@ -29,7 +29,7 @@ vi.mock("@/features/organisations/stores/org-store", () => ({
       actions: { enableSync },
     }),
 }));
-/** Personal sync is a master switch the bar and the probe both read off the
+/** Chat Sync is a master switch the bar and the probe both read off the
  *  project store. Pinned on here so these cases exercise the SYNCED org they
  *  describe; the switch itself is covered by its own setting. */
 let personalSync = true;

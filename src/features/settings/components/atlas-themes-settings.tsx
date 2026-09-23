@@ -159,11 +159,14 @@ export function AtlasThemesSettings() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return themes;
+    // A single-appearance theme only shows in the mode it ships: Light lists
+    // themes with a light variant, Dark those with a dark one.
     return themes.filter(
-      (theme) => theme.name.toLowerCase().includes(q) || theme.author.toLowerCase().includes(q),
+      (theme) =>
+        (appearance === "light" ? theme.hasLight : theme.hasDark) &&
+        (!q || theme.name.toLowerCase().includes(q) || theme.author.toLowerCase().includes(q)),
     );
-  }, [query, themes]);
+  }, [query, themes, appearance]);
 
   // The import panel replaces the grid rather than floating over it: it is a
   // multi-step, scrolling surface (paste, convert, read the report, name the
@@ -265,7 +268,7 @@ export function AtlasThemesSettings() {
         {error && <div className="py-6 text-center text-xs text-error">{error}</div>}
         {!loading && !error && filtered.length === 0 && (
           <div className="py-6 text-center text-xs text-muted-foreground">
-            No themes match “{query}”.
+            {query ? `No ${appearance} themes match “${query}”.` : `No ${appearance} themes.`}
           </div>
         )}
       </ScrollArea>

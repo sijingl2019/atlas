@@ -5,7 +5,7 @@
  * Two independent things have to hold:
  *
  *  - the org actually exists server-side — `syncEnabled` + `remoteId` — and
- *  - the app-wide **Personal sync** preference is on.
+ *  - the app-wide **Chat Sync** preference is on.
  *
  * `personalSync` is the master switch (Settings → General → Behaviour), and it
  * is OFF by default: a fresh Atlas is entirely local until the user opts in. It

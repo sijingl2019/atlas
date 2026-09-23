@@ -16,7 +16,7 @@ vi.mock("@/features/projects/stores/project-store", () => ({
 vi.mock("@/features/projects/stores/recent-chats-store", () => ({
   useRecentChatsStore: { getState: () => ({ actions: {} }) },
 }));
-// Personal sync is the master switch for merging server orgs; these cases are
+// Chat Sync is the master switch for merging server orgs; these cases are
 // about the merge itself, so it is on.
 vi.mock("@/features/settings/stores/settings-store", () => ({
   useSettingsStore: { getState: () => ({ settings: { personalSync: true } }) },

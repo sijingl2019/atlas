@@ -260,7 +260,7 @@ export function App() {
         a.setSnapshot(snapshot);
         // Merge the server's org list into the local switcher (adds new ones,
         // takes renamed names onto linked ones, never removes) — only while
-        // Personal sync is on. Guarded on `orgs !== null` (three-state):
+        // Chat Sync is on. Guarded on `orgs !== null` (three-state):
         // `null` is "not known yet" (offline), not "no orgs", and must never
         // touch the local list.
         if (
@@ -308,7 +308,7 @@ export function App() {
   const personalSync = useSettingsStore((s) => s.settings.personalSync);
   useEffect(() => {
     if (bootAuthStatus !== "signed-in") return;
-    // With Personal sync off Rust must not keep a socket pointed at a
+    // With Chat Sync off Rust must not keep a socket pointed at a
     // previously linked org. Pin "none"; the local org list is untouched.
     if (!personalSync) {
       orgReconciledRef.current = true;
@@ -332,7 +332,7 @@ export function App() {
     });
   }, [bootAuthStatus, bootLocalActiveOrg, bootOrganisations, personalSync]);
 
-  // Personal sync can be flipped after boot. Rust's socket follows the auth
+  // Chat Sync can be flipped after boot. Rust's socket follows the auth
   // snapshot's pinned org, so flipping it off must explicitly pin "none";
   // flipping it on re-applies the already-fetched server org list and points
   // the socket at the active org if that org is linked.

@@ -542,7 +542,7 @@ function GeneralSettings() {
 
       <SectionTitle title="Behaviour" subtitle="Files, logs and the editor" />
       <SettingRow
-        label="Personal sync"
+        label="Chat Sync"
         description="Keep your organisations in sync with your Atlas account. Off by default, so a fresh Atlas stays entirely on this machine. While it is off, account-only surfaces (members, team chat, AI grants, capture to cloud) stay off and nothing is uploaded. Turn it on to link your organisations; anything already synced is left untouched."
       >
         <Toggle
