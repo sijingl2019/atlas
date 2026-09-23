@@ -5,6 +5,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/features/auth/stores/auth-store";
 import { useOrgStore } from "@/features/organisations/stores/org-store";
+import { useProjectStore } from "@/features/project/stores/project-store";
 import { isLocalOrg, useActiveOrganisation, useAiGrantStore } from "../stores/ai-grant-store";
 import { COMPOSER_STRIP, COMPOSER_STRIP_ACTION } from "./composer-strip";
 
@@ -48,7 +49,8 @@ export function AiGrantBar() {
   // local org it would name whichever cloud org the account last used.
   const org = useActiveOrganisation();
   const orgName = org?.name ?? account?.orgs?.find((o) => o.id === activeOrgId)?.name ?? null;
-  const local = isLocalOrg(org);
+  const personalSync = useProjectStore((s) => s.settings.personalSync);
+  const local = isLocalOrg(org, personalSync);
 
   const entitlement = useAiGrantStore.use.entitlement();
   const checking = useAiGrantStore.use.checking();
@@ -98,6 +100,33 @@ export function AiGrantBar() {
   // this machine — so the only action is turning on sync, which lives in the
   // org switcher, not here.
   if (entitlement?.state === "localOrg" && local) {
+    // Personal sync off: this is not "a local org you could sync" — the user
+    // switched sync off on purpose, so offering "Turn on sync" here would
+    // contradict the setting (the store refuses it anyway). Point at the
+    // switch instead.
+    if (!personalSync) {
+      return (
+        <div data-testid="ai-grant-bar" className={STRIP} title="Personal sync is off">
+          <span className="min-w-0 truncate">
+            <span className="font-semibold text-[var(--text-primary)]">Atlas Agent</span>
+            <span className="text-[var(--text-tertiary)]">
+              {" "}
+              needs personal sync — turn it on in Settings → Behaviour
+            </span>
+          </span>
+          <div className="flex shrink-0 items-center gap-0.5">
+            <button
+              type="button"
+              onClick={() => dismiss()}
+              title="Dismiss"
+              className="shrink-0 cursor-pointer rounded p-0.5 text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)]"
+            >
+              <X size={12} />
+            </button>
+          </div>
+        </div>
+      );
+    }
     return (
       <div
         data-testid="ai-grant-bar"

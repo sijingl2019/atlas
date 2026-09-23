@@ -16,7 +16,9 @@ import { invoke } from "@tauri-apps/api/core";
 import { createSelectors } from "@/lib/create-selectors";
 import { useAuthStore } from "@/features/auth/stores/auth-store";
 import { useOrgStore } from "@/features/organisations/stores/org-store";
+import { isOrgSynced } from "@/features/organisations/lib/org-sync";
 import type { Organisation } from "@/features/organisations/types";
+import { useProjectStore } from "@/features/project/stores/project-store";
 
 /** What the gateway said about this account's AI access — or, for a local
  *  organisation, the answer Atlas can give without asking: the native agent
@@ -142,9 +144,10 @@ export function useActiveOrganisation(): Organisation | null {
 
 /** Whether the native agent can be billed to this org at all: only a synced
  *  org exists on the gateway's side. `remoteId` is the proof of the link;
- *  `syncEnabled` alone is the user's intent. */
-export function isLocalOrg(org: Organisation | null): boolean {
-  return !org || !org.syncEnabled || !org.remoteId;
+ *  `syncEnabled` alone is the user's intent — and `personalSync` (Settings →
+ *  Behaviour) gates both off, which makes every org local. */
+export function isLocalOrg(org: Organisation | null, personalSync: boolean): boolean {
+  return !isOrgSynced(org, { personalSync });
 }
 
 /**
@@ -162,7 +165,8 @@ export function useAiGrantProbe(): void {
   const snapshot = useAuthStore((s) => s.snapshot);
   const signedIn = snapshot.status === "signed-in";
   const org = useActiveOrganisation();
-  const local = isLocalOrg(org);
+  const personalSync = useProjectStore((s) => s.settings.personalSync);
+  const local = isLocalOrg(org, personalSync);
   const localId = org?.id ?? null;
   // A synced org is asked about under its gateway identity — the same id the
   // account token is minted for once the desktop's choice has been pushed.
@@ -184,7 +188,8 @@ export function useAiGrantProbe(): void {
 export function useActiveGatewayOrgId(): string | null {
   const snapshot = useAuthStore((s) => s.snapshot);
   const org = useActiveOrganisation();
-  if (snapshot.status !== "signed-in" || isLocalOrg(org)) return null;
+  const personalSync = useProjectStore((s) => s.settings.personalSync);
+  if (snapshot.status !== "signed-in" || isLocalOrg(org, personalSync)) return null;
   return org?.remoteId ?? null;
 }
 

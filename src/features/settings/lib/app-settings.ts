@@ -8,11 +8,11 @@
  * — made the two modules a cycle.
  */
 
-import { DEFAULT_SCALE } from "./ui-scale";
-import { NATIVE_AGENT_ID } from "@/types/agent";
 import { DEFAULT_EDITOR_THEME_ID } from "@/features/editor/themes/themes";
 import type { ThemeMode } from "@/features/theme/mode";
 import { DEFAULT_ATLAS_THEME_ID } from "@/features/theme/themes";
+import { NATIVE_AGENT_ID } from "@/types/agent";
+import { DEFAULT_SCALE } from "./ui-scale";
 
 /**
  * App-wide preferences surfaced in Settings → General. Mirrors
@@ -38,6 +38,13 @@ export interface AppSettings {
    *  on the anonymous per-device person. Default ON; irrelevant while signed out
    *  or while `shareTelemetry` is off — both gate it. */
   linkTelemetryToAccount: boolean;
+  /** Keep organisations in sync with the Atlas account. Default OFF (opt-in).
+   *  While off, every organisation is treated as local-only: nothing is
+   *  uploaded, and account-only surfaces — members, team chat, AI grants,
+   *  capture-to-cloud — stay off. Server rows already created are left
+   *  untouched, so turning it on restores the link. Gates the shared
+   *  `isOrgSynced` predicate (see `features/organisations/lib/org-sync.ts`). */
+  personalSync: boolean;
   /** Selected on-device embedding model id (== dir name). Managed by the Local
    *  Model Manager; carried here so settings round-trips never clobber it. */
   embeddingModelId: string;
@@ -151,6 +158,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   uiScale: DEFAULT_SCALE,
   shareTelemetry: true,
   linkTelemetryToAccount: true,
+  personalSync: false,
   embeddingModelId: "bge-small-zh-v1.5",
   codeEditorTheme: DEFAULT_EDITOR_THEME_ID,
   atlasTheme: DEFAULT_ATLAS_THEME_ID,

@@ -29,6 +29,16 @@ vi.mock("@/features/organisations/stores/org-store", () => ({
       actions: { enableSync },
     }),
 }));
+/** Personal sync is a master switch the bar and the probe both read off the
+ *  project store. Pinned on here so these cases exercise the SYNCED org they
+ *  describe; the switch itself is covered by its own setting. */
+let personalSync = true;
+vi.mock("@/features/project/stores/project-store", () => {
+  const useProjectStore = (selector: (s: unknown) => unknown) =>
+    selector({ settings: { personalSync } });
+  useProjectStore.getState = () => ({ settings: { personalSync } });
+  return { useProjectStore };
+});
 vi.mock("@/features/auth/stores/auth-store", () => ({
   useAuthStore: (selector: (s: unknown) => unknown) =>
     selector({
@@ -74,6 +84,7 @@ describe("the no-grant setup state (bar 14)", () => {
     openUrl.mockReset();
     openUrl.mockResolvedValue(undefined);
     signedIn = true;
+    personalSync = true;
     orgs = [{ id: "org_1", name: "Acme" }];
     activeOrgId = "org_1";
     desktopOrgs = [{ id: "local_1", name: "Acme", syncEnabled: true, remoteId: "org_1" }];

@@ -6,6 +6,7 @@ import { resetGitSummariesForOrgSwitch } from "@/features/workspaces/stores/work
 import { commsActions } from "@/features/comms/stores/comms-store";
 import { comms } from "@/features/comms/lib/comms-api";
 import { markOrgReconciled } from "./org-reconciliation";
+import { isOrgSynced } from "./org-sync";
 import { useLayoutStore } from "@/features/layout/stores/layout-store";
 import { useSpacesStore } from "@/features/spaces/stores/spaces-store";
 import { ORG_SCOPED_TYPES } from "@/lib/constants";
@@ -133,7 +134,12 @@ export async function switchOrg(id: string): Promise<void> {
     //    `auth_set_active_org` triggers the auth broadcast, and Rust re-points
     //    the socket from there — so every other path that changes the active
     //    org is correct for free.
-    const incomingRemoteId = target.remoteId ?? null;
+    // Personal sync is the master switch: when it is off, never hand Rust a
+    // server org id, even for an org that still has a stored `remoteId`.
+    // Pinning "none" keeps the chat socket closed while the local switch
+    // continues normally.
+    const personalSync = useProjectStore.getState().settings.personalSync;
+    const incomingRemoteId = personalSync ? (target.remoteId ?? null) : null;
     commsActions().beginSwitch(incomingRemoteId);
     await invoke("comms_disconnect").catch(() => {});
 
@@ -224,6 +230,8 @@ export async function deleteOrgAndData(id: string): Promise<boolean> {
   if (!organisations.some((o) => o.id === id)) return false;
 
   const target = organisations.find((o) => o.id === id);
+  const targetRemoteId = target?.remoteId;
+  const personalSync = useProjectStore.getState().settings.personalSync;
 
   if (id === activeOrganisationId) {
     const next = organisations.find((o) => o.id !== id);
@@ -237,9 +245,14 @@ export async function deleteOrgAndData(id: string): Promise<boolean> {
   // anyway"). A non-admin who stays a member on the server may see it return on
   // the next sync; that is the accepted tradeoff. Only signed-in, only if the
   // org was ever linked.
-  if (target?.remoteId && useAuthStore.getState().snapshot.status === "signed-in") {
+  // Personal sync off means "local only": never delete the server row.
+  if (
+    targetRemoteId &&
+    isOrgSynced(target, { personalSync }) &&
+    useAuthStore.getState().snapshot.status === "signed-in"
+  ) {
     try {
-      await auth.deleteOrg(target.remoteId);
+      await auth.deleteOrg(targetRemoteId);
     } catch (e) {
       toast.error(typeof e === "string" ? e : "Couldn't delete on the server.");
     }

@@ -10,6 +10,7 @@ import { CommsSkeleton } from "./comms-skeleton";
 import { useCommsStore } from "../stores/comms-store";
 import { comms, type ConnReason, type ConnectionState } from "../lib/comms-api";
 import { useOrgStore } from "@/features/organisations/stores/org-store";
+import { useIsOrgSynced } from "@/features/organisations/lib/org-sync";
 import { useAuthStore } from "@/features/auth/stores/auth-store";
 import { useMembersStore } from "@/features/organisations/stores/members-store";
 import { convertFileSrc } from "@tauri-apps/api/core";
@@ -46,11 +47,13 @@ export function CommsPanel() {
 
   // Chat is org-scoped and every route names a *server* org id, so a local-only
   // organisation has nothing to talk to. There is no `useActiveOrg` helper —
-  // the find is the convention across the app.
+  // the find is the convention across the app. `useIsOrgSynced` also folds in
+  // the app-wide Personal-sync switch, so turning it off drops the org to
+  // local-only here too.
   const organisations = useOrgStore.use.organisations();
   const activeOrganisationId = useOrgStore.use.activeOrganisationId();
   const activeOrg = organisations.find((o) => o.id === activeOrganisationId) ?? null;
-  const connected = !!(activeOrg?.syncEnabled && activeOrg?.remoteId);
+  const connected = useIsOrgSynced(activeOrg);
 
   // Chat sends user ids and nothing else, so every name, avatar and resolved
   // mention comes from the org roster. It is keyed by the SERVER org id — and

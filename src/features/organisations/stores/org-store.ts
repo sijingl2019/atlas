@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { createSelectors } from "@/lib/create-selectors";
 import { logEvent } from "@/features/log/lib/log";
-import { scheduleAppStateSave } from "@/features/project/stores/project-store";
+import { scheduleAppStateSave, useProjectStore } from "@/features/project/stores/project-store";
 import { useWorkspaceStore } from "@/features/workspaces/stores/workspace-store";
 import { useRecentChatsStore } from "@/features/workspaces/stores/recent-chats-store";
 import type { Organisation } from "../types";
@@ -15,6 +15,17 @@ const uuid = (): string =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
     : `org-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+/**
+ * The app-wide **Personal sync** master switch, read non-reactively.
+ *
+ * Only the write paths below consult it — they are actions, not render paths,
+ * so `getState()` is the right accessor (a subscription here would re-create
+ * the store on every flip). While it is off an organisation must stay
+ * local-only: nothing may be uploaded, even if a caller asks for a cloud org.
+ * See `features/organisations/lib/org-sync.ts` for the read side.
+ */
+const personalSyncEnabled = (): boolean => useProjectStore.getState().settings.personalSync;
 
 /** Whether `name` (case-insensitive, trimmed) is already used by an org other
  *  than `exceptId`. Enforces GitHub-style globally-unique org names. */
@@ -230,7 +241,11 @@ export const useOrgStore = createSelectors(
         // A local org never calls out at all — that is the point of it — so its
         // handle is only checked against the other local orgs above.
         let remoteId: string | null = null;
-        if (cloud && useAuthStore.getState().snapshot.status === "signed-in") {
+        if (
+          cloud &&
+          personalSyncEnabled() &&
+          useAuthStore.getState().snapshot.status === "signed-in"
+        ) {
           const created = await auth.createOrg(trimmed, handle);
           remoteId = created.id;
         }
@@ -334,6 +349,10 @@ export const useOrgStore = createSelectors(
       },
 
       mergeServerOrgs: (serverOrgs) => {
+        // Personal sync is the master switch. Keep the local list untouched
+        // while it is off; toggling it back on re-runs this merge from App.
+        if (!personalSyncEnabled()) return;
+
         // Repair first: earlier builds could append a local org for a server id
         // that a racing merge had already added, leaving two identical rows in
         // the switcher. Collapsing here (rather than only preventing new ones)
@@ -404,6 +423,14 @@ export const useOrgStore = createSelectors(
         const org = get().organisations.find((o) => o.id === id);
         if (!org) return;
         if (org.remoteId && org.syncEnabled) return; // already linked
+
+        // Personal sync is the master switch: with it off the org stays
+        // local-only, so refuse the upload and point at the setting rather than
+        // linking silently behind the user's back.
+        if (!personalSyncEnabled()) {
+          toast.error("Personal sync is off — turn it on in Settings → Behaviour.");
+          return;
+        }
 
         // No credential → send them through sign-in; syncing needs one, and the
         // sign-in that follows re-merges the server list anyway.

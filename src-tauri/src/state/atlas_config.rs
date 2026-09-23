@@ -160,6 +160,14 @@ pub struct AppSettings {
     /// gate this. See `crate::telemetry`.
     #[serde(default = "default_true")]
     pub link_telemetry_to_account: bool,
+    /// Keep organisations in sync with the Atlas account. Default **OFF**
+    /// (opt-in). While off, every organisation is local-only on this machine:
+    /// nothing is uploaded, and account-only surfaces — members, team chat,
+    /// AI grants, capture-to-cloud — stay off. Turning it on links them again;
+    /// server rows already created are left untouched. See
+    /// `src/features/organisations/lib/org-sync.ts`.
+    #[serde(default)]
+    pub personal_sync: bool,
     /// Selected on-device **embedding** model id (== its dir name under
     /// `app_data/models/`). Drives `memory_graph::model_dir` and every embedding
     /// consumer via the shared provider. See `crate::commands::models`.
@@ -328,6 +336,7 @@ impl Default for AppSettings {
             ui_scale: default_ui_scale(),
             share_telemetry: true,
             link_telemetry_to_account: true,
+            personal_sync: false,
             embedding_model_id: default_embedding_model(),
             code_editor_theme: default_code_editor_theme(),
             atlas_theme: default_atlas_theme(),
@@ -424,6 +433,14 @@ const SETTINGS_DOCS: &[(&str, &str)] = &[
         "# Attribute telemetry to your signed-in Atlas account instead of the\n\
          # anonymous per-device id. Irrelevant while signed out, or while\n\
          # shareTelemetry is false — both gate it. (default: true)",
+    ),
+    (
+        "personalSync",
+        "# Keep organisations in sync with your Atlas account. Off by default:\n\
+         # while it is off, Atlas is entirely local — no organisation is\n\
+         # uploaded, and account-only surfaces (members, team chat, AI grants,\n\
+         # capture to cloud) stay off. Turn it on to link them; server rows\n\
+         # already created are left untouched. (default: false)",
     ),
     (
         "embeddingModelId",
@@ -860,6 +877,7 @@ pub struct SettingsPatch {
     pub ui_scale: Option<f32>,
     pub share_telemetry: Option<bool>,
     pub link_telemetry_to_account: Option<bool>,
+    pub personal_sync: Option<bool>,
     pub embedding_model_id: Option<String>,
     pub code_editor_theme: Option<String>,
     pub atlas_theme: Option<String>,
@@ -907,6 +925,9 @@ impl SettingsPatch {
         }
         if let Some(v) = self.link_telemetry_to_account {
             settings.link_telemetry_to_account = v;
+        }
+        if let Some(v) = self.personal_sync {
+            settings.personal_sync = v;
         }
         if let Some(v) = &self.embedding_model_id {
             settings.embedding_model_id = v.clone();
@@ -1006,6 +1027,7 @@ impl SettingsPatch {
         set_bool!(show_hidden_files, "showHiddenFiles");
         set_bool!(share_telemetry, "shareTelemetry");
         set_bool!(link_telemetry_to_account, "linkTelemetryToAccount");
+        set_bool!(personal_sync, "personalSync");
         set_bool!(git_blame_inline, "gitBlameInline");
         set_bool!(auto_update, "autoUpdate");
         set_bool!(curated_plugin_sync, "curatedPluginSync");
@@ -1126,6 +1148,7 @@ pub fn settings_from_legacy_json(raw: Option<&serde_json::Value>) -> AppSettings
     take_bool!(show_hidden_files, "showHiddenFiles");
     take_bool!(share_telemetry, "shareTelemetry");
     take_bool!(link_telemetry_to_account, "linkTelemetryToAccount");
+    take_bool!(personal_sync, "personalSync");
     take_bool!(git_blame_inline, "gitBlameInline");
     take_bool!(auto_update, "autoUpdate");
     take_bool!(curated_plugin_sync, "curatedPluginSync");

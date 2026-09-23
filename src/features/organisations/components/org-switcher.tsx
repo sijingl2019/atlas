@@ -6,6 +6,7 @@ import {
   ChevronDown,
   Plus,
   Cloud,
+  CloudOff,
   Lock,
   Pencil,
   Trash2,
@@ -21,8 +22,10 @@ import { copyText } from "@/lib/clipboard";
 import { useWorkspaceStore } from "@/features/workspaces/stores/workspace-store";
 import { useAuthStore } from "@/features/auth/stores/auth-store";
 import { auth } from "@/features/auth/lib/auth-api";
+import { useProjectStore } from "@/features/project/stores/project-store";
 import { useOrgStore } from "../stores/org-store";
 import { switchOrg, deleteOrgAndData } from "../lib/org-switch";
+import { isOrgSynced } from "../lib/org-sync";
 import { AddProjectMenu } from "@/features/workspaces/components/add-project-menu";
 import { useActionShortcut } from "@/features/keybindings/lib/use-action-shortcut";
 import { CreateOrgDialog } from "./create-org-dialog";
@@ -121,6 +124,9 @@ export function OrgSwitcher() {
   const workspaces = useWorkspaceStore.use.workspaces();
   const snapshot = useAuthStore.use.snapshot();
   const signedIn = snapshot.status === "signed-in";
+  /** The master switch (Settings → Behaviour). Off ⇒ every org is local-only,
+   *  so each sync predicate below funnels through `isOrgSynced`. */
+  const personalSync = useProjectStore((s) => s.settings.personalSync);
   /** The server orgs THIS account belongs to. `null` = signed out OR never
    *  listed on this machine (offline). Used to gate access to synced orgs the
    *  current account isn't a member of. */
@@ -142,9 +148,11 @@ export function OrgSwitcher() {
    *    is worse than the rare stale case.
    */
   const orgAccess = (org: Organisation): { ok: true } | { ok: false; reason: string } => {
-    if (!(org.syncEnabled && org.remoteId)) return { ok: true };
+    if (!isOrgSynced(org, { personalSync })) return { ok: true };
     if (!signedIn) return { ok: false, reason: "Sign in to open this synced organisation" };
-    if (myOrgIds && !myOrgIds.has(org.remoteId)) {
+    // `isOrgSynced` already proved `remoteId` is set; the copy narrows it for TS.
+    const remoteId = org.remoteId;
+    if (myOrgIds && remoteId && !myOrgIds.has(remoteId)) {
       return { ok: false, reason: "This account isn't a member of this organisation" };
     }
     return { ok: true };
@@ -184,13 +192,13 @@ export function OrgSwitcher() {
    *  actually exists server-side, AND a live credential to talk to it with.
    *  Signing out does not un-sync an org — you stay in it, and every member
    *  call would 401 — so the credential has to be checked separately. */
-  const isSyncedOrg = !!(active?.syncEnabled && active?.remoteId);
+  const isSyncedOrg = isOrgSynced(active, { personalSync });
   const canManageMembers = isSyncedOrg && signedIn;
   /** The id worth copying is the org's identity ON THE SERVER — the one the
    *  gateway, support and every other machine know it by, and the same value
    *  sent as the `atlas-org` header. A local org's `id` is meaningful only on
    *  this Mac, so there is nothing to hand anyone until it is synced. */
-  const copyableOrgId = active?.remoteId && active?.syncEnabled ? active.remoteId : null;
+  const copyableOrgId = isSyncedOrg && active?.remoteId ? active.remoteId : null;
 
   const beginRename = (id: string, currentName: string) => {
     setEditingId(id);
@@ -297,7 +305,7 @@ export function OrgSwitcher() {
               />
               {/* Manual re-sync — only meaningful with a credential to pull
                   with. Silent on failure: Rust keeps the last-known list. */}
-              {signedIn && (
+              {signedIn && personalSync && (
                 <button
                   title="Refresh organisations"
                   disabled={refreshing}
@@ -450,7 +458,13 @@ export function OrgSwitcher() {
               </DropdownMenu.Item>
             ) : (
               <div
-                title={isSyncedOrg ? "Sign in to manage members" : "Turn on sync to manage members"}
+                title={
+                  !personalSync
+                    ? "Personal sync is off — turn it on in Settings → Behaviour"
+                    : isSyncedOrg
+                      ? "Sign in to manage members"
+                      : "Turn on sync to manage members"
+                }
                 className="mx-1 flex h-[26px] w-[calc(100%-8px)] shrink-0 cursor-not-allowed items-center gap-2 rounded-md px-1.5 text-[11px] text-[var(--text-secondary)] opacity-40 select-none"
               >
                 <Users size={12} className="shrink-0" />
@@ -477,7 +491,11 @@ export function OrgSwitcher() {
               </DropdownMenu.Item>
             ) : (
               <div
-                title="Turn on sync to give this organisation an ID"
+                title={
+                  personalSync
+                    ? "Turn on sync to give this organisation an ID"
+                    : "Personal sync is off — turn it on in Settings → Behaviour"
+                }
                 className="mx-1 mb-1 flex h-[26px] w-[calc(100%-8px)] shrink-0 cursor-not-allowed items-center gap-2 rounded-md px-1.5 text-[11px] text-[var(--text-secondary)] opacity-40 select-none"
               >
                 <Copy size={12} className="shrink-0" />
@@ -497,6 +515,14 @@ export function OrgSwitcher() {
               >
                 <Loader2 size={12} className="shrink-0 animate-spin text-[var(--text-tertiary)]" />
                 <span className="flex-1 text-left truncate">Syncing {active.name}…</span>
+              </div>
+            ) : !personalSync ? (
+              <div
+                title="Personal sync is off — turn it on in Settings → Behaviour"
+                className="mx-1 my-1 flex h-[26px] w-[calc(100%-8px)] items-center gap-2 rounded-md px-1.5 text-[11px] text-[var(--text-secondary)] select-none"
+              >
+                <CloudOff size={12} className="shrink-0 text-[var(--text-tertiary)]" />
+                <span className="flex-1 text-left truncate">Personal sync is off</span>
               </div>
             ) : active.syncEnabled && active.remoteId ? (
               <div

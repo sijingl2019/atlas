@@ -233,10 +233,15 @@ export function App() {
     const offs: Array<Promise<() => void>> = [
       listenAuthChanged((snapshot) => {
         a.setSnapshot(snapshot);
-        // Add-only merge of the server's org list into the local switcher.
-        // Guarded on `orgs !== null` (three-state): `null` is "not known yet"
-        // (offline), not "no orgs", and must never touch the local list.
-        if (snapshot.status === "signed-in" && snapshot.orgs) {
+        // Add-only merge of the server's org list into the local switcher,
+        // but only while Personal sync is on. Guarded on `orgs !== null`
+        // (three-state): `null` is "not known yet" (offline), not "no orgs",
+        // and must never touch the local list.
+        if (
+          useProjectStore.getState().settings.personalSync &&
+          snapshot.status === "signed-in" &&
+          snapshot.orgs
+        ) {
           useOrgStore.getState().actions.mergeServerOrgs(snapshot.orgs);
         }
       }),
@@ -263,12 +268,24 @@ export function App() {
   const bootAuthStatus = useAuthStore((s) => s.snapshot.status);
   const bootLocalActiveOrg = useOrgStore.use.activeOrganisationId();
   const bootOrganisations = useOrgStore.use.organisations();
+  const personalSync = useProjectStore((s) => s.settings.personalSync);
   useEffect(() => {
+    if (bootAuthStatus !== "signed-in") return;
+    // With Personal sync off Rust must not keep a socket pointed at a
+    // previously linked org. Pin "none"; the local org list is untouched.
+    if (!personalSync) {
+      orgReconciledRef.current = true;
+      markOrgReconciled();
+      void invoke("auth_set_active_org", { orgId: null }).catch((e) => {
+        console.warn("personal sync off: clearing active org failed:", e);
+      });
+      return;
+    }
     // `isOrgReconciled` covers the other pusher: an explicit `switchOrg` that
     // ran before sign-in settled has already told Rust, and this push landing
     // after it would drag the chat socket back to the org just left.
     if (orgReconciledRef.current || isOrgReconciled()) return;
-    if (bootAuthStatus !== "signed-in" || !bootLocalActiveOrg) return;
+    if (!bootLocalActiveOrg) return;
     const active = bootOrganisations.find((o) => o.id === bootLocalActiveOrg);
     if (!active) return;
     orgReconciledRef.current = true;
@@ -276,7 +293,33 @@ export function App() {
     void invoke("auth_set_active_org", { orgId: active.remoteId ?? null }).catch((e) => {
       console.warn("boot org reconciliation failed:", e);
     });
-  }, [bootAuthStatus, bootLocalActiveOrg, bootOrganisations]);
+  }, [bootAuthStatus, bootLocalActiveOrg, bootOrganisations, personalSync]);
+
+  // Personal sync can be flipped after boot. Rust's socket follows the auth
+  // snapshot's pinned org, so flipping it off must explicitly pin "none";
+  // flipping it on re-applies the already-fetched server org list and points
+  // the socket at the active org if that org is linked.
+  const personalSyncRef = useRef(personalSync);
+  useEffect(() => {
+    const changed = personalSyncRef.current !== personalSync;
+    personalSyncRef.current = personalSync;
+    if (!changed || bootAuthStatus !== "signed-in") return;
+    if (!personalSync) {
+      void invoke("auth_set_active_org", { orgId: null }).catch((e) => {
+        console.warn("personal sync off: clearing active org failed:", e);
+      });
+      return;
+    }
+    const snapshot = useAuthStore.getState().snapshot;
+    if (snapshot.status === "signed-in" && snapshot.orgs) {
+      useOrgStore.getState().actions.mergeServerOrgs(snapshot.orgs);
+    }
+    const orgState = useOrgStore.getState();
+    const active = orgState.organisations.find((o) => o.id === orgState.activeOrganisationId);
+    void invoke("auth_set_active_org", { orgId: active?.remoteId ?? null }).catch((e) => {
+      console.warn("personal sync on: restoring active org failed:", e);
+    });
+  }, [personalSync, bootAuthStatus]);
 
   // Team chat: the renderer is a projection of Rust's chat state. The socket
   // lives in Rust for the app's lifetime (it is also the notification
@@ -388,7 +431,11 @@ export function App() {
           // orgs from a snapshot that may have already arrived — otherwise a
           // sign-in that landed before this bootstrap would be overwritten.
           const snap = useAuthStore.getState().snapshot;
-          if (snap.status === "signed-in" && snap.orgs) {
+          if (
+            useProjectStore.getState().settings.personalSync &&
+            snap.status === "signed-in" &&
+            snap.orgs
+          ) {
             useOrgStore.getState().actions.mergeServerOrgs(snap.orgs);
           }
         });

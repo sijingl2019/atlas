@@ -19,6 +19,7 @@ import { GithubIcon } from "@/components/github-icon";
 
 import { useAuthStore } from "@/features/auth/stores/auth-store";
 import { useOrgStore } from "@/features/organisations/stores/org-store";
+import { useIsOrgSynced } from "@/features/organisations/lib/org-sync";
 import type { Organisation } from "@/features/organisations/types";
 import { cn } from "@/lib/utils";
 
@@ -156,14 +157,15 @@ export function CapturePopover({ projectPath, health, onChanged, onClose }: Prop
   // Scoped to the Organisation currently open, not every linked one — see the
   // module note. A local-only Organisation yields none, which is what turns
   // Cloud and Connect off with a reason rather than letting them fail later.
-  // `syncEnabled && remoteId` is the same synced predicate the org switcher
-  // uses; being signed in is checked separately, because signing out does not
-  // move you out of a synced Organisation.
+  // `useIsOrgSynced` is the same synced predicate the org switcher uses, and
+  // it also folds in the app-wide Personal-sync switch, so turning that off
+  // turns Cloud and Connect off with the same reason. Being signed in is
+  // checked separately, because signing out does not move you out of a synced
+  // Organisation.
   const activeOrg = organisations.find((org) => org.id === activeOrganisationId) ?? null;
+  const syncOn = useIsOrgSynced(activeOrg);
   const cloudOrgs =
-    activeOrg?.remoteId && activeOrg.syncEnabled
-      ? [activeOrg as Organisation & { remoteId: string }]
-      : [];
+    syncOn && activeOrg?.remoteId ? [activeOrg as Organisation & { remoteId: string }] : [];
 
   const [binding, setBinding] = useState<Binding | null>(null);
   /**

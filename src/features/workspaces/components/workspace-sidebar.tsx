@@ -11,19 +11,14 @@ import {
   Pin,
   Plus,
   PinOff,
-  ChartPie,
   ChevronRight,
   ChevronDown,
-  ChevronsDownUp,
-  ChevronsUpDown,
   MoreHorizontal,
   Trash2,
   Pencil,
   Copy,
-  MessagesSquare,
   GitBranch,
   TerminalSquare,
-  Users,
   HelpCircle,
   MessageCircle,
   MessageCircleQuestion,
@@ -58,16 +53,10 @@ import { AgentIcons } from "@/components/agent-icons";
 import { useSessionPinsStore } from "../stores/session-pins-store";
 import { latestWorkspaceSession, workspaceSessions } from "../lib/sidebar-sessions";
 import { useProjectStore } from "@/features/project/stores/project-store";
-import { useOrgStore } from "@/features/organisations/stores/org-store";
 import { useActiveOrgWorkspaces, useActiveOrgGroups } from "../lib/org-scope";
-import { OrgSwitcher } from "@/features/organisations/components/org-switcher";
-import { MembersModal } from "@/features/organisations/components/members-modal";
-import { CaptureControl } from "@/features/capture/components/capture-control";
 import { useLayoutStore } from "@/features/layout/stores/layout-store";
 import { useActionShortcut } from "@/features/keybindings/lib/use-action-shortcut";
 import { AtlasIcon } from "@/components/atlas-icon";
-import { useFullscreen } from "@/hooks/use-fullscreen";
-import { isMac } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 import { GitDot, NumStatPill } from "./git-summary";
 import { useProjectDialogStore } from "../lib/project-dialog";
@@ -743,19 +732,11 @@ export function WorkspaceSidebar() {
   const { addWorkspace } = useWorkspaceStore.use.actions();
   const { addTab, toggleRightPanelMode } = useLayoutStore.use.actions();
   // Which occupant the right slot shows, or null when closed — drives the
-  // active state of the Chat / Source control items.
+  // active state of the Source control item.
   const rightMode = useLayoutStore((s) => (s.rightPanel.visible ? s.rightPanel.mode : null));
   // Source control needs a project (app-layout hides the slot without one), so
   // the item says so instead of toggling a panel that never appears.
   const hasProject = useProjectStore((s) => !!s.currentProject);
-  // Team chat and the member roster are SERVER features: every route names a
-  // server org id, so a local-only organisation has nothing to talk to. Same
-  // test comms-panel.tsx applies before it connects.
-  const organisations = useOrgStore.use.organisations();
-  const activeOrganisationId = useOrgStore.use.activeOrganisationId();
-  const activeOrg = organisations.find((o) => o.id === activeOrganisationId) ?? null;
-  const orgSynced = !!(activeOrg?.syncEnabled && activeOrg?.remoteId);
-  const [membersOpen, setMembersOpen] = useState(false);
   const newTabHint = useActionShortcut("nav.newTabPalette")?.label;
   // Mirrors `panels.knowledge` in App.tsx: one Knowledge tab per split column,
   // focused if it already exists.
@@ -814,7 +795,6 @@ export function WorkspaceSidebar() {
   const { toggle: toggleSessionPin, remove: removeSessionPin } = useSessionPinsStore.use.actions();
   const pinnedThreadSet = useMemo(() => new Set(pinnedThreadIds), [pinnedThreadIds]);
   const runningChatKeys = useRunningChatKeys();
-  const fullscreen = useFullscreen();
 
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({});
@@ -850,16 +830,6 @@ export function WorkspaceSidebar() {
       }),
     [sessionProjects, workspaces],
   );
-
-  // Section ids that currently exist (for collapse-all + the toggle button).
-  const sectionIds = useMemo(() => {
-    const ids: string[] = [];
-    if (pinned.length) ids.push("sec:pinned");
-    ids.push("sec:projects");
-    if (recents.length) ids.push("sec:recent");
-    if (latestSessions.length) ids.push("sec:chats");
-    return ids;
-  }, [pinned.length, recents.length, latestSessions.length]);
 
   // Flatten everything into one virtualized row list. Sections AND group
   // folders are collapsible; a collapsed section omits all its content rows.
@@ -954,18 +924,6 @@ export function WorkspaceSidebar() {
     pinnedThreadSet,
   ]);
 
-  // Collapse-all / expand-all: collapses every section + group, or expands all.
-  const allCollapsibleIds = useMemo(
-    () => [...sectionIds, ...groups.map((g) => g.id)],
-    [sectionIds, groups],
-  );
-  const allCollapsed =
-    allCollapsibleIds.length > 0 && allCollapsibleIds.every((id) => collapsed[id]);
-  const toggleAll = () => {
-    if (allCollapsed) setCollapsed({});
-    else setCollapsed(Object.fromEntries(allCollapsibleIds.map((id) => [id, true])));
-  };
-
   // ── Git summaries ────────────────────────────────────────────────────
   // Cached at module scope (`workspace-git-store`) so opening / closing the
   // switcher renders instantly from cache and NEVER recalculates. First sight
@@ -1022,47 +980,10 @@ export function WorkspaceSidebar() {
       className="flex flex-col h-screen w-[244px] shrink-0 bg-transparent"
       data-tauri-drag-region
     >
-      {/* Titlebar band: on macOS the traffic lights live here, so the rail's
-       *  own controls keep right (left in fullscreen, where the lights are gone,
-       *  and on other platforms, which never have them).
-       *  No rule under it — the org row below is the visual top of the rail. */}
-      <div
-        className={cn(
-          "h-[30px] shrink-0 flex items-center gap-0.5 px-2",
-          fullscreen || !isMac ? "justify-start" : "justify-end",
-        )}
-        data-tauri-drag-region
-      >
-        <RailIconButton onClick={toggleAll} title={allCollapsed ? "Expand all" : "Collapse all"}>
-          {allCollapsed ? <ChevronsUpDown size={12} /> : <ChevronsDownUp size={12} />}
-        </RailIconButton>
-        {/* Console sits with the other rail-chrome controls; the project "+"
-         *  moved down to the org row, next to search. Same singleton tab id
-         *  the org row used, so an open Console is focused, not duplicated. */}
-        <RailIconButton
-          onClick={() =>
-            addTab({
-              id: "mission-control",
-              type: "mission-control",
-              title: "Console",
-              closable: true,
-              dirty: false,
-              data: {},
-            })
-          }
-          title="Console"
-        >
-          <ChartPie size={12} />
-        </RailIconButton>
-      </div>
-
-      {/* Organisation switcher — the top-level tenant picker. */}
-      <OrgSwitcher />
-
       {/* Virtualized list. */}
       {/* The rail's interface card — the same recipe as team chat's
           `CommsSurface`: a near-black rounded surface floating on the panel's
-          gradient, inset on the sides and bottom, its edge carried by a
+          gradient, inset on all sides, its edge carried by a
           hairline ring with a soft shadow behind it. No blur and no transform,
           so it is safe inside a vibrant panel.
 
@@ -1070,7 +991,7 @@ export function WorkspaceSidebar() {
           one object: rows disappear under its rounded top edge rather than
           sliding past a straight seam. */}
       <div
-        className="relative mx-1.5 mb-1.5 flex min-h-0 flex-1 flex-col overflow-hidden rounded-[10px] bg-[var(--comms-surface)]"
+        className="relative m-1.5 flex min-h-0 flex-1 flex-col overflow-hidden rounded-[10px] bg-[var(--comms-surface)]"
         style={{
           // Same reasoning as CommsSurface: on a near-black panel the shadow
           // has almost nothing to darken, so the ring carries the edge.
@@ -1078,12 +999,12 @@ export function WorkspaceSidebar() {
             "0 0 0 1px color-mix(in srgb, var(--contrast) 8%, transparent), 0 10px 28px color-mix(in srgb, var(--shade) 60%, transparent)",
         }}
       >
-        {/* ONE scroller for everything below the org row (see `RailScroll`).
+        {/* ONE scroller for the whole rail (see `RailScroll`).
             The navigation used to be pinned above it, which cost ~200px of
             permanently-frozen height — on a short window the project list was
             reduced to a slot a few rows tall while six fixed rows sat above it.
-            Only the titlebar band and the org row are fixed now; the nav is
-            handed to the list as children and scrolls away with it. */}
+            Nothing is fixed above it now; the nav is handed to the list as
+            children and scrolls away with it. */}
         {/* Fades, not a scrollbar: rows enter and leave at the card's rounded
             edges, and a hard cut there reads as clipping. Anchored to the CARD
             (its `relative`), so the bottom one sits above the footer row rather
@@ -1121,30 +1042,10 @@ export function WorkspaceSidebar() {
           onArchiveSession={archiveSession}
           onClearSection={clearSection}
         >
-          {/* Navigation, in three bands. Organisation-wide destinations
-           *  first (Timeline, Chat, Members); then the project-scoped tools under
-           *  their own collapsible "Modules" heading — the same disclosure the
-           *  list below uses, so the rail reads as one outline — ending, as
-           *  Linear's does, in "More", the ⌘⌥N module palette. Logs and Skills left
-           *  the rail: Console and Settings in the org row already reach them. */}
+          {/* Project-scoped tools under their own collapsible "Modules"
+           *  heading, the same disclosure the list below uses, so the rail
+           *  reads as one outline ending in "More". */}
           <nav className="pt-1 pb-1 space-y-px">
-            <CaptureControl />
-            <NavItem
-              icon={<MessagesSquare size={14} />}
-              label="Chat"
-              active={rightMode === "chat"}
-              disabled={!orgSynced}
-              title={orgSynced ? undefined : "Sync this organisation to use team chat"}
-              onClick={() => toggleRightPanelMode("chat")}
-            />
-            <NavItem
-              icon={<Users size={14} />}
-              label="Members"
-              disabled={!orgSynced}
-              title={orgSynced ? undefined : "Sync this organisation to manage members"}
-              onClick={() => setMembersOpen(true)}
-            />
-
             <SectionHeaderRow
               id="sec:tools"
               label="Modules"
@@ -1211,7 +1112,6 @@ export function WorkspaceSidebar() {
           <AppVersion />
         </div>
       </div>
-      <MembersModal org={activeOrg} open={membersOpen} onOpenChange={setMembersOpen} />
     </aside>
   );
 }
@@ -1268,8 +1168,8 @@ function NavItem({
 //
 // Split out of `WorkspaceSidebar` for one reason: a virtualizer re-renders its
 // OWNER on every scroll event. With the hook at the top of the rail, a fling
-// re-ran fifteen store selectors, the org row, the whole navigation and every
-// visible row wrapper per frame, all to produce identical output. Down here the
+// re-ran fifteen store selectors, the whole navigation and every visible row
+// wrapper per frame, all to produce identical output. Down here the
 // only thing a frame can touch is the list.
 
 /** Above this many rows the list virtualizes; below it, plain DOM.
@@ -1710,35 +1610,6 @@ function AppVersion() {
       className="cursor-pointer select-none pr-1 font-mono text-[10px] tabular-nums text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-secondary)]"
     >
       v{version}
-    </button>
-  );
-}
-
-/** The rail's small ghost icon buttons (titlebar band). */
-function RailIconButton({
-  children,
-  onClick,
-  title,
-  active,
-}: {
-  children: React.ReactNode;
-  onClick: () => void;
-  title: string;
-  active?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={title}
-      className={cn(
-        "flex size-6 items-center justify-center rounded-md outline-none transition-colors cursor-pointer hover:bg-[var(--bg-hover)]",
-        active
-          ? "text-[var(--accent-primary)]"
-          : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)]",
-      )}
-    >
-      {children}
     </button>
   );
 }

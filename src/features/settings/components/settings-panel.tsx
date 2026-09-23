@@ -502,6 +502,15 @@ function GeneralSettings() {
 
       <SectionTitle title="Behaviour" subtitle="Files, logs and the editor" />
       <SettingRow
+        label="Personal sync"
+        description="Keep your organisations in sync with your Atlas account. Off by default, so a fresh Atlas stays entirely on this machine. While it is off, account-only surfaces (members, team chat, AI grants, capture to cloud) stay off and nothing is uploaded. Turn it on to link your organisations; anything already synced is left untouched."
+      >
+        <Toggle
+          checked={settings.personalSync}
+          onChange={(next) => updateSettings({ personalSync: next })}
+        />
+      </SettingRow>
+      <SettingRow
         label="Auto-add .atlas to .gitignore"
         description="When you open a git-tracked project, Atlas adds `.atlas/` to the project's .gitignore (creating one if needed). Atlas keeps its caches and state in `.atlas/` — keeping it out of version control is almost always what you want. No-op on non-git projects."
       >

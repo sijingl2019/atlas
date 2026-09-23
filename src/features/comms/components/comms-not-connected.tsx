@@ -3,6 +3,7 @@ import { Loader2, MessageCircle, Rss } from "lucide-react";
 import { useAuthStore } from "@/features/auth/stores/auth-store";
 import { useOrgStore } from "@/features/organisations/stores/org-store";
 import type { Organisation } from "@/features/organisations/types";
+import { useProjectStore } from "@/features/project/stores/project-store";
 import { inkRgb, useResolvedMode } from "@/features/theme/mode";
 
 /**
@@ -20,6 +21,9 @@ import { inkRgb, useResolvedMode } from "@/features/theme/mode";
 export function CommsNotConnected({ org }: { org: Organisation | null }) {
   const signedIn = useAuthStore.use.snapshot().status === "signed-in";
   const { enableSync } = useOrgStore.use.actions();
+  // Master switch: with personal sync off there is nothing to connect to, so
+  // the one action this screen offers would contradict the setting.
+  const personalSync = useProjectStore((s) => s.settings.personalSync);
   const [syncing, setSyncing] = useState(false);
 
   const connect = () => {
@@ -48,11 +52,13 @@ export function CommsNotConnected({ org }: { org: Organisation | null }) {
         {org ? `${org.name} isn't connected` : "No organisation selected"}
       </div>
       <p className="relative max-w-[220px] text-[11px] leading-relaxed text-text-secondary">
-        {org
-          ? "Team chat needs this organisation synced to your Atlas account."
-          : "Select an organisation to use team chat."}
+        {!org
+          ? "Select an organisation to use team chat."
+          : personalSync
+            ? "Team chat needs this organisation synced to your Atlas account."
+            : "Personal sync is off. Turn it on in Settings → Behaviour to use team chat."}
       </p>
-      {org && (
+      {org && personalSync && (
         <button
           type="button"
           disabled={syncing}

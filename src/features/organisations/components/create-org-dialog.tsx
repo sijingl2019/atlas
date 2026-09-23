@@ -7,6 +7,7 @@ import { auth } from "@/features/auth/lib/auth-api";
 import { useAuthStore } from "@/features/auth/stores/auth-store";
 import { useOrgStore } from "../stores/org-store";
 import { switchOrg } from "../lib/org-switch";
+import { useProjectStore } from "@/features/project/stores/project-store";
 
 /** The web origin an org handle lives under — shown as the static prefix. */
 const HANDLE_PREFIX = "app.tryatlas.cc/";
@@ -70,6 +71,10 @@ export function CreateOrgDialog({
 }) {
   const { createOrgSynced } = useOrgStore.use.actions();
   const signedIn = useAuthStore.use.snapshot().status === "signed-in";
+  // Personal sync is the master switch: with it off there is nothing to sync
+  // to, so Cloud is unavailable rather than merely unselected — same treatment
+  // as signed-out.
+  const personalSync = useProjectStore((s) => s.settings.personalSync);
 
   const [name, setName] = useState("");
   const [handle, setHandle] = useState("");
@@ -83,7 +88,7 @@ export function CreateOrgDialog({
   const [slug, setSlug] = useState<SlugState>({ kind: "idle" });
   const [submitting, setSubmitting] = useState(false);
 
-  const cloud = mode === "cloud" && signedIn;
+  const cloud = mode === "cloud" && signedIn && personalSync;
 
   // Reset every field when the dialog (re)opens, so a cancelled attempt never
   // leaks into the next one.
@@ -92,11 +97,11 @@ export function CreateOrgDialog({
     setName("");
     setHandle("");
     setHandleDirty(false);
-    setMode(signedIn ? "cloud" : "local");
+    setMode(signedIn && personalSync ? "cloud" : "local");
     setRegion("us");
     setSlug({ kind: "idle" });
     setSubmitting(false);
-  }, [open, signedIn]);
+  }, [open, signedIn, personalSync]);
 
   // Empty name → empty handle. No placeholder value, so nothing is probed until
   // the user actually types.
@@ -260,7 +265,7 @@ export function CreateOrgDialog({
                 <div className="mt-1 flex gap-1.5">
                   {(
                     [
-                      ["cloud", "Cloud", !signedIn],
+                      ["cloud", "Cloud", !signedIn || !personalSync],
                       ["local", "Local", false],
                     ] as const
                   ).map(([id, label, isDisabled]) => {
@@ -269,7 +274,13 @@ export function CreateOrgDialog({
                       <button
                         key={id}
                         disabled={isDisabled}
-                        title={isDisabled ? "Sign in to create a cloud organisation" : undefined}
+                        title={
+                          !isDisabled
+                            ? undefined
+                            : !personalSync
+                              ? "Turn on Personal sync in Settings → Behaviour to create a cloud organisation"
+                              : "Sign in to create a cloud organisation"
+                        }
                         onClick={() => setMode(id)}
                         className={cn(
                           "rounded-full border px-2.5 py-1 text-[11px] transition-colors",
