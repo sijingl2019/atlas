@@ -2037,7 +2037,11 @@ fn bootstrap_at(
     marker_already_set: bool,
     legacy_settings_raw: Option<serde_json::Value>,
 ) -> MigrationOutcome {
-    if path.exists() {
+    // `try_exists`, not `exists`: the latter maps every error (e.g. Windows
+    // os error 448 on an untrusted junction in the path) to "absent", which
+    // would send us down the create-fresh branch over a file that is really
+    // there. An error goes to `load_at`, which reports it as unreadable.
+    if !matches!(path.try_exists(), Ok(false)) {
         // Config already exists — never merge stale `state.json` settings
         // into it, whether this is the first time we've seen it (a v3->v4
         // upgrade that lands after a user hand-authored config.toml, or a

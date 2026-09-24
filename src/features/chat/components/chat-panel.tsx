@@ -30,6 +30,7 @@ import { useAgentRegistryStore } from "@/features/agents/stores/agent-registry-s
 import { bindFailureAction, errInfo, promptSignIn } from "../lib/agent-signin";
 import { toast } from "sonner";
 import { useSettingsStore } from "@/features/settings/stores/settings-store";
+import { isLocalOrg, useActiveOrganisation } from "../stores/ai-grant-store";
 
 /** Tab+agent pairs whose bind failure has already been surfaced, so the
  *  focus-triggered retry doesn't re-toast the same error on every focus.
@@ -362,9 +363,18 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
   // submit handler queues the message and the drain effect below flushes
   // it once `acpSessionId` is set. Skipped when a session is already bound
   // (sidebar resume, or a tab re-mount).
+  // A local org (or Chat Sync off) has no gateway identity to bill the native
+  // agent to: its connect can only fail with "no models to offer". The
+  // composer's `AiGrantBar` already explains that, so don't bind and toast on
+  // every launch; turning sync on flips this and re-runs the bind.
+  const activeOrg = useActiveOrganisation();
+  const personalSync = useSettingsStore((s) => s.settings.personalSync);
+  const nativeUnbillable =
+    session?.agentType === "cersei" && !!activeOrg && isLocalOrg(activeOrg, personalSync);
   useEffect(() => {
     if (!session) return;
     if (session.acpSessionId) return;
+    if (nativeUnbillable) return;
     let cancelled = false;
     let pending = false;
     // Attempt generation. `retry`/`abandon` (below) bump it, which makes the
@@ -735,7 +745,7 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
     // `cancelled` guard), preventing a stale bind from clobbering the tab. This
     // matters even when acpSessionId was already undefined (switch during the
     // first bind), where acpSessionId alone wouldn't change.
-  }, [tabId, !!session, session?.acpSessionId, session?.agentType]);
+  }, [tabId, !!session, session?.acpSessionId, session?.agentType, nativeUnbillable]);
 
   // Refresh the ACP model picker for ALREADY-bound sessions, once per binding.
   // The bind effect above returns early once `acpSessionId` is set, so a session
