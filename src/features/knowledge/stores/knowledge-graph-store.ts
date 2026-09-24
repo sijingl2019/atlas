@@ -37,7 +37,9 @@ let unlisten: UnlistenFn | null = null;
 async function fetchGraph(projectPath: string): Promise<ProjectGraph> {
   try {
     return await invoke<ProjectGraph>("knowledge_links_graph", { projectPath });
-  } catch {
+  } catch (err) {
+    // An empty graph and a failed invoke look identical downstream.
+    console.error("knowledge_links_graph failed:", err);
     return { nodes: [], edges: [] };
   }
 }

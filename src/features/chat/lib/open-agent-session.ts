@@ -7,6 +7,7 @@ import { useProjectStore } from "@/features/projects/stores/project-store";
 import { ensureAgent, getAgentSync } from "./agents-api";
 import { errInfo } from "./agent-signin";
 import {
+  agentTypeFromPluginId,
   isBusyAgentStatus,
   pluginIdForAgent,
   type AgentType,
@@ -16,6 +17,8 @@ import { invalidateLoad } from "./load-tokens";
 import { defaultAgentForNewSession } from "./default-agent";
 import { resumeSessionFast } from "./resume-session";
 import { applyModeOnResume } from "./resume-mode";
+import type { ThreadRow } from "./history-api";
+import { comparablePath } from "@/features/projects/lib/sidebar-sessions";
 
 /** Active project root, preferring the legacy `currentProject` but falling back
  *  to the active project path (mirrors the sidebar's `cwd` resolution). */
@@ -62,6 +65,24 @@ function freshTabId(): string {
  * load flow (focus-if-open, reuse-idle-tab-else-new) so it can be invoked from
  * anywhere (e.g. the project switcher's Chats section).
  */
+/** Open a history row from anywhere: focus its project first (when it is one
+ *  of ours), then resume it — the project sidebar's click, minus the sidebar. */
+export async function openThread(thread: ThreadRow): Promise<void> {
+  const cwd = thread.folderPaths[0] ?? "";
+  const project = cwd
+    ? useProjectStore
+        .getState()
+        .projects.find((p) => comparablePath(p.path) === comparablePath(cwd))
+    : undefined;
+  if (project) await useProjectStore.getState().actions.switchTo(project.id);
+  await openAgentSession({
+    acpSessionId: thread.sessionId ?? undefined,
+    title: thread.title,
+    cwd: project?.path ?? cwd,
+    agentType: agentTypeFromPluginId(thread.agentId),
+  });
+}
+
 export async function openAgentSession({
   acpSessionId,
   title,

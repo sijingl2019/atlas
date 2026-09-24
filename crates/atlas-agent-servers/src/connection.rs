@@ -194,6 +194,17 @@ impl AcpConnection {
         if let Some(env) = &command.env {
             child_command.envs(env);
         }
+        // Bun's debugger vars, when Atlas was started under a Bun debugger (a
+        // VS Code debug terminal sets them). Bun-compiled agents like
+        // `claude.exe` read them, so every agent after the first died binding
+        // the SAME inspector port: "Failed to start inspector … EADDRINUSE".
+        for key in [
+            "BUN_INSPECT",
+            "BUN_INSPECT_CONNECT_TO",
+            "BUN_INSPECT_NOTIFY",
+        ] {
+            child_command.env_remove(key);
+        }
         if let Some(cwd) = &root_dir {
             child_command.current_dir(cwd);
         }

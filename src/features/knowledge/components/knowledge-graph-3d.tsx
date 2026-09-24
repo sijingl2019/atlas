@@ -1,3 +1,7 @@
+// Same non-eval pixi setup as `src/lib/pixi-app.ts` - this component
+// builds its own Application and does not import that module. See there
+// for why the packaged app needs it.
+import "pixi.js/unsafe-eval";
 import { useEffect, useRef } from "react";
 import { Application, Container, Graphics, Text, TextStyle, type Ticker } from "pixi.js";
 import { isMac } from "@/lib/platform";
@@ -437,8 +441,8 @@ export function KnowledgeGraph3D({
         }
         teardown = buildOrbitScene(app, graph, width, height, stateRef, onSelect, onActivate);
       })
-      .catch(() => {
-        /* disposal below cleans up */
+      .catch((err) => {
+        console.error("knowledge graph 3D: pixi init failed:", err);
       });
 
     return () => {

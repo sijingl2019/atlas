@@ -461,8 +461,10 @@ function GraphCanvas({
           pushViewport,
         );
       })
-      .catch(() => {
-        // Disposal cleanup below handles the fallout.
+      .catch((err) => {
+        // A rejected init leaves the canvas blank - the ruler and toggles
+        // are DOM and keep drawing - so say so rather than dying quietly.
+        console.error("knowledge graph: pixi init failed:", err);
       });
 
     return () => {

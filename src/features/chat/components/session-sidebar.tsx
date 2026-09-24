@@ -1,12 +1,9 @@
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
-import { useActionShortcut } from "@/features/keybindings/lib/use-action-shortcut";
-import { memo, useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { X, MessageSquare, Search, PanelLeft, Plus, History, Archive } from "lucide-react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { X, MessageSquare, Search, History, Archive } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { HintGroup, HintItem } from "@/ui/hint-group";
 import { Hint } from "@/ui/tooltip";
-import { openNewAgentChat } from "@/features/chat/lib/open-agent-session";
 import { isBusyAgentStatus, agentTypeFromPluginId } from "@/types/agent";
 import {
   ClaudeIcon,
@@ -148,41 +145,19 @@ interface SidebarItem {
 
 interface SessionSidebarProps {
   tabId: string;
-  /**
-   * Where this list is being rendered.
-   *
-   * `"sidebar"` (default) — the resizable left column inside the chat panel,
-   * gated on `chatSidebar.visible`.
-   *
-   * `"dropdown"` — the body of the header's session picker. Same data, same
-   * handlers, different chrome: no fixed width, no resize handle, no border,
-   * and NOT gated on the sidebar's visibility (the picker exists precisely so
-   * history is reachable with the sidebar closed).
-   *
-   * This is a variant rather than a second component on purpose. Reading the
-   * list is one query now, but OPENING a row is still a hundred lines of
-   * resume logic with several hard-won edge cases (orphan tabs, a running tab
-   * that must not be overwritten, stale clicks). Duplicating that would
-   * guarantee the two drift.
-   */
-  variant?: "sidebar" | "dropdown";
   /** Called after a row is opened — lets the picker close itself. */
   onOpened?: () => void;
 }
 
 // memo: ChatPanel re-renders once per streaming rAF flush (whole-session
 // subscription), and this whole body was re-executed with it every frame.
-// Props are stable from ChatPanel
-// (tabId string; the dropdown variant passes its own onOpened, whose identity
-// its parent controls), so memo confines re-runs to this component's own
+// Props are stable from ChatHeader
+// (tabId string; onOpened identity is controlled by the picker), so memo confines re-runs to this component's own
 // subscriptions.
 export const SessionSidebar = memo(function SessionSidebar({
   tabId,
-  variant = "sidebar",
   onOpened,
 }: SessionSidebarProps) {
-  const sidebarHint = useActionShortcut("panels.agentSidebar")?.label;
-  const asDropdown = variant === "dropdown";
   const queryClient = useQueryClient();
   const project = useAppStore.use.currentProject();
   // `currentProject` is a legacy field that's transiently null during boot and
@@ -321,9 +296,7 @@ export const SessionSidebar = memo(function SessionSidebar({
     hydrateSessionSnapshot,
   } = useChatStore.use.actions();
 
-  const chatSidebar = useLayoutStore.use.chatSidebar();
-  const { toggleChatSidebar, setChatSidebarWidth, addTab, setActiveTab } =
-    useLayoutStore.use.actions();
+  const { addTab, setActiveTab } = useLayoutStore.use.actions();
 
   const [search, setSearch] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -452,7 +425,6 @@ export const SessionSidebar = memo(function SessionSidebar({
 
   // Singleton model: "New chat" always starts a fresh session in the CURRENT
   // tab (never a second tab). Shared with ⌘T / the palette / the context menu.
-  const handleNewChat = () => openNewAgentChat();
 
   const handleOpenAgent = (item: SidebarItem) => {
     const storeSnapshot = useChatStore.getState().sessions;
@@ -616,40 +588,6 @@ export const SessionSidebar = memo(function SessionSidebar({
     }
   };
 
-  // --- Resize handle ---
-  const containerRef = useRef<HTMLDivElement>(null);
-  const resizeStartXRef = useRef<number | null>(null);
-  const resizeStartWidthRef = useRef<number>(0);
-
-  const onResizeStart = useCallback(
-    (e: React.MouseEvent) => {
-      e.preventDefault();
-      // Guard against a second drag starting before the first's mouseup
-      // cleanup runs (e.g. rapid double-mousedown) — that would stack two
-      // `mousemove` listeners and move the handle double-distance per pixel.
-      if (resizeStartXRef.current !== null) return;
-      resizeStartXRef.current = e.clientX;
-      resizeStartWidthRef.current = chatSidebar.width;
-      const onMove = (ev: MouseEvent) => {
-        if (resizeStartXRef.current === null) return;
-        const delta = ev.clientX - resizeStartXRef.current;
-        setChatSidebarWidth(resizeStartWidthRef.current + delta);
-      };
-      const onUp = () => {
-        resizeStartXRef.current = null;
-        window.removeEventListener("mousemove", onMove);
-        window.removeEventListener("mouseup", onUp);
-      };
-      window.addEventListener("mousemove", onMove);
-      window.addEventListener("mouseup", onUp);
-    },
-    [chatSidebar.width, setChatSidebarWidth],
-  );
-
-  if (!asDropdown && !chatSidebar.visible) {
-    return null;
-  }
-
   const isActiveItem = (item: SidebarItem) => {
     if (item.kind === "agent") {
       // Match the active tab by the SAME id formula `items` uses for live
@@ -665,25 +603,14 @@ export const SessionSidebar = memo(function SessionSidebar({
   const showEmpty = !isLoading && filtered.length === 0;
 
   return (
-    <div
-      ref={containerRef}
-      style={asDropdown ? undefined : { width: chatSidebar.width }}
-      className={cn(
-        "relative flex flex-col",
-        asDropdown
-          ? "h-[min(420px,60vh)] w-[340px]"
-          : "shrink-0 h-full border-r border-[var(--border)] bg-[var(--sidebar)]",
-      )}
-    >
+    <div className="relative flex flex-col h-[min(420px,60vh)] w-[340px]">
       {/* Search — full-width row matching the GitHub panel's search */}
       <div
         className={cn(
           "flex items-center gap-1.5 h-[32px] shrink-0 px-3",
           // The dropdown sits on a blurred, translucent panel — an opaque fill
           // here would punch a solid rectangle through the blur.
-          asDropdown
-            ? "border-b border-[var(--atlas-element-hover)]"
-            : "border-b border-border bg-background",
+          "border-b border-[var(--atlas-element-hover)]",
         )}
       >
         <Search size={11} className="text-muted-foreground shrink-0" />
@@ -691,22 +618,21 @@ export const SessionSidebar = memo(function SessionSidebar({
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           aria-label="Search sessions"
-          placeholder="Search…"
+          placeholder="Search sessions…"
+          autoFocus
           className="flex-1 bg-transparent outline-none text-xs text-foreground placeholder:text-muted-foreground min-w-0"
         />
         {/* Everything ever, archived included — and where import lives. */}
-        {!asDropdown && (
-          <Hint label="All history — archived threads, and import">
-            <button
-              type="button"
-              onClick={() => setHistoryOpen(true)}
-              aria-label="All history"
-              className="shrink-0 flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-element-hover hover:text-foreground transition-colors cursor-pointer"
-            >
-              <History size={11} />
-            </button>
-          </Hint>
-        )}
+        <Hint label="All history — archived threads, and import">
+          <button
+            type="button"
+            onClick={() => setHistoryOpen(true)}
+            aria-label="All history"
+            className="shrink-0 flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-element-hover hover:text-foreground transition-colors cursor-pointer"
+          >
+            <History size={11} />
+          </button>
+        </Hint>
       </div>
       <ThreadHistoryView
         open={historyOpen}
@@ -749,7 +675,7 @@ export const SessionSidebar = memo(function SessionSidebar({
                 onClick={() => {
                   if (item.kind !== "agent") return;
                   handleOpenAgent(item);
-                  // Dismiss the picker; the sidebar variant stays put.
+                  // Dismiss the picker.
                   onOpened?.();
                 }}
                 className={cn(
@@ -843,49 +769,6 @@ export const SessionSidebar = memo(function SessionSidebar({
           );
         })}
       </div>
-
-      {/* Bottom mini-bar. Height matches the left panel's collapsed Git
-          strip (a 28px button + its 1px top border = 29px) so this
-          footer's top border lines up horizontally with the Git strip's. */}
-      <HintGroup side="top">
-        <div
-          className={cn(
-            "flex items-center justify-between px-1.5 h-[29px]",
-            // Same rule as the search row above: an opaque fill would punch a
-            // solid strip through the picker's blurred panel.
-            asDropdown
-              ? "border-t border-[var(--atlas-element-hover)]"
-              : "border-t border-[var(--border)] bg-[var(--sidebar)]",
-          )}
-        >
-          <HintItem label={sidebarHint ? `Hide sidebar (${sidebarHint})` : "Hide sidebar"}>
-            <button
-              onClick={toggleChatSidebar}
-              className="flex items-center justify-center w-6 h-6 rounded text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--atlas-element-hover)] transition-colors cursor-pointer"
-            >
-              <PanelLeft size={12} />
-            </button>
-          </HintItem>
-          <HintItem label="New chat">
-            <button
-              onClick={handleNewChat}
-              className="flex items-center justify-center w-6 h-6 rounded text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--atlas-element-hover)] transition-colors cursor-pointer"
-            >
-              <Plus size={12} />
-            </button>
-          </HintItem>
-        </div>
-      </HintGroup>
-
-      {/* Resize handle — subtle, matches main panel handles. The dropdown has
-          its own fixed size, so it has nothing to resize. */}
-      {!asDropdown && (
-        <div
-          onMouseDown={onResizeStart}
-          className="absolute top-0 -right-px w-px h-full bg-border hover:bg-primary transition-colors cursor-col-resize"
-          title="Drag to resize"
-        />
-      )}
     </div>
   );
 });

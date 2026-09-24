@@ -30,6 +30,10 @@ interface SettingsState {
    *  rejected write) — `settings` still holds the last valid snapshot.
    *  `null` when there's nothing to report. Settings UI surfaces this. */
   configError: string | null;
+  /** False until the boot `hydrate` lands. Until then `settings` is the
+   *  built-in defaults, so anything that must honour the user's choice (the
+   *  default agent of a restored chat tab) waits on this. */
+  hydrated: boolean;
   actions: {
     /** Applies + persists a settings change through `config.toml`
      *  (`update_atlas_settings`) — see `atlas-config-api.ts`. Optimistic:
@@ -142,6 +146,7 @@ export const useSettingsStore = createSelectors(
     settings: DEFAULT_SETTINGS,
     configGeneration: 0,
     configError: null,
+    hydrated: false,
     actions: {
       updateSettings: (partial: Partial<AppSettings>) => {
         // Optimistic: apply immediately so the control feels instant, then
@@ -222,6 +227,7 @@ export const useSettingsStore = createSelectors(
         };
         set({
           settings,
+          hydrated: true,
           configGeneration: payload.configGeneration ?? 0,
           // A `config.toml` that failed to load at startup is the one case the
           // user cannot otherwise notice: every preference silently reads back

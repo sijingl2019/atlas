@@ -457,10 +457,15 @@ async fn install_package(
     platform: Option<NpmPlatform>,
 ) -> Result<()> {
     wipe_install_tree(install_dir).await?;
+    // `--prefer-online`: an install only runs when the copy on disk is wrong,
+    // most often because the registry moved to a newer version. Offline, npm
+    // resolved the ceiling against the package listing cached at the FIRST
+    // install and re-picked the same old version forever. Tarballs are still
+    // served from the cache by integrity; only the listing is revalidated.
     node.run_npm_subcommand(
         Some(install_dir),
         "install",
-        &[package_spec, "--save-exact"],
+        &[package_spec, "--save-exact", "--prefer-online"],
     )
     .await?;
     let Some(platform) = platform else {

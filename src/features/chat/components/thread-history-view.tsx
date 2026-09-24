@@ -132,6 +132,15 @@ export function ThreadHistoryView({
               onChange={(e) => setSearch(e.target.value)}
               aria-label="Search history"
               placeholder="Search…"
+              autoFocus
+              // Enter opens the top match — the keyboard path for ⌘⇧O.
+              onKeyDown={(e) => {
+                const first = buckets[0]?.[1][0];
+                if (e.key !== "Enter" || !first) return;
+                e.preventDefault();
+                onOpenThread(first);
+                onOpenChange(false);
+              }}
               className="min-w-0 flex-1 bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground"
             />
           </div>

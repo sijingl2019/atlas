@@ -97,7 +97,6 @@ const signInAttempted = new Set<string>();
 import { composePrompt, type MentionData } from "../lib/mentions";
 import { usePaneFind } from "../lib/use-pane-find";
 import { MessageInput } from "./message-input";
-import { SessionSidebar } from "./session-sidebar";
 import { ChatHeader } from "./chat-header";
 import { openNewAgentChat } from "../lib/open-agent-session";
 import { forkSessionToNewTab } from "../lib/fork-session";
@@ -347,12 +346,14 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
   // transcript's per-row pin buttons must address the same bucket.
   const pinScopeKey = pinScope(tabId, session?.acpSessionId);
 
-  // A fresh chat starts on the native agent and starts immediately: the
-  // default needs no probe, so there is no window in which the tab has to sit
-  // session-less waiting to find out which agent it is.
+  // A fresh chat starts on the user's default agent. Restored tabs mount
+  // before the boot bootstrap delivers settings, and creating the session
+  // then picked the built-in default (the native agent) regardless of the
+  // user's choice — so wait for settings; it is a ~10ms IPC.
+  const settingsHydrated = useSettingsStore.use.hydrated();
   useEffect(() => {
-    if (!session) createSession(tabId);
-  }, [tabId, session, createSession]);
+    if (!session && settingsHydrated) createSession(tabId);
+  }, [tabId, session, settingsHydrated, createSession]);
 
   // Bind an ACP agent + session to this tab as soon as the panel mounts.
   // The agent spawn takes 1–3 s warm and up to 30 s on a cold `npx` cache,
@@ -1319,11 +1320,9 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
   return (
     // `relative` is the positioning context for the bash-history panel, which
     // slides in from the right as an absolute overlay (scrim + panel) instead
-    // of a flex column that shrinks the chat. The session sidebar (left) stays
-    // a normal flex column.
+    // of a flex column that shrinks the chat. Session history lives in the
+    // header's picker (and under each project in the app sidebar).
     <div ref={rootRef} className="h-full flex relative">
-      <SessionSidebar tabId={tabId} />
-
       <div className="flex-1 flex flex-col min-w-0">
         {/* The header FLOATS over the transcript rather than sitting above it in
             the column. That is what lets the thread scroll underneath and be

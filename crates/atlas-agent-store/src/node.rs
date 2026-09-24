@@ -462,7 +462,16 @@ fn npm_command_args(
             .to_string_lossy()
             .into_owned(),
     );
-    command_args.extend(NPM_FETCH_ARGS.iter().map(std::string::ToString::to_string));
+    // A caller asking for `--prefer-online` must not also get our
+    // `--prefer-offline`: with both set npm honours offline, so the online
+    // request was silently a no-op.
+    let online = args.contains(&"--prefer-online");
+    command_args.extend(
+        NPM_FETCH_ARGS
+            .iter()
+            .filter(|a| !(online && **a == "--prefer-offline"))
+            .map(std::string::ToString::to_string),
+    );
     command_args.extend(args.iter().map(std::string::ToString::to_string));
     command_args
 }
@@ -836,6 +845,23 @@ mod tests {
             &args[args.len() - 2..],
             ["codex-acp@0.0.0 - 1.0.0", "--save-exact"]
         );
+    }
+
+    #[test]
+    fn prefer_online_replaces_prefer_offline() {
+        let node_dir = Path::new("/opt/atlas/node/node-v24");
+        let args = npm_command_args(
+            &node_dir.join("bin/npm"),
+            node_dir,
+            None,
+            "install",
+            &["pkg@1.0.0", "--prefer-online"],
+        );
+        assert!(
+            !args.iter().any(|a| a == "--prefer-offline"),
+            "got {args:?}"
+        );
+        assert!(args.iter().any(|a| a == "--prefer-online"));
     }
 
     #[test]

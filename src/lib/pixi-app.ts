@@ -32,6 +32,24 @@
  * components can produce — the unmount cleanup and the resolved `init()`
  * promise both firing — costs nothing.
  */
+/**
+ * Pixi compiles its shaders with `new Function` unless it is told not to,
+ * and treats a CSP without `unsafe-eval` as a hard failure: `init()`
+ * rejects before a single frame is drawn. The packaged app runs under
+ * Tauri's strict CSP (`script-src 'self' 'wasm-unsafe-eval'`, see
+ * `src-tauri/tauri.conf.json`), so every graph rendered as an empty
+ * canvas - ruler and toggles present, nothing else, nothing in the
+ * console - because the components drop the init rejection on the floor.
+ *
+ * This is pixi's official way out: it swaps the eval-based uniform / UBO /
+ * shader generators for the polyfill implementations and clears the two
+ * capability checks. It must be evaluated before the first `new
+ * Application()`, so it lives here, in the module both graph canvases
+ * already import. The alternative - adding `'unsafe-eval'` to the CSP -
+ * would re-open eval for the whole app, which is not worth it for a shader
+ * path we can generate without it.
+ */
+import "pixi.js/unsafe-eval";
 import type { Application } from "pixi.js";
 
 /**

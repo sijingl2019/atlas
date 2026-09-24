@@ -332,8 +332,10 @@ function Scene({
           pushViewport,
         );
       })
-      .catch(() => {
-        /* disposal handles fallout */
+      .catch((err) => {
+        // See `knowledge-graph.tsx`: a blank canvas with no console output
+        // is impossible to debug.
+        console.error("memory graph: pixi init failed:", err);
       });
 
     return () => {

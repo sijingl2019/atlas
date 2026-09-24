@@ -51,7 +51,8 @@ import {
 } from "@/features/chat/stores/recent-files-store";
 import { useRecentChatsStore } from "@/features/projects/stores/recent-chats-store";
 import { stripInjectedContext } from "@/features/chat/lib/atlas-context";
-import { openNewAgentChat } from "@/features/chat/lib/open-agent-session";
+import { openNewAgentChat, openThread } from "@/features/chat/lib/open-agent-session";
+import { ThreadHistoryView } from "@/features/chat/components/thread-history-view";
 import { requestCloseTab } from "@/features/chat/lib/close-tab";
 import { jumpToSession } from "@/features/chat/lib/tab-project";
 import { pruneContextUsageCache } from "@/features/chat/lib/context-usage-cache";
@@ -588,12 +589,12 @@ export function App() {
   }, []);
   const [layoutSwitcherOpen, setLayoutSwitcherOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [sessionsOpen, setSessionsOpen] = useState(false);
   const [filePickerOpen, setFilePickerOpen] = useState(false);
   const {
     toggleLeftPanel,
     toggleRightPanel,
     toggleRightChatPanel,
-    toggleChatSidebar,
     toggleTabBar,
     addTab,
     setActiveTab,
@@ -1431,6 +1432,7 @@ export function App() {
     "nav.commandPalette": () => setCommandPaletteOpen(true),
     "nav.filePicker": () => setFilePickerOpen(true),
     "nav.search": () => setSearchOpen(true),
+    "nav.sessions": () => setSessionsOpen(true),
     "panels.left": toggleLeftPanel,
     "panels.right": toggleRightPanel,
     // ⌘⇧C — team chat. Shares the right slot with source control: pressing
@@ -1438,7 +1440,6 @@ export function App() {
     // opening a second panel, and pressing it again closes the slot.
     "panels.teamChat": toggleRightChatPanel,
     "panels.terminal": toggleTerminal,
-    "panels.agentSidebar": toggleChatSidebar,
     // ⌥J — open the Knowledge Base, or jump to it if already open, WITHIN
     // the focused split column.
     "panels.knowledge": () => {
@@ -1564,6 +1565,11 @@ export function App() {
       <NewTabPalette open={newTabPaletteOpen} onOpenChange={setNewTabPaletteOpen} />
       <LayoutSwitcher open={layoutSwitcherOpen} onOpenChange={setLayoutSwitcherOpen} />
       <SearchOverlay open={searchOpen} onOpenChange={setSearchOpen} />
+      <ThreadHistoryView
+        open={sessionsOpen}
+        onOpenChange={setSessionsOpen}
+        onOpenThread={(thread) => void openThread(thread)}
+      />
       <FilePicker open={filePickerOpen} onOpenChange={setFilePickerOpen} />
       <HintOverlay />
       <AgentOAuthModalHost />

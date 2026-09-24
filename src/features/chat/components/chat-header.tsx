@@ -10,11 +10,11 @@
 // so the row lines up on a single optical baseline. That is the whole design:
 // one height, one border.
 //
-// The session picker reuses `SessionSidebar` in its `dropdown` variant rather
-// than reimplementing the list. Building that list means merging live tabs with
-// three agents' on-disk session listings and suppressing duplicates, and opening
-// a row carries a lot of resume edge-cases — a second implementation would drift
-// from the first within a release.
+// The session picker is `SessionSidebar` — its only home now that the in-chat
+// column is gone (the app sidebar lists sessions under each project). Building
+// that list means merging live tabs with three agents' on-disk session listings
+// and suppressing duplicates, and opening a row carries a lot of resume
+// edge-cases — a second implementation would drift from the first.
 
 import { forwardRef, memo, useState } from "react";
 import { MenuGlyph } from "@/ui/animated-icon";
@@ -171,11 +171,7 @@ function ChatHeaderImpl({
                   )}
                 >
                   {/* The sidebar's own search input is the combo box's filter. */}
-                  <SessionSidebar
-                    tabId={tabId}
-                    variant="dropdown"
-                    onOpened={() => setPickerOpen(false)}
-                  />
+                  <SessionSidebar tabId={tabId} onOpened={() => setPickerOpen(false)} />
                 </Popover.Popup>
               </Popover.Positioner>
             </Popover.Portal>

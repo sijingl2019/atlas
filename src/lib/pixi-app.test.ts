@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Application } from "pixi.js";
+import { AbstractRenderer, UboSystem, type Application } from "pixi.js";
 import { destroyPixiApp, livePixiAppCount, registerPixiApp } from "./pixi-app";
 
 /**
@@ -78,5 +78,20 @@ describe("destroyPixiApp", () => {
     destroyPixiApp(app);
     expect(calls).toHaveLength(0);
     expect(livePixiAppCount()).toBe(0);
+  });
+});
+
+describe("unsafe-eval shader path", () => {
+  // The packaged app runs under Tauri's CSP, which has no 'unsafe-eval'
+  // (see `src-tauri/tauri.conf.json`). Pixi's stock `_unsafeEvalCheck`
+  // throws there, `Application.init()` rejects before drawing a frame, and
+  // every graph came up as an empty canvas with nothing in the console -
+  // so importing this module has to have swapped in the non-eval
+  // implementations. Drop the `pixi.js/unsafe-eval` import and these fail.
+  it("replaces pixi's eval-based capability checks", () => {
+    expect(String(AbstractRenderer.prototype._unsafeEvalCheck)).not.toContain("unsafe-eval");
+    // `_systemCheck` is private in pixi's types; read it structurally.
+    const ubo = UboSystem.prototype as unknown as { _systemCheck: () => void };
+    expect(String(ubo._systemCheck)).not.toContain("unsafe-eval");
   });
 });

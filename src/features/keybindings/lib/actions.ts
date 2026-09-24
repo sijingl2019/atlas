@@ -122,6 +122,13 @@ export const ACTIONS = [
     defaults: ["cmd+shift+f"],
   },
   {
+    id: "nav.sessions",
+    title: "Search sessions",
+    category: "Navigation",
+    when: "global",
+    defaults: ["cmd+shift+o"],
+  },
+  {
     id: "nav.newTabPalette",
     title: "New tab palette",
     category: "Navigation",
@@ -171,13 +178,6 @@ export const ACTIONS = [
     category: "Panels",
     when: "global",
     defaults: ["cmd+j"],
-  },
-  {
-    id: "panels.agentSidebar",
-    title: "Toggle agent sidebar",
-    category: "Panels",
-    when: "global",
-    defaults: ["cmd+alt+j"],
   },
   {
     id: "panels.tabBar",

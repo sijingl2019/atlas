@@ -32,9 +32,12 @@ import {
   SquareTerminal,
   Trash2,
   Wrench,
+  X,
   type LucideIcon,
 } from "lucide-react";
+import { Dialog } from "@base-ui/react/dialog";
 import { cn } from "@/lib/utils";
+import { ImageZoomView } from "@/features/media/components/image-zoom-view";
 import { CachedMarkdown } from "@/lib/markdown-cache";
 import { StreamingMarkdown } from "./streaming-markdown";
 import { openDetail } from "../stores/detail-panel-store";
@@ -92,6 +95,7 @@ export const UserRowView = memo(function UserRowView({
 }) {
   const clampRef = useRef<HTMLDivElement>(null);
   const clampHeight = useWholeLineClamp(clampRef, !row.expanded);
+  const [viewing, setViewing] = useState<string | null>(null);
   return (
     // Generous space BELOW the prompt: the gap is what separates one exchange
     // from the next, and a tight one made the agent's reply read as a
@@ -122,12 +126,19 @@ export const UserRowView = memo(function UserRowView({
         {row.attachments.length > 0 && (
           <div className="mb-1.5 flex flex-wrap justify-end gap-2">
             {row.attachments.map((img, i) => (
-              <img
+              <button
                 key={i}
-                src={`data:${img.mimeType};base64,${img.dataBase64}`}
-                alt="attachment"
-                className="h-28 w-28 rounded-xl border border-[var(--border)] object-cover"
-              />
+                type="button"
+                aria-label="View image"
+                onClick={() => setViewing(`data:${img.mimeType};base64,${img.dataBase64}`)}
+                className="cursor-zoom-in rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+              >
+                <img
+                  src={`data:${img.mimeType};base64,${img.dataBase64}`}
+                  alt="attachment"
+                  className="h-28 w-28 rounded-xl border border-[var(--border)] object-cover"
+                />
+              </button>
             ))}
           </div>
         )}
@@ -188,9 +199,35 @@ export const UserRowView = memo(function UserRowView({
           toggleAbove={clampable(row)}
         />
       </div>
+      <ImageViewer src={viewing} onClose={() => setViewing(null)} />
     </Column>
   );
 });
+
+/** Full-size view of a prompt's image attachment, with zoom/pan. Same shell
+ *  as the comms lightbox, minus the gallery: a prompt carries a handful of
+ *  images inline, not a conversation's worth of files on disk. */
+function ImageViewer({ src, onClose }: { src: string | null; onClose: () => void }) {
+  return (
+    <Dialog.Root open={src !== null} onOpenChange={(o) => !o && onClose()}>
+      <Dialog.Portal>
+        <Dialog.Backdrop className="fixed inset-0 z-modal scrim animate-fade-in" />
+        <Dialog.Popup
+          aria-label="Image"
+          className="fixed inset-0 z-modal m-auto h-[min(82vh,860px)] w-[min(88vw,1180px)] overflow-hidden rounded-xl border border-border bg-background shadow-lg animate-scale-in outline-none"
+        >
+          {src && <ImageZoomView src={src} alt="attachment" fill checkerboard />}
+          <Dialog.Close
+            aria-label="Close"
+            className="absolute top-2 right-2 z-10 flex h-7 w-7 items-center justify-center rounded-full border border-border bg-[var(--card)]/70 text-secondary-foreground backdrop-blur-xl transition-colors hover:text-foreground cursor-pointer"
+          >
+            <X size={14} />
+          </Dialog.Close>
+        </Dialog.Popup>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
 
 /** The clamp budget: `userMaxLines` lines of bubble text. */
 const USER_CLAMP_PX = M.userMaxLines * M.userLineHeight;

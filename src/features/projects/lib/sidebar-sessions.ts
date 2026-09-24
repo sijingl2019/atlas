@@ -1,6 +1,6 @@
 import type { ThreadProject, ThreadRow } from "@/features/chat/lib/history-api";
 
-function comparablePath(path: string): string {
+export function comparablePath(path: string): string {
   return path
     .replace(/\\/g, "/")
     .replace(/^\/\/\?\//, "")
