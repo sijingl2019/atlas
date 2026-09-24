@@ -66,6 +66,7 @@ import { cn } from "@/lib/utils";
 import { GitDot, NumStatPill } from "./git-summary";
 import { useProjectDialogStore } from "../lib/project-dialog";
 import { ProjectGlyph } from "./project-glyph";
+import { moveProjectId } from "../lib/move-project";
 import { agentTypeFromPluginId } from "@/types/agent";
 
 // Slot heights (include the inter-row gap so the virtualizer spaces rows out);
@@ -85,6 +86,75 @@ const CHAT_CARD = 42;
 const HEADER_H = 28;
 /** Section header slot: the header plus the gap that separates sections. */
 const SECTION_H = HEADER_H + 10;
+
+/**
+ * Drag a project row onto another to reorder. Pointer events, not HTML5 DnD:
+ * Tauri's native file-drop handler swallows HTML5 drop events on Windows.
+ * The drop marker is a `data-drop` attribute set straight on the DOM, so a
+ * drag re-renders no memoised row. Drops only land within the same section
+ * (pinned vs not); crossing into another group adopts that group.
+ */
+function startProjectDrag(e: React.PointerEvent<HTMLDivElement>, ws: Project) {
+  if (e.button !== 0 || (e.target as HTMLElement).closest("button,input")) return;
+  const startY = e.clientY;
+  let dragging = false;
+  let marked: HTMLElement | null = null;
+  let drop: { id: string; after: boolean } | null = null;
+  const unmark = () => {
+    marked?.removeAttribute("data-drop");
+    marked = null;
+  };
+  const onMove = (ev: PointerEvent) => {
+    if (!dragging) {
+      if (Math.abs(ev.clientY - startY) < 4) return;
+      dragging = true;
+      document.body.style.userSelect = "none";
+      document.body.style.cursor = "grabbing";
+    }
+    const el = document
+      .elementFromPoint(ev.clientX, ev.clientY)
+      ?.closest<HTMLElement>("[data-project-id]");
+    unmark();
+    drop = null;
+    if (!el || el.dataset.projectId === ws.id || el.dataset.pinned !== String(!!ws.pinned)) return;
+    const r = el.getBoundingClientRect();
+    const after = ev.clientY > r.top + r.height / 2;
+    el.setAttribute("data-drop", after ? "after" : "before");
+    marked = el;
+    drop = { id: el.dataset.projectId!, after };
+  };
+  const onUp = () => {
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+    window.removeEventListener("pointercancel", onUp);
+    unmark();
+    if (!dragging) return;
+    document.body.style.userSelect = "";
+    document.body.style.cursor = "";
+    // Eat the click that follows the release so the drop doesn't also switch
+    // projects; cleared next tick in case no click comes.
+    const eat = (ce: MouseEvent) => ce.stopPropagation();
+    window.addEventListener("click", eat, { capture: true, once: true });
+    setTimeout(() => window.removeEventListener("click", eat, { capture: true }), 0);
+    if (!drop) return;
+    const { projects, actions } = useProjectStore.getState();
+    const target = projects.find((p) => p.id === drop!.id);
+    if (!target) return;
+    if (!ws.pinned && (target.groupId ?? null) !== (ws.groupId ?? null))
+      actions.setGroup(ws.id, target.groupId ?? null);
+    actions.reorder(
+      moveProjectId(
+        projects.map((p) => p.id),
+        ws.id,
+        target.id,
+        drop.after,
+      ),
+    );
+  };
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onUp);
+  window.addEventListener("pointercancel", onUp);
+}
 
 // Memoised: every git-summary resolution replaces the summaries map and
 // re-rendered EVERY visible row (each carrying a Radix dropdown tree). Props
@@ -159,6 +229,9 @@ const ProjectRow = memo(function ProjectRow({
   return (
     <div
       data-hint
+      data-project-id={ws.id}
+      data-pinned={String(!!ws.pinned)}
+      onPointerDown={editing ? undefined : (e) => startProjectDrag(e, ws)}
       onClick={
         editing
           ? undefined
@@ -181,6 +254,9 @@ const ProjectRow = memo(function ProjectRow({
         // The hover fill lands instantly now, which at this row height reads as
         // crisp rather than abrupt.
         "group relative flex items-center gap-2.5 pr-1.5 rounded-md cursor-pointer",
+        // Drop marker while another row is dragged over this one.
+        "before:pointer-events-none before:absolute before:inset-x-1 before:h-0.5 before:rounded-full before:bg-[var(--primary)] before:hidden",
+        "data-[drop]:before:block data-[drop=before]:before:top-0 data-[drop=after]:before:bottom-0",
         active ? "bg-[var(--atlas-element-active)]" : "hover:bg-[var(--atlas-element-hover)]",
       )}
     >
@@ -862,7 +938,8 @@ export function ProjectSidebar() {
     [],
   );
 
-  // Pinned + Projects (STATIC registry order — clicking never reorders).
+  // Pinned + Projects (registry order — clicking never reorders; dragging a
+  // row does, see `startProjectDrag`).
   const pinned = useMemo(() => projects.filter((w) => w.pinned), [projects]);
   const unpinned = useMemo(() => projects.filter((w) => !w.pinned), [projects]);
   const sortedGroups = useMemo(
