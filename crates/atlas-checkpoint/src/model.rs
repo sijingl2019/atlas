@@ -456,6 +456,11 @@ pub struct ToolCall {
     pub result_binary: bool,
     pub created_at: DateTime<Utc>,
     pub sync_state: SyncState,
+    /// The agent's own id for the call — what a live observer of the delta
+    /// stream knew it by. Local-only: kept off the wire so a synced payload's
+    /// shape does not change.
+    #[serde(skip)]
+    pub native_call_id: Option<String>,
 }
 
 /// A file the agent wrote, as it stood immediately after the write.

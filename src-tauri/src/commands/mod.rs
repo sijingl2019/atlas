@@ -40,6 +40,7 @@ pub mod knowledge_graph_layout;
 pub mod knowledge_links;
 pub mod knowledge_meta;
 pub mod knowledge_recall;
+pub mod knowledge_refs;
 pub mod log;
 pub mod memory_delta;
 pub mod memory_extract;

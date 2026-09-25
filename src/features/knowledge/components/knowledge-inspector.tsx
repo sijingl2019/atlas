@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
+import { useAppStore } from "@/features/app/stores/app-store";
 import { useBacklinks } from "../stores/knowledge-links-store";
+import { KnowledgeSessions } from "./knowledge-sessions";
 
 export interface OutlineHeading {
   id: string;
@@ -36,7 +38,10 @@ export function KnowledgeInspector({
   onJumpToEntry,
   width = 280,
 }: KnowledgeInspectorProps) {
-  const [tab, setTab] = useState<"outline" | "links">("outline");
+  const [tab, setTab] = useState<"outline" | "links" | "sessions">("outline");
+  // Conversations run in the project, so that is where their references are
+  // recorded — whatever scope the panel is showing.
+  const projectPath = useAppStore((s) => s.currentProject?.path ?? null);
   const backlinks = useBacklinks(entryId ?? null);
 
   const headingDepthOf = useMemo(() => (lvl: number) => (lvl === 3 ? 16 : 0), []);
@@ -53,8 +58,8 @@ export function KnowledgeInspector({
         className="flex items-center shrink-0 border-b border-border-subtle"
         style={{ height: 36, gap: 4, padding: "0 10px" }}
       >
-        {(["outline", "links"] as const).map((id) => {
-          const label = id === "outline" ? "Outline" : "Backlinks";
+        {(["outline", "links", "sessions"] as const).map((id) => {
+          const label = id === "outline" ? "Outline" : id === "links" ? "Backlinks" : "Sessions";
           const active = tab === id;
           return (
             <button
@@ -214,6 +219,10 @@ export function KnowledgeInspector({
               </div>
             )}
           </>
+        )}
+
+        {tab === "sessions" && (
+          <KnowledgeSessions projectPath={projectPath} entryId={entryId ?? null} />
         )}
       </div>
     </aside>

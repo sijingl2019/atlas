@@ -103,6 +103,11 @@ pub type IndexSearch =
 /// in the meantime, so `{"forgotten": true}` would not be true yet.
 pub type IndexEvict = Arc<dyn Fn(String, String) -> BoxFuture<'static, bool> + Send + Sync>;
 
+/// `(session id, cwd, query, documents)` — told what `memory_search` handed a
+/// session from the index, after the liveness filter. Knowledge refs use it to
+/// record which notes a conversation was shown. Must not block.
+pub type DocumentsShown = Arc<dyn Fn(&str, &str, &str, &[IndexDoc]) + Send + Sync>;
+
 /// The first-look extras a briefing carries beyond the record: the curated
 /// pack read from the project's foreign stores, and the tail of the most
 /// recent other session.
@@ -354,7 +359,15 @@ fn with_documents(result: CallToolResult, docs: &[IndexDoc]) -> CallToolResult {
     };
     let documents: Vec<Value> = docs
         .iter()
-        .map(|d| json!({ "title": d.title, "source": d.source, "text": d.text.trim() }))
+        .map(|d| match &d.id {
+            // The corpus id (`kb:<note>` for a Knowledge Base note) — what lets
+            // a reader of the result name the note exactly, rather than by a
+            // title that may be shared or renamed.
+            Some(id) => {
+                json!({ "id": id, "title": d.title, "source": d.source, "text": d.text.trim() })
+            }
+            None => json!({ "title": d.title, "source": d.source, "text": d.text.trim() }),
+        })
         .collect();
     object.insert("documents".to_string(), Value::Array(documents));
     ok_json(Value::Object(object))
@@ -565,7 +578,7 @@ impl MemoryTools {
                     .limit
                     .unwrap_or(INDEX_DEFAULT_LIMIT)
                     .clamp(1, INDEX_MAX_LIMIT);
-                let docs = index(grant.cwd.clone(), args.query, limit).await;
+                let docs = index(grant.cwd.clone(), args.query.clone(), limit).await;
                 // A forgotten entry's document can outlive its record, so the
                 // record has the last word on what may be returned.
                 //
@@ -579,6 +592,9 @@ impl MemoryTools {
                 let docs = run_blocking(move || live_shared_docs(&memory, &cwd, docs))
                     .await
                     .unwrap_or(unfiltered);
+                if let Some(shown) = &self.sources.documents_shown {
+                    shown(&grant.session_id, &grant.cwd, &args.query, &docs);
+                }
                 with_documents(ok_json(result), &docs)
             }
             _ => ok_json(result),

@@ -32,6 +32,11 @@ import type {
   RustPageMeta,
 } from "@/features/knowledge/stores/knowledge-meta-store";
 import type { KnowledgeEntry } from "@/features/knowledge/stores/knowledge-store";
+import type {
+  EntryRefs,
+  KnowledgeRefKind,
+  SessionRefs,
+} from "@/features/knowledge/lib/knowledge-refs";
 import type { TypedHandlers, Unread } from "../types";
 import { MOCK_PROJECT } from "../project";
 
@@ -682,7 +687,34 @@ export interface KnowledgeResponses {
   "plugin:dialog|open": Awaited<ReturnType<typeof openDialog>>;
   mention_search: MentionData[];
   knowledge_export_server: { binaryPath: string; noteCount: number };
+  list_knowledge_sources: Array<{ name: string; path: string }>;
+  knowledge_refs_for_session: SessionRefs;
+  knowledge_refs_for_entry: EntryRefs;
 }
+
+// Which seeded threads (`misc.ts`) used which seeded notes — enough to show
+// both groups and a deleted note in the chat header and the inspector.
+// `sess-1` is the first chat the fake agent opens (`fake-agent.ts`), so a new
+// chat shows the header control too.
+const DEMO_REFS: Array<{ entryId: string; kind: KnowledgeRefKind; hits: number; age: number }> = [
+  { entryId: "architecture/overview", kind: "mention", hits: 1, age: 90 },
+  { entryId: "architecture/overview", kind: "retrieved", hits: 2, age: 80 },
+  { entryId: "guides/onboarding", kind: "read", hits: 1, age: 70 },
+  { entryId: "roadmap-q4", kind: "retrieved", hits: 1, age: 60 },
+  { entryId: "decisions/old-removed", kind: "read", hits: 1, age: 50 },
+];
+const DEMO_SESSION_IDS = new Set(["sess-01", "sess-1"]);
+const REFS: Array<{
+  sessionId: string;
+  entryId: string;
+  kind: KnowledgeRefKind;
+  hits: number;
+  age: number;
+}> = [
+  ...[...DEMO_SESSION_IDS].flatMap((sessionId) => DEMO_REFS.map((r) => ({ sessionId, ...r }))),
+  { sessionId: "sess-03", entryId: "architecture/overview", kind: "read", hits: 3, age: 400 },
+  { sessionId: "sess-04", entryId: "architecture/overview", kind: "retrieved", hits: 1, age: 2000 },
+];
 
 export const knowledgeHandlers: TypedHandlers<KnowledgeResponses> = {
   // ── notes ──
@@ -799,6 +831,34 @@ export const knowledgeHandlers: TypedHandlers<KnowledgeResponses> = {
   // seeded with three repos for exactly this reason) — not duplicated here.
 
   // ── export ──
+  // No linked folders. Unmocked, this resolved `null` and the tree crashed
+  // iterating it.
+  list_knowledge_sources: (): Array<{ name: string; path: string }> => [],
+  knowledge_refs_for_session: ({ sessionId }): SessionRefs => ({
+    refs: REFS.filter((r) => r.sessionId === String(sessionId)).map((r) => {
+      const rel = kbRel(r.entryId);
+      return {
+        entryId: r.entryId,
+        kind: r.kind,
+        hits: r.hits,
+        lastAt: ago(r.age),
+        title: meta[r.entryId]?.title ?? r.entryId.split("/").pop() ?? r.entryId,
+        icon: meta[r.entryId]?.icon ?? null,
+        exists: notes.has(rel),
+      };
+    }),
+    unresolved: DEMO_SESSION_IDS.has(String(sessionId)) ? 1 : 0,
+    backfilling: false,
+  }),
+  knowledge_refs_for_entry: ({ entryId }): EntryRefs => ({
+    sessions: REFS.filter((r) => r.entryId === String(entryId)).map((r) => ({
+      sessionId: r.sessionId,
+      kind: r.kind,
+      hits: r.hits,
+      lastAt: ago(r.age),
+    })),
+    backfilling: false,
+  }),
   knowledge_export_server: (): KnowledgeResponses["knowledge_export_server"] => ({
     binaryPath: "/Users/dev/Downloads/atlas-kb-server",
     noteCount: notes.size,

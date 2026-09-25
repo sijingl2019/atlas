@@ -42,7 +42,9 @@ pub use offers::{MemorySessionOffers, OfferDecision};
 #[allow(unused_imports)]
 pub use tokens::{Grant, MemoryTokens};
 #[allow(unused_imports)]
-pub use tools::{Bootstrap, BootstrapSource, IndexDoc, IndexEvict, IndexSearch, INSTRUCTIONS};
+pub use tools::{
+    Bootstrap, BootstrapSource, DocumentsShown, IndexDoc, IndexEvict, IndexSearch, INSTRUCTIONS,
+};
 
 /// The path the MCP endpoint is served at.
 pub const MCP_PATH: &str = "/mcp";

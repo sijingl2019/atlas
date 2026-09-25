@@ -37,6 +37,7 @@ import { cn } from "@/lib/utils";
 import { HintGroup, HintItem } from "@/ui/hint-group";
 import { SessionSidebar } from "./session-sidebar";
 import { ChatPinnedMenu } from "./chat-pinned-menu";
+import { ChatKnowledgeMenu } from "./chat-knowledge-menu";
 import type { ChatPin } from "../stores/chat-pins-store";
 
 export type RoleFilter = "all" | "user" | "assistant";
@@ -82,6 +83,10 @@ interface ChatHeaderProps {
    *  renders itself away when the thread has no pins. */
   pinScopeKey: string;
   onJumpToPin: (pin: ChatPin) => void;
+  /** ACP session id (empty for a draft) and its project — the knowledge-used
+   *  control renders itself away when the chat referenced no notes. */
+  sessionId: string;
+  projectPath: string | null;
   bashPanelOpen: boolean;
   onToggleBash: () => void;
   plansPanelOpen: boolean;
@@ -106,6 +111,8 @@ function ChatHeaderImpl({
   onOpenSearch,
   pinScopeKey,
   onJumpToPin,
+  sessionId,
+  projectPath,
   bashPanelOpen,
   onToggleBash,
   plansPanelOpen,
@@ -182,6 +189,17 @@ function ChatHeaderImpl({
           {/* Left of Find, so the two "go back to something" controls sit
             together at the right end of the bar. Pill-shaped rather than a
             circle because it carries a count. */}
+          <ChatKnowledgeMenu
+            sessionId={sessionId}
+            projectPath={projectPath}
+            className={cn(
+              "flex shrink-0 items-center gap-1 rounded-full px-2.5",
+              CONTROL_H,
+              OUTLINE,
+              "cursor-pointer outline-none",
+            )}
+          />
+
           <ChatPinnedMenu
             pinScopeKey={pinScopeKey}
             onJump={onJumpToPin}

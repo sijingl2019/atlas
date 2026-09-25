@@ -1006,7 +1006,12 @@ impl AgentHost {
         let acp_id = acp::SessionId::new(session_id.as_str());
         let thread = self
             .manager
-            .load_session(record.agent.clone(), acp_id.clone(), vec![cwd.clone()], None)
+            .load_session(
+                record.agent.clone(),
+                acp_id.clone(),
+                vec![cwd.clone()],
+                None,
+            )
             .await
             .map_err(|err| self.hide_if_archived_by_agent(&acp_id, HostError::from(err)))?;
         self.bind(agent_id, &record, cwd, thread);
@@ -1748,7 +1753,9 @@ impl AgentHost {
                         thread.title(),
                     )
                     .await
-                    .map_err(|err| self.hide_if_archived_by_agent(&session_id, HostError::from(err)))?;
+                    .map_err(|err| {
+                        self.hide_if_archived_by_agent(&session_id, HostError::from(err))
+                    })?;
                 // The agent may have answered with a different session id than
                 // the stored one — the engine's fresh-thread fallback for a
                 // pre-cutover row does exactly that. The row is bound to the

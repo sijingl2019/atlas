@@ -276,6 +276,7 @@ async fn the_briefing_carries_working_memory_the_index_and_the_first_look_extras
             index: None,
             bootstrap: Some(bootstrap),
             evict: None,
+            documents_shown: None,
         },
     )
     .await;
@@ -638,6 +639,16 @@ async fn memory_search_also_returns_indexed_project_documents() {
             }]
         })
     });
+    let shown = Arc::new(Mutex::new(Vec::new()));
+    let told = shown.clone();
+    let documents_shown: DocumentsShown = Arc::new(move |session, cwd, query, docs| {
+        told.lock().push((
+            session.to_string(),
+            cwd.to_string(),
+            query.to_string(),
+            docs.iter().filter_map(|d| d.id.clone()).collect::<Vec<_>>(),
+        ));
+    });
     let server = serve(
         ticking_memory(),
         tokens.clone(),
@@ -646,6 +657,7 @@ async fn memory_search_also_returns_indexed_project_documents() {
             index: Some(index),
             bootstrap: None,
             evict: None,
+            documents_shown: Some(documents_shown),
         },
     )
     .await;
@@ -663,7 +675,17 @@ async fn memory_search_also_returns_indexed_project_documents() {
     assert_eq!(found["entries"], json!([]));
     assert_eq!(
         found["documents"],
-        json!([{ "title": "ADR-0003", "source": "docs/adr/0003.md", "text": "about the engine fork" }]),
+        json!([{ "id": "docs/adr/0003.md", "title": "ADR-0003", "source": "docs/adr/0003.md", "text": "about the engine fork" }]),
+    );
+    // The same documents, told to whoever records what a session was shown.
+    assert_eq!(
+        *shown.lock(),
+        vec![(
+            "s1".to_string(),
+            project.clone(),
+            "the engine fork".to_string(),
+            vec!["docs/adr/0003.md".to_string()],
+        )]
     );
     assert_eq!(
         *asked.lock(),
@@ -704,6 +726,7 @@ async fn forgetting_through_the_tool_evicts_the_document_before_returning() {
             index: None,
             bootstrap: None,
             evict: Some(evict),
+            documents_shown: None,
         },
     )
     .await;
@@ -804,6 +827,7 @@ async fn search_never_returns_a_shared_document_whose_entry_is_gone() {
             index: Some(index),
             bootstrap: None,
             evict: None,
+            documents_shown: None,
         },
     )
     .await;

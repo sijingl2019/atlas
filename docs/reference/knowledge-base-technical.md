@@ -359,14 +359,9 @@ Rust `MentionCacheState` 按 `workspaceId`，否则按 webview label 隔离。�
 
 前端 store 中有正文时直接传 `inlineBody`，否则 Rust 从 `filePath` 读取。多个 mention 按 ID 保留第一次并去重。
 
-每篇知识正文独立限制为约 32 KiB；当前没有全部知识 mention 的总字符预算。前端先完成显式 mention 组合，再调用 Agent send，因此 Rust 发送链以“用户文本 + `Atlas context`”作为自动 RAG query。普通 turn 最终按以下顺序组合：
+每篇知识正文独立限制为约 32 KiB；当前没有全部知识 mention 的总字符预算。
 
-1. `SHARED MEMORY` 工作记忆；
-2. `RELEVANT PROJECT MEMORY` 语义召回；
-3. 首轮 bootstrap（仅该会话第一次普通发送）；
-4. 用户文本及显式 `@note` 上下文。
-
-Slash command 为保持 `/command` 位于 byte 0，不执行上述记忆注入。
+自 ADR-0010 起，`agents_send` 按用户输入原样发送（加上前端组合的 `Atlas context`），不再前置 `SHARED MEMORY` / `RELEVANT PROJECT MEMORY` 块；语义召回改由 Agent 通过 memory 工具服务器的 `memory_search` 主动拉取（见 §9.3 与 `docs/adr/0010-shared-memory-is-pulled-through-the-tool-server.md`）。
 
 ## 9. RAG 集成
 
@@ -432,8 +427,7 @@ await invoke("model_download", { id: "bge-small-zh-v1.5" });
 - embedding 权重 1.0、图权重 0.1、稀疏时全局图权重 0.05；
 - RRF 常数 60；
 - Jaccard ≥ 0.8 的后续片段视为重复；
-- 自动注入最多约 1400 字符，每条最多 320 字符；
-- 整个检索最多 6 秒。
+- `memory_search` 返回的 `documents[]` 带 `id`（知识库笔记为 `kb:<entry-id>`），调用方可以据此精确定位笔记。
 
 以上权重适用于 Agent 记忆检索（graph + embedding 混合）。知识库的 `knowledge_recall` 走独立路径：索引放在 `<project>/.atlas/knowledge-index/`，只调用 `retrieve_embeddings`（纯 embedding，不混 graph/global），每次调用重新扫描 KB 并做 chunk 级增量 embedding，阈值和去重规则同上；同一笔记的多个 chunk 在返回前按 `entryId` 聚合成最佳一条。标题搜索不依赖模型，模型缺失时语义模式返回 `model_not_downloaded: <id>` 并引导到 Settings → Local Models 下载。
 
@@ -637,7 +631,18 @@ await models.reindex(projectPath);                                   // RAG，�
 - 文件变化如何使 entries、links、mention 和 RAG 同时失效；
 - 导出是否包含该来源。
 
-## 15. 当前实现定位
+## 15. 对话引用（knowledge refs）
+
+记录每个对话用到了哪些笔记，并支持从笔记反查对话。设计见 `docs/superpowers/specs/2026-09-25-knowledge-refs-design.md`。
+
+- 存储：`<project>/.atlas/knowledge-refs.db`，首次出现引用时才创建；一行代表一次事件 `(session_id, entry_id, kind, source_key)`，`INSERT OR IGNORE` 保证幂等。
+- kind：`mention`（`agents_send` 的 `## @note:<id>`）、`read`（delta 管道中 completed 状态的 Read 工具调用，路径落在知识根下）、`retrieved`（memory 工具服务器的 `Sources::documents_shown`）。
+- 回填：项目第一次查询时，从 Atlas 自录 transcript（mention）和 `sessions.db`（read、retrieved，仅开启 capture 的项目）读取历史；`EXTRACTOR_VERSION` 变化时重跑。
+- 命令：`knowledge_refs_for_session`、`knowledge_refs_for_entry`；事件 `atlas:knowledge-refs-changed`。
+- UI：聊天头部 `ChatKnowledgeMenu`；知识库检查器的 Sessions tab。
+- 限制：不追踪文件改名；Bash `cat` 读取不计入；知识库面板处于 global scope 时，Sessions tab 只查当前项目。
+
+## 16. 当前实现定位
 
 - CRUD 与安全：`src-tauri/src/commands/knowledge.rs:24`、`:183`、`:201`
 - 元数据：`src-tauri/src/commands/knowledge_meta.rs:65`、`:274`
@@ -649,3 +654,4 @@ await models.reindex(projectPath);                                   // RAG，�
 - RAG 语料：`src-tauri/src/commands/agent_memory.rs:388`
 - 索引触发：`src-tauri/src/commands/memory_indexer.rs:237`、`:430`
 - 导出：`src-tauri/src/commands/knowledge_export.rs:97`
+- 对话引用：`src-tauri/src/commands/knowledge_refs/`、`src/features/knowledge/lib/knowledge-refs.ts`

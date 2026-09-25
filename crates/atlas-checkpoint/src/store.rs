@@ -2427,7 +2427,8 @@ pub struct AgentEditInput<'a> {
 }
 
 const TOOL_CALL_COLUMNS: &str = "id, session_id, seq, turn_seq, tool_name, title, kind, status, \
-     locations, arguments, arguments_ref, result, result_ref, result_binary, created_at, sync_state";
+     locations, arguments, arguments_ref, result, result_ref, result_binary, created_at, sync_state, \
+     native_call_id";
 
 fn row_to_tool_call(row: &rusqlite::Row<'_>) -> rusqlite::Result<ToolCall> {
     let tool_name: String = row.get(4)?;
@@ -2451,6 +2452,7 @@ fn row_to_tool_call(row: &rusqlite::Row<'_>) -> rusqlite::Result<ToolCall> {
         result_binary: row.get::<_, i64>(13)? != 0,
         created_at: parse_time(row.get::<_, String>(14)?),
         sync_state: SyncState::parse(&sync_state).unwrap_or(SyncState::Local),
+        native_call_id: row.get(16)?,
     })
 }
 

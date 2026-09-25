@@ -93,6 +93,10 @@ impl TauriDeltaSink {
             // the live session goes away. Always on and agent-agnostic,
             // unlike `capture` (opt-in, git-backed).
             .with(Arc::new(TranscriptMiddleware { app: app.clone() }))
+            // Which KB notes a session read. Only enqueues, like capture.
+            .with(Arc::new(super::knowledge_refs::KnowledgeRefsMiddleware {
+                app: app.clone(),
+            }))
             .with(Arc::new(MemoryIngestMiddleware { app }));
         Self { pipeline }
     }
@@ -801,6 +805,15 @@ pub fn install_manager(app: &AppHandle) {
             let app = bootstrap_app.clone();
             Box::pin(async move { build_bootstrap(&app, &cwd, &session_id).await })
         });
+        // Which Knowledge Base notes a search showed each session.
+        let refs_app = app.clone();
+        let documents_shown: super::memory_server::DocumentsShown =
+            Arc::new(move |session_id, cwd, query, docs| {
+                let ids: Vec<String> = docs.iter().filter_map(|d| d.id.clone()).collect();
+                refs_app
+                    .state::<super::knowledge_refs::KnowledgeRefsState>()
+                    .note_search(session_id, cwd, query, &ids);
+            });
         server.start(
             memory.inner().clone(),
             gate,
@@ -808,6 +821,7 @@ pub fn install_manager(app: &AppHandle) {
                 index: Some(index),
                 bootstrap: Some(bootstrap),
                 evict: Some(evict),
+                documents_shown: Some(documents_shown),
             },
         );
     }
@@ -1548,6 +1562,11 @@ pub async fn agents_send(
                 chrono::Utc::now().to_rfc3339(),
             );
     }
+
+    // The notes this prompt attached with `@note`, and the session → project
+    // binding the delta-side reads need. Enqueues only.
+    app.state::<super::knowledge_refs::KnowledgeRefsState>()
+        .note_prompt(&key.session_id, &cwd, &text);
 
     // Register this session so the capture path (`TauriDeltaSink::emit`) can
     // route its deltas into the scope's record. The text itself goes to the

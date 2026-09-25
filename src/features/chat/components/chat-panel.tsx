@@ -330,6 +330,7 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
   );
 
   const acpSessionId = session?.acpSessionId ?? "";
+  const currentProjectPath = useAppStore((s) => s.currentProject?.path ?? null);
   /** Handle on the bind effect's in-flight attempt — see `epoch` inside it.
    *  Null whenever no bind effect is mounted (tab already bound). */
   const bindControlRef = useRef<{
@@ -1378,6 +1379,13 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
                 onOpenSearch={onOpenSearchStable}
                 pinScopeKey={pinScopeKey}
                 onJumpToPin={onJumpToPinStable}
+                sessionId={acpSessionId}
+                projectPath={
+                  session?.workingDirectory ||
+                  projectPathForTab(tabId) ||
+                  currentProjectPath ||
+                  null
+                }
                 bashPanelOpen={bashPanelOpen}
                 onToggleBash={onToggleBashStable}
                 plansPanelOpen={plansPanelOpen}

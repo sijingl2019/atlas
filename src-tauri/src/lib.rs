@@ -330,6 +330,9 @@ pub fn run() {
                     }));
             }
 
+            app.state::<commands::knowledge_refs::KnowledgeRefsState>()
+                .install(app.handle().clone());
+
             commands::updater::init_on_startup(app.handle());
             commands::updater::check_in_background(app.handle());
             commands::updater::spawn_periodic(app.handle());
@@ -364,6 +367,7 @@ pub fn run() {
         .manage(MentionCacheState::new())
         .manage(Arc::new(KnowledgeMetaState::new()))
         .manage(Arc::new(KnowledgeRecallState::new()))
+        .manage(commands::knowledge_refs::KnowledgeRefsState::new())
         .manage(Arc::new(KnowledgeLinksState::new()))
         .manage(CliLaunchState::new(initial_project))
         .manage(commands::memory_sharing::MemorySharingState::new())
@@ -615,6 +619,8 @@ pub fn run() {
             commands::knowledge::knowledge_cover_data_url,
             commands::knowledge_recall::knowledge_recall,
             commands::knowledge_recall::knowledge_rebuild_index,
+            commands::knowledge_refs::knowledge_refs_for_session,
+            commands::knowledge_refs::knowledge_refs_for_entry,
             commands::knowledge_meta::knowledge_meta_load,
             commands::knowledge_meta::knowledge_meta_patch,
             commands::knowledge_meta::knowledge_meta_delete,
