@@ -69,6 +69,7 @@ pub mod shared_memory;
 pub mod shell_profile;
 pub mod skills;
 pub mod spaces;
+pub mod subagents;
 pub mod telemetry;
 pub mod terminal;
 pub mod theme_import;

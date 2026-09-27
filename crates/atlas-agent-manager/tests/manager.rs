@@ -265,6 +265,7 @@ fn connect_options() -> ConnectOptions {
         thread_events,
         request_elicitation_events: Arc::new(|_agent_id| atlas_acp_thread::event_channel().0),
         session_mcp: None,
+        host_env: Default::default(),
         client_name: "atlas-test",
         client_version: "0.0.0".to_string(),
     }

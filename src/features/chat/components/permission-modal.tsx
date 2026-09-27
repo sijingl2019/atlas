@@ -45,6 +45,10 @@ interface PermissionModalProps {
   /** Send a fresh message to the agent (used by the "tell the agent what to do
    *  instead" field, which cancels the request then sends the text). */
   onSendMessage?: (text: string) => void;
+  /** Whether this card answers the keyboard (digits, Enter, Esc). Several
+   *  cards can be on screen at once — one per subagent column — and each
+   *  listens on the window, so only the focused one may. Default true. */
+  keyboard?: boolean;
 }
 
 /**
@@ -60,7 +64,7 @@ interface PermissionModalProps {
 // narrow store subscriptions decide when it actually re-renders.
 export const PermissionModal = memo(PermissionModalImpl);
 
-function PermissionModalImpl({ tabId, onSendMessage }: PermissionModalProps) {
+function PermissionModalImpl({ tabId, onSendMessage, keyboard = true }: PermissionModalProps) {
   // Narrow subscription: only this tab's acpSessionId and the head of its
   // permission queue, so the card stays idle until a request actually arrives.
   const acpSessionId = useChatStore((s) => s.sessions[tabId]?.acpSessionId);
@@ -87,7 +91,7 @@ function PermissionModalImpl({ tabId, onSendMessage }: PermissionModalProps) {
   // Keyboard: digits 1–9 select, Enter = primary, Esc = cancel — except while
   // the free-text field is focused (there Enter submits text, Esc still cancels).
   useEffect(() => {
-    if (!current) return;
+    if (!current || !keyboard) return;
     const send = (decision: Parameters<typeof agents.respondPermission>[3]) => {
       agents
         .respondPermission(current.agentId, current.acpSessionId, current.requestId, decision)
@@ -128,7 +132,7 @@ function PermissionModalImpl({ tabId, onSendMessage }: PermissionModalProps) {
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [current, primaryId, popPermission, applyExitPlanSelection, tabId]);
+  }, [current, primaryId, popPermission, applyExitPlanSelection, tabId, keyboard]);
 
   if (!current) return null;
 

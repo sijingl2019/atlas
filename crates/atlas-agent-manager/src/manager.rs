@@ -526,14 +526,15 @@ impl AgentManager {
         match key {
             Agent::Native => Ok(self.native.clone()),
             Agent::Custom { id } => {
-                if self.catalog.agent_server(id).is_none() {
+                let installed = atlas_agent_servers::instance::installed_id(id);
+                if self.catalog.agent_server(&installed).is_none() {
                     return Err(LoadError::Unsupported {
                         message: format!("`{id}` is not installed").into(),
                     });
                 }
                 Ok(Arc::new(
                     CustomAgentServer::new(id.clone())
-                        .with_default_mode(self.catalog.default_mode(id)),
+                        .with_default_mode(self.catalog.default_mode(&installed)),
                 ))
             }
         }
@@ -551,7 +552,10 @@ impl AgentManager {
     ) -> (ConnectFuture, ConnectHandle) {
         let delegate = match key {
             Agent::Native => Some(AgentServerDelegate::native()),
-            Agent::Custom { id } => self.catalog.agent_server(id).map(AgentServerDelegate::new),
+            Agent::Custom { id } => self
+                .catalog
+                .agent_server(&atlas_agent_servers::instance::installed_id(id))
+                .map(AgentServerDelegate::new),
         };
         let options = self.options.clone();
         let connect = match delegate {
@@ -671,7 +675,8 @@ impl AgentManager {
             // Nothing versions the in-process agent but the app itself.
             return;
         };
-        let Some(mut versions) = self.catalog.watch_new_version(id) else {
+        let installed = atlas_agent_servers::instance::installed_id(id);
+        let Some(mut versions) = self.catalog.watch_new_version(&installed) else {
             return;
         };
         let this = Arc::downgrade(self);
@@ -717,7 +722,8 @@ impl AgentManager {
         let Agent::Custom { id } = key else {
             return None;
         };
-        self.catalog.watch_loading_status(id)
+        self.catalog
+            .watch_loading_status(&atlas_agent_servers::instance::installed_id(id))
     }
 
     /// Ported from the loading-status watcher (`:240-263`).
@@ -774,7 +780,9 @@ impl AgentManager {
             entries.retain(|key, entry| {
                 let installed = match key {
                     Agent::Native => true,
-                    Agent::Custom { id } => installed.contains(id),
+                    Agent::Custom { id } => {
+                        installed.contains(&atlas_agent_servers::instance::installed_id(id))
+                    }
                 };
                 if !installed {
                     removed.push((key.clone(), entry.clone()));

@@ -15,6 +15,7 @@ import {
   Settings,
   Search,
   GitCompare,
+  Users,
   type LucideProps,
 } from "lucide-react";
 import { useLayoutStore } from "@/features/layout/stores/layout-store";
@@ -67,6 +68,13 @@ const MODULES: ModuleEntry[] = [
   },
   { id: "log", type: "log", label: "Log", icon: ScrollText },
   { id: "usage", type: "usage", label: "Usage", icon: Gauge, actionId: "usage.open" },
+  {
+    id: "subagents",
+    type: "subagents",
+    label: "Subagents",
+    icon: Users,
+    actionId: "subagents.open",
+  },
   { id: "settings", type: "settings", label: "Settings", icon: Settings, actionId: "app.settings" },
 ];
 

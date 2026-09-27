@@ -14,6 +14,7 @@ import type { MemoryResponses } from "./fixtures/memory";
 import type { SettingsResponses } from "./fixtures/settings";
 import type { SkillsResponses } from "./fixtures/skills";
 import type { SpacesResponses } from "./fixtures/spaces";
+import type { SubagentsResponses } from "./fixtures/subagents";
 import type { TerminalResponses } from "./fixtures/terminal";
 import type { ThemeImportResponses } from "./fixtures/theme-import";
 
@@ -70,6 +71,7 @@ export interface MockResponses
     SettingsResponses,
     SkillsResponses,
     SpacesResponses,
+    SubagentsResponses,
     TerminalResponses,
     ThemeImportResponses {}
 

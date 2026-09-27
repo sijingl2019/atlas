@@ -12,6 +12,7 @@ import type { Theme, ThemeCatalogSummary } from "@/features/theme/lib/theme-api"
 import type { MockHandlers } from "../types";
 import builtinThemesJson from "../fixtures/builtin-themes.json";
 import { agentHandlers } from "../fake-agent";
+import { subagentsHandlers } from "../fixtures/subagents";
 import { artifactsHandlers } from "../fixtures/artifacts";
 import { captureHandlers } from "../fixtures/capture";
 import { commsHandlers } from "../fixtures/comms";
@@ -50,6 +51,7 @@ export const baseFixtureMaps: Readonly<Record<string, MockHandlers>> = {
   "fixtures/knowledge": knowledgeHandlers,
   "fixtures/git": gitHandlers,
   "fake-agent": agentHandlers,
+  "fixtures/subagents": subagentsHandlers,
   "fixtures/files": fsHandlers,
   "fixtures/settings": settingsHandlers,
   "fixtures/log": logHandlers,
@@ -152,6 +154,7 @@ export const baseHandlers: MockHandlers = {
   // ── agents ──────────────────────────────────────────────────────────────
   ...agentHandlers,
   agents_set_effort: nothing,
+  ...subagentsHandlers,
 
   // ── everything else, one fixture file per surface ───────────────────────
   //

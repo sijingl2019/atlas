@@ -44,6 +44,7 @@ import { useFeedbackStore } from "@/features/feedback/stores/feedback-store";
 import { openSettingsSection } from "@/features/settings/lib/open-settings";
 import { useProjectStore, type Project, type ProjectGroup } from "../stores/project-store";
 import { useRunningChatKeys } from "../lib/agent-activity";
+import { useChildSessionIds } from "@/features/subagents/stores/subagents-store";
 import { openAgentSession, openNewAgentChat } from "@/features/chat/lib/open-agent-session";
 import {
   archiveThread,
@@ -927,6 +928,8 @@ export function ProjectSidebar() {
   const { toggle: toggleSessionPin, remove: removeSessionPin } = useSessionPinsStore.use.actions();
   const pinnedThreadSet = useMemo(() => new Set(pinnedThreadIds), [pinnedThreadIds]);
   const runningChatKeys = useRunningChatKeys();
+  // Live subagents belong to their parent's Subagents panel, not the list.
+  const childSessionIds = useChildSessionIds();
 
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({});
@@ -978,6 +981,7 @@ export function ProjectSidebar() {
       out.push({ kind: "ws", ws, indented, expanded, key: ws.id });
       if (!expanded) return;
       for (const thread of workspaceSessions(sessionProjects, ws.path, pinnedThreadSet)) {
+        if (thread.sessionId && childSessionIds.has(thread.sessionId)) continue;
         out.push({
           kind: "session",
           session: { workspace: ws, thread },
@@ -1060,6 +1064,7 @@ export function ProjectSidebar() {
     latestSessions,
     sessionProjects,
     pinnedThreadSet,
+    childSessionIds,
   ]);
 
   // ── Git summaries ────────────────────────────────────────────────────

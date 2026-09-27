@@ -55,6 +55,9 @@ import { openNewAgentChat, openThread } from "@/features/chat/lib/open-agent-ses
 import { ThreadHistoryView } from "@/features/chat/components/thread-history-view";
 import { requestCloseTab } from "@/features/chat/lib/close-tab";
 import { jumpToSession } from "@/features/chat/lib/tab-project";
+import { openSubagentsPanel } from "@/features/subagents/lib/open-panel";
+import { startSubagentSync } from "@/features/subagents/lib/adopt";
+import { isSubagentTabId } from "@/types/subagents";
 import { pruneContextUsageCache } from "@/features/chat/lib/context-usage-cache";
 import { isScrollHot } from "@/lib/scroll-hot";
 import { isWindows, isLinux } from "@/lib/platform";
@@ -1017,6 +1020,8 @@ export function App() {
       const sessions = useChatStore.getState().sessions;
       for (const [tabId, s] of Object.entries(sessions)) {
         if (s.acpSessionId !== acpSessionId) continue;
+        // A subagent is not a chat of its own; it lives in its parent's panel.
+        if (isSubagentTabId(tabId)) return;
         const path = s.workingDirectory;
         if (!path) return;
         useRecentChatsStore.getState().actions.record({
@@ -1214,6 +1219,9 @@ export function App() {
       if (cancelled) un();
       else unlisten = un;
     });
+    // Subagents: adopt each child session the backend opens (before its
+    // deltas arrive through the listener above) and mirror its status.
+    const stopSubagentSync = startSubagentSync();
 
     // Agent spawn is deferred until the user first focuses the message input
     // (see `MessageInput`'s focus handler). `npx -y @zed-industries/claude-code-acp`
@@ -1235,6 +1243,7 @@ export function App() {
       window.clearInterval(keepWarm);
       window.clearTimeout(pruneTimer);
       indexTimers.forEach((t) => clearTimeout(t));
+      stopSubagentSync();
       unlisten?.();
     };
   }, []);
@@ -1532,6 +1541,7 @@ export function App() {
         data: {},
       }),
     // The org's Usage dashboard — a singleton tab, so re-running focuses it.
+    "subagents.open": () => openSubagentsPanel(null),
     "usage.open": () =>
       addTab({
         id: "usage",

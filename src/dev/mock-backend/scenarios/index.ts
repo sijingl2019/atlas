@@ -16,6 +16,7 @@ import { chatTools } from "./chat-tools";
 import { designSystem } from "./design-system";
 import { gitConflict } from "./git-conflict";
 import { knowledge } from "./knowledge";
+import { subagents } from "./subagents";
 
 /** Every variant `permission-modal.tsx` renders, callable from any chat
  *  scenario once a session is bound: a plain command, a long/multi-line one,
@@ -44,6 +45,7 @@ const all: Scenario[] = [
   gitConflict,
   knowledge,
   designSystem,
+  subagents,
 ];
 
 export const scenarios: Record<string, Scenario> = Object.fromEntries(all.map((s) => [s.name, s]));

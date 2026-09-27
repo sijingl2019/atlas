@@ -100,6 +100,41 @@ impl std::fmt::Debug for SessionMcpOffer {
     }
 }
 
+/// Several providers behind the host's single [`SessionMcpServers`] slot.
+///
+/// Each inner provider is asked for its own offer; the servers are
+/// concatenated in provider order, and settling the composite settles every
+/// inner offer the same way — bound to the session, or released unbound — so
+/// no provider's minted state outlives an attempt that went nowhere.
+pub struct CompositeSessionMcp {
+    providers: Vec<Arc<dyn SessionMcpServers>>,
+}
+
+impl CompositeSessionMcp {
+    pub fn new(providers: Vec<Arc<dyn SessionMcpServers>>) -> Self {
+        Self { providers }
+    }
+}
+
+impl SessionMcpServers for CompositeSessionMcp {
+    fn offer(&self, request: &SessionMcpRequest) -> SessionMcpOffer {
+        let offers: Vec<SessionMcpOffer> =
+            self.providers.iter().map(|p| p.offer(request)).collect();
+        let servers = offers
+            .iter()
+            .flat_map(|o| o.servers().iter().cloned())
+            .collect();
+        SessionMcpOffer::new(servers, move |id| {
+            for offer in offers {
+                match id {
+                    Some(id) => offer.bind(id),
+                    None => drop(offer),
+                }
+            }
+        })
+    }
+}
+
 /// Asks `provider` for `request`'s servers; no provider offers nothing.
 pub fn offer_for(
     provider: Option<&Arc<dyn SessionMcpServers>>,
@@ -162,6 +197,64 @@ mod tests {
         let (log, settle) = recorded();
         drop(SessionMcpOffer::new(vec![http("m")], settle));
         assert_eq!(*log.lock().unwrap(), vec![None]);
+    }
+
+    struct Fixed {
+        name: &'static str,
+        log: SettleLog,
+    }
+
+    impl SessionMcpServers for Fixed {
+        fn offer(&self, _request: &SessionMcpRequest) -> SessionMcpOffer {
+            let sink = self.log.clone();
+            let name = self.name;
+            SessionMcpOffer::new(vec![http(name)], move |id| {
+                sink.lock()
+                    .unwrap()
+                    .push(id.map(|id| format!("{name}:{id}")));
+            })
+        }
+    }
+
+    fn composite(log: &SettleLog) -> CompositeSessionMcp {
+        CompositeSessionMcp::new(vec![
+            Arc::new(Fixed {
+                name: "a",
+                log: log.clone(),
+            }),
+            Arc::new(Fixed {
+                name: "b",
+                log: log.clone(),
+            }),
+        ])
+    }
+
+    fn request() -> SessionMcpRequest {
+        SessionMcpRequest {
+            agent_id: AgentId::new("x"),
+            http_mcp: true,
+            cwd: PathBuf::from("/"),
+            session_id: None,
+        }
+    }
+
+    #[test]
+    fn composite_merges_servers_and_binds_each() {
+        let log: SettleLog = Arc::default();
+        let offer = composite(&log).offer(&request());
+        assert_eq!(offer.servers(), &[http("a"), http("b")]);
+        offer.bind(&acp::SessionId::new("s-1"));
+        assert_eq!(
+            *log.lock().unwrap(),
+            vec![Some("a:s-1".to_string()), Some("b:s-1".to_string())]
+        );
+    }
+
+    #[test]
+    fn composite_releases_every_inner_offer_when_dropped() {
+        let log: SettleLog = Arc::default();
+        drop(composite(&log).offer(&request()));
+        assert_eq!(*log.lock().unwrap(), vec![None, None]);
     }
 
     #[test]

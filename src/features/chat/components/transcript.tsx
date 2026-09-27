@@ -149,6 +149,10 @@ interface TranscriptProps {
   /** Bumped on every restart so the indicator's elapsed clock (and its stall
    *  state) start over with the new attempt. */
   workingEpoch?: number;
+  /** Visibility for a transcript that is not a layout tab of its own (a
+   *  subagent column): the tab-visibility lookup would read it as hidden and
+   *  freeze it. Absent, the tab's own visibility is used. */
+  visibleOverride?: boolean;
 }
 
 /** Per (tab, session) scroll position, so switching away and back returns the
@@ -278,6 +282,7 @@ export const Transcript = forwardRef<TranscriptHandle, TranscriptProps>(function
     onStallSwitch,
     onStallCopyDiagnostics,
     workingEpoch,
+    visibleOverride,
   },
   ref,
 ) {
@@ -288,7 +293,8 @@ export const Transcript = forwardRef<TranscriptHandle, TranscriptProps>(function
   const agent = switchable(agentType);
   // Is this tab the one showing in its column? Boolean selector: flips only
   // for the two tabs involved in a switch. Gates the idle window fill below.
-  const tabVisible = useIsTabVisible(tabId);
+  const ownTabVisible = useIsTabVisible(tabId);
+  const tabVisible = visibleOverride ?? ownTabVisible;
 
   // ── Frozen while hidden ──────────────────────────────────────────────
   //

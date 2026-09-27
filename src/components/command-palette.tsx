@@ -30,7 +30,9 @@ import {
   Search,
   FolderOpen,
   Circle,
+  Users,
 } from "lucide-react";
+import { openSubagentsPanel } from "@/features/subagents/lib/open-panel";
 import type { TabType } from "@/lib/constants";
 
 interface Command {
@@ -202,6 +204,14 @@ export function CommandPalette({
         icon: Gauge,
         category: "Open",
         action: () => openTab("usage", "Usage"),
+      },
+      {
+        id: "new-subagents",
+        label: "Subagents",
+        actionId: "subagents.open",
+        icon: Users,
+        category: "Open",
+        action: () => openSubagentsPanel(null),
       },
 
       // ── Layout toggles ──

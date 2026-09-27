@@ -41,9 +41,39 @@ export function setSeedTranscript(messages: SessionMessage[]): void {
   seedTranscript = messages;
 }
 
+/** The session the helpers below act on: the newest one, unless a subagent
+ *  scenario has pointed them at a particular session (`inSession`). */
+let target: string | null = null;
+
 function latest(): FakeSession | undefined {
+  if (target) return sessions.get(target);
   const all = [...sessions.values()];
   return all[all.length - 1];
+}
+
+/** Run `fn` with every helper aimed at `sessionId`. Scenario steps run one at
+ *  a time, so a single slot is enough. */
+export async function inSession<T>(sessionId: string, fn: () => Promise<T>): Promise<T> {
+  const previous = target;
+  target = sessionId;
+  try {
+    return await fn();
+  } finally {
+    target = previous;
+  }
+}
+
+/** The newest session's id, if any is bound. */
+export function latestSessionId(): string | null {
+  const all = [...sessions.values()];
+  return all[all.length - 1]?.key.session_id ?? null;
+}
+
+/** Open a session the way the backend does for a subagent — no tab asked. */
+export function openFakeSession(pluginId: string, cwd: string): SessionKey {
+  const key = { agent_id: `agent-${pluginId}`, session_id: `sess-${++seq}` };
+  sessions.set(key.session_id, { key, cwd, pluginId, messages: [] });
+  return key;
 }
 
 const at = (s: FakeSession) => ({ agent_id: s.key.agent_id, session_id: s.key.session_id });
@@ -78,6 +108,12 @@ function snapshot(s: FakeSession, withMessages: boolean): SessionSnapshot {
     created_at: now,
     updated_at: now,
   };
+}
+
+/** Record a user prompt in the session without a delta — the backend never
+ *  streams a prompt it sent itself (the subagent's `prompted` event shows it). */
+export function recordPrompt(sessionId: string, message: SessionMessage): void {
+  sessions.get(sessionId)?.messages.push(message);
 }
 
 /** Stream `messages` into the first live session, in order. */
@@ -223,6 +259,27 @@ async function resolvePermission(
 ): Promise<void> {
   const open = openPermissions.get(requestId);
   openPermissions.delete(requestId);
+  if (open) {
+    await inSession(open.sessionId, () =>
+      finishResolvedPermission(agentId, sessionId, requestId, decision, open),
+    );
+    return;
+  }
+  await sendDelta({
+    kind: "permission_resolved",
+    agent_id: agentId,
+    session_id: sessionId,
+    request_id: requestId,
+  });
+}
+
+async function finishResolvedPermission(
+  agentId: string,
+  sessionId: string,
+  requestId: string,
+  decision: PermissionDecision,
+  open: OpenPermission,
+): Promise<void> {
   // Mirrors the real `permission_resolved` delta (App.tsx's `popPermission`
   // case) — redundant with the modal's own optimistic pop, but keeps the wire
   // shape faithful for anything else that might be watching it.
@@ -232,7 +289,6 @@ async function resolvePermission(
     session_id: sessionId,
     request_id: requestId,
   });
-  if (!open) return;
 
   const option =
     decision.kind === "selected"
@@ -249,6 +305,16 @@ async function resolvePermission(
   const line = open.reply(decision, option);
   if (line) await playTranscript([text(line, new Date().toISOString())]);
   await finishTurn();
+  onPermissionResolved?.(sessionId, allowed);
+}
+
+/** Told when a permission is answered, so the subagent mock can move the
+ *  child's record the way the real middleware does. */
+let onPermissionResolved: ((sessionId: string, allowed: boolean) => void) | null = null;
+export function setPermissionResolvedHook(
+  hook: ((sessionId: string, allowed: boolean) => void) | null,
+): void {
+  onPermissionResolved = hook;
 }
 
 let permSeq = 0;

@@ -40,6 +40,7 @@ pub use host::{MemoryServer, MemoryServerHost, SharingGate, Sources};
 #[allow(unused_imports)]
 pub use offers::{MemorySessionOffers, OfferDecision};
 #[allow(unused_imports)]
+pub(crate) use tokens::require_token;
 pub use tokens::{Grant, MemoryTokens};
 #[allow(unused_imports)]
 pub use tools::{

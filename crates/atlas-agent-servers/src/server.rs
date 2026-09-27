@@ -106,6 +106,10 @@ pub struct ConnectOptions {
     /// Decides the MCP servers each session is handed (the memory tool
     /// server, today). `None` hands every session an empty list.
     pub session_mcp: Option<Arc<dyn crate::session_mcp::SessionMcpServers>>,
+    /// Variables the host sets on every agent it spawns, over the proxy and
+    /// quirk variables — how a host-side endpoint (the subagent tools' address)
+    /// reaches the agent and whatever the agent itself starts.
+    pub host_env: HashMap<String, String>,
     pub client_name: &'static str,
     pub client_version: String,
 }
@@ -165,7 +169,8 @@ impl AgentServer for CustomAgentServer {
         let agent_id = self.id.clone();
         Box::pin(async move {
             let mut extra_env = load_proxy_env();
-            extra_env.extend(env_quirks(&agent_id));
+            extra_env.extend(env_quirks(&crate::instance::installed_id(&agent_id)));
+            extra_env.extend(options.host_env.clone());
 
             let server = delegate
                 .server

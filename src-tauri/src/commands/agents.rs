@@ -80,6 +80,11 @@ impl TauriDeltaSink {
         let pipeline = OutboundPipeline::new()
             // Broadcast first so the UI updates before any heavier work.
             .with(Arc::new(BroadcastMiddleware { app: app.clone() }))
+            // Subagent status right behind the broadcast: a parent's
+            // `agent_wait` resolves on these, and it must never miss one.
+            .with(Arc::new(super::subagents::commands::SubagentMiddleware {
+                app: app.clone(),
+            }))
             .with(Arc::new(AnalyticsMiddleware { app: app.clone() }))
             // Session capture lives here rather than on the event bus because
             // the bus drops events for a lagging subscriber, and a dropped event
@@ -732,6 +737,38 @@ pub fn install_manager(app: &AppHandle) {
     };
     app.manage(host.clone());
 
+    // Subagents: agents that other agents start (the herdr model). The
+    // manager rides on the host; its tool server is offered to every session
+    // below, beside the memory server, and the pi extension that reaches it
+    // is refreshed off the setup path.
+    let subagent_server = {
+        let emitter = app.clone();
+        let manager = super::subagents::SubagentManager::new(
+            Box::new(host.clone()),
+            Arc::new(move |event: &super::subagents::model::SubagentEvent| {
+                let _ = emitter.emit(super::subagents::SUBAGENTS_EVENT, event);
+            }),
+        );
+        // A mirrored child's transcript goes straight to the window: it is
+        // not a session, so none of the sink's stages (capture, transcripts,
+        // analytics) have anything to do with it.
+        let delta_app = app.clone();
+        manager.set_delta_emitter(Arc::new(move |envelope| {
+            let _ = delta_app.emit("atlas:agents", &envelope);
+        }));
+        app.manage(manager.clone());
+        let config_dir = app
+            .path()
+            .app_config_dir()
+            .unwrap_or_else(|_| std::env::temp_dir());
+        let server = Arc::new(super::subagents::server::SubagentServerHost::new(
+            super::subagents::endpoint_file(&config_dir),
+        ));
+        server.start(manager);
+        tauri::async_runtime::spawn_blocking(super::subagents::pi_extension::install);
+        server
+    };
+
     // Shared memory: every write is announced to the webview (the Shared tab
     // re-pulls on it), session start/end are recorded in the scope's sessions
     // table and mint/revoke the session's memory-server token, and the memory
@@ -755,20 +792,29 @@ pub fn install_manager(app: &AppHandle) {
         )));
         let server = Arc::new(super::memory_server::MemoryServerHost::new());
         app.manage(server.clone());
-        host.set_session_lifecycle(Arc::new(SharingGatedLifecycle::new(
-            app.clone(),
-            server.clone(),
-        )));
+        host.set_session_lifecycle(Arc::new(super::agent_host::CompositeLifecycle(vec![
+            Arc::new(SharingGatedLifecycle::new(app.clone(), server.clone())),
+            // The subagent tool server's session tokens, minted and revoked
+            // with the session like memory's.
+            subagent_server.tokens().clone(),
+        ])));
         let gate_app = app.clone();
         let gate: super::memory_server::SharingGate =
             Arc::new(move |cwd: &str| gate_app.state::<MemorySharingState>().is_enabled(cwd));
         // Every agent that can take the server is handed it on each session
         // request, with a token of its own. It is the only way memory reaches
         // an agent (ADR-0010): nothing is prepended to a prompt.
-        host.set_session_mcp(Arc::new(super::memory_server::MemorySessionOffers::new(
-            server.clone(),
-            gate.clone(),
-        )));
+        host.set_session_mcp(Arc::new(
+            atlas_agent_servers::session_mcp::CompositeSessionMcp::new(vec![
+                Arc::new(super::memory_server::MemorySessionOffers::new(
+                    server.clone(),
+                    gate.clone(),
+                )),
+                Arc::new(super::subagents::server::SubagentSessionOffers::new(
+                    subagent_server,
+                )),
+            ]),
+        ));
         // `memory_search` also answers from the project's indexed documents.
         let index_app = app.clone();
         let index: super::memory_server::IndexSearch = Arc::new(move |cwd, query, limit| {
@@ -1667,6 +1713,8 @@ pub async fn agents_drop_session(
     // mid-turn doesn't hold one for the life of the process.
     app.state::<Arc<AnalyticsState>>()
         .forget_session(&session_id);
+    // A parent takes its subagents with it; a subagent is forgotten.
+    super::subagents::commands::session_dropped(&app, &session_id).await;
     let host = app.state::<Arc<AgentHost>>().inner().clone();
     host.drop_session(&session_id)
         .await
@@ -1716,10 +1764,22 @@ pub fn agents_respond_permission(
     request_id: Uuid,
     decision: PermissionDecision,
     host: State<'_, Arc<AgentHost>>,
+    subagents: State<'_, Arc<super::subagents::SubagentManager>>,
 ) -> Result<(), String> {
     let _ = agent_id;
-    host.respond_permission(&session_id, request_id, decision)
-        .map_err(|e| e.to_string())
+    // A mirrored child's request (pi-subagents) is answered by the manager,
+    // not by any thread.
+    let allowed =
+        matches!(&decision, PermissionDecision::Selected { option_id } if option_id == "allow");
+    if subagents.resolve_mirror_permission(request_id, allowed) {
+        return Ok(());
+    }
+    let kind = host
+        .respond_permission(&session_id, request_id, decision)
+        .map_err(|e| e.to_string())?;
+    // A subagent's column counts what the user turned down.
+    subagents.note_permission_decision(&session_id, kind.as_ref());
+    Ok(())
 }
 
 // ── Auth methods ────────────────────────────────────────────────────────────

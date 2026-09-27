@@ -276,6 +276,23 @@ pub trait SessionLifecycle: Send + Sync {
     fn session_ended(&self, session_id: &str);
 }
 
+/// Several [`SessionLifecycle`]s behind the host's single slot, told in order.
+pub struct CompositeLifecycle(pub Vec<Arc<dyn SessionLifecycle>>);
+
+impl SessionLifecycle for CompositeLifecycle {
+    fn session_started(&self, session_id: &str, agent: &str, cwd: &str) {
+        for inner in &self.0 {
+            inner.session_started(session_id, agent, cwd);
+        }
+    }
+
+    fn session_ended(&self, session_id: &str) {
+        for inner in &self.0 {
+            inner.session_ended(session_id);
+        }
+    }
+}
+
 /// The MCP servers every agent connection offers its sessions, installed after
 /// the host exists (the memory tool server starts later in setup). Empty until
 /// then: a session opened before it is installed is offered nothing.
@@ -406,6 +423,15 @@ impl AgentHost {
         let session_mcp = Arc::new(SessionMcpSlot::default());
         let options = ConnectOptions {
             session_mcp: Some(session_mcp.clone() as Arc<dyn SessionMcpServers>),
+            // Where the subagent tools can be reached from inside an agent's
+            // process tree — the pi extension reads it (the address itself is
+            // written by the subagent server once it has bound its port).
+            host_env: HashMap::from([(
+                super::subagents::ENDPOINT_ENV.to_owned(),
+                super::subagents::endpoint_file(&config_dir)
+                    .to_string_lossy()
+                    .into_owned(),
+            )]),
             root_dir: None,
             defaults: AcpConnectionDefaults::default(),
             thread_events: projector.thread_events(),
@@ -496,6 +522,14 @@ impl AgentHost {
         self.end_sessions(ended);
     }
 
+    /// The plugin id and working directory of a live session, or `None` when
+    /// the host does not hold it.
+    pub fn session_info(&self, session_id: &str) -> Option<(String, String)> {
+        lock(&self.sessions)
+            .get(session_id)
+            .map(|s| (s.plugin_id.clone(), s.cwd.clone()))
+    }
+
     /// Atlas's session history, or `None` when the store could not be opened.
     pub fn history(&self) -> Option<&ThreadRecorder> {
         self.history.as_ref()
@@ -583,7 +617,11 @@ impl AgentHost {
             return Ok(Agent::Native);
         }
         let id = atlas_acp_thread::AgentId::new(plugin_id);
-        if self.store.entry(&id).is_none() {
+        // An instance (`<id>#<n>`, a subagent's own connection) runs whatever
+        // its installed agent runs.
+        let installed = atlas_agent_servers::instance::installed_id(&id);
+        if self.store.entry(&installed).is_none() {
+            let plugin_id = installed.as_str();
             return Err(HostError::new(
                 format!("{plugin_id} is not installed. Install it from the Agent Marketplace."),
                 ErrorClass::Fatal,
@@ -608,11 +646,16 @@ impl AgentHost {
         }
         let handle = AgentId::new();
         by_plugin.insert(plugin_id.clone(), handle);
+        // An instance's sessions belong to its installed agent: that is the id
+        // history, the snapshot and every surface key them by.
+        let installed = atlas_agent_servers::instance::installed_id(
+            &atlas_acp_thread::AgentId::new(plugin_id.as_str()),
+        );
         lock(&self.agents).insert(
             handle,
             AgentRecord {
                 agent: agent.clone(),
-                plugin_id,
+                plugin_id: installed.as_str().to_string(),
             },
         );
         handle
@@ -634,6 +677,9 @@ impl AgentHost {
     }
 
     pub fn display_name(&self, plugin_id: &str) -> String {
+        let installed =
+            atlas_agent_servers::instance::installed_id(&atlas_acp_thread::AgentId::new(plugin_id));
+        let plugin_id = installed.as_str();
         if plugin_id == CERSEI_AGENT_ID {
             // The name changes here; the id above does not. `CERSEI_AGENT_ID`
             // is a storage key every recorded thread resolves through (D7), so
@@ -776,7 +822,9 @@ impl AgentHost {
     /// Drop an agent's connection. The next spawn starts a fresh one.
     pub fn kill(&self, agent_id: AgentId) -> Result<()> {
         let record = self.record_for(agent_id)?;
-        self.kill_agent(&record.plugin_id, &record.agent);
+        // The connection's own id, which differs from the record's plugin id
+        // for an instance.
+        self.kill_agent(&Self::plugin_id_of(&record.agent), &record.agent);
         Ok(())
     }
 
@@ -1076,6 +1124,23 @@ impl AgentHost {
             current_mode,
             available_modes,
         }
+    }
+
+    /// Whether this handle's connection is an instance of its agent (a
+    /// subagent's own connection) rather than the shared one.
+    pub fn is_instance(&self, agent_id: AgentId) -> bool {
+        lock(&self.agents)
+            .get(&agent_id)
+            .is_some_and(|record| match &record.agent {
+                Agent::Custom { id } => atlas_agent_servers::instance::is_instance(id),
+                Agent::Native => false,
+            })
+    }
+
+    /// The mode a live session is in, when its agent has modes.
+    pub fn current_mode(&self, session_id: &str) -> Option<String> {
+        let thread = self.thread(session_id).ok()?;
+        self.modes_of(&thread, &acp::SessionId::new(session_id)).0
     }
 
     fn modes_of(
@@ -1506,7 +1571,7 @@ impl AgentHost {
         session_id: &str,
         request_id: Uuid,
         decision: PermissionDecision,
-    ) -> Result<()> {
+    ) -> Result<Option<acp::PermissionOptionKind>> {
         let key = self.projector.permission_key(&request_id).ok_or_else(|| {
             HostError::new("permission request is not pending", ErrorClass::Fatal)
         })?;
@@ -1523,12 +1588,13 @@ impl AgentHost {
                     key.tool_call_id,
                     SelectedPermissionOutcome::new(acp::PermissionOptionId::new(option_id), kind),
                 );
+                Ok(Some(kind))
             }
             PermissionDecision::Cancelled => {
                 lock_thread(&handle).cancel_tool_call_authorization(&key.tool_call_id);
+                Ok(None)
             }
         }
-        Ok(())
     }
 
     /// The stream of request-scoped elicitations, taken once.

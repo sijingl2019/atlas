@@ -353,6 +353,16 @@ interface ChatState {
 interface ChatActions {
   actions: {
     createSession: (tabId: string, agentType?: SwitchableAgent) => void;
+    /** Adopt a session the BACKEND opened (a subagent) under `tabId`, already
+     *  bound, without making it the active chat. Idempotent. */
+    adoptBackgroundSession: (opts: {
+      tabId: string;
+      agentType: SwitchableAgent;
+      acpAgentId: string;
+      acpSessionId: string;
+      cwd: string;
+      title: string;
+    }) => void;
     /** Re-bind a fresh (message-less) chat to a different agent. Clears the ACP
      *  binding so the chat panel re-creates a session with the new agent. */
     switchChatAgent: (tabId: string, agentType: SwitchableAgent) => void;
@@ -619,6 +629,53 @@ interface ChatActions {
   };
 }
 
+/** A fresh chat session for `tabId` — what `createSession` and
+ *  `adoptBackgroundSession` both start from. */
+function newChatSession(tabId: string, agentType: SwitchableAgent): ChatSession {
+  return {
+    id: tabId,
+    title: "New Chat",
+    messages: [],
+    agentType,
+    model: "",
+    status: "idle",
+    workingDirectory: "",
+    tasks: [],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    // Permission mode is a Claude Code feature; Codex drives its
+    // modes generically via ACP (acpCurrentMode).
+    claudePermissionMode: agentType === "claude-code" ? "default" : undefined,
+    claudePermissionModeExplicit: false,
+    acpModeExplicit: false,
+    // Optimistically pre-fill a non-Claude agent's mode picker from the
+    // persisted cache so switching feels instant; mark pending until the
+    // real session confirms (the picker shows a loading state).
+    ...(agentType !== "claude-code"
+      ? (() => {
+          const cached = loadCachedAcpModes(agentType);
+          return {
+            acpAvailableModes: cached?.availableModes ?? [],
+            acpCurrentMode: cached?.currentMode ?? undefined,
+            acpModesPending: true,
+          };
+        })()
+      : {}),
+    // Models apply to BOTH Claude Code and Codex (ACP `session/new`
+    // model picking). Pre-fill from cache; empty for the native agent.
+    ...(() => {
+      const m = loadCachedAcpModels(agentType);
+      return m
+        ? {
+            // The list only — the current model belongs to a session,
+            // not to the agent (see `acp-models-cache`).
+            acpAvailableModels: m.availableModels,
+          }
+        : {};
+    })(),
+  };
+}
+
 function findTabByAcpSession(
   sessions: Record<string, ChatSession>,
   acpSessionId: string,
@@ -786,53 +843,24 @@ export const useChatStore = createSelectors(
         createSession: (tabId, agentType = defaultAgentForNewSession()) =>
           set((s) => {
             if (s.sessions[tabId]) return;
-            s.sessions[tabId] = {
-              id: tabId,
-              title: "New Chat",
-              messages: [],
-              agentType,
-              model: "",
-              status: "idle",
-              workingDirectory: "",
-              tasks: [],
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-              // Permission mode is a Claude Code feature; Codex drives its
-              // modes generically via ACP (acpCurrentMode).
-              claudePermissionMode: agentType === "claude-code" ? "default" : undefined,
-              claudePermissionModeExplicit: false,
-              acpModeExplicit: false,
-              // Optimistically pre-fill a non-Claude agent's mode picker from the
-              // persisted cache so switching feels instant; mark pending until the
-              // real session confirms (the picker shows a loading state).
-              ...(agentType !== "claude-code"
-                ? (() => {
-                    const cached = loadCachedAcpModes(agentType);
-                    return {
-                      acpAvailableModes: cached?.availableModes ?? [],
-                      acpCurrentMode: cached?.currentMode ?? undefined,
-                      acpModesPending: true,
-                    };
-                  })()
-                : {}),
-              // Models apply to BOTH Claude Code and Codex (ACP `session/new`
-              // model picking). Pre-fill from cache; empty for the native agent.
-              ...(() => {
-                const m = loadCachedAcpModels(agentType);
-                return m
-                  ? {
-                      // The list only — the current model belongs to a session,
-                      // not to the agent (see `acp-models-cache`).
-                      acpAvailableModels: m.availableModels,
-                    }
-                  : {};
-              })(),
-            };
+            s.sessions[tabId] = newChatSession(tabId, agentType);
             s.activeSessionId = tabId;
             // Restore the user's last explicit mode pick for this agent so it
             // survives restarts (marks it explicit; create pushes it after
             // validating against the agent's advertised modes).
             applyPersistedModePref(s.sessions[tabId], agentType);
+          }),
+        adoptBackgroundSession: ({ tabId, agentType, acpAgentId, acpSessionId, cwd, title }) =>
+          set((s) => {
+            if (s.sessions[tabId]) return;
+            const session = newChatSession(tabId, agentType);
+            session.title = title;
+            session.acpAgentId = acpAgentId;
+            session.acpSessionId = acpSessionId;
+            session.workingDirectory = cwd;
+            // The backend chose the mode; nothing is pending from a cache.
+            session.acpModesPending = false;
+            s.sessions[tabId] = session;
           }),
         switchChatAgent: (tabId, agentType) =>
           set((s) => {

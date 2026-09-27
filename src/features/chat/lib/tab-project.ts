@@ -2,6 +2,9 @@ import { useLayoutStore } from "@/features/layout/stores/layout-store";
 import { useChatStore } from "@/features/chat/stores/chat-store";
 import { useProjectStore } from "@/features/projects/stores/project-store";
 import { useTerminalStore } from "@/features/terminal/stores/terminal-store";
+import { useSubagentsStore } from "@/features/subagents/stores/subagents-store";
+import { openSubagentsPanel } from "@/features/subagents/lib/open-panel";
+import { isSubagentTabId } from "@/types/subagents";
 
 /**
  * Tab ↔ project resolution. Tab ids are unique across projects, so a tab
@@ -57,6 +60,17 @@ export function projectPathForTab(tabId: string): string | null {
  */
 export async function jumpToSession(tabId: string): Promise<void> {
   const ws = useProjectStore.getState();
+  // A subagent has no tab: bring up its parent's Subagents panel instead.
+  if (isSubagentTabId(tabId)) {
+    const child = useChatStore.getState().sessions[tabId]?.acpSessionId;
+    const record = Object.values(useSubagentsStore.getState().records).find(
+      (r) => r.child_session_id === child,
+    );
+    const ownerId = projectIdForTab(tabId);
+    if (ownerId && ownerId !== ws.activeProjectId) await ws.actions.switchTo(ownerId);
+    openSubagentsPanel(record?.parent_session_id ?? null);
+    return;
+  }
   const ownerId = projectIdForTab(tabId);
   if (ownerId && ownerId !== ws.activeProjectId) {
     await ws.actions.switchTo(ownerId);
