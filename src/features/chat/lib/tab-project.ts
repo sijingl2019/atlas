@@ -60,15 +60,23 @@ export function projectPathForTab(tabId: string): string | null {
  */
 export async function jumpToSession(tabId: string): Promise<void> {
   const ws = useProjectStore.getState();
-  // A subagent has no tab: bring up its parent's Subagents panel instead.
+  // A subagent has no tab: bring up its parent chat with the subagent's
+  // detail open beside it.
   if (isSubagentTabId(tabId)) {
-    const child = useChatStore.getState().sessions[tabId]?.acpSessionId;
+    const chat = useChatStore.getState().sessions;
+    const child = chat[tabId]?.acpSessionId;
     const record = Object.values(useSubagentsStore.getState().records).find(
       (r) => r.child_session_id === child,
     );
-    const ownerId = projectIdForTab(tabId);
-    if (ownerId && ownerId !== ws.activeProjectId) await ws.actions.switchTo(ownerId);
-    openSubagentsPanel(record?.parent_session_id ?? null);
+    const parentTab = record
+      ? Object.entries(chat).find(([, s]) => s.acpSessionId === record.parent_session_id)?.[0]
+      : undefined;
+    if (!record || !parentTab) {
+      openSubagentsPanel(record?.parent_session_id ?? null);
+      return;
+    }
+    useSubagentsStore.getState().actions.openDetail(record.parent_session_id, record.id);
+    await jumpToSession(parentTab);
     return;
   }
   const ownerId = projectIdForTab(tabId);

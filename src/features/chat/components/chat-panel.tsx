@@ -110,6 +110,8 @@ import { collectTurnEdits } from "../lib/turn-edits";
 /** Height the floating header occupies — the transcript pads its content by
  *  this much so the first row clears the bar. Must match `ChatHeader`'s bar. */
 const HEADER_INSET = 46;
+import { useIsTabVisible } from "@/features/layout/lib/use-tab-visible";
+import { SubagentsFloat } from "@/features/subagents/components/subagents-float";
 import { PermissionModal } from "./permission-modal";
 import { SessionElicitation } from "./session-elicitation";
 
@@ -212,6 +214,9 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
   // unchanged sub-paths, so `s.sessions[tabId]` only changes when this tab
   // mutates.
   const session = useChatStore((s) => s.sessions[tabId]);
+  // Whether this chat is the one showing in its column — the subagent
+  // detail docked in it streams only while it is.
+  const tabVisible = useIsTabVisible(tabId);
   const { createSession, addMessage, updateSessionStatus, setSessionTitle, clearElicitation } =
     useChatStore.use.actions();
   // Narrow subscription — an unanswered `elicitation/create` (P3.3).
@@ -1370,6 +1375,9 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
                 onStallCopyDiagnostics={handleCopyDiagnostics}
               />
             </Suspense>
+            {/* The subagents this chat started, in the gutter beside the
+                transcript (a chip in a narrow chat). */}
+            <SubagentsFloat parentSessionId={acpSessionId} visible={tabVisible} />
             <div className="absolute inset-x-0 top-0 z-20">
               <ChatHeader
                 tabId={tabId}

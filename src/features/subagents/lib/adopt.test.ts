@@ -122,11 +122,10 @@ describe("subagent adoption", () => {
     expect(useSubagentsStore.getState().records["rec-1"]).toBeUndefined();
   });
 
-  it("opens the Subagents panel on a parent's first child", async () => {
+  it("does not open a tab on its own: the chat's floating list announces it", async () => {
     applySubagentEvent({ kind: "upsert", record: record() });
     await tick();
-    expect(useLayoutStore.getState().tabs.some((t) => t.type === "subagents")).toBe(true);
-    expect(useSubagentsStore.getState().focusedParent).toBe("parent");
+    expect(useLayoutStore.getState().tabs.some((t) => t.type === "subagents")).toBe(false);
   });
 });
 

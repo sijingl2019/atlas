@@ -14,8 +14,16 @@ interface SubagentsState {
   records: Record<string, SubagentView>;
   /** The parent session the panel shows; `null` follows the active chat. */
   focusedParent: string | null;
+  /** The column that owns the keyboard (its permission card answers keys);
+   *  set by a click in the panel or on the chat's floating list. */
+  focusedChild: string | null;
+  /** The child whose detail is open beside its parent chat's floating list. */
+  detail: { parentSessionId: string; childId: string } | null;
   actions: {
+    openDetail: (parentSessionId: string, childId: string) => void;
+    closeDetail: () => void;
     focusParent: (parentSessionId: string | null) => void;
+    focusChild: (id: string | null) => void;
     upsert: (record: SubagentView) => void;
     remove: (id: string) => void;
     /** Replace everything with the backend's list (after a reload). */
@@ -27,7 +35,21 @@ const useSubagentsStoreBase = create<SubagentsState>()(
   immer((set) => ({
     records: {},
     focusedParent: null,
+    focusedChild: null,
+    detail: null,
     actions: {
+      openDetail: (parentSessionId, childId) =>
+        set((s) => {
+          s.detail = { parentSessionId, childId };
+        }),
+      closeDetail: () =>
+        set((s) => {
+          s.detail = null;
+        }),
+      focusChild: (id) =>
+        set((s) => {
+          s.focusedChild = id;
+        }),
       focusParent: (parentSessionId) =>
         set((s) => {
           s.focusedParent = parentSessionId;
@@ -39,6 +61,7 @@ const useSubagentsStoreBase = create<SubagentsState>()(
       remove: (id) =>
         set((s) => {
           delete s.records[id];
+          if (s.detail?.childId === id) s.detail = null;
         }),
       resync: (records) =>
         set((s) => {

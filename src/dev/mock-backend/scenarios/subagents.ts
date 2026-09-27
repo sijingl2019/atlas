@@ -106,9 +106,20 @@ async function start(): Promise<void> {
   await blockToucher();
 }
 
+/** A long first message, like pi-acp's startup banner (context files,
+ *  skills, extensions): enough to push the column's transcript past its
+ *  height, which is where a permission card used to end up underneath it. */
+const STARTUP_BANNER = [
+  "**pi v0.87.1**",
+  "",
+  "**Skills**",
+  ...Array.from({ length: 24 }, (_, i) => `- /Users/dev/.agents/skills/skill-${i + 1}/SKILL.md`),
+].join("\n");
+
 async function blockToucher(): Promise<void> {
   const session = children.toucher;
   if (!session) return;
+  await inSession(session, () => playTranscript([text(STARTUP_BANNER)]));
   await inSession(session, () => requestPermission());
   await updateSubagent("toucher", {
     status: "blocked",

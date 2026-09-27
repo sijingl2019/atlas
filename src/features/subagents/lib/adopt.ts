@@ -5,7 +5,6 @@ import { agentTypeFromPluginId, type AgentStatus } from "@/types/agent";
 import { subagentTabId, type SubagentEvent, type SubagentView } from "@/types/subagents";
 import { useSubagentsStore } from "../stores/subagents-store";
 import { listenSubagents, subagentsApi } from "./subagents-api";
-import { openSubagentsPanel } from "./open-panel";
 
 /**
  * Keeps the frontend's picture of the subagents in step with the backend.
@@ -65,13 +64,12 @@ function addPrompt(childSessionId: string, text: string): void {
 export function applySubagentEvent(event: SubagentEvent): void {
   const store = useSubagentsStore.getState().actions;
   switch (event.kind) {
-    case "upsert": {
-      const isNew = !useSubagentsStore.getState().records[event.record.id];
+    case "upsert":
+      // No tab is opened here: the chat's floating list announces the
+      // child, and a click there opens its detail.
       store.upsert(event.record);
       void adopt(event.record);
-      if (isNew) openSubagentsPanel(event.record.parent_session_id, { focus: false });
       return;
-    }
     case "prompted":
       addPrompt(event.child_session_id, event.text);
       return;

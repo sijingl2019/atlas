@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useMemo, useState } from "react";
+import { Fragment, useCallback, useMemo } from "react";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import { Users } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -65,12 +65,12 @@ export function SubagentsPanel({ tabId }: { tabId: string }) {
   const visible = useIsTabVisible(tabId);
   const parents = useParentSessionIds();
   const focusedParent = useSubagentsStore.use.focusedParent();
-  const { focusParent } = useSubagentsStore.use.actions();
+  const { focusParent, focusChild } = useSubagentsStore.use.actions();
   const parent =
     focusedParent && parents.includes(focusedParent) ? focusedParent : (parents[0] ?? null);
   const children = useChildrenOf(parent);
   const parentTitle = useParentTitle(parent);
-  const [focusedChild, setFocusedChild] = useState<string | null>(null);
+  const focusedChild = useSubagentsStore.use.focusedChild();
 
   // The keyboard goes to the chosen column, else the first child that is
   // waiting on the user, else the first.
@@ -79,7 +79,7 @@ export function SubagentsPanel({ tabId }: { tabId: string }) {
     return (children.find((c) => c.status === "blocked") ?? children[0])?.id ?? null;
   }, [children, focusedChild]);
 
-  const onFocus = useCallback((id: string) => setFocusedChild(id), []);
+  const onFocus = useCallback((id: string) => focusChild(id), [focusChild]);
   const status = rollupStatus(children.map((c) => c.status));
   const live = children.some((c) => c.status !== "stopped");
 

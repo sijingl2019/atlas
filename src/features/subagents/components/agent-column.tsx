@@ -70,11 +70,15 @@ export const AgentColumn = memo(function AgentColumn({
   visible,
   focused,
   onFocus,
+  onDismiss,
 }: {
   record: SubagentView;
   visible: boolean;
   focused: boolean;
   onFocus: (id: string) => void;
+  /** Shown as a detail beside the chat: ✕ closes the detail rather than
+   *  closing the subagent. */
+  onDismiss?: () => void;
 }) {
   const tabId = subagentTabId(record.child_session_id);
   const messages = useChatStore((s) => s.sessions[tabId]?.messages);
@@ -109,8 +113,11 @@ export const AgentColumn = memo(function AgentColumn({
       aria-label={`Subagent ${record.name}`}
       onPointerDownCapture={() => onFocus(record.id)}
       className={cn(
-        "flex h-full min-w-0 flex-col border-t-2",
-        focused ? "border-[var(--atlas-border-strong)]" : "border-transparent",
+        "flex h-full min-w-0 flex-col",
+        // Which of several columns owns the keyboard. A detail is the only
+        // one on screen, so it carries no marker.
+        !onDismiss && "border-t-2",
+        !onDismiss && (focused ? "border-[var(--atlas-border-strong)]" : "border-transparent"),
       )}
     >
       <header className="flex h-9 shrink-0 items-center gap-2 border-b border-border px-3">
@@ -120,7 +127,9 @@ export const AgentColumn = memo(function AgentColumn({
           {agentMeta(record.kind).label} · {STATUS_LABEL[record.status]}
         </span>
         <span className="ml-auto flex items-center gap-0.5">
-          {!record.mirror && (running || record.status === "blocked") ? (
+          {/* Not in a detail: its square read as "maximize", and the header
+              there keeps only the ✕ that closes it. */}
+          {!onDismiss && !record.mirror && (running || record.status === "blocked") ? (
             <IconButton
               icon={Square}
               label="Stop"
@@ -129,13 +138,23 @@ export const AgentColumn = memo(function AgentColumn({
               onClick={() => void subagentsApi.stop(record.id)}
             />
           ) : null}
-          <IconButton
-            icon={X}
-            label="Close subagent"
-            size="xs"
-            variant="ghost"
-            onClick={() => void subagentsApi.stop(record.id, true)}
-          />
+          {onDismiss ? (
+            <IconButton
+              icon={X}
+              label="Close details"
+              size="xs"
+              variant="ghost"
+              onClick={onDismiss}
+            />
+          ) : (
+            <IconButton
+              icon={X}
+              label="Close subagent"
+              size="xs"
+              variant="ghost"
+              onClick={() => void subagentsApi.stop(record.id, true)}
+            />
+          )}
         </span>
       </header>
       <p
@@ -144,7 +163,10 @@ export const AgentColumn = memo(function AgentColumn({
       >
         {record.task}
       </p>
-      <div className="relative min-h-0 flex-1">
+      {/* A flex column that clips, as in the chat panel: the transcript's rows
+          are positioned, and without the clip they overflowed onto the
+          permission card below and took its clicks. */}
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
         {messages ? (
           <Suspense fallback={null}>
             <Transcript
@@ -159,7 +181,7 @@ export const AgentColumn = memo(function AgentColumn({
           </Suspense>
         ) : null}
       </div>
-      <div className="shrink-0 px-2">
+      <div className="relative z-10 shrink-0 bg-[var(--background)] px-2">
         <PermissionModal tabId={tabId} keyboard={focused} onSendMessage={onSendMessage} />
       </div>
       {record.last_error && record.status === "error" ? (

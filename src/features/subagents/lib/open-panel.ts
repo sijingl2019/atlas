@@ -13,9 +13,11 @@ const TAB_TYPE = "subagents" as const;
  */
 export function openSubagentsPanel(
   parentSessionId: string | null,
-  { focus = true }: { focus?: boolean } = {},
+  { focus = true, childId }: { focus?: boolean; childId?: string } = {},
 ): void {
-  if (parentSessionId) useSubagentsStore.getState().actions.focusParent(parentSessionId);
+  const subagents = useSubagentsStore.getState().actions;
+  if (parentSessionId) subagents.focusParent(parentSessionId);
+  if (childId) subagents.focusChild(childId);
   const layout = useLayoutStore.getState();
   const existing = layout.tabs.find((t) => t.type === TAB_TYPE);
   if (existing) {
