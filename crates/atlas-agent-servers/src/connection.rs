@@ -152,6 +152,8 @@ pub struct AcpConnection {
     _io_task: tokio::task::JoinHandle<()>,
     _stderr_task: tokio::task::JoinHandle<()>,
     _wait_task: tokio::task::JoinHandle<()>,
+    /// Set once the agent process has exited (see [`AgentConnection::has_exited`]).
+    exited: Arc<std::sync::atomic::AtomicBool>,
 }
 
 /// What to run, and how. Ported from Zed's `AgentServerCommand`.
@@ -364,10 +366,13 @@ impl AcpConnection {
         // From here on the child's death is a live-session event, not a
         // connect failure: every thread is told, so an agent that dies
         // mid-turn surfaces in the conversation instead of going quiet.
+        let exited = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let wait_task = tokio::spawn({
             let sessions = sessions.clone();
+            let exited = exited.clone();
             async move {
                 let (load_error, _child) = status_fut.await;
+                exited.store(true, std::sync::atomic::Ordering::SeqCst);
                 for thread in sessions.all_threads() {
                     thread
                         .lock()
@@ -414,6 +419,7 @@ impl AcpConnection {
             _io_task: io_task,
             _stderr_task: stderr_task,
             _wait_task: wait_task,
+            exited,
         })
     }
 
@@ -947,6 +953,10 @@ impl Drop for AcpConnection {
 impl AgentConnection for AcpConnection {
     fn agent_id(&self) -> AgentId {
         self.id.clone()
+    }
+
+    fn has_exited(&self) -> bool {
+        self.exited.load(std::sync::atomic::Ordering::SeqCst)
     }
 
     fn telemetry_id(&self) -> Arc<str> {

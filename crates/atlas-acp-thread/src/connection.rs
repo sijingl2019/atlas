@@ -240,6 +240,13 @@ pub trait AgentConnection: Send + Sync {
         false
     }
 
+    /// Whether the process behind this connection has exited. A dead
+    /// connection answers every request with a transport error, so the
+    /// manager must not hand it out again; it starts a fresh one instead.
+    fn has_exited(&self) -> bool {
+        false
+    }
+
     /// Load an existing session by ID.
     fn load_session(
         self: Arc<Self>,

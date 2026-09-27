@@ -358,7 +358,19 @@ impl AgentManager {
         // through to `request_connection`, which makes the decision under one
         // lock; resolving a server twice costs an `Arc` and starts nothing.
         if let Some(entry) = self.entry(&key) {
-            return entry;
+            // A connection whose process died stays in the table (its
+            // threads were told), but handing it out again fails every
+            // request with a closed transport until the app restarts.
+            // Replace it: the next request starts the agent afresh.
+            let dead = matches!(
+                &*lock(&entry),
+                AgentConnectionEntry::Connected(state) if state.connection.has_exited()
+            );
+            if !dead {
+                return entry;
+            }
+            tracing::warn!(agent = %agent_label(&key), "agent process has exited; reconnecting");
+            self.drop_connection(&key);
         }
         match self.server_for(&key) {
             Ok(server) => self.request_connection(key, server),

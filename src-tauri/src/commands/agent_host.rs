@@ -1006,6 +1006,7 @@ impl AgentHost {
         additional_directories: Vec<PathBuf>,
     ) -> Result<SessionInit> {
         let record = self.record_for(agent_id)?;
+        let (agent_id, record) = self.session_connection(agent_id, record).await?;
         let mut work_dirs = vec![cwd.clone()];
         work_dirs.extend(additional_directories);
         let plugin_id = record.plugin_id.as_str();
@@ -1044,13 +1045,17 @@ impl AgentHost {
         cwd: PathBuf,
     ) -> Result<SessionKey> {
         let record = self.record_for(agent_id)?;
+        if let Some(handle) = self.session_handle(&session_id) {
+            return Ok(SessionKey {
+                agent_id: handle,
+                session_id,
+            });
+        }
+        let (agent_id, record) = self.session_connection(agent_id, record).await?;
         let key = SessionKey {
             agent_id,
             session_id: session_id.clone(),
         };
-        if lock(&self.sessions).contains_key(&session_id) {
-            return Ok(key);
-        }
         let acp_id = acp::SessionId::new(session_id.as_str());
         let thread = self
             .manager
@@ -1137,6 +1142,38 @@ impl AgentHost {
             })
     }
 
+    /// The handle of the connection a live session runs on.
+    fn session_handle(&self, session_id: &str) -> Option<AgentId> {
+        let agent = lock(&self.sessions).get(session_id)?.agent.clone();
+        Some(self.handle_for(&agent))
+    }
+
+    /// The connection a new (or reopened) session of `record` opens on: its
+    /// own, or — for an adapter that keeps one live session per process — a
+    /// fresh instance, so two sessions never close each other's process.
+    /// Returns the handle and record to bind the session to.
+    async fn session_connection(
+        &self,
+        agent_id: AgentId,
+        record: AgentRecord,
+    ) -> Result<(AgentId, AgentRecord)> {
+        let Agent::Custom { id } = &record.agent else {
+            return Ok((agent_id, record));
+        };
+        if atlas_agent_servers::instance::is_instance(id)
+            || !atlas_agent_servers::server::one_session_per_process(id)
+        {
+            return Ok((agent_id, record));
+        }
+        let instance = atlas_agent_servers::instance::instance_id(
+            id.as_str(),
+            &format!("s-{}", &Uuid::new_v4().simple().to_string()[..8]),
+        );
+        let info = self.spawn(instance.as_str()).await?;
+        let record = self.record_for(info.agent_id)?;
+        Ok((info.agent_id, record))
+    }
+
     /// The mode a live session is in, when its agent has modes.
     pub fn current_mode(&self, session_id: &str) -> Option<String> {
         let thread = self.thread(session_id).ok()?;
@@ -1168,10 +1205,17 @@ impl AgentHost {
 
     /// Tear down a session. Idempotent — a tab can close twice.
     pub async fn drop_session(&self, session_id: &str) -> Result<()> {
-        let removed = lock(&self.sessions).remove(session_id).is_some();
-        if !removed {
+        let Some(removed) = lock(&self.sessions).remove(session_id) else {
             return Ok(());
-        }
+        };
+        // A session that ran on a process of its own (an instance) takes the
+        // process with it once it is closed.
+        let instance = match &removed.agent {
+            Agent::Custom { id } if atlas_agent_servers::instance::is_instance(id) => {
+                Some(removed.agent.clone())
+            }
+            _ => None,
+        };
         self.end_sessions([session_id.to_string()]);
         // Only the live binding goes. The history row is the record of the
         // conversation and outlives the tab that showed it.
@@ -1185,10 +1229,15 @@ impl AgentHost {
         // dropped whether or not the agent's own close RPC succeeds.
         self.projector
             .close_session(&acp::SessionId::new(session_id));
-        self.manager
+        let closed = self
+            .manager
             .close_session(&acp::SessionId::new(session_id))
             .await
-            .map_err(HostError::from)
+            .map_err(HostError::from);
+        if let Some(agent) = instance {
+            self.kill_agent(&Self::plugin_id_of(&agent), &agent);
+        }
+        closed
     }
 
     // ---- session reads ---------------------------------------------------
@@ -1780,9 +1829,13 @@ impl AgentHost {
         if let Some(session_id) = thread.session_id.clone() {
             if lock(&self.sessions).contains_key(session_id.0.as_ref()) {
                 history.store().unarchive(thread_id);
+                let agent_id = match self.session_handle(session_id.0.as_ref()) {
+                    Some(handle) => handle,
+                    None => self.handle_for(&self.agent_for(thread.agent_id.as_str())?),
+                };
                 return Ok(ResumedThread {
                     key: SessionKey {
-                        agent_id: self.handle_for(&self.agent_for(thread.agent_id.as_str())?),
+                        agent_id,
                         session_id: session_id.to_string(),
                     },
                     resumed_without_history: false,
@@ -1792,6 +1845,11 @@ impl AgentHost {
 
         let agent = self.spawn(thread.agent_id.as_str()).await?;
         let record = self.record_for(agent.agent_id)?;
+        let (instance_handle, record) = self.session_connection(agent.agent_id, record).await?;
+        let agent = AgentInfo {
+            agent_id: instance_handle,
+            ..agent
+        };
         let work_dirs = thread.folder_paths().paths().to_vec();
         let cwd = work_dirs.first().cloned().unwrap_or_default();
 

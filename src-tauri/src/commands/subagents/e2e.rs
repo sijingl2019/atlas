@@ -458,3 +458,131 @@ async fn a_real_parent_starts_waits_for_and_reads_a_subagent() {
     let _ = AgentHost::drop_session(&host, &parent.session_id).await;
     host.shutdown();
 }
+
+/// A host over Atlas's real installed agents, whose sink records each
+/// session's reply text and finished turns.
+async fn real_host() -> (Arc<AgentHost>, Arc<Mutex<Log>>, std::path::PathBuf) {
+    let data_dir = dirs::data_dir().unwrap().join("dev.atlas.ide");
+    let config_dir = std::env::temp_dir().join(format!("atlas-e2e-{}", uuid::Uuid::new_v4()));
+    let project = config_dir.join("project");
+    std::fs::create_dir_all(&project).unwrap();
+    let http = Arc::new(ReqwestClient::new("atlas-e2e").unwrap());
+    let registry = Arc::new(AgentRegistryStore::new(data_dir.clone(), http.clone()));
+    let store = Arc::new(AgentServerStore::new(
+        data_dir.clone(),
+        http.clone(),
+        NodeRuntime::managed(&data_dir, http),
+        Arc::new(InheritedProjectEnvironment),
+        Some(registry.clone()),
+    ));
+    registry.load_cached().await.expect("cached registry");
+    store
+        .set_settings(crate::commands::agent_host::load_installed(&data_dir))
+        .await;
+    let log = Arc::new(Mutex::new(Log::default()));
+    let sink = Arc::new(Sink {
+        host: OnceLock::new(),
+        manager: OnceLock::new(),
+        log: log.clone(),
+        deny_children: false,
+    });
+    let host = AgentHost::new(sink.clone(), config_dir, store, registry);
+    let _ = sink.host.set(Arc::downgrade(&host));
+    (host, log, project)
+}
+
+async fn wait_finished(log: &Arc<Mutex<Log>>, session: &str) {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(180);
+    while log.lock().finished.get(session).copied().unwrap_or(0) == 0 {
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "{session} never finished"
+        );
+        tokio::time::sleep(Duration::from_millis(300)).await;
+    }
+}
+
+/// pi-acp keeps one live session per process: two chats opened together on
+/// one adapter process closed each other's `pi`, and the adapter then crashed
+/// on a write to the closed one. Each session now gets a process of its own,
+/// and a dead adapter is replaced instead of reused.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "drives the real installed pi-acp; see the module docs"]
+async fn two_pi_sessions_open_together_and_a_dead_adapter_is_replaced() {
+    let (host, log, project) = real_host().await;
+    let info = host.spawn("pi-acp").await.expect("pi-acp starts");
+    let (a, b) = tokio::join!(
+        host.new_session(info.agent_id, project.clone(), Vec::new()),
+        host.new_session(info.agent_id, project.clone(), Vec::new()),
+    );
+    let (a, b) = (
+        a.expect("first session").key,
+        b.expect("second session").key,
+    );
+    println!("[e2e] sessions {} and {}", a.session_id, b.session_id);
+    assert_ne!(
+        a.agent_id, b.agent_id,
+        "each pi session has its own connection"
+    );
+
+    for key in [&a, &b] {
+        SubagentHost::send(&host, key, "Reply with exactly: OK".into()).expect("sent");
+    }
+    wait_finished(&log, &a.session_id).await;
+    wait_finished(&log, &b.session_id).await;
+    let failures = log.lock().failures.clone();
+    assert!(failures.is_empty(), "no turn failed: {failures:?}");
+    for key in [&a, &b] {
+        let text = log
+            .lock()
+            .text
+            .get(&key.session_id)
+            .cloned()
+            .unwrap_or_default();
+        println!("[e2e] {} said: {}", key.session_id, text.trim());
+        assert!(text.contains("OK"), "both sessions answered");
+    }
+
+    // Kill the first session's adapter out from under it; the next session
+    // must start a fresh process instead of failing on the dead one.
+    // Only this test's own children: a running Atlas has pi-acp processes too.
+    let before = std::process::Command::new("pgrep")
+        .args([
+            "-P",
+            &std::process::id().to_string(),
+            "-f",
+            "pi-acp/dist/index.js",
+        ])
+        .output()
+        .unwrap();
+    let pids: Vec<String> = String::from_utf8_lossy(&before.stdout)
+        .split_whitespace()
+        .map(str::to_string)
+        .collect();
+    println!("[e2e] pi-acp processes: {pids:?}");
+    assert!(!pids.is_empty(), "found this test's pi-acp processes");
+    for pid in &pids {
+        let _ = std::process::Command::new("kill").arg(pid).status();
+    }
+    tokio::time::sleep(Duration::from_secs(2)).await;
+    let c = host
+        .new_session(info.agent_id, project.clone(), Vec::new())
+        .await
+        .expect("a session opens after the adapters died")
+        .key;
+    SubagentHost::send(&host, &c, "Reply with exactly: OK".into()).expect("sent");
+    wait_finished(&log, &c.session_id).await;
+    let text = log
+        .lock()
+        .text
+        .get(&c.session_id)
+        .cloned()
+        .unwrap_or_default();
+    println!("[e2e] after restart said: {}", text.trim());
+    assert!(text.contains("OK"));
+
+    for key in [&a, &b, &c] {
+        let _ = AgentHost::drop_session(&host, &key.session_id).await;
+    }
+    host.shutdown();
+}

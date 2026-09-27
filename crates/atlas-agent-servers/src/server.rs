@@ -242,6 +242,22 @@ const CLAUDE_AGENT_ID: &str = "claude-code";
 const CODEX_AGENT_ID: &str = "codex";
 const GEMINI_AGENT_ID: &str = "gemini";
 
+/// Installed ids of adapters that keep ONE live session per process.
+///
+/// pi-acp is one: opening a session closes every other session's `pi`
+/// process, and a write to the closed one (EPIPE) then crashes the adapter.
+/// Like the environment quirks below this is a fix for how that adapter
+/// behaves, not a capability decision: the host gives each such session a
+/// process of its own (an instance connection, see [`crate::instance`]).
+const ONE_SESSION_PER_PROCESS: &[&str] = &["pi-acp"];
+
+/// Whether `agent_id` (an installed id or an instance of one) can hold only
+/// one live session per process.
+pub fn one_session_per_process(agent_id: &AgentId) -> bool {
+    let installed = crate::instance::installed_id(agent_id);
+    ONE_SESSION_PER_PROCESS.contains(&installed.as_str())
+}
+
 /// Per-agent environment workarounds, ported from `custom.rs:229-254`.
 ///
 /// Each is a fix for how that CLI behaves, not a capability decision — capability

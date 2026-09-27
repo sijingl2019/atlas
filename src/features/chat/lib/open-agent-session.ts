@@ -171,7 +171,7 @@ export async function openAgentSession({
   try {
     // One paint, once the session is loaded and complete. See
     // `resumeSessionFast` for why the old paint-from-disk-first stage went.
-    const { agent, snapshot } = await resumeSessionFast({
+    const { key, snapshot } = await resumeSessionFast({
       sessionId: acpSessionId,
       cwd,
       ensure: () => ensureAgent(pluginId),
@@ -181,7 +181,8 @@ export async function openAgentSession({
         isStale: () => false,
       },
     });
-    setAcpBinding(targetTabId, agent.agent_id, acpSessionId, cwd);
+    // The session's own connection (see `AgentHost::session_connection`).
+    setAcpBinding(targetTabId, key.agent_id, acpSessionId, cwd);
     // Restore live status + docked plan AFTER the bind (which clears the plan).
     hydrateSessionSnapshot(targetTabId, snapshot.status, snapshot.plan);
     // This path seeded the mode pill from the stored preference but never told
@@ -190,7 +191,7 @@ export async function openAgentSession({
     // prompt: after it, the first turn can beat the mode to the agent.
     await applyModeOnResume(
       targetTabId,
-      { agent_id: agent.agent_id, session_id: acpSessionId },
+      { agent_id: key.agent_id, session_id: acpSessionId },
       snapshot,
     );
     setTranscriptLoading(targetTabId, false);

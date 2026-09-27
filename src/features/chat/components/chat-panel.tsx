@@ -193,7 +193,9 @@ async function rebindDisconnectedSession(tabId: string): Promise<boolean> {
       key = (await agents.newSession(agent.agent_id, cwd)).key;
     }
     const actions = useChatStore.getState().actions;
-    actions.setAcpBinding(tabId, agent.agent_id, key.session_id, cwd);
+    // The key's agent, not the spawned one: an adapter that holds one session
+    // per process opens each session on a connection of its own.
+    actions.setAcpBinding(tabId, key.agent_id, key.session_id, cwd);
     actions.setDisconnected(tabId, false);
     return true;
   } catch (err) {
@@ -490,7 +492,7 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
             actions.setAcpModes(tabId, effectiveMode, init.available_modes, nowAt);
           }
         }
-        useChatStore.getState().actions.setAcpBinding(tabId, agent.agent_id, key.session_id, cwd);
+        useChatStore.getState().actions.setAcpBinding(tabId, key.agent_id, key.session_id, cwd);
         // Bound successfully — re-arm the failure toast so a LATER breakage
         // (agent crashes, gets uninstalled) is reported again rather than
         // swallowed by the earlier dedupe. Same for the sign-in offer: a token
