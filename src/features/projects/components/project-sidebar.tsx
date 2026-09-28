@@ -762,7 +762,26 @@ const IntegrationRow = memo(function IntegrationRow({ item }: { item: Integratio
       className="group flex items-center gap-2.5 pr-1.5 rounded-md cursor-pointer hover:bg-[var(--atlas-element-hover)]"
       title={title}
     >
-      <SourceIcon kind={item.source.kind} size={13} />
+      {/* Status sits with the source icon, ahead of the name. */}
+      <span className="flex shrink-0 items-center gap-1.5">
+        <SourceIcon kind={item.source.kind} size={13} />
+        {run?.status === "running" ? (
+          <AtlasLoader size={10} />
+        ) : (
+          <span
+            className={cn(
+              "size-1.5 shrink-0 rounded-full",
+              failed
+                ? "bg-error"
+                : run?.status === "interrupted"
+                  ? "bg-warning"
+                  : run?.status === "done"
+                    ? "bg-success"
+                    : "bg-[var(--muted-foreground)]/40",
+            )}
+          />
+        )}
+      </span>
       <span
         className={cn(
           "flex-1 min-w-0 truncate text-sm leading-normal text-[var(--secondary-foreground)] group-hover:text-[var(--foreground)]",
@@ -771,22 +790,6 @@ const IntegrationRow = memo(function IntegrationRow({ item }: { item: Integratio
       >
         {integrationLabel(item)}
       </span>
-      {run?.status === "running" ? (
-        <AtlasLoader size={10} />
-      ) : (
-        <span
-          className={cn(
-            "size-1.5 shrink-0 rounded-full",
-            failed
-              ? "bg-error"
-              : run?.status === "interrupted"
-                ? "bg-warning"
-                : run?.status === "done"
-                  ? "bg-success"
-                  : "bg-[var(--muted-foreground)]/40",
-          )}
-        />
-      )}
       <button
         type="button"
         onClick={(e) => {

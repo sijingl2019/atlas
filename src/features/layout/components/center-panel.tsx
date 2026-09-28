@@ -135,6 +135,10 @@ import {
   Cable,
 } from "lucide-react";
 import { PROJECTLESS_TYPES, type TabType } from "@/lib/constants";
+import {
+  IntegrationTabIcon,
+  IntegrationTabTitle,
+} from "@/features/integrations/components/integration-tab-label";
 
 // Typed as the icon-theme fallback rather than `React.ElementType`: these are
 // what a tab falls back to when the icon theme has nothing for it, and
@@ -484,6 +488,8 @@ const TabColumn = memo(function TabColumn({
                 >
                   {isRunning ? (
                     <Loader2 size={12} className="animate-spin text-primary shrink-0" />
+                  ) : tab.type === "integration" ? (
+                    <IntegrationTabIcon integrationId={tab.data.integrationId as string} />
                   ) : tabFilePath ? (
                     <FileIcon path={tabFilePath} size={12} fallback={Icon} />
                   ) : (
@@ -504,7 +510,14 @@ const TabColumn = memo(function TabColumn({
                       tab.closable && "atlas-tab-label",
                     )}
                   >
-                    {tab.title}
+                    {tab.type === "integration" ? (
+                      <IntegrationTabTitle
+                        integrationId={tab.data.integrationId as string}
+                        fallback={tab.title}
+                      />
+                    ) : (
+                      tab.title
+                    )}
                   </span>
                   {tab.closable && (
                     // No tooltip. An × on the tab you are hovering is not
@@ -906,7 +919,9 @@ function ProjectlessCenter() {
                   : "bg-background text-muted-foreground hover:bg-element-hover hover:text-secondary-foreground",
               )}
             >
-              {tabFilePath ? (
+              {tab.type === "integration" ? (
+                <IntegrationTabIcon integrationId={tab.data.integrationId as string} />
+              ) : tabFilePath ? (
                 <FileIcon path={tabFilePath} size={12} fallback={Icon} />
               ) : (
                 <Icon
@@ -923,7 +938,14 @@ function ProjectlessCenter() {
                   tab.closable && "atlas-tab-label",
                 )}
               >
-                {tab.title}
+                {tab.type === "integration" ? (
+                  <IntegrationTabTitle
+                    integrationId={tab.data.integrationId as string}
+                    fallback={tab.title}
+                  />
+                ) : (
+                  tab.title
+                )}
               </span>
               {tab.closable && (
                 // No tooltip — see the note on the primary tab strip's close

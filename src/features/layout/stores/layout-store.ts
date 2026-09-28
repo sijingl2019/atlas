@@ -503,6 +503,8 @@ export const useLayoutStore = createSelectors(
                 tab.type === "comms-draft" ||
                 // One per CONVERSATION (id is `spaces-{convId}`), same rule.
                 tab.type === "spaces" ||
+                // One per INTEGRATION (id is `integration:{id}`), same rule.
+                tab.type === "integration" ||
                 tab.type === "unsupported";
 
               let targetId = tab.id;
