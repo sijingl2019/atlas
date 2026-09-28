@@ -18,6 +18,7 @@
 //! - [`pi_extension`]: installs that extension, which also gates pi's risky
 //!   tools behind a confirm so a pi session can be approved like any other.
 //! - [`commands`]: what the Agents panel calls.
+//! - `persist`: the records saved across a restart, and their reopening.
 
 pub mod commands;
 #[cfg(test)]
@@ -25,6 +26,7 @@ mod e2e;
 pub mod manager;
 pub mod mirror;
 pub mod model;
+pub mod persist;
 pub mod pi_extension;
 pub mod server;
 

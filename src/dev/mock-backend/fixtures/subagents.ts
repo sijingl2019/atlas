@@ -107,6 +107,7 @@ export function parentOf(childSessionId: string | undefined): string | undefined
 
 export interface SubagentsResponses {
   subagents_list: SubagentView[];
+  subagents_restore: Unit;
   subagents_mark_seen: Unit;
   subagents_stop: Unit;
   subagents_stop_all: Unit;
@@ -131,6 +132,7 @@ async function stop(id: string, remove: boolean): Promise<void> {
 
 export const subagentsHandlers: TypedHandlers<SubagentsResponses> = {
   subagents_list: () => [...records.values()],
+  subagents_restore: () => undefined,
   subagents_mark_seen: ({ id }) => {
     const record = records.get(id);
     if (record?.status === "done") void setSubagentStatus(record.name, "idle");

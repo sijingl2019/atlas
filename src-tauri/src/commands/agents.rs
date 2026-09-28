@@ -761,6 +761,7 @@ pub fn install_manager(app: &AppHandle) {
             .path()
             .app_config_dir()
             .unwrap_or_else(|_| std::env::temp_dir());
+        manager.enable_persistence(super::subagents::persist::store_file(&config_dir));
         let server = Arc::new(super::subagents::server::SubagentServerHost::new(
             super::subagents::endpoint_file(&config_dir),
         ));

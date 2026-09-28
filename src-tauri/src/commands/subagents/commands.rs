@@ -61,6 +61,14 @@ pub async fn subagents_stop_all(
     Ok(())
 }
 
+/// Reopen the children saved by the last launch. The window calls it once it
+/// listens, so their announcements reach it.
+#[tauri::command]
+pub async fn subagents_restore(manager: State<'_, Arc<SubagentManager>>) -> Result<(), String> {
+    manager.inner().clone().restore().await;
+    Ok(())
+}
+
 /// A follow-up the user typed into a child's column.
 #[tauri::command]
 pub async fn subagents_prompt(

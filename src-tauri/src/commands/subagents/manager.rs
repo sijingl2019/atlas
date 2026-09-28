@@ -149,6 +149,36 @@ pub trait SubagentHost: Send + Sync {
     /// End a child's own agent connection (and so its process), if it has
     /// one. Called once the child is gone.
     fn release(&self, agent_handle: AgentId);
+    /// Reopen a child's stored session after a restart, on a connection of
+    /// its own (as [`SubagentHost::start_session`] gives it).
+    fn reopen_session(
+        &self,
+        _plugin_id: String,
+        _session_id: String,
+        _cwd: String,
+    ) -> futures::future::BoxFuture<'static, std::result::Result<SessionKey, String>> {
+        Box::pin(async { Err("reopening sessions is not supported".to_string()) })
+    }
+}
+
+/// The connection a child runs on. Every external child gets one of its own:
+/// some adapters keep one live session per process (pi-acp closes the others
+/// when a session opens), and a child's crash must not end its parent. The
+/// in-process native agent runs many threads on one connection.
+async fn child_connection(
+    host: &Arc<AgentHost>,
+    plugin_id: &str,
+) -> std::result::Result<AgentId, String> {
+    let connection = if plugin_id == CERSEI_AGENT_ID {
+        plugin_id.to_string()
+    } else {
+        let instance = format!("sub-{}", &uuid::Uuid::new_v4().simple().to_string()[..8]);
+        atlas_agent_servers::instance::instance_id(plugin_id, &instance)
+            .as_str()
+            .to_string()
+    };
+    let info = host.spawn(&connection).await.map_err(|e| e.to_string())?;
+    Ok(info.agent_id)
 }
 
 impl SubagentHost for Arc<AgentHost> {
@@ -168,21 +198,9 @@ impl SubagentHost for Arc<AgentHost> {
     ) -> futures::future::BoxFuture<'static, std::result::Result<SessionKey, String>> {
         let host = self.clone();
         Box::pin(async move {
-            // Every external child gets a connection of its own: some adapters
-            // keep one live session per process (pi-acp closes the others when
-            // a session opens), and a child's crash must not end its parent.
-            // The in-process native agent runs many threads on one connection.
-            let connection = if plugin_id == CERSEI_AGENT_ID {
-                plugin_id.clone()
-            } else {
-                let instance = format!("sub-{}", &uuid::Uuid::new_v4().simple().to_string()[..8]);
-                atlas_agent_servers::instance::instance_id(&plugin_id, &instance)
-                    .as_str()
-                    .to_string()
-            };
-            let info = host.spawn(&connection).await.map_err(|e| e.to_string())?;
+            let agent_id = child_connection(&host, &plugin_id).await?;
             let init = host
-                .new_session(info.agent_id, cwd.into(), Vec::new())
+                .new_session(agent_id, cwd.into(), Vec::new())
                 .await
                 .map_err(|e| e.to_string())?;
             if let Some(mode) = mode.filter(|m| init.current_mode.as_deref() != Some(m)) {
@@ -240,6 +258,23 @@ impl SubagentHost for Arc<AgentHost> {
             .map(|s| s.messages)
             .map_err(|e| e.to_string())
     }
+
+    fn reopen_session(
+        &self,
+        plugin_id: String,
+        session_id: String,
+        cwd: String,
+    ) -> futures::future::BoxFuture<'static, std::result::Result<SessionKey, String>> {
+        let host = self.clone();
+        Box::pin(async move {
+            let agent_id = child_connection(&host, &plugin_id).await?;
+            let reopened = host.load_session(agent_id, session_id, cwd.into()).await;
+            if reopened.is_err() {
+                SubagentHost::release(&host, agent_id);
+            }
+            reopened.map_err(|e| e.to_string())
+        })
+    }
 }
 
 #[derive(Default)]
@@ -258,8 +293,13 @@ impl Registry {
 }
 
 pub struct SubagentManager {
-    host: Box<dyn SubagentHost>,
+    pub(super) host: Box<dyn SubagentHost>,
     pub(super) emit: Emit,
+    /// Where the records are saved for the next launch; `None` while
+    /// persistence is off (tests, and from the quit on). See `persist.rs`.
+    pub(super) store: Mutex<Option<std::path::PathBuf>>,
+    /// Whether this launch's `restore` has run.
+    pub(super) restore_started: std::sync::atomic::AtomicBool,
     pub(super) registry: Mutex<Registry>,
     /// Bumped on every change to a record; waiters watch it.
     pub(super) changes: watch::Sender<u64>,
@@ -279,6 +319,8 @@ impl SubagentManager {
             emit_delta: std::sync::OnceLock::new(),
             approvals: Mutex::new(HashMap::new()),
             registry: Mutex::new(Registry::default()),
+            store: Mutex::new(None),
+            restore_started: std::sync::atomic::AtomicBool::new(false),
             changes: watch::channel(0).0,
         })
     }
@@ -286,6 +328,7 @@ impl SubagentManager {
     pub(super) fn announce(&self, view: SubagentView) {
         self.changes.send_modify(|n| *n += 1);
         (self.emit)(&SubagentEvent::Upsert { record: view });
+        self.persist();
     }
 
     // ---- who is calling ---------------------------------------------------
@@ -633,12 +676,14 @@ impl SubagentManager {
         views
     }
 
-    /// Every record, for the panel's resync after a reload.
+    /// Every record, for the panel's resync after a reload. A dormant one is
+    /// announced once `restore` has reopened it, with a handle to read it by.
     pub fn list_all(&self) -> Vec<SubagentView> {
         let registry = self.registry.lock();
         let mut views: Vec<SubagentView> = registry
             .records
             .values()
+            .filter(|r| !r.dormant)
             .map(SubagentRecord::view)
             .collect();
         views.sort_by_key(|v| v.created_at);
@@ -737,6 +782,7 @@ impl SubagentManager {
             child_session_id: record.child_session_id.clone(),
             parent_session_id: record.parent_session_id.clone(),
         });
+        self.persist();
         if record.mirror.is_some() {
             // Nothing hosted: only its waiting approvals, answered "no".
             self.deny_mirror_approvals(&record.child_session_id);
@@ -768,6 +814,7 @@ impl SubagentManager {
                     child_session_id: record.child_session_id,
                     parent_session_id: record.parent_session_id,
                 });
+                self.persist();
                 self.host.release(record.agent_handle);
             }
             return;
@@ -845,7 +892,7 @@ impl SubagentManager {
         self.announce(view);
     }
 
-    fn fail(&self, id: Uuid, error: &str) {
+    pub(super) fn fail(&self, id: Uuid, error: &str) {
         let view = {
             let mut registry = self.registry.lock();
             let Some(record) = registry.records.get_mut(&id) else {
@@ -992,6 +1039,19 @@ mod tests {
         fn release(&self, agent_handle: AgentId) {
             self.released.lock().push(agent_handle);
         }
+        fn reopen_session(
+            &self,
+            _plugin_id: String,
+            session_id: String,
+            _cwd: String,
+        ) -> BoxFuture<'static, std::result::Result<SessionKey, String>> {
+            Box::pin(async move {
+                Ok(SessionKey {
+                    agent_id: AgentId::new(),
+                    session_id,
+                })
+            })
+        }
     }
 
     type Events = Arc<Mutex<Vec<SubagentEvent>>>;
@@ -1031,6 +1091,48 @@ mod tests {
                 turn_seq: 0,
             },
         )
+    }
+
+    #[tokio::test]
+    async fn a_restart_reopens_children_and_a_blocked_one_asks_again() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("subagents.json");
+        let (first, _, _) = manager();
+        first.enable_persistence(file.clone());
+        first
+            .start(&parent(), "blocked", "a", None, false, None)
+            .await
+            .unwrap();
+        first
+            .start(&parent(), "busy", "b", None, false, None)
+            .await
+            .unwrap();
+        {
+            let mut registry = first.registry.lock();
+            for r in registry.records.values_mut() {
+                if r.name == "blocked" {
+                    r.status = SubagentStatus::Blocked;
+                }
+            }
+        }
+        first.freeze();
+        // What the quit does to the children must not reach the file.
+        first.stop_all("parent").await;
+
+        let (second, host, _) = manager();
+        second.enable_persistence(file);
+        assert!(second.list_all().is_empty(), "dormant until reopened");
+        second.restore().await;
+        let views = second.list_all();
+        let status = |name: &str| views.iter().find(|v| v.name == name).unwrap().status;
+        assert_eq!(status("blocked"), SubagentStatus::Working);
+        assert_eq!(status("busy"), SubagentStatus::Idle);
+        let sent = host.sent.lock().clone();
+        assert_eq!(sent.len(), 1);
+        assert_eq!(sent[0].1, super::super::persist::RETRY_AFTER_RESTART);
+        // Once per launch.
+        second.restore().await;
+        assert_eq!(host.sent.lock().len(), 1);
     }
 
     #[tokio::test]

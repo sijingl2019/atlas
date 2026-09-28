@@ -715,6 +715,7 @@ pub fn run() {
             commands::models_pricing::models_pricing_refresh,
             commands::agents::agents_respond_permission,
             commands::subagents::commands::subagents_list,
+            commands::subagents::commands::subagents_restore,
             commands::subagents::commands::subagents_mark_seen,
             commands::subagents::commands::subagents_stop,
             commands::subagents::commands::subagents_stop_all,
@@ -818,6 +819,13 @@ pub fn run() {
             // it in on the way out so the next launch is the new version.
             match event {
                 tauri::RunEvent::ExitRequested { .. } => {
+                    // Before the sweep: the children it ends are saved as
+                    // they were, not as failed, for the next launch to reopen.
+                    if let Some(subagents) =
+                        app_handle.try_state::<Arc<commands::subagents::SubagentManager>>()
+                    {
+                        subagents.freeze();
+                    }
                     // Quit sweep (M7): stop native turns (cancel tokens kill
                     // tool process groups) and tear down every ACP subprocess
                     // (dropping each driver's shutdown channel closes the

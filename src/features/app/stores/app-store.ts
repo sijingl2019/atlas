@@ -288,6 +288,10 @@ export async function loadProjectStores(path: string): Promise<void> {
       .actions.loadEditorState(path)
       .catch((e) => console.error("Editor state load failed:", e)),
   ]);
+  // The chat tabs are back; bring back what they showed.
+  void import("@/features/chat/lib/chat-restore")
+    .then((m) => m.restoreChatTabs(path))
+    .catch((e) => console.error("Chat restore failed:", e));
 
   // Load the full KB entries OFF the switch critical path. This is the single
   // biggest post-switch main-thread spike (up to ~1.2s on large vaults) and it

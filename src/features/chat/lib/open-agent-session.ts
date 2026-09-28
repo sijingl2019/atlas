@@ -92,16 +92,7 @@ export async function openAgentSession({
   const chat = useChatStore.getState();
   const layout = useLayoutStore.getState();
   const { addTab, setActiveTab } = layout.actions;
-  const {
-    createSession,
-    setAcpBinding,
-    setSessionTitle,
-    clearSession,
-    setTranscriptLoading,
-    setResumePending,
-    replaceMessages,
-    hydrateSessionSnapshot,
-  } = chat.actions;
+  const { createSession } = chat.actions;
 
   // 1. Already open in a LIVE tab → focus it (covers re-clicks + running chats).
   //    Closing a chat tab leaves its chat-store session behind (orphan), so we
@@ -152,9 +143,31 @@ export async function openAgentSession({
     !!activeSession &&
     ((activeSession.userMessageCount ?? 0) > 0 || activeSession.messages.length > 0);
 
+  if (abandoningCurrent) refreshSessionLists();
+  const resumed = await resumeIntoTab(targetTabId, { acpSessionId, title, cwd, agentType });
+  if (!resumed.ok) toast.error(`Couldn't open session: ${resumed.message}`);
+}
+
+/**
+ * Load a stored session into an existing chat tab, replacing what it shows.
+ * The second half of `openAgentSession`; also how a restart brings a chat tab
+ * back (`chat-restore.ts`). Never throws.
+ */
+export async function resumeIntoTab(
+  targetTabId: string,
+  { acpSessionId, title, cwd, agentType }: OpenOpts & { acpSessionId: string },
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const {
+    setAcpBinding,
+    setSessionTitle,
+    clearSession,
+    setTranscriptLoading,
+    setResumePending,
+    replaceMessages,
+    hydrateSessionSnapshot,
+  } = useChatStore.getState().actions;
   // Optimistic bind + spinner, then hydrate from the (cached) Rust session.
   clearSession(targetTabId);
-  if (abandoningCurrent) refreshSessionLists();
   setSessionTitle(targetTabId, title.slice(0, 40));
   // Resume through the session's OWN agent — loading a Codex/OpenCode session
   // through the Claude plugin fails and falls back to a blank chat.
@@ -196,12 +209,13 @@ export async function openAgentSession({
     );
     setTranscriptLoading(targetTabId, false);
     setResumePending(targetTabId, false);
+    return { ok: true };
   } catch (err) {
     setTranscriptLoading(targetTabId, false);
     setResumePending(targetTabId, false);
     // `errInfo`: the spawn/load commands in this path reject with a structured
     // `{message, kind}` that would render as "[object Object]".
-    toast.error(`Couldn't open session: ${errInfo(err).message}`);
+    return { ok: false, message: errInfo(err).message };
   }
 }
 

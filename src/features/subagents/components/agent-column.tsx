@@ -5,7 +5,6 @@ import { cn } from "@/lib/utils";
 import { IconButton } from "@/ui/icon-button";
 import { AtlasLoader } from "@/components/atlas-loader";
 import { useChatStore } from "@/features/chat/stores/chat-store";
-import { PermissionModal } from "@/features/chat/components/permission-modal";
 import { agentMeta } from "@/features/agents/lib/agent-meta";
 import { isBusyAgentStatus } from "@/types/agent";
 import { subagentTabId, type SubagentStatus, type SubagentView } from "@/types/subagents";
@@ -59,11 +58,8 @@ export { STATUS_LABEL };
 
 /**
  * One subagent as a column: who it is and what it is doing (header), its live
- * transcript, the permission it is blocked on, and a footer with its counts
- * and a follow-up input.
- *
- * The permission card answers the keyboard only while this column is the
- * focused one — every card listens on the window.
+ * transcript, whether it waits on an approval (answered in the parent chat),
+ * and a footer with its counts and a follow-up input.
  */
 export const AgentColumn = memo(function AgentColumn({
   record,
@@ -84,6 +80,9 @@ export const AgentColumn = memo(function AgentColumn({
   const messages = useChatStore((s) => s.sessions[tabId]?.messages);
   const chatStatus = useChatStore((s) => s.sessions[tabId]?.status ?? "idle");
   const agentType = useChatStore((s) => s.sessions[tabId]?.agentType);
+  const pendingCount = useChatStore(
+    (s) => s.pendingPermissions[record.child_session_id]?.length ?? 0,
+  );
   const [followUp, setFollowUp] = useState("");
 
   // Looking at a finished child is what makes it "seen" (done → idle).
@@ -100,13 +99,6 @@ export const AgentColumn = memo(function AgentColumn({
     setFollowUp("");
     subagentsApi.prompt(record.id, text).catch((e) => toast.error(String(e)));
   }, [followUp, record.id]);
-
-  const onSendMessage = useCallback(
-    (text: string) => {
-      subagentsApi.prompt(record.id, text).catch((e) => toast.error(String(e)));
-    },
-    [record.id],
-  );
 
   return (
     <section
@@ -181,9 +173,14 @@ export const AgentColumn = memo(function AgentColumn({
           </Suspense>
         ) : null}
       </div>
-      <div className="relative z-10 shrink-0 bg-[var(--background)] px-2">
-        <PermissionModal tabId={tabId} keyboard={focused} onSendMessage={onSendMessage} />
-      </div>
+      {/* Approvals are answered in the parent chat, like its own; here the
+          column only says it is waiting. */}
+      {pendingCount > 0 ? (
+        <p className="shrink-0 truncate border-t border-border px-3 py-1.5 text-xs text-[var(--atlas-status-warning-foreground)]">
+          Waiting for approval in the parent chat
+          {pendingCount > 1 ? ` (${pendingCount})` : ""}
+        </p>
+      ) : null}
       {record.last_error && record.status === "error" ? (
         <p className="shrink-0 truncate px-3 py-1 text-xs text-[var(--atlas-status-error-foreground)]">
           {record.last_error}

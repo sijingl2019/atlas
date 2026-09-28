@@ -5,6 +5,8 @@ import type { SubagentEvent, SubagentView } from "@/types/subagents";
 /** The Agents panel's commands (`src-tauri/src/commands/subagents/commands.rs`). */
 export const subagentsApi = {
   list: () => invoke<SubagentView[]>("subagents_list"),
+  /** Reopen the children the last launch left (once per launch). */
+  restore: () => invoke<void>("subagents_restore"),
   markSeen: (id: string) => invoke<void>("subagents_mark_seen", { id }),
   stop: (id: string, remove = false) => invoke<void>("subagents_stop", { id, remove }),
   stopAll: (parentSessionId: string) => invoke<void>("subagents_stop_all", { parentSessionId }),

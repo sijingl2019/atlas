@@ -57,6 +57,7 @@ import { requestCloseTab } from "@/features/chat/lib/close-tab";
 import { jumpToSession } from "@/features/chat/lib/tab-project";
 import { openSubagentsPanel } from "@/features/subagents/lib/open-panel";
 import { startSubagentSync } from "@/features/subagents/lib/adopt";
+import { startChatRestoreTracking } from "@/features/chat/lib/chat-restore";
 import { isSubagentTabId } from "@/types/subagents";
 import { pruneContextUsageCache } from "@/features/chat/lib/context-usage-cache";
 import { isScrollHot } from "@/lib/scroll-hot";
@@ -1222,6 +1223,7 @@ export function App() {
     // Subagents: adopt each child session the backend opens (before its
     // deltas arrive through the listener above) and mirror its status.
     const stopSubagentSync = startSubagentSync();
+    const stopChatRestoreTracking = startChatRestoreTracking();
 
     // Agent spawn is deferred until the user first focuses the message input
     // (see `MessageInput`'s focus handler). `npx -y @zed-industries/claude-code-acp`
@@ -1244,6 +1246,7 @@ export function App() {
       window.clearTimeout(pruneTimer);
       indexTimers.forEach((t) => clearTimeout(t));
       stopSubagentSync();
+      stopChatRestoreTracking();
       unlisten?.();
     };
   }, []);

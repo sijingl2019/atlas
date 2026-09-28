@@ -112,6 +112,7 @@ import { collectTurnEdits } from "../lib/turn-edits";
 const HEADER_INSET = 46;
 import { useIsTabVisible } from "@/features/layout/lib/use-tab-visible";
 import { SubagentsFloat } from "@/features/subagents/components/subagents-float";
+import { SubagentApprovals } from "@/features/subagents/components/subagent-approvals";
 import { PermissionModal } from "./permission-modal";
 import { SessionElicitation } from "./session-elicitation";
 
@@ -1422,6 +1423,7 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
           {/* Permission / question prompt — an inline card pinned above the
               composer (plan reviews still render as a centered modal). */}
           <PermissionModal tabId={tabId} onSendMessage={onPermissionSend} />
+          <SubagentApprovals parentSessionId={acpSessionId} />
           {pendingElicitation && (
             <SessionElicitation
               key={pendingElicitation.requestId}

@@ -9,12 +9,12 @@ use std::collections::HashSet;
 
 use atlas_agent_wire::{SessionDelta, SessionDeltaEnvelope, SessionStatus};
 use chrono::{DateTime, Utc};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use atlas_agent_wire::AgentId;
 
-#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case")]
 pub enum SubagentStatus {
     /// Created, first prompt not yet running.
@@ -77,6 +77,9 @@ pub struct SubagentRecord {
     /// extension (pi-subagents) runs inside the parent's pi. Its transcript
     /// and status are reported to Atlas; its session id is synthetic.
     pub mirror: Option<Mirror>,
+    /// Read back from disk after a restart and not reopened yet: its
+    /// `agent_handle` names no connection. See `persist.rs`.
+    pub dormant: bool,
 }
 
 /// Where a mirrored child comes from, and what has been shown of it.
@@ -123,6 +126,7 @@ impl SubagentRecord {
             created_at: now,
             updated_at: now,
             mirror: None,
+            dormant: false,
         }
     }
 

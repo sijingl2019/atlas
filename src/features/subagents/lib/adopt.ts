@@ -100,6 +100,9 @@ export function startSubagentSync(): () => void {
       if (cancelled) return;
       useSubagentsStore.getState().actions.resync(records);
       for (const record of records) void adopt(record);
+      // After the list, so the reopened children's announcements are not
+      // wiped by it; they arrive through the listener.
+      return subagentsApi.restore();
     })
     .catch(() => {});
   return () => {
