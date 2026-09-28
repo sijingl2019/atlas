@@ -85,6 +85,7 @@ import { UpdateAvailableModal } from "@/features/updater/components/update-avail
 import { LoadingOrganisationOverlay } from "@/features/organisations/components/loading-organisation-overlay";
 import { StopAgentsDialog } from "@/features/projects/components/stop-agents-dialog";
 import { ProjectDialog } from "@/features/projects/components/project-dialog";
+import { IntegrationDialog } from "@/features/integrations/components/integration-dialog";
 import { RemoveAgentDialog } from "@/features/agents/components/remove-agent-dialog";
 import { useOrgStore } from "@/features/organisations/stores/org-store";
 import { useActiveOrgProjects } from "@/features/projects/lib/org-scope";
@@ -1647,6 +1648,7 @@ export function App() {
       <LoadingOrganisationOverlay />
       <StopAgentsDialog />
       <ProjectDialog />
+      <IntegrationDialog />
       <RemoveAgentDialog />
       <BrowserOverlayWatcher />
       {/* Renders nothing at all until a glyph-based icon theme is in use, and

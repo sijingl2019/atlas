@@ -33,6 +33,7 @@ pub mod git_watcher;
 pub mod gitdiff;
 pub mod github;
 pub mod icon_themes;
+pub mod integrations;
 pub mod keybindings;
 pub mod knowledge;
 mod knowledge_convert;

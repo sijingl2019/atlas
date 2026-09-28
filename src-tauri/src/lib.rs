@@ -268,6 +268,7 @@ pub fn run() {
             );
 
             commands::agents::install_manager(app.handle());
+            commands::integrations::install(app.handle());
             // Silent background refresh of model pricing from models.dev — first
             // launch populates the cache; later launches update only on change.
             commands::models_pricing::refresh_in_background(app.handle());
@@ -729,6 +730,12 @@ pub fn run() {
             commands::models_pricing::models_pricing_get,
             commands::models_pricing::models_pricing_refresh,
             commands::agents::agents_respond_permission,
+            commands::integrations::integrations_list,
+            commands::integrations::integrations_save,
+            commands::integrations::integrations_delete,
+            commands::integrations::integrations_test,
+            commands::integrations::integrations_run_now,
+            commands::integrations::integrations_runs,
             commands::subagents::commands::subagents_list,
             commands::subagents::commands::subagents_restore,
             commands::subagents::commands::subagents_mark_seen,

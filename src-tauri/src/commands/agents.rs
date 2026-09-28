@@ -85,6 +85,10 @@ impl TauriDeltaSink {
             .with(Arc::new(super::subagents::commands::SubagentMiddleware {
                 app: app.clone(),
             }))
+            // Integration runs wait on turn ends too, and are unattended.
+            .with(Arc::new(super::integrations::IntegrationMiddleware {
+                app: app.clone(),
+            }))
             .with(Arc::new(AnalyticsMiddleware { app: app.clone() }))
             // Session capture lives here rather than on the event bus because
             // the bus drops events for a lagging subscriber, and a dropped event

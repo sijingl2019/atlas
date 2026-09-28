@@ -34,6 +34,8 @@ import {
   BrainCircuit,
   Ellipsis,
   Archive,
+  Cable,
+  Play,
 } from "lucide-react";
 import { toast } from "sonner";
 import { copyText } from "@/lib/clipboard";
@@ -66,6 +68,13 @@ import { AtlasIcon } from "@/components/atlas-icon";
 import { cn } from "@/lib/utils";
 import { GitDot, NumStatPill } from "./git-summary";
 import { useProjectDialogStore } from "../lib/project-dialog";
+import {
+  integrationsApi,
+  startIntegrationsSync,
+  useIntegrationDialogStore,
+  useIntegrationsStore,
+  type IntegrationView,
+} from "@/features/integrations/lib/integrations";
 import { ProjectGlyph } from "./project-glyph";
 import { moveProjectId } from "../lib/move-project";
 import { agentTypeFromPluginId } from "@/types/agent";
@@ -633,6 +642,7 @@ const SectionHeaderRow = memo(function SectionHeaderRow({
   onClear?: (id: string) => void;
 }) {
   const { openCreate } = useProjectDialogStore.use.actions();
+  const openCreateIntegration = useIntegrationDialogStore((s) => s.openCreate);
   return (
     // Sentence case, bold, in the secondary weight, with a small disclosure
     // AFTER the label. The slot is taller than the row: the extra is the gap
@@ -668,6 +678,20 @@ const SectionHeaderRow = memo(function SectionHeaderRow({
             }}
             title="New Project"
             aria-label="New Project"
+            className="ml-auto flex size-6 items-center justify-center rounded-md text-[var(--muted-foreground)] hover:bg-[var(--atlas-element-hover)] hover:text-[var(--foreground)] outline-none cursor-pointer"
+          >
+            <Plus size={14} />
+          </button>
+        )}
+        {id === "sec:integrations" && (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              openCreateIntegration();
+            }}
+            title="New Integration"
+            aria-label="New Integration"
             className="ml-auto flex size-6 items-center justify-center rounded-md text-[var(--muted-foreground)] hover:bg-[var(--atlas-element-hover)] hover:text-[var(--foreground)] outline-none cursor-pointer"
           >
             <Plus size={14} />
@@ -713,6 +737,65 @@ const RecentProjectRow = memo(function RecentProjectRow({
       <span className="flex-1 min-w-0 truncate text-sm leading-normal text-[var(--secondary-foreground)] group-hover:text-[var(--foreground)]">
         {name}
       </span>
+    </div>
+  );
+});
+
+/** One integration: name, a status dot, and a hover "Run now". Click edits. */
+const IntegrationRow = memo(function IntegrationRow({ item }: { item: IntegrationView }) {
+  const openEdit = useIntegrationDialogStore((s) => s.openEdit);
+  const run = item.lastRun;
+  const failed = !!item.pollError || run?.status === "failed";
+  const title = item.pollError
+    ? `Fetch failed: ${item.pollError}`
+    : run
+      ? `${run.issueKey} ${run.title} — ${run.status}${run.error ? `: ${run.error}` : ""}`
+      : "No runs yet";
+  return (
+    <div
+      onClick={() => openEdit(item.id)}
+      style={{ height: ROW_CARD, paddingLeft: 8 }}
+      className="group flex items-center gap-2.5 pr-1.5 rounded-md cursor-pointer hover:bg-[var(--atlas-element-hover)]"
+      title={title}
+    >
+      <Cable size={13} className="shrink-0 text-[var(--muted-foreground)]" />
+      <span
+        className={cn(
+          "flex-1 min-w-0 truncate text-sm leading-normal text-[var(--secondary-foreground)] group-hover:text-[var(--foreground)]",
+          !item.enabled && "opacity-50",
+        )}
+      >
+        {item.name}
+      </span>
+      {run?.status === "running" ? (
+        <AtlasLoader size={10} />
+      ) : (
+        <span
+          className={cn(
+            "size-1.5 shrink-0 rounded-full",
+            failed
+              ? "bg-error"
+              : run?.status === "done"
+                ? "bg-success"
+                : "bg-[var(--muted-foreground)]/40",
+          )}
+        />
+      )}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          integrationsApi
+            .runNow(item.id)
+            .then(() => toast.success(`Pulling issues for ${item.name}`))
+            .catch((err) => toast.error(String(err)));
+        }}
+        title="Run now"
+        aria-label="Run now"
+        className="flex size-5 items-center justify-center rounded text-[var(--muted-foreground)] opacity-0 group-hover:opacity-100 hover:bg-[var(--card)] hover:text-[var(--foreground)] cursor-pointer"
+      >
+        <Play size={11} />
+      </button>
     </div>
   );
 });
@@ -843,7 +926,8 @@ type Row =
   | { kind: "ws"; ws: Project; indented: boolean; expanded: boolean; key: string }
   | { kind: "session"; session: WorkspaceSession; pinned: boolean; key: string }
   | { kind: "recent"; name: string; path: string; key: string }
-  | { kind: "chat"; session: WorkspaceSession; pinned: boolean; key: string };
+  | { kind: "chat"; session: WorkspaceSession; pinned: boolean; key: string }
+  | { kind: "integration"; item: IntegrationView; key: string };
 
 export function ProjectSidebar() {
   const allProjects = useProjectStore.use.projects();
@@ -862,6 +946,8 @@ export function ProjectSidebar() {
   const mountedProjectIds = useProjectStore.use.mountedProjectIds();
   const mountedIds = useMemo(() => new Set(mountedProjectIds), [mountedProjectIds]);
   const { addProject } = useProjectStore.use.actions();
+  const integrations = useIntegrationsStore((s) => s.items);
+  useEffect(startIntegrationsSync, []);
   const { addTab, toggleRightPanelMode } = useLayoutStore.use.actions();
   // Which occupant the right slot shows, or null when closed — drives the
   // active state of the Source control item.
@@ -1053,8 +1139,19 @@ export function ProjectSidebar() {
             key: `chat:${session.thread.threadId}`,
           });
     }
+    // Always shown (unlike Trash / Recent): its "+" is how the first one is made.
+    out.push({
+      kind: "section",
+      id: "sec:integrations",
+      label: "Integrations",
+      key: "s:integrations",
+    });
+    if (!collapsed["sec:integrations"])
+      for (const item of integrations)
+        out.push({ kind: "integration", item, key: `int:${item.id}` });
     return out;
   }, [
+    integrations,
     pinned,
     unpinned,
     sortedGroups,
@@ -1411,6 +1508,8 @@ function renderRailRow(row: Row, ctx: RailRowCtx) {
       );
     case "recent":
       return <RecentProjectRow name={row.name} path={row.path} onOpen={ctx.onOpenRecent} />;
+    case "integration":
+      return <IntegrationRow item={row.item} />;
     case "chat":
       return (
         <SessionRow
@@ -1549,7 +1648,7 @@ function VirtualRail({
       if (k === "ws") return WS_H;
       if (k === "session") return ROW_H;
       if (k === "chat") return CHAT_H;
-      if (k === "recent") return ROW_H;
+      if (k === "recent" || k === "integration") return ROW_H;
       if (k === "section") return SECTION_H;
       return HEADER_H + 2; // group headers
     },
