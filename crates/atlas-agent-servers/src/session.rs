@@ -24,6 +24,10 @@ pub struct AcpSession {
     /// not necessarily the turn it was set for.
     pub cancel_signal: CancelSignal,
     pub session_modes: Option<Arc<Mutex<acp::SessionModeState>>>,
+    /// The host supplies [`Self::session_modes`] (see
+    /// [`crate::permission_modes`]): `set_mode` stays local, and the agent's
+    /// own `current_mode_update` describes something else and is dropped.
+    pub host_modes: bool,
     pub config_options: Option<ConfigOptions>,
     /// How many handles are open on this session. `close_session` only reaches
     /// the wire when this hits zero.

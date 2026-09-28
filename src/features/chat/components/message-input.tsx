@@ -226,7 +226,7 @@ function acpModeColor(modeId: string | undefined): string {
   const id = (modeId ?? "").toLowerCase();
   if (/full|bypass|\ball\b|danger|yolo|unrestricted/.test(id))
     return "var(--atlas-status-error-foreground)";
-  if (/read.?only|\bplan\b|ask|suggest/.test(id)) return "var(--primary)";
+  if (/read.?only|\bplan\b|ask|suggest|manual/.test(id)) return "var(--primary)";
   if (/auto|default|edit|accept|agent|project/.test(id))
     return "var(--atlas-status-success-foreground)";
   return "var(--muted-foreground)";

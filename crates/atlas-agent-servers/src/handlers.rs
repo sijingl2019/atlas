@@ -832,12 +832,25 @@ pub fn handle_session_notification(notification: acp::SessionNotification, ctx: 
     match &notification.update {
         acp::SessionUpdate::CurrentModeUpdate(update) => {
             let mode_id = update.current_mode_id.clone();
-            ctx.sessions
+            let host_modes = ctx
+                .sessions
                 .with_session(&notification.session_id, |session| {
+                    if session.host_modes {
+                        return true;
+                    }
                     if let Some(modes) = &session.session_modes {
                         lock(modes).current_mode_id = mode_id;
                     }
-                });
+                    false
+                })
+                .unwrap_or(false);
+            // The host owns this session's modes (`crate::permission_modes`);
+            // the agent's "mode" is another setting (pi: its thinking level,
+            // which it also reports as a config option). Passing it on would
+            // put a thinking level in the permission pill.
+            if host_modes {
+                return;
+            }
         }
         acp::SessionUpdate::ConfigOptionUpdate(update) => {
             let options = update.config_options.clone();
@@ -849,7 +862,8 @@ pub fn handle_session_notification(notification: acp::SessionNotification, ctx: 
                     // mode state the pill reads, but only to a mode that state
                     // knows: the agent's own `modes` wire stays authoritative
                     // for what is selectable.
-                    if let (Some(modes), Some(select)) = (
+                    if let (false, Some(modes), Some(select)) = (
+                        session.host_modes,
                         &session.session_modes,
                         crate::connection::mode_select_of(&options),
                     ) {

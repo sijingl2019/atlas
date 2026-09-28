@@ -61,6 +61,7 @@ pub mod debug_log;
 pub mod handlers;
 pub mod host_env;
 pub mod instance;
+pub mod permission_modes;
 pub mod server;
 pub mod session;
 pub mod session_list;

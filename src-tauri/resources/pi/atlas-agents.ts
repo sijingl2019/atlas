@@ -11,8 +11,10 @@
 //    is the one Atlas knows the session by (pi-acp uses it as the ACP id).
 // 2. A permission guard. pi runs every tool without asking; under Atlas, shell
 //    commands and file writes wait for a confirm, which pi-acp turns into an
-//    ACP permission request the user answers in Atlas. Set ATLAS_PI_GUARD=0 to
-//    switch it off.
+//    ACP permission request the user answers in Atlas. The composer's mode
+//    pill switches it per session: Manual asks, Auto lets the call run (the
+//    guard asks Atlas which before each confirm). ATLAS_PI_GUARD=0 switches it
+//    off everywhere.
 
 import { Type } from "typebox";
 
@@ -54,6 +56,19 @@ async function call(op: string, sessionId: string, params: Record<string, unknow
   if (!body) throw new Error(`Atlas answered ${response.status}`);
   if (!body.ok) throw new Error(`${body.error.code}: ${body.error.message}`);
   return body.result;
+}
+
+/** Whether the user put this session in Auto. Anything but a clear "auto" —
+ *  Atlas unreachable, an older Atlas without the op — keeps the confirm. */
+async function autoApproves(sessionId: string): Promise<boolean> {
+  try {
+    const result = (await call("permission_mode", sessionId, {}, AbortSignal.timeout(3000))) as {
+      mode?: unknown;
+    } | null;
+    return result?.mode === "auto";
+  } catch {
+    return false;
+  }
 }
 
 function textResult(result: unknown) {
@@ -467,6 +482,7 @@ export default function (pi: any): void {
   pi.on("tool_call", async (event: any, ctx: any) => {
     const title = needsConfirm(event.toolName, event.input ?? {});
     if (!title) return undefined;
+    if (await autoApproves(ctx.sessionManager.getSessionId())) return undefined;
     if (!ctx.hasUI) return { block: true, reason: "Blocked: no one to approve it in Atlas" };
     const detail =
       event.toolName === "bash"

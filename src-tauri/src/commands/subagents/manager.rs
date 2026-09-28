@@ -664,6 +664,13 @@ impl SubagentManager {
         Ok(json!({ "agent": view, "text": text, "truncated": truncated }))
     }
 
+    /// The caller's current session mode — for pi, the host-supplied
+    /// permission mode its extension's gate reads. `None` for a session with
+    /// no modes.
+    pub fn permission_mode(&self, caller: &Caller) -> Option<String> {
+        self.host.current_mode(&caller.session_id)
+    }
+
     pub fn list(&self, caller: &Caller) -> Vec<SubagentView> {
         let registry = self.registry.lock();
         let mut views: Vec<SubagentView> = registry

@@ -38,6 +38,7 @@ fn registered(registry: &SessionRegistry, id: &str) -> Arc<Mutex<AcpThread>> {
             thread: Arc::downgrade(&thread),
             cancel_signal: CancelSignal::new(),
             session_modes: None,
+            host_modes: false,
             config_options: None,
             ref_count: 1,
         },

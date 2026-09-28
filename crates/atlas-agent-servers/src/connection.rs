@@ -568,6 +568,7 @@ impl AcpConnection {
                 thread: Arc::downgrade(&thread),
                 cancel_signal: CancelSignal::new(),
                 session_modes: None,
+                host_modes: self.host_modes(),
                 config_options: None,
                 ref_count: 1,
             },
@@ -595,7 +596,7 @@ impl AcpConnection {
         // flight, taking the sessions entry with it. Handing back a thread with
         // no live session would produce one that silently receives nothing.
         let attached = self.sessions.with_session(&session_id, |session| {
-            let modes = session_modes_of(response.modes, response.config_options.as_deref());
+            let modes = self.modes_for(response.modes, response.config_options.as_deref());
             session.session_modes = modes.map(|modes| Arc::new(Mutex::new(modes)));
             session.config_options = response
                 .config_options
@@ -989,7 +990,7 @@ impl AgentConnection for AcpConnection {
             let session_id = response.session_id.clone();
             mcp_offer.bind(&session_id);
             let thread = self.new_thread(session_id.clone(), work_dirs, None);
-            let modes = session_modes_of(response.modes, response.config_options.as_deref());
+            let modes = self.modes_for(response.modes, response.config_options.as_deref());
 
             self.sessions.insert(
                 session_id.clone(),
@@ -997,6 +998,7 @@ impl AgentConnection for AcpConnection {
                     thread: Arc::downgrade(&thread),
                     cancel_signal: CancelSignal::new(),
                     session_modes: modes.map(|modes| Arc::new(Mutex::new(modes))),
+                    host_modes: self.host_modes(),
                     config_options: response
                         .config_options
                         .map(|options| ConfigOptions::new(Arc::new(Mutex::new(options)))),
@@ -1342,13 +1344,14 @@ impl AgentConnection for AcpConnection {
     }
 
     fn session_modes(&self, session_id: &acp::SessionId) -> Option<Arc<dyn AgentSessionModes>> {
-        let modes = self
-            .sessions
-            .with_session(session_id, |session| session.session_modes.clone())??;
+        let (modes, local) = self.sessions.with_session(session_id, |session| {
+            (session.session_modes.clone(), session.host_modes)
+        })?;
         Some(Arc::new(AcpSessionModes {
             connection: self.connection.clone(),
             session_id: session_id.clone(),
-            modes,
+            modes: modes?,
+            local,
         }))
     }
 
@@ -1393,6 +1396,25 @@ impl AgentConnection for AcpConnection {
 }
 
 impl AcpConnection {
+    /// Whether the host supplies this connection's session modes — see
+    /// [`crate::permission_modes`].
+    fn host_modes(&self) -> bool {
+        crate::permission_modes::host_permission_modes(&self.id)
+    }
+
+    /// A new or loaded session's modes: the host's permission modes for an
+    /// adapter they are supplied for, whatever the agent advertised otherwise.
+    fn modes_for(
+        &self,
+        modes: Option<acp::SessionModeState>,
+        config_options: Option<&[acp::SessionConfigOption]>,
+    ) -> Option<acp::SessionModeState> {
+        if self.host_modes() {
+            return Some(crate::permission_modes::permission_mode_state());
+        }
+        session_modes_of(modes, config_options)
+    }
+
     /// Applies the configured default mode, rolling back the local view if the
     /// agent rejects it — otherwise the UI shows a mode the agent is not in.
     async fn apply_default_mode(&self, session_id: &acp::SessionId) {
@@ -1421,6 +1443,10 @@ impl AcpConnection {
             modes.current_mode_id = default_mode.clone();
             initial
         };
+        // Host-supplied modes have nothing to tell the agent.
+        if self.host_modes() {
+            return;
+        }
 
         // On the `session/new` path, so it gets the same deadline: a wedged
         // agent that answered `session/new` and then went quiet must not park
@@ -1450,6 +1476,8 @@ struct AcpSessionModes {
     connection: ConnectionTo<Agent>,
     session_id: acp::SessionId,
     modes: Arc<Mutex<acp::SessionModeState>>,
+    /// Host-supplied modes: the switch is ours alone, never sent to the agent.
+    local: bool,
 }
 
 impl AgentSessionModes for AcpSessionModes {
@@ -1474,10 +1502,19 @@ impl AgentSessionModes for AcpSessionModes {
         let session_id = self.session_id.clone();
         let modes = self.modes.clone();
         let previous = self.current_mode();
-        modes
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .current_mode_id = mode.clone();
+        {
+            let mut state = modes
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if self.local {
+                if !state.available_modes.iter().any(|m| m.id == mode) {
+                    return futures::future::ready(Err(anyhow!("unknown mode `{mode}`"))).boxed();
+                }
+                state.current_mode_id = mode;
+                return futures::future::ready(Ok(())).boxed();
+            }
+            state.current_mode_id = mode.clone();
+        }
 
         async move {
             match conn

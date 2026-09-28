@@ -276,7 +276,8 @@ pub async fn dispatch(
             manager.stop(&caller, &a.name, a.remove).await
         }
         // The pi extension's reports about pi-subagents children. Not tools:
-        // the MCP door refuses them (see `MCP_OPS`).
+        // the MCP door refuses them (see `MCP_OPS`), as it does
+        // `permission_mode` below.
         "mirror" => {
             let report: super::mirror::MirrorReport = parse(args)?;
             let view = manager.mirror_report(&caller, report)?;
@@ -289,6 +290,9 @@ pub async fn dispatch(
                 .await?;
             Ok(json!({ "allowed": allowed }))
         }
+        // The pi extension's permission gate asks before each confirm whether
+        // the session is in Auto (`atlas_agent_servers::permission_modes`).
+        "permission_mode" => Ok(json!({ "mode": manager.permission_mode(&caller) })),
         other => Err(SubagentError {
             code: "unknown_tool",
             message: format!("unknown operation `{other}`"),
@@ -639,8 +643,9 @@ mod tests {
         ) -> BoxFuture<'static, Result<SessionKey, String>> {
             Box::pin(async { Err("not in this test".to_string()) })
         }
-        fn current_mode(&self, _session_id: &str) -> Option<String> {
-            None
+        /// Only `auto-session` has modes, and it is in Auto.
+        fn current_mode(&self, session_id: &str) -> Option<String> {
+            (session_id == "auto-session").then(|| "auto".to_string())
         }
         fn send(&self, _key: &SessionKey, _text: String) -> Result<(), String> {
             Ok(())
@@ -725,6 +730,30 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(ok, json!({ "ok": true, "result": { "agents": [] } }));
+    }
+
+    #[tokio::test]
+    async fn the_pi_gate_reads_the_session_permission_mode() {
+        let (server, _) = server().await;
+        let url = format!("{}/v1/agents/permission_mode", server.base_url());
+        let http = reqwest::Client::new();
+        let mode = |session: &'static str| {
+            let request = http
+                .post(&url)
+                .bearer_auth("k")
+                .body(format!(r#"{{"session_id":"{session}"}}"#));
+            async move { request.send().await.unwrap().json::<Value>().await.unwrap() }
+        };
+        assert_eq!(
+            mode("auto-session").await,
+            json!({ "ok": true, "result": { "mode": "auto" } })
+        );
+        assert_eq!(
+            mode("s1").await,
+            json!({ "ok": true, "result": { "mode": null } })
+        );
+        // Not a tool: an MCP client cannot reach it.
+        assert!(!MCP_OPS.contains(&"permission_mode"));
     }
 
     #[test]
