@@ -12,17 +12,14 @@ import type { SubagentView } from "@/types/subagents";
  */
 interface SubagentsState {
   records: Record<string, SubagentView>;
-  /** The parent session the panel shows; `null` follows the active chat. */
-  focusedParent: string | null;
   /** The column that owns the keyboard (its permission card answers keys);
-   *  set by a click in the panel or on the chat's floating list. */
+   *  set by a click on the chat's floating list. */
   focusedChild: string | null;
   /** The child whose detail is open beside its parent chat's floating list. */
   detail: { parentSessionId: string; childId: string } | null;
   actions: {
     openDetail: (parentSessionId: string, childId: string) => void;
     closeDetail: () => void;
-    focusParent: (parentSessionId: string | null) => void;
     focusChild: (id: string | null) => void;
     upsert: (record: SubagentView) => void;
     remove: (id: string) => void;
@@ -34,7 +31,6 @@ interface SubagentsState {
 const useSubagentsStoreBase = create<SubagentsState>()(
   immer((set) => ({
     records: {},
-    focusedParent: null,
     focusedChild: null,
     detail: null,
     actions: {
@@ -49,10 +45,6 @@ const useSubagentsStoreBase = create<SubagentsState>()(
       focusChild: (id) =>
         set((s) => {
           s.focusedChild = id;
-        }),
-      focusParent: (parentSessionId) =>
-        set((s) => {
-          s.focusedParent = parentSessionId;
         }),
       upsert: (record) =>
         set((s) => {
@@ -88,20 +80,6 @@ export function childrenOf(
 
 export function useChildrenOf(parentSessionId: string | null | undefined): SubagentView[] {
   return useSubagentsStoreBase(useShallow((s) => childrenOf(s.records, parentSessionId)));
-}
-
-/** Every parent session that has children, most recently active first. */
-export function useParentSessionIds(): string[] {
-  return useSubagentsStoreBase(
-    useShallow((s) => {
-      const latest = new Map<string, string>();
-      for (const r of Object.values(s.records)) {
-        const prev = latest.get(r.parent_session_id);
-        if (!prev || r.updated_at > prev) latest.set(r.parent_session_id, r.updated_at);
-      }
-      return [...latest.entries()].sort((a, b) => b[1].localeCompare(a[1])).map(([id]) => id);
-    }),
-  );
 }
 
 /** Child session ids, for surfaces that list sessions and should not list

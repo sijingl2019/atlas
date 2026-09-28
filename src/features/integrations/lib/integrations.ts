@@ -66,7 +66,7 @@ export interface IssueOverride {
   model?: string | null;
 }
 
-export type RunStatus = "running" | "done" | "failed" | "skipped" | "interrupted";
+export type RunStatus = "queued" | "running" | "done" | "failed" | "skipped" | "interrupted";
 
 export interface RunRecord {
   issueKey: string;

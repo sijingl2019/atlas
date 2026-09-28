@@ -19,7 +19,6 @@ vi.mock("@tauri-apps/api/event", () => ({
 }));
 
 import { useChatStore } from "@/features/chat/stores/chat-store";
-import { useLayoutStore } from "@/features/layout/stores/layout-store";
 import { subagentTabId, rollupStatus, type SubagentView } from "@/types/subagents";
 import { useSubagentsStore, childrenOf } from "../stores/subagents-store";
 import { applySubagentEvent } from "./adopt";
@@ -53,7 +52,7 @@ describe("subagent adoption", () => {
     snapshot.mockReset();
     snapshot.mockResolvedValue({ messages: [], status: "running", plan: [] });
     useChatStore.setState({ sessions: {}, queues: {}, activeSessionId: "parent-tab" });
-    useSubagentsStore.setState({ records: {}, focusedParent: null });
+    useSubagentsStore.setState({ records: {} });
   });
 
   it("adopts a child bound to its session without making it the active chat", async () => {
@@ -120,12 +119,6 @@ describe("subagent adoption", () => {
     });
     expect(useChatStore.getState().sessions[subagentTabId("child-1")]).toBeUndefined();
     expect(useSubagentsStore.getState().records["rec-1"]).toBeUndefined();
-  });
-
-  it("does not open a tab on its own: the chat's floating list announces it", async () => {
-    applySubagentEvent({ kind: "upsert", record: record() });
-    await tick();
-    expect(useLayoutStore.getState().tabs.some((t) => t.type === "subagents")).toBe(false);
   });
 });
 

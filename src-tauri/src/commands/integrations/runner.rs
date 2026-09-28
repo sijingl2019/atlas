@@ -113,8 +113,8 @@ impl IntegrationsRuntime {
         }
     }
 
-    /// Continue every run the last launch was in the middle of, in its own
-    /// session, one after another.
+    /// Finish what the last launch left: continue every interrupted run in
+    /// its own session, and run what was queued by hand, one after another.
     async fn resume_interrupted(&self, app: &AppHandle) {
         let runs = self.store.runs();
         for integration in self.store.integrations().into_iter().filter(|i| i.active()) {
@@ -122,7 +122,7 @@ impl IntegrationsRuntime {
                 .get(&integration.id)
                 .into_iter()
                 .flatten()
-                .filter(|r| r.status == RunStatus::Interrupted);
+                .filter(|r| matches!(r.status, RunStatus::Interrupted | RunStatus::Queued));
             for rec in interrupted {
                 let issue = if rec.issue.key.is_empty() {
                     // Recorded before runs kept their issue.
@@ -134,10 +134,7 @@ impl IntegrationsRuntime {
                 } else {
                     rec.issue.clone()
                 };
-                let mode = RunMode::Continue {
-                    session_id: rec.session_id.clone(),
-                };
-                self.run_one(app, &integration.id, issue, mode).await;
+                self.run_one(app, &integration.id, issue, rec.mode()).await;
             }
         }
     }
@@ -253,6 +250,7 @@ impl IntegrationsRuntime {
             agent_handle: None,
             agent_id: Some(agent_id.clone()),
             model: model.clone(),
+            resume: false,
         };
         let cwd = integration.project_path.as_str();
 

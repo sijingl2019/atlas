@@ -123,8 +123,6 @@ const REVIEWED_AGENT_COMMANDS = [
   "nav.newTabPalette",
   "nav.layoutSwitcher",
   "usage.open",
-  // Opens the subagents panel; starts nothing.
-  "subagents.open",
   "hintNav.toggle",
   "panels.left",
   "panels.right",

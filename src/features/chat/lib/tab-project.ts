@@ -3,7 +3,6 @@ import { useChatStore } from "@/features/chat/stores/chat-store";
 import { useProjectStore } from "@/features/projects/stores/project-store";
 import { useTerminalStore } from "@/features/terminal/stores/terminal-store";
 import { useSubagentsStore } from "@/features/subagents/stores/subagents-store";
-import { openSubagentsPanel } from "@/features/subagents/lib/open-panel";
 import { isSubagentTabId } from "@/types/subagents";
 
 /**
@@ -71,10 +70,7 @@ export async function jumpToSession(tabId: string): Promise<void> {
     const parentTab = record
       ? Object.entries(chat).find(([, s]) => s.acpSessionId === record.parent_session_id)?.[0]
       : undefined;
-    if (!record || !parentTab) {
-      openSubagentsPanel(record?.parent_session_id ?? null);
-      return;
-    }
+    if (!record || !parentTab) return;
     useSubagentsStore.getState().actions.openDetail(record.parent_session_id, record.id);
     await jumpToSession(parentTab);
     return;

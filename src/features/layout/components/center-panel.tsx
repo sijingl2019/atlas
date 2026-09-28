@@ -54,11 +54,6 @@ const CommsDraftTab = lazy(() =>
 const SpacesTab = lazy(() =>
   import("@/features/spaces/components/spaces-tab").then((m) => ({ default: m.SpacesTab })),
 );
-const SubagentsPanel = lazy(() =>
-  import("@/features/subagents/components/subagents-panel").then((m) => ({
-    default: m.SubagentsPanel,
-  })),
-);
 const IntegrationPanel = lazy(() =>
   import("@/features/integrations/components/integration-panel").then((m) => ({
     default: m.IntegrationPanel,
@@ -131,7 +126,6 @@ import {
   Gauge,
   Layers,
   Frame,
-  Users,
   Cable,
 } from "lucide-react";
 import { PROJECTLESS_TYPES, type TabType } from "@/lib/constants";
@@ -164,7 +158,6 @@ const tabIcons: Record<TabType, FallbackIcon> = {
   artifacts: Layers,
   "comms-draft": FileText,
   spaces: Frame,
-  subagents: Users,
   integration: Cable,
 };
 
@@ -1034,8 +1027,6 @@ function TabContent({ tab }: { tab: Tab }) {
       return <SpacesTab convId={tab.data.convId as string} />;
     case "unsupported":
       return <UnsupportedView filePath={tab.data.filePath as string} />;
-    case "subagents":
-      return <SubagentsPanel tabId={tab.id} />;
     case "integration":
       return <IntegrationPanel integrationId={tab.data.integrationId as string} />;
     default:
@@ -1062,7 +1053,6 @@ function PlaceholderContent({ tab }: { tab: Tab }) {
 
 const NEW_TAB_OPTIONS: Array<{ type: TabType; label: string; icon: React.ElementType }> = [
   { type: "chat", label: "Agents", icon: AtlasIcon },
-  { type: "subagents", label: "Subagents", icon: Users },
   { type: "canvas", label: "Spaces", icon: Map },
   { type: "terminal", label: "Terminal", icon: Terminal },
   { type: "diff", label: "Git Diff", icon: GitCompare },

@@ -19,7 +19,6 @@ export const TAB_TYPES = [
   "artifacts",
   "comms-draft",
   "spaces",
-  "subagents",
   "integration",
 ] as const;
 

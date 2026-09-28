@@ -144,13 +144,6 @@ export const ACTIONS = [
   },
   { id: "usage.open", title: "Open Usage", category: "Navigation", when: "global", defaults: [] },
   {
-    id: "subagents.open",
-    title: "Open Subagents",
-    category: "Navigation",
-    when: "global",
-    defaults: [],
-  },
-  {
     id: "hintNav.toggle",
     title: "Hint navigation",
     category: "Navigation",

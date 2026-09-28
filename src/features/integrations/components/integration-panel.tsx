@@ -14,6 +14,7 @@ import {
   Loader2,
   Pencil,
   Play,
+  Power,
   RefreshCw,
   RotateCcw,
   StepForward,
@@ -40,6 +41,7 @@ import { SourceIcon } from "./source-icon";
 import { openRunSession } from "../lib/open-run-session";
 
 const STATUS_LABEL: Record<RunStatus, string> = {
+  queued: "Queued",
   running: "Developing",
   done: "Committed",
   failed: "Failed",
@@ -48,6 +50,7 @@ const STATUS_LABEL: Record<RunStatus, string> = {
 };
 
 const STATUS_CLASS: Record<RunStatus, string> = {
+  queued: "text-[var(--muted-foreground)]",
   running: "text-[var(--primary)]",
   done: "text-success",
   failed: "text-error",
@@ -110,10 +113,11 @@ export function IntegrationPanel({ integrationId }: { integrationId: string }) {
   const current = Object.values(runs).find((r) => r.status === "running");
   const agentName = (id: string) => catalog.find((a) => a.id === id)?.name ?? id;
 
-  const rerun = (key: string, verb: string) =>
+  // Queued behind whatever is running; the row shows Queued until it starts.
+  const rerun = (key: string) =>
     integrationsApi
       .rerun(item.id, key)
-      .then(() => toast.success(`${verb} ${key}`))
+      .then(() => toast.success(`${key} queued`))
       .catch((e) => toast.error(String(e)));
 
   const setOverride = (key: string, next: IssueOverride) => {
@@ -175,6 +179,17 @@ export function IntegrationPanel({ integrationId }: { integrationId: string }) {
         </button>
         <button className={iconButton} title="Edit" onClick={() => openEdit(item.id)}>
           <Pencil size={14} />
+        </button>
+        <button
+          className={cn(iconButton, item.enabled && "text-success")}
+          title={item.enabled ? "Disable" : "Enable"}
+          onClick={() =>
+            integrationsApi
+              .save({ ...toIntegration(item), enabled: !item.enabled }, null)
+              .catch((e) => toast.error(String(e)))
+          }
+        >
+          <Power size={14} />
         </button>
       </div>
 
@@ -240,7 +255,7 @@ function IssueRow({
   run: RunRecord | undefined;
   expanded: boolean;
   onToggle: () => void;
-  onRerun: (key: string, verb: string) => void;
+  onRerun: (key: string) => void;
   onOverride: (key: string, next: IssueOverride) => void;
   catalog: ReturnType<typeof useInstalledAgents>;
   agentName: (id: string) => string;
@@ -346,17 +361,17 @@ function IssueRow({
               <span className="text-[var(--muted-foreground)]">Queued</span>
             )}
             {run?.status === "interrupted" && (
-              <button className={actionButton} onClick={() => onRerun(issue.key, "Continuing")}>
+              <button className={actionButton} onClick={() => onRerun(issue.key)}>
                 <StepForward size={11} /> Continue
               </button>
             )}
             {(run?.status === "failed" || run?.status === "skipped") && (
-              <button className={actionButton} onClick={() => onRerun(issue.key, "Retrying")}>
+              <button className={actionButton} onClick={() => onRerun(issue.key)}>
                 <RotateCcw size={11} /> Retry
               </button>
             )}
             {!run && (
-              <button className={actionButton} onClick={() => onRerun(issue.key, "Running")}>
+              <button className={actionButton} onClick={() => onRerun(issue.key)}>
                 <Play size={11} /> Run
               </button>
             )}

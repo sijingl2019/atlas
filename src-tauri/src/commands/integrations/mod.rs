@@ -183,6 +183,9 @@ pub struct Issue {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum RunStatus {
+    /// Asked for by hand (Run / Retry / Continue), waiting behind the run in
+    /// progress. `RunRecord::resume` says which.
+    Queued,
     Running,
     Done,
     Failed,
@@ -221,6 +224,25 @@ pub struct RunRecord {
     pub agent_id: Option<String>,
     #[serde(default)]
     pub model: Option<String>,
+    /// While `Queued`: continue `session_id` rather than start afresh.
+    #[serde(default)]
+    pub resume: bool,
+}
+
+impl RunRecord {
+    /// How to run this record's issue now: continue its session when it was
+    /// interrupted (or queued to continue), else afresh.
+    pub fn mode(&self) -> runner::RunMode {
+        if self.status == RunStatus::Interrupted
+            || (self.status == RunStatus::Queued && self.resume)
+        {
+            runner::RunMode::Continue {
+                session_id: self.session_id.clone(),
+            }
+        } else {
+            runner::RunMode::Fresh
+        }
+    }
 }
 
 /// What the sidebar shows: the config plus its latest run.
@@ -543,9 +565,9 @@ pub async fn integrations_rerun(
         .find(|r| r.issue_key == issue_key);
     if last
         .as_ref()
-        .is_some_and(|r| r.status == RunStatus::Running)
+        .is_some_and(|r| matches!(r.status, RunStatus::Running | RunStatus::Queued))
     {
-        return Err("this issue is already running".into());
+        return Err("this issue is already queued or running".into());
     }
     let issue = match last.as_ref().filter(|r| !r.issue.key.is_empty()) {
         Some(r) => r.issue.clone(),
@@ -559,12 +581,28 @@ pub async fn integrations_rerun(
                 .ok_or("the tracker no longer lists this issue")?
         }
     };
-    let mode = match last {
-        Some(r) if r.status == RunStatus::Interrupted => runner::RunMode::Continue {
-            session_id: r.session_id,
-        },
-        _ => runner::RunMode::Fresh,
+    let resume = last
+        .as_ref()
+        .is_some_and(|r| r.status == RunStatus::Interrupted);
+    // Shown as Queued until the run in progress (if any) lets it start; kept
+    // on disk so a quit before then still runs it at the next launch.
+    let queued = RunRecord {
+        issue_key: issue.key.clone(),
+        title: issue.title.clone(),
+        status: RunStatus::Queued,
+        commit: None,
+        error: None,
+        at: now(),
+        issue: issue.clone(),
+        session_id: last.as_ref().and_then(|r| r.session_id.clone()),
+        agent_handle: None,
+        agent_id: last.as_ref().and_then(|r| r.agent_id.clone()),
+        model: last.as_ref().and_then(|r| r.model.clone()),
+        resume,
     };
+    let mode = queued.mode();
+    rt.store.put_run(&id, queued)?;
+    announce(&app);
     tauri::async_runtime::spawn(async move { rt.run_one(&app, &id, issue, mode).await });
     Ok(())
 }
@@ -609,6 +647,30 @@ pub fn install(app: &AppHandle) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn queued_records_remember_continue_vs_fresh() {
+        let rec = |status, resume| RunRecord {
+            issue_key: "K".into(),
+            title: "t".into(),
+            status,
+            commit: None,
+            error: None,
+            at: now(),
+            issue: Issue::default(),
+            session_id: Some("s".into()),
+            agent_handle: None,
+            agent_id: None,
+            model: None,
+            resume,
+        };
+        let continues = |r: RunRecord| matches!(r.mode(), runner::RunMode::Continue { .. });
+        assert!(continues(rec(RunStatus::Interrupted, false)));
+        assert!(continues(rec(RunStatus::Queued, true)));
+        // A queued retry of a failed run starts over, session or not.
+        assert!(!continues(rec(RunStatus::Queued, false)));
+        assert!(!continues(rec(RunStatus::Failed, false)));
+    }
 
     #[test]
     fn issue_overrides_pick_agent_and_model() {
@@ -682,6 +744,7 @@ mod tests {
             agent_handle: None,
             agent_id: None,
             model: None,
+            resume: false,
         };
         store.put_run("a", rec(RunStatus::Running)).unwrap();
         store.put_run("a", rec(RunStatus::Done)).unwrap();

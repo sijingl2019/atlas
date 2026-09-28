@@ -54,7 +54,6 @@ import { openNewAgentChat, openThread } from "@/features/chat/lib/open-agent-ses
 import { ThreadHistoryView } from "@/features/chat/components/thread-history-view";
 import { requestCloseTab } from "@/features/chat/lib/close-tab";
 import { jumpToSession } from "@/features/chat/lib/tab-project";
-import { openSubagentsPanel } from "@/features/subagents/lib/open-panel";
 import { startSubagentSync } from "@/features/subagents/lib/adopt";
 import { startChatRestoreTracking } from "@/features/chat/lib/chat-restore";
 import { isSubagentTabId } from "@/types/subagents";
@@ -1594,7 +1593,6 @@ export function App() {
         data: {},
       }),
     // The org's Usage dashboard — a singleton tab, so re-running focuses it.
-    "subagents.open": () => openSubagentsPanel(null),
     "usage.open": () =>
       addTab({
         id: "usage",

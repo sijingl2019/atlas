@@ -105,7 +105,6 @@ export function IntegrationDialog() {
   const [interval, setIntervalMinutes] = useState(15);
   const [branchMode, setBranchMode] = useState<BranchMode>({ kind: "current" });
   const [autoPush, setAutoPush] = useState(false);
-  const [enabled, setEnabled] = useState(true);
   const catalog = useInstalledAgents();
   const [model, setModel] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
@@ -122,7 +121,6 @@ export function IntegrationDialog() {
     setIntervalMinutes(editing?.intervalMinutes ?? 15);
     setBranchMode(editing?.branchMode ?? { kind: "current" });
     setAutoPush(editing?.autoPush ?? false);
-    setEnabled(editing?.enabled ?? true);
     setPreview(null);
     setSubmitting(false);
     setModel(editing?.model ?? null);
@@ -181,7 +179,8 @@ export function IntegrationDialog() {
           id: editId ?? crypto.randomUUID(),
           // Shown as the project's name; kept for the config file's reader.
           name: basename(path),
-          enabled,
+          // New ones start enabled; the tab's Enable / Disable button flips it.
+          enabled: editing?.enabled ?? true,
           source,
           projectId,
           projectPath: path,
@@ -570,14 +569,6 @@ export function IntegrationDialog() {
                   </span>
                   <Toggle checked={autoPush} onChange={setAutoPush} />
                 </div>
-                {editing && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-[var(--secondary-foreground)]">
-                      Enabled
-                    </span>
-                    <Toggle checked={enabled} onChange={setEnabled} />
-                  </div>
-                )}
               </>
             )}
           </div>
