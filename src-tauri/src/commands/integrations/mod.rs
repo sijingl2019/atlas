@@ -367,6 +367,33 @@ pub fn integrations_save(
     Ok(())
 }
 
+/// Copy an integration (config, credential and per-issue settings; not its
+/// runs). The copy starts disabled so it cannot develop the same issues as
+/// the original before it is edited. Returns the copy's id.
+#[tauri::command]
+pub fn integrations_duplicate(
+    id: String,
+    rt: State<'_, Arc<IntegrationsRuntime>>,
+    app: AppHandle,
+) -> Result<String, String> {
+    let mut list = rt.store.integrations();
+    let mut copy = list
+        .iter()
+        .find(|i| i.id == id)
+        .cloned()
+        .ok_or("no such integration")?;
+    copy.id = uuid::Uuid::new_v4().to_string();
+    copy.enabled = false;
+    if let Some(secret) = rt.store.secrets().remove(&id) {
+        rt.store.set_secret(&copy.id, Some(secret))?;
+    }
+    let new_id = copy.id.clone();
+    list.push(copy);
+    rt.store.save_integrations(&list)?;
+    announce(&app);
+    Ok(new_id)
+}
+
 #[tauri::command]
 pub fn integrations_delete(
     id: String,

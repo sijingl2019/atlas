@@ -738,6 +738,7 @@ pub fn run() {
             commands::integrations::integrations_runs,
             commands::integrations::integrations_issues,
             commands::integrations::integrations_rerun,
+            commands::integrations::integrations_duplicate,
             commands::subagents::commands::subagents_list,
             commands::subagents::commands::subagents_restore,
             commands::subagents::commands::subagents_mark_seen,

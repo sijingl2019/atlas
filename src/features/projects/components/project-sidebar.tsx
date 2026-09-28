@@ -69,6 +69,7 @@ import { GitDot, NumStatPill } from "./git-summary";
 import { useProjectDialogStore } from "../lib/project-dialog";
 import { SourceIcon } from "@/features/integrations/components/source-icon";
 import {
+  duplicateIntegration,
   integrationLabel,
   integrationsApi,
   openIntegrationTab,
@@ -800,6 +801,20 @@ const IntegrationRow = memo(function IntegrationRow({ item }: { item: Integratio
         className="flex size-5 items-center justify-center rounded text-[var(--muted-foreground)] opacity-0 group-hover:opacity-100 hover:bg-[var(--card)] hover:text-[var(--foreground)] cursor-pointer"
       >
         <Play size={11} />
+      </button>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          duplicateIntegration(item.id)
+            .then(() => toast.success("Copied. The copy is paused until you enable it."))
+            .catch((err) => toast.error(String(err)));
+        }}
+        title="Copy"
+        aria-label="Copy"
+        className="flex size-5 items-center justify-center rounded text-[var(--muted-foreground)] opacity-0 group-hover:opacity-100 hover:bg-[var(--card)] hover:text-[var(--foreground)] cursor-pointer"
+      >
+        <Copy size={11} />
       </button>
       <button
         type="button"

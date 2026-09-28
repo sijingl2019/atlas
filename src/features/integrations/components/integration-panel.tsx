@@ -10,6 +10,7 @@ import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   ChevronRight,
+  Copy,
   Loader2,
   Pencil,
   Play,
@@ -20,6 +21,7 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
+  duplicateIntegration,
   formatCreated,
   integrationLabel,
   INTEGRATIONS_EVENT,
@@ -158,6 +160,17 @@ export function IntegrationPanel({ integrationId }: { integrationId: string }) {
         </button>
         <button className={iconButton} title="Refresh list" onClick={() => void loadIssues()}>
           <RefreshCw size={14} className={cn(loading && "animate-spin")} />
+        </button>
+        <button
+          className={iconButton}
+          title="Copy"
+          onClick={() =>
+            duplicateIntegration(item.id)
+              .then(() => toast.success("Copied. The copy is paused until you enable it."))
+              .catch((e) => toast.error(String(e)))
+          }
+        >
+          <Copy size={14} />
         </button>
         <button className={iconButton} title="Edit" onClick={() => openEdit(item.id)}>
           <Pencil size={14} />

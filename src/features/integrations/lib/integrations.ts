@@ -102,6 +102,8 @@ export const integrationsApi = {
   save: (integration: Integration, secret: string | null) =>
     invoke<void>("integrations_save", { integration, secret }),
   remove: (id: string) => invoke<void>("integrations_delete", { id }),
+  /** Copy an integration (starts disabled); resolves the copy's id. */
+  duplicate: (id: string) => invoke<string>("integrations_duplicate", { id }),
   test: (source: IntegrationSource, secret: string | null, id: string | null) =>
     invoke<Issue[]>("integrations_test", { source, secret, id }),
   runNow: (id: string) => invoke<void>("integrations_run_now", { id }),
@@ -254,4 +256,13 @@ export function formatCreated(raw: string): string {
 export function toIntegration(view: IntegrationView): Integration {
   const { hasSecret: _h, lastRun: _l, pollError: _p, ...integration } = view;
   return integration;
+}
+
+/** Copy an integration and open the copy for editing. It starts disabled,
+ *  so it does not develop the original's issues before it is changed. */
+export async function duplicateIntegration(id: string): Promise<void> {
+  const copy = await integrationsApi.duplicate(id);
+  // The dialog seeds from the list, so the copy must be in it first.
+  await useIntegrationsStore.getState().refresh();
+  useIntegrationDialogStore.getState().openEdit(copy);
 }
