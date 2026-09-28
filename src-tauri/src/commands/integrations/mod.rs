@@ -204,6 +204,10 @@ pub struct RunRecord {
     /// continued from.
     #[serde(default)]
     pub session_id: Option<String>,
+    /// The connection the session runs on — what the chat needs to show a
+    /// run while it is live.
+    #[serde(default)]
+    pub agent_handle: Option<atlas_agent_wire::AgentId>,
     #[serde(default)]
     pub agent_id: Option<String>,
     #[serde(default)]
@@ -614,6 +618,7 @@ mod tests {
             at: now(),
             issue: Issue::default(),
             session_id: None,
+            agent_handle: None,
             agent_id: None,
             model: None,
         };

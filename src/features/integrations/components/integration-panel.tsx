@@ -37,6 +37,7 @@ import {
 } from "../lib/integrations";
 import { ModelSelect, selectClass, useInstalledAgents } from "./agent-model-select";
 import { SourceIcon } from "./source-icon";
+import { openRunSession } from "../lib/open-run-session";
 
 const STATUS_LABEL: Record<RunStatus, string> = {
   running: "Developing",
@@ -281,9 +282,11 @@ function IssueRow({
           {formatCreated(issue.createdAt)}
         </td>
         <td className="px-2 py-1.5">
-          <div className="flex w-64 gap-1">
+          {/* Room for "Default (<agent>)" and a model id; pr-6 keeps the
+              text clear of the native arrow. */}
+          <div className="flex gap-1">
             <select
-              className={cn(selectClass, "w-1/2")}
+              className={cn(selectClass, "w-44 pr-6")}
               value={override.agentId ?? ""}
               disabled={active}
               onChange={(e) =>
@@ -298,7 +301,7 @@ function IssueRow({
               ))}
             </select>
             <ModelSelect
-              className="w-1/2"
+              className="w-48 pr-6"
               agent={catalog.find((a) => a.id === agentId)}
               value={override.model ?? null}
               defaultLabel={defaultModel ? `Default (${defaultModel})` : "Default"}
@@ -309,24 +312,36 @@ function IssueRow({
         <td className="px-4 py-2 whitespace-nowrap text-xs">
           <div className="flex items-center gap-2">
             {run ? (
-              <button
-                className={cn(
-                  "inline-flex items-center gap-1",
-                  STATUS_CLASS[run.status],
-                  hasDetail ? "cursor-pointer hover:underline" : "cursor-default",
-                )}
-                onClick={hasDetail ? onToggle : undefined}
-                title={hasDetail ? "Show details" : undefined}
-              >
-                {active && <Loader2 size={11} className="animate-spin" />}
+              <span className="inline-flex items-center gap-0.5">
                 {hasDetail && (
-                  <ChevronRight
-                    size={11}
-                    className={cn("transition-transform", expanded && "rotate-90")}
-                  />
+                  <button
+                    className="cursor-pointer rounded p-0.5 text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                    onClick={onToggle}
+                    title={expanded ? "Hide details" : "Show details"}
+                  >
+                    <ChevronRight
+                      size={11}
+                      className={cn("transition-transform", expanded && "rotate-90")}
+                    />
+                  </button>
                 )}
-                {STATUS_LABEL[run.status]}
-              </button>
+                <button
+                  className={cn(
+                    "inline-flex items-center gap-1",
+                    STATUS_CLASS[run.status],
+                    run.sessionId ? "cursor-pointer hover:underline" : "cursor-default",
+                  )}
+                  onClick={
+                    run.sessionId
+                      ? () => void openRunSession(item, run).catch((e) => toast.error(String(e)))
+                      : undefined
+                  }
+                  title={run.sessionId ? "Open the agent session" : undefined}
+                >
+                  {active && <Loader2 size={11} className="animate-spin" />}
+                  {STATUS_LABEL[run.status]}
+                </button>
+              </span>
             ) : (
               <span className="text-[var(--muted-foreground)]">Queued</span>
             )}

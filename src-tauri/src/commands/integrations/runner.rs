@@ -199,6 +199,7 @@ impl IntegrationsRuntime {
             at: now(),
             issue: issue.clone(),
             session_id: None,
+            agent_handle: None,
             agent_id: Some(agent_id.clone()),
             model: model.clone(),
         };
@@ -352,6 +353,7 @@ impl IntegrationsRuntime {
         }
         // Recorded now, so a quit from here on can be continued.
         rec.session_id = Some(key.session_id.clone());
+        rec.agent_handle = Some(key.agent_id);
         let _ = self.store.put_run(&integration.id, rec.clone());
 
         let (tx, rx) = oneshot::channel();

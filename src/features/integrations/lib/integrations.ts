@@ -74,6 +74,8 @@ export interface RunRecord {
   error: string | null;
   at: string;
   sessionId: string | null;
+  /** The connection the session runs on (for showing it while live). */
+  agentHandle: string | null;
   agentId: string | null;
   model: string | null;
 }
