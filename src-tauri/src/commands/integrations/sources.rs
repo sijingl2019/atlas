@@ -32,7 +32,7 @@ pub async fn fetch_issues(source: &Source, secret: &str) -> Result<Vec<Issue>, S
             };
             let req = client()?.get(format!("{base}/{path}")).query(&[
                 ("jql", jql.as_str()),
-                ("fields", "summary,description"),
+                ("fields", "summary,description,creator,created"),
                 ("maxResults", "50"),
             ]);
             let req = match deployment {
@@ -112,6 +112,8 @@ pub async fn fetch_issues(source: &Source, secret: &str) -> Result<Vec<Issue>, S
             title_path,
             body_path,
             url_path,
+            creator_path,
+            created_path,
         } => {
             let method = reqwest::Method::from_bytes(method.to_uppercase().as_bytes())
                 .map_err(|_| format!("bad HTTP method: {method}"))?;
@@ -125,13 +127,22 @@ pub async fn fetch_issues(source: &Source, secret: &str) -> Result<Vec<Issue>, S
                     .body(body.replace("{{secret}}", secret));
             }
             let resp = send_json(req).await?;
-            parse_custom(&resp, items_path, id_path, title_path, body_path, url_path)
+            let paths = CustomPaths {
+                items: items_path,
+                id: id_path,
+                title: title_path,
+                body: body_path,
+                url: url_path,
+                creator: creator_path,
+                created: created_path,
+            };
+            parse_custom(&resp, &paths)
         }
     }
 }
 
 /// Variables are left undeclared, as the ONES web client sends them.
-const ONES_QUERY: &str = "{ buckets(groupBy: $groupBy, pagination: $pagination) { key tasks(filterGroup: $filterGroup, orderBy: $orderBy, limit: 50) { uuid number name description } } }";
+const ONES_QUERY: &str = "{ buckets(groupBy: $groupBy, pagination: $pagination) { key tasks(filterGroup: $filterGroup, orderBy: $orderBy, limit: 50) { uuid number name description createTime owner { name } } } }";
 
 async fn send_json(req: reqwest::RequestBuilder) -> Result<Value, String> {
     let resp = req.send().await.map_err(|e| e.to_string())?;
@@ -174,6 +185,8 @@ fn parse_jira(resp: &Value, base: &str) -> Vec<Issue> {
                 url: format!("{base}/browse/{key}"),
                 title: str_at(i, "fields.summary"),
                 body: str_at(i, "fields.description"),
+                creator: str_at(i, "fields.creator.displayName"),
+                created_at: str_at(i, "fields.created"),
                 key,
             })
         })
@@ -197,31 +210,39 @@ fn parse_ones(resp: &Value, base: &str, team: &str) -> Vec<Issue> {
                 key: format!("#{}", str_at(t, "number")),
                 title: str_at(t, "name"),
                 body: str_at(t, "description"),
+                creator: str_at(t, "owner.name"),
+                created_at: str_at(t, "createTime"),
                 url: format!("{base}/project/#/team/{team}/task/{uuid}"),
             })
         })
         .collect()
 }
 
-fn parse_custom(
-    resp: &Value,
-    items_path: &str,
-    id_path: &str,
-    title_path: &str,
-    body_path: &str,
-    url_path: &str,
-) -> Result<Vec<Issue>, String> {
-    let items = at(resp, items_path)
+/// A custom source's dot paths (see `Source::Custom`).
+struct CustomPaths<'a> {
+    items: &'a str,
+    id: &'a str,
+    title: &'a str,
+    body: &'a str,
+    url: &'a str,
+    creator: &'a str,
+    created: &'a str,
+}
+
+fn parse_custom(resp: &Value, p: &CustomPaths) -> Result<Vec<Issue>, String> {
+    let items = at(resp, p.items)
         .and_then(Value::as_array)
-        .ok_or_else(|| format!("no array at `{items_path}`"))?;
+        .ok_or_else(|| format!("no array at `{}`", p.items))?;
     Ok(items
         .iter()
         .filter_map(|i| {
-            let key = str_at(i, id_path);
+            let key = str_at(i, p.id);
             (!key.is_empty()).then(|| Issue {
-                title: str_at(i, title_path),
-                body: str_at(i, body_path),
-                url: str_at(i, url_path),
+                title: str_at(i, p.title),
+                body: str_at(i, p.body),
+                url: str_at(i, p.url),
+                creator: str_at(i, p.creator),
+                created_at: str_at(i, p.created),
                 key,
             })
         })
@@ -246,7 +267,8 @@ mod tests {
     #[test]
     fn jira() {
         let v = json!({ "issues": [
-            { "key": "PROJ-1", "fields": { "summary": "Fix login", "description": "It breaks" } },
+            { "key": "PROJ-1", "fields": { "summary": "Fix login", "description": "It breaks",
+              "creator": { "displayName": "Ann" }, "created": "2026-06-01T10:00:00.000+0800" } },
             { "key": "PROJ-2", "fields": { "summary": "Add export", "description": null } },
         ]});
         let got = parse_jira(&v, "https://x.atlassian.net");
@@ -254,12 +276,15 @@ mod tests {
         assert_eq!(got[0].title, "Fix login");
         assert_eq!(got[0].url, "https://x.atlassian.net/browse/PROJ-1");
         assert_eq!(got[1].body, "");
+        assert_eq!(got[0].creator, "Ann");
+        assert_eq!(got[0].created_at, "2026-06-01T10:00:00.000+0800");
     }
 
     #[test]
     fn ones() {
         let v = json!({ "data": { "buckets": [ { "key": "tasks", "tasks": [
-            { "uuid": "U1", "number": 42, "name": "Crash on save", "description": "<p>x</p>" },
+            { "uuid": "U1", "number": 42, "name": "Crash on save", "description": "<p>x</p>",
+              "createTime": 1780000000, "owner": { "name": "Bob" } },
         ]}]}});
         let got = parse_ones(&v, "https://ones.example.com", "T");
         assert_eq!(
@@ -269,6 +294,8 @@ mod tests {
                 title: "Crash on save".into(),
                 body: "<p>x</p>".into(),
                 url: "https://ones.example.com/project/#/team/T/task/U1".into(),
+                creator: "Bob".into(),
+                created_at: "1780000000".into(),
             }]
         );
     }
@@ -276,18 +303,25 @@ mod tests {
     #[test]
     fn custom() {
         let v = json!({ "data": { "items": [
-            { "id": 7, "t": "Title", "d": { "text": "Body" } },
+            { "id": 7, "t": "Title", "d": { "text": "Body" }, "by": "Cy" },
             { "t": "no id, dropped" },
         ]}});
-        let got = parse_custom(&v, "data.items", "id", "t", "d.text", "").unwrap();
+        let paths = |items| CustomPaths {
+            items,
+            id: "id",
+            title: "t",
+            body: "d.text",
+            url: "",
+            creator: "by",
+            created: "",
+        };
+        let got = parse_custom(&v, &paths("data.items")).unwrap();
         assert_eq!(got.len(), 1);
+        assert_eq!(got[0].creator, "Cy");
         assert_eq!((got[0].key.as_str(), got[0].body.as_str()), ("7", "Body"));
-        assert!(parse_custom(&v, "nope", "id", "t", "", "").is_err());
+        assert!(parse_custom(&v, &paths("nope")).is_err());
         // Top-level array.
         let list = json!([{ "id": "a", "t": "A" }]);
-        assert_eq!(
-            parse_custom(&list, "", "id", "t", "", "").unwrap()[0].key,
-            "a"
-        );
+        assert_eq!(parse_custom(&list, &paths("")).unwrap()[0].key, "a");
     }
 }

@@ -149,7 +149,7 @@ impl IntegrationsRuntime {
                     {
                         continue;
                     }
-                    let rec = self.run_issue(app, &current, &issue).await;
+                    let rec = self.run_issue(app, &current, &issue, RunMode::Fresh).await;
                     let _ = self.store.put_run(&current.id, rec);
                     announce(app);
                 }
@@ -158,62 +158,121 @@ impl IntegrationsRuntime {
         self.in_flight.lock().unwrap().remove(&integration.id);
     }
 
+    /// Run one issue by hand (the tab's Retry / Continue / Run), queued
+    /// behind whatever is running.
+    pub async fn run_one(
+        &self,
+        app: &AppHandle,
+        integration_id: &str,
+        issue: Issue,
+        mode: RunMode,
+    ) {
+        let _guard = self.run_lock.lock().await;
+        // Re-read: overrides may have changed while this waited.
+        let Some(integration) = self
+            .store
+            .integrations()
+            .into_iter()
+            .find(|i| i.id == integration_id)
+        else {
+            return;
+        };
+        let rec = self.run_issue(app, &integration, &issue, mode).await;
+        let _ = self.store.put_run(&integration.id, rec);
+        announce(app);
+    }
+
     async fn run_issue(
         &self,
         app: &AppHandle,
         integration: &Integration,
         issue: &Issue,
+        mode: RunMode,
     ) -> RunRecord {
-        let record = |status, commit: Option<String>, error: Option<String>| RunRecord {
+        let (agent_id, model) = integration.agent_for(&issue.key);
+        let mut rec = RunRecord {
             issue_key: issue.key.clone(),
             title: issue.title.clone(),
-            status,
-            commit,
-            error,
+            status: RunStatus::Running,
+            commit: None,
+            error: None,
             at: now(),
+            issue: issue.clone(),
+            session_id: None,
+            agent_id: Some(agent_id.clone()),
+            model: model.clone(),
         };
         let cwd = integration.project_path.as_str();
 
-        match git(cwd, &["status", "--porcelain"]) {
-            Ok(out) if !out.trim().is_empty() => {
-                return record(
-                    RunStatus::Skipped,
-                    None,
-                    Some("working tree has uncommitted changes".into()),
-                )
+        let resume = match mode {
+            RunMode::Fresh => {
+                match git(cwd, &["status", "--porcelain"]) {
+                    Ok(out) if !out.trim().is_empty() => {
+                        return outcome(
+                            &rec,
+                            RunStatus::Skipped,
+                            None,
+                            Some("working tree has uncommitted changes".into()),
+                        )
+                    }
+                    Err(e) => return outcome(&rec, RunStatus::Failed, None, Some(e)),
+                    Ok(_) => {}
+                }
+                if let BranchMode::PerIssue { base } = &integration.branch_mode {
+                    let branch = branch_name(&issue.key);
+                    let mut args = vec!["checkout", "-B", branch.as_str()];
+                    if !base.trim().is_empty() {
+                        args.push(base.trim());
+                    }
+                    if let Err(e) = git(cwd, &args) {
+                        return outcome(&rec, RunStatus::Failed, None, Some(e));
+                    }
+                }
+                None
             }
-            Err(e) => return record(RunStatus::Failed, None, Some(e)),
-            Ok(_) => {}
-        }
-        if let BranchMode::PerIssue { base } = &integration.branch_mode {
-            let branch = branch_name(&issue.key);
-            let mut args = vec!["checkout", "-B", branch.as_str()];
-            if !base.trim().is_empty() {
-                args.push(base.trim());
+            // The interrupted run's changes are still in the tree: keep them,
+            // on the issue's own branch.
+            RunMode::Continue { session_id } => {
+                if let BranchMode::PerIssue { .. } = &integration.branch_mode {
+                    let branch = branch_name(&issue.key);
+                    let head = git(cwd, &["rev-parse", "--abbrev-ref", "HEAD"]).unwrap_or_default();
+                    if head.trim() != branch {
+                        if let Err(e) = git(cwd, &["checkout", branch.as_str()]) {
+                            return outcome(&rec, RunStatus::Failed, None, Some(e));
+                        }
+                    }
+                }
+                Some(session_id)
             }
-            if let Err(e) = git(cwd, &args) {
-                return record(RunStatus::Failed, None, Some(e));
-            }
-        }
+        };
 
-        let _ = self
-            .store
-            .put_run(&integration.id, record(RunStatus::Running, None, None));
+        let _ = self.store.put_run(&integration.id, rec.clone());
         announce(app);
 
-        if let Err(e) = self.develop(app, integration, issue).await {
-            return record(RunStatus::Failed, None, Some(e));
+        if let Err(e) = self
+            .develop(
+                app,
+                integration,
+                &mut rec,
+                &agent_id,
+                model.as_deref(),
+                resume,
+            )
+            .await
+        {
+            return outcome(&rec, RunStatus::Failed, None, Some(e));
         }
 
         match git(cwd, &["status", "--porcelain"]) {
             Ok(out) if out.trim().is_empty() => {
-                return record(
+                return outcome(
+                    &rec,
                     RunStatus::Failed,
                     None,
                     Some("the agent made no changes".into()),
                 )
             }
-            Err(e) => return record(RunStatus::Failed, None, Some(e)),
+            Err(e) => return outcome(&rec, RunStatus::Failed, None, Some(e)),
             Ok(_) => {}
         }
         let message = if issue.title.trim().is_empty() {
@@ -226,7 +285,7 @@ impl IntegrationsRuntime {
             .and_then(|_| git(cwd, &["rev-parse", "HEAD"]));
         let commit = match commit {
             Ok(hash) => hash.trim().to_string(),
-            Err(e) => return record(RunStatus::Failed, None, Some(e)),
+            Err(e) => return outcome(&rec, RunStatus::Failed, None, Some(e)),
         };
 
         if integration.auto_push {
@@ -237,42 +296,78 @@ impl IntegrationsRuntime {
                 git(cwd, &["push", "-u", "origin", "HEAD"])
             };
             if let Err(e) = pushed {
-                return record(
+                return outcome(
+                    &rec,
                     RunStatus::Failed,
                     Some(commit),
                     Some(format!("committed, but push failed: {e}")),
                 );
             }
         }
-        record(RunStatus::Done, Some(commit), None)
+        outcome(&rec, RunStatus::Done, Some(commit), None)
     }
 
-    /// One agent session, one turn, then the session is closed.
+    /// One agent session, one turn, then the session is closed. `resume`
+    /// (`Some`) continues an interrupted run: from its session when the agent
+    /// can reopen it, else in a new session told to pick up the tree as is.
     async fn develop(
         &self,
         app: &AppHandle,
         integration: &Integration,
-        issue: &Issue,
+        rec: &mut RunRecord,
+        agent_id: &str,
+        model: Option<&str>,
+        resume: Option<Option<String>>,
     ) -> Result<(), String> {
         let host = app.state::<Arc<AgentHost>>().inner().clone();
-        let key = SubagentHost::start_session(
-            &host,
-            integration.agent_id.clone(),
-            integration.project_path.clone(),
-            None,
-        )
-        .await?;
+        let cwd = integration.project_path.clone();
+        let reopened = match resume.clone().flatten() {
+            Some(session_id) => {
+                match SubagentHost::reopen_session(
+                    &host,
+                    agent_id.to_string(),
+                    session_id,
+                    cwd.clone(),
+                )
+                .await
+                {
+                    Ok(key) => Some(key),
+                    Err(e) => {
+                        tracing::warn!(target: "atlas::integrations", "session not reopened, starting anew: {e}");
+                        None
+                    }
+                }
+            }
+            None => None,
+        };
+        let key = match reopened {
+            Some(key) => key,
+            None => SubagentHost::start_session(&host, agent_id.to_string(), cwd, None).await?,
+        };
+        if let Some(model) = model {
+            if let Err(e) = host.set_model(&key, model.to_string()).await {
+                let _ = SubagentHost::drop_session(&host, key.session_id).await;
+                return Err(format!("model {model} could not be selected: {e}"));
+            }
+        }
+        // Recorded now, so a quit from here on can be continued.
+        rec.session_id = Some(key.session_id.clone());
+        let _ = self.store.put_run(&integration.id, rec.clone());
+
         let (tx, rx) = oneshot::channel();
         self.waiters
             .lock()
             .unwrap()
             .insert(key.session_id.clone(), tx);
 
+        let text = if resume.is_some() {
+            continue_prompt(&rec.issue)
+        } else {
+            prompt(&rec.issue)
+        };
         // Explicit paths: `SubagentHost` has a `send`/`cancel` of its own.
-        let content = vec![acp::ContentBlock::Text(acp::TextContent::new(prompt(
-            issue,
-        )))];
-        let outcome = match AgentHost::send(&host, &key, content) {
+        let content = vec![acp::ContentBlock::Text(acp::TextContent::new(text))];
+        let result = match AgentHost::send(&host, &key, content) {
             Err(e) => Err(e.to_string()),
             Ok(()) => match tokio::time::timeout(TURN_TIMEOUT, rx).await {
                 Ok(Ok(result)) => result,
@@ -285,8 +380,39 @@ impl IntegrationsRuntime {
         };
         self.waiters.lock().unwrap().remove(&key.session_id);
         let _ = SubagentHost::drop_session(&host, key.session_id).await;
-        outcome
+        result
     }
+}
+
+/// How a run starts.
+pub enum RunMode {
+    /// A new session on a clean working tree.
+    Fresh,
+    /// Pick up an interrupted run where it stopped.
+    Continue { session_id: Option<String> },
+}
+
+/// `rec` settled as `status`, stamped now.
+fn outcome(
+    rec: &RunRecord,
+    status: RunStatus,
+    commit: Option<String>,
+    error: Option<String>,
+) -> RunRecord {
+    RunRecord {
+        status,
+        commit,
+        error,
+        at: now(),
+        ..rec.clone()
+    }
+}
+
+fn continue_prompt(issue: &Issue) -> String {
+    format!(
+        "Your previous run on this issue was interrupted before it finished. The working tree still has the changes made so far — review them and finish the work. Do not run git commit.\n\n{}",
+        prompt(issue)
+    )
 }
 
 fn prompt(issue: &Issue) -> String {

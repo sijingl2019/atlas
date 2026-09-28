@@ -34,7 +34,6 @@ import {
   BrainCircuit,
   Ellipsis,
   Archive,
-  Cable,
   Play,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -68,8 +67,11 @@ import { AtlasIcon } from "@/components/atlas-icon";
 import { cn } from "@/lib/utils";
 import { GitDot, NumStatPill } from "./git-summary";
 import { useProjectDialogStore } from "../lib/project-dialog";
+import { SourceIcon } from "@/features/integrations/components/source-icon";
 import {
+  integrationLabel,
   integrationsApi,
+  openIntegrationTab,
   startIntegrationsSync,
   useIntegrationDialogStore,
   useIntegrationsStore,
@@ -741,7 +743,8 @@ const RecentProjectRow = memo(function RecentProjectRow({
   );
 });
 
-/** One integration: name, a status dot, and a hover "Run now". Click edits. */
+/** One integration: name, a status dot, and hover Run / Edit / Delete.
+ *  Click opens its issue list. */
 const IntegrationRow = memo(function IntegrationRow({ item }: { item: IntegrationView }) {
   const openEdit = useIntegrationDialogStore((s) => s.openEdit);
   const run = item.lastRun;
@@ -753,19 +756,19 @@ const IntegrationRow = memo(function IntegrationRow({ item }: { item: Integratio
       : "No runs yet";
   return (
     <div
-      onClick={() => openEdit(item.id)}
+      onClick={() => openIntegrationTab(item)}
       style={{ height: ROW_CARD, paddingLeft: 8 }}
       className="group flex items-center gap-2.5 pr-1.5 rounded-md cursor-pointer hover:bg-[var(--atlas-element-hover)]"
       title={title}
     >
-      <Cable size={13} className="shrink-0 text-[var(--muted-foreground)]" />
+      <SourceIcon kind={item.source.kind} size={13} />
       <span
         className={cn(
           "flex-1 min-w-0 truncate text-sm leading-normal text-[var(--secondary-foreground)] group-hover:text-[var(--foreground)]",
           !item.enabled && "opacity-50",
         )}
       >
-        {item.name}
+        {integrationLabel(item)}
       </span>
       {run?.status === "running" ? (
         <AtlasLoader size={10} />
@@ -775,9 +778,11 @@ const IntegrationRow = memo(function IntegrationRow({ item }: { item: Integratio
             "size-1.5 shrink-0 rounded-full",
             failed
               ? "bg-error"
-              : run?.status === "done"
-                ? "bg-success"
-                : "bg-[var(--muted-foreground)]/40",
+              : run?.status === "interrupted"
+                ? "bg-warning"
+                : run?.status === "done"
+                  ? "bg-success"
+                  : "bg-[var(--muted-foreground)]/40",
           )}
         />
       )}
@@ -787,7 +792,7 @@ const IntegrationRow = memo(function IntegrationRow({ item }: { item: Integratio
           e.stopPropagation();
           integrationsApi
             .runNow(item.id)
-            .then(() => toast.success(`Pulling issues for ${item.name}`))
+            .then(() => toast.success(`Pulling issues for ${integrationLabel(item)}`))
             .catch((err) => toast.error(String(err)));
         }}
         title="Run now"
@@ -795,6 +800,35 @@ const IntegrationRow = memo(function IntegrationRow({ item }: { item: Integratio
         className="flex size-5 items-center justify-center rounded text-[var(--muted-foreground)] opacity-0 group-hover:opacity-100 hover:bg-[var(--card)] hover:text-[var(--foreground)] cursor-pointer"
       >
         <Play size={11} />
+      </button>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          openEdit(item.id);
+        }}
+        title="Edit"
+        aria-label="Edit"
+        className="flex size-5 items-center justify-center rounded text-[var(--muted-foreground)] opacity-0 group-hover:opacity-100 hover:bg-[var(--card)] hover:text-[var(--foreground)] cursor-pointer"
+      >
+        <Pencil size={11} />
+      </button>
+      <button
+        type="button"
+        onClick={async (e) => {
+          e.stopPropagation();
+          const { ask } = await import("@tauri-apps/plugin-dialog");
+          const ok = await ask(`Delete the integration for "${integrationLabel(item)}"?`, {
+            title: "Delete integration",
+            kind: "warning",
+          });
+          if (ok) await integrationsApi.remove(item.id).catch((err) => toast.error(String(err)));
+        }}
+        title="Delete"
+        aria-label="Delete"
+        className="flex size-5 items-center justify-center rounded text-[var(--muted-foreground)] opacity-0 group-hover:opacity-100 hover:bg-[var(--card)] hover:text-error cursor-pointer"
+      >
+        <Trash2 size={11} />
       </button>
     </div>
   );

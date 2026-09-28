@@ -59,6 +59,11 @@ const SubagentsPanel = lazy(() =>
     default: m.SubagentsPanel,
   })),
 );
+const IntegrationPanel = lazy(() =>
+  import("@/features/integrations/components/integration-panel").then((m) => ({
+    default: m.IntegrationPanel,
+  })),
+);
 const PdfViewer = lazy(() =>
   import("@/features/pdf/components/pdf-viewer").then((m) => ({ default: m.PdfViewer })),
 );
@@ -127,6 +132,7 @@ import {
   Layers,
   Frame,
   Users,
+  Cable,
 } from "lucide-react";
 import { PROJECTLESS_TYPES, type TabType } from "@/lib/constants";
 
@@ -155,6 +161,7 @@ const tabIcons: Record<TabType, FallbackIcon> = {
   "comms-draft": FileText,
   spaces: Frame,
   subagents: Users,
+  integration: Cable,
 };
 
 const GROUP_OF = (t: Tab) => t.groupId ?? "main";
@@ -1007,6 +1014,8 @@ function TabContent({ tab }: { tab: Tab }) {
       return <UnsupportedView filePath={tab.data.filePath as string} />;
     case "subagents":
       return <SubagentsPanel tabId={tab.id} />;
+    case "integration":
+      return <IntegrationPanel integrationId={tab.data.integrationId as string} />;
     default:
       return <PlaceholderContent tab={tab} />;
   }

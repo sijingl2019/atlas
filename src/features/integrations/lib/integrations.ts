@@ -7,6 +7,9 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { create } from "zustand";
+import { useLayoutStore } from "@/features/layout/stores/layout-store";
+import { useProjectStore } from "@/features/projects/stores/project-store";
+import { basename } from "@/lib/paths";
 
 export type JiraDeployment = "cloud" | "server";
 
@@ -31,6 +34,8 @@ export type IntegrationSource =
       titlePath: string;
       bodyPath: string;
       urlPath: string;
+      creatorPath: string;
+      createdPath: string;
     };
 
 export type SourceKind = IntegrationSource["kind"];
@@ -45,12 +50,21 @@ export interface Integration {
   projectId: string;
   projectPath: string;
   agentId: string;
+  /** null = the agent's own default. */
+  model: string | null;
   intervalMinutes: number;
   branchMode: BranchMode;
   autoPush: boolean;
+  /** Per-issue agent / model, by issue key. */
+  issueOverrides: Record<string, IssueOverride>;
 }
 
-export type RunStatus = "running" | "done" | "failed" | "skipped";
+export interface IssueOverride {
+  agentId?: string | null;
+  model?: string | null;
+}
+
+export type RunStatus = "running" | "done" | "failed" | "skipped" | "interrupted";
 
 export interface RunRecord {
   issueKey: string;
@@ -59,6 +73,9 @@ export interface RunRecord {
   commit: string | null;
   error: string | null;
   at: string;
+  sessionId: string | null;
+  agentId: string | null;
+  model: string | null;
 }
 
 export interface IntegrationView extends Integration {
@@ -72,6 +89,9 @@ export interface Issue {
   title: string;
   body: string;
   url: string;
+  creator: string;
+  /** ISO string, or epoch seconds / ms / µs — see `formatCreated`. */
+  createdAt: string;
 }
 
 export const INTEGRATIONS_EVENT = "atlas:integrations:changed";
@@ -85,7 +105,11 @@ export const integrationsApi = {
   test: (source: IntegrationSource, secret: string | null, id: string | null) =>
     invoke<Issue[]>("integrations_test", { source, secret, id }),
   runNow: (id: string) => invoke<void>("integrations_run_now", { id }),
+  /** Run one issue now: continue an interrupted run, else start afresh. */
+  rerun: (id: string, issueKey: string) => invoke<void>("integrations_rerun", { id, issueKey }),
   runs: (id: string) => invoke<RunRecord[]>("integrations_runs", { id }),
+  /** Fetch the tracker's current list, live. */
+  issues: (id: string) => invoke<Issue[]>("integrations_issues", { id }),
 };
 
 /** The default ONES filter: work items assigned to me. `$currentUser` is
@@ -124,6 +148,8 @@ export function defaultSource(kind: SourceKind): IntegrationSource {
         titlePath: "title",
         bodyPath: "description",
         urlPath: "",
+        creatorPath: "",
+        createdPath: "",
       };
   }
 }
@@ -132,7 +158,8 @@ export function defaultSource(kind: SourceKind): IntegrationSource {
 
 interface IntegrationsState {
   items: IntegrationView[];
-  refresh: () => Promise<void>;
+  /** Resolves false when the backend could not answer. */
+  refresh: () => Promise<boolean>;
 }
 
 export const useIntegrationsStore = create<IntegrationsState>((set) => ({
@@ -140,20 +167,31 @@ export const useIntegrationsStore = create<IntegrationsState>((set) => ({
   refresh: async () => {
     try {
       set({ items: await integrationsApi.list() });
-    } catch {
-      // Outside Tauri (tests, the design gallery) there is no backend.
+      return true;
+    } catch (e) {
+      console.warn("[integrations] list failed", e);
+      return false;
     }
   },
 }));
 
 let listening = false;
-/** Load once and follow the backend's change event. Idempotent. */
+/** Load and follow the backend's change event. Idempotent.
+ *
+ *  The rail mounts while the backend's `setup` may still be running, and a
+ *  command whose state is not managed yet fails — so the first load retries
+ *  (1s, 2s, 4s …, ten tries) instead of leaving the list empty until the
+ *  next change event. */
 export function startIntegrationsSync(): void {
   if (listening) return;
   listening = true;
   const { refresh } = useIntegrationsStore.getState();
-  void refresh();
   void listen(INTEGRATIONS_EVENT, () => void refresh()).catch(() => {});
+  const attempt = async (n: number) => {
+    if ((await refresh()) || n >= 10) return;
+    setTimeout(() => void attempt(n + 1), Math.min(1000 * 2 ** n, 15000));
+  };
+  void attempt(0);
 }
 
 // ── Dialog open state (mounted once in App, like ProjectDialog) ────────────
@@ -174,3 +212,46 @@ export const useIntegrationDialogStore = create<{
   openEdit: (id) => set({ dialog: { mode: "edit", id } }),
   close: () => set({ dialog: { mode: "closed" } }),
 }));
+
+/** What an integration is called in the UI: its project's name (the source
+ *  is told apart by its icon). */
+export function integrationLabel(item: { projectId: string; projectPath: string }): string {
+  const project = useProjectStore.getState().projects.find((p) => p.id === item.projectId);
+  return project?.name ?? basename(item.projectPath);
+}
+
+/** Open (or focus) an integration's issue-list tab. */
+export function openIntegrationTab(item: {
+  id: string;
+  projectId: string;
+  projectPath: string;
+}): void {
+  useLayoutStore.getState().actions.addTab({
+    id: `integration:${item.id}`,
+    type: "integration",
+    title: integrationLabel(item),
+    closable: true,
+    dirty: false,
+    data: { integrationId: item.id },
+  });
+}
+
+/** A tracker timestamp for display: ISO strings parsed, epoch numbers read
+ *  as seconds, milliseconds or microseconds by magnitude. */
+export function formatCreated(raw: string): string {
+  if (!raw) return "";
+  let ms: number;
+  if (/^\d+$/.test(raw)) {
+    const n = Number(raw);
+    ms = n > 1e14 ? n / 1000 : n > 1e11 ? n : n * 1000;
+  } else {
+    ms = Date.parse(raw);
+  }
+  return Number.isNaN(ms) ? raw : new Date(ms).toLocaleString();
+}
+
+/** The saved config inside a view (the view's extra fields stripped). */
+export function toIntegration(view: IntegrationView): Integration {
+  const { hasSecret: _h, lastRun: _l, pollError: _p, ...integration } = view;
+  return integration;
+}

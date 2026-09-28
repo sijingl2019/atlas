@@ -44,10 +44,41 @@ pub struct Integration {
     pub project_id: String,
     pub project_path: String,
     pub agent_id: String,
+    /// The agent's model; `None` = the agent's own default.
+    #[serde(default)]
+    pub model: Option<String>,
     pub interval_minutes: u32,
     pub branch_mode: BranchMode,
     #[serde(default)]
     pub auto_push: bool,
+    /// Per-issue agent / model, keyed by issue key.
+    #[serde(default)]
+    pub issue_overrides: HashMap<String, IssueOverride>,
+}
+
+impl Integration {
+    /// The agent and model an issue runs with. An override that names an
+    /// agent brings its own model (the integration's may not exist on it).
+    pub fn agent_for(&self, issue_key: &str) -> (String, Option<String>) {
+        let o = self.issue_overrides.get(issue_key);
+        match o.and_then(|o| o.agent_id.clone()) {
+            Some(agent) => (agent, o.and_then(|o| o.model.clone())),
+            None => (
+                self.agent_id.clone(),
+                o.and_then(|o| o.model.clone())
+                    .or_else(|| self.model.clone()),
+            ),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IssueOverride {
+    #[serde(default)]
+    pub agent_id: Option<String>,
+    #[serde(default)]
+    pub model: Option<String>,
 }
 
 fn yes() -> bool {
@@ -101,6 +132,10 @@ pub enum Source {
         body_path: String,
         #[serde(default)]
         url_path: String,
+        #[serde(default)]
+        creator_path: String,
+        #[serde(default)]
+        created_path: String,
     },
 }
 
@@ -122,13 +157,18 @@ pub enum BranchMode {
     PerIssue { base: String },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Issue {
     pub key: String,
     pub title: String,
     pub body: String,
     pub url: String,
+    #[serde(default)]
+    pub creator: String,
+    /// As the tracker gives it: an ISO string, or epoch seconds / ms / µs.
+    #[serde(default)]
+    pub created_at: String,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -139,6 +179,9 @@ pub enum RunStatus {
     Failed,
     /// Not attempted (dirty worktree): picked up again on the next poll.
     Skipped,
+    /// Atlas quit mid-run. Continued by hand, from its session when the
+    /// agent can reopen it.
+    Interrupted,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -153,6 +196,18 @@ pub struct RunRecord {
     pub error: Option<String>,
     /// RFC 3339.
     pub at: String,
+    /// The issue as it was run, so a retry does not depend on the tracker
+    /// still listing it.
+    #[serde(default)]
+    pub issue: Issue,
+    /// The agent session, set once it opens — what an interrupted run is
+    /// continued from.
+    #[serde(default)]
+    pub session_id: Option<String>,
+    #[serde(default)]
+    pub agent_id: Option<String>,
+    #[serde(default)]
+    pub model: Option<String>,
 }
 
 /// What the sidebar shows: the config plus its latest run.
@@ -357,6 +412,72 @@ pub fn integrations_run_now(id: String, app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// The integration's issues as its tracker lists them right now.
+#[tauri::command]
+pub async fn integrations_issues(
+    id: String,
+    rt: State<'_, Arc<IntegrationsRuntime>>,
+) -> Result<Vec<Issue>, String> {
+    let integration = rt
+        .store
+        .integrations()
+        .into_iter()
+        .find(|i| i.id == id)
+        .ok_or("no such integration")?;
+    let secret = rt.store.secrets().remove(&id).unwrap_or_default();
+    sources::fetch_issues(&integration.source, &secret).await
+}
+
+/// Run one issue now: continue it when its last run was interrupted,
+/// otherwise start it afresh (a retry, or a queued issue ahead of its turn).
+#[tauri::command]
+pub async fn integrations_rerun(
+    id: String,
+    issue_key: String,
+    app: AppHandle,
+) -> Result<(), String> {
+    let rt = app.state::<Arc<IntegrationsRuntime>>().inner().clone();
+    let integration = rt
+        .store
+        .integrations()
+        .into_iter()
+        .find(|i| i.id == id)
+        .ok_or("no such integration")?;
+    let last = rt
+        .store
+        .runs()
+        .remove(&id)
+        .unwrap_or_default()
+        .into_iter()
+        .find(|r| r.issue_key == issue_key);
+    if last
+        .as_ref()
+        .is_some_and(|r| r.status == RunStatus::Running)
+    {
+        return Err("this issue is already running".into());
+    }
+    let issue = match last.as_ref().filter(|r| !r.issue.key.is_empty()) {
+        Some(r) => r.issue.clone(),
+        // Queued, or recorded before runs kept their issue: ask the tracker.
+        None => {
+            let secret = rt.store.secrets().remove(&id).unwrap_or_default();
+            sources::fetch_issues(&integration.source, &secret)
+                .await?
+                .into_iter()
+                .find(|i| i.key == issue_key)
+                .ok_or("the tracker no longer lists this issue")?
+        }
+    };
+    let mode = match last {
+        Some(r) if r.status == RunStatus::Interrupted => runner::RunMode::Continue {
+            session_id: r.session_id,
+        },
+        _ => runner::RunMode::Fresh,
+    };
+    tauri::async_runtime::spawn(async move { rt.run_one(&app, &id, issue, mode).await });
+    Ok(())
+}
+
 #[tauri::command]
 pub fn integrations_runs(id: String, rt: State<'_, Arc<IntegrationsRuntime>>) -> Vec<RunRecord> {
     rt.store.runs().remove(&id).unwrap_or_default()
@@ -370,18 +491,21 @@ pub fn install(app: &AppHandle) {
         .app_config_dir()
         .unwrap_or_else(|_| std::env::temp_dir());
     let store = Store::new(dir);
-    // A run the app quit in the middle of never finishes: say so, rather
-    // than showing it running forever.
+    // A run the app quit in the middle of never finishes: mark it
+    // interrupted (continuable), rather than running forever. Records from
+    // before the Interrupted status said so in their error.
     let mut runs = store.runs();
     let mut interrupted = false;
-    for r in runs
-        .values_mut()
-        .flatten()
-        .filter(|r| r.status == RunStatus::Running)
-    {
-        r.status = RunStatus::Failed;
-        r.error = Some("interrupted: Atlas quit during the run".into());
-        interrupted = true;
+    for r in runs.values_mut().flatten() {
+        let old_style = r.status == RunStatus::Failed
+            && r.error
+                .as_deref()
+                .is_some_and(|e| e.starts_with("interrupted"));
+        if r.status == RunStatus::Running || old_style {
+            r.status = RunStatus::Interrupted;
+            r.error = Some("Atlas quit during the run".into());
+            interrupted = true;
+        }
     }
     if interrupted {
         let _ = write_json(&store.dir.join(RUNS_FILE), &runs, false);
@@ -394,6 +518,32 @@ pub fn install(app: &AppHandle) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn issue_overrides_pick_agent_and_model() {
+        let mut i: Integration = serde_json::from_value(serde_json::json!({
+            "id": "a", "name": "A",
+            "source": { "kind": "custom", "url": "u", "idPath": "id", "titlePath": "t" },
+            "projectId": "p", "projectPath": "/p", "agentId": "codex-acp", "model": "gpt-5",
+            "intervalMinutes": 5, "branchMode": { "kind": "current" },
+        }))
+        .unwrap();
+        let o = |agent: Option<&str>, model: Option<&str>| IssueOverride {
+            agent_id: agent.map(Into::into),
+            model: model.map(Into::into),
+        };
+        assert_eq!(i.agent_for("X"), ("codex-acp".into(), Some("gpt-5".into())));
+        i.issue_overrides
+            .insert("M".into(), o(None, Some("gpt-5-mini")));
+        assert_eq!(
+            i.agent_for("M"),
+            ("codex-acp".into(), Some("gpt-5-mini".into()))
+        );
+        // Another agent: the integration's model is not carried over.
+        i.issue_overrides
+            .insert("A".into(), o(Some("claude-code-ts"), None));
+        assert_eq!(i.agent_for("A"), ("claude-code-ts".into(), None));
+    }
 
     #[test]
     fn store_round_trip_and_run_replacement() {
@@ -417,6 +567,8 @@ mod tests {
                 base: "main".into(),
             },
             auto_push: true,
+            model: None,
+            issue_overrides: HashMap::new(),
         };
         store.save_integrations(&[i]).unwrap();
         assert_eq!(
@@ -433,6 +585,10 @@ mod tests {
             commit: None,
             error: None,
             at: now(),
+            issue: Issue::default(),
+            session_id: None,
+            agent_id: None,
+            model: None,
         };
         store.put_run("a", rec(RunStatus::Running)).unwrap();
         store.put_run("a", rec(RunStatus::Done)).unwrap();

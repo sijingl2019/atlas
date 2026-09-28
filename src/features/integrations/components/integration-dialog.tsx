@@ -17,8 +17,8 @@ import { basename } from "@/lib/paths";
 import { Input } from "@/ui/input";
 import { SecretInput } from "@/ui/secret-input";
 import { Toggle } from "@/features/settings/components/settings-panel";
-import { agents } from "@/features/chat/lib/agents-api";
-import type { AgentCatalogEntry } from "@/types/agent-catalog";
+import { ModelSelect, useInstalledAgents } from "./agent-model-select";
+import { SourceIcon } from "./source-icon";
 import { useProjectStore } from "@/features/projects/stores/project-store";
 import { useOrgStore } from "@/features/organisations/stores/org-store";
 import {
@@ -98,7 +98,6 @@ export function IntegrationDialog() {
   const editing = useIntegrationsStore((s) => s.items.find((i) => i.id === editId));
 
   const [step, setStep] = useState(1);
-  const [name, setName] = useState("");
   const [source, setSource] = useState<IntegrationSource>(defaultSource("ones"));
   const [secret, setSecret] = useState("");
   const [path, setPath] = useState<string | null>(null);
@@ -107,7 +106,8 @@ export function IntegrationDialog() {
   const [branchMode, setBranchMode] = useState<BranchMode>({ kind: "current" });
   const [autoPush, setAutoPush] = useState(false);
   const [enabled, setEnabled] = useState(true);
-  const [catalog, setCatalog] = useState<AgentCatalogEntry[]>([]);
+  const catalog = useInstalledAgents();
+  const [model, setModel] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
   const [preview, setPreview] = useState<Issue[] | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -115,7 +115,6 @@ export function IntegrationDialog() {
   useEffect(() => {
     if (!open) return;
     setStep(editing ? 2 : 1);
-    setName(editing?.name ?? "");
     setSource(editing?.source ?? defaultSource("ones"));
     setSecret("");
     setPath(editing?.projectPath ?? null);
@@ -126,10 +125,7 @@ export function IntegrationDialog() {
     setEnabled(editing?.enabled ?? true);
     setPreview(null);
     setSubmitting(false);
-    agents
-      .catalog()
-      .then((c) => setCatalog(c.entries.filter((e) => e.installed || e.kind === "native")))
-      .catch(() => setCatalog([]));
+    setModel(editing?.model ?? null);
     // Seed on open only; a background refresh must not wipe what is typed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, editId]);
@@ -183,9 +179,8 @@ export function IntegrationDialog() {
       await integrationsApi.save(
         {
           id: editId ?? crypto.randomUUID(),
-          name:
-            name.trim() ||
-            `${SOURCES.find((s) => s.kind === source.kind)!.label} · ${basename(path)}`,
+          // Shown as the project's name; kept for the config file's reader.
+          name: basename(path),
           enabled,
           source,
           projectId,
@@ -194,6 +189,9 @@ export function IntegrationDialog() {
           intervalMinutes: interval,
           branchMode,
           autoPush,
+          model,
+          // Set from the issue list; the dialog does not edit them.
+          issueOverrides: editing?.issueOverrides ?? {},
         },
         secret || null,
       );
@@ -253,27 +251,20 @@ export function IntegrationDialog() {
                     setStep(2);
                   }}
                   className={cn(
-                    "flex w-full cursor-pointer flex-col items-start rounded-lg border px-3 py-2.5 text-left transition-colors hover:bg-[var(--atlas-element-hover)]",
-                    s.kind === source.kind
-                      ? "border-[var(--atlas-border-strong)]"
-                      : "border-[var(--border)]",
+                    "flex w-full cursor-pointer items-center gap-3 rounded-lg border border-[var(--border)] px-3 py-2.5 text-left transition-colors hover:bg-[var(--atlas-element-hover)]",
+                    s.kind === source.kind && "bg-[var(--atlas-element-active)]",
                   )}
                 >
-                  <span className="text-sm font-medium text-[var(--foreground)]">{s.label}</span>
-                  <span className="text-xs text-[var(--muted-foreground)]">{s.hint}</span>
+                  <SourceIcon kind={s.kind} size={18} />
+                  <span className="flex flex-col">
+                    <span className="text-sm font-medium text-[var(--foreground)]">{s.label}</span>
+                    <span className="text-xs text-[var(--muted-foreground)]">{s.hint}</span>
+                  </span>
                 </button>
               ))}
 
             {step === 2 && (
               <>
-                <Field label="Name">
-                  <Input
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Optional"
-                  />
-                </Field>
-
                 {source.kind === "jira" && (
                   <>
                     <Field label="Jira URL">
@@ -443,6 +434,8 @@ export function IntegrationDialog() {
                           ["titlePath", "Title", ""],
                           ["bodyPath", "Description", ""],
                           ["urlPath", "Link", ""],
+                          ["creatorPath", "Creator", ""],
+                          ["createdPath", "Created", ""],
                         ] as const
                       ).map(([k, label, placeholder]) => (
                         <Field key={k} label={label}>
@@ -524,7 +517,10 @@ export function IntegrationDialog() {
                   <select
                     className={selectClass}
                     value={agentId}
-                    onChange={(e) => setAgentId(e.target.value)}
+                    onChange={(e) => {
+                      setAgentId(e.target.value);
+                      setModel(null);
+                    }}
                   >
                     {catalog.length === 0 && <option value="">No agents installed</option>}
                     {catalog.map((a) => (
@@ -533,6 +529,13 @@ export function IntegrationDialog() {
                       </option>
                     ))}
                   </select>
+                </Field>
+                <Field label="Model">
+                  <ModelSelect
+                    agent={catalog.find((a) => a.id === agentId)}
+                    value={model}
+                    onChange={setModel}
+                  />
                 </Field>
                 <Field label="Branch">
                   <select
@@ -593,7 +596,8 @@ export function IntegrationDialog() {
               </button>
             )}
             <div className="ml-auto flex gap-2">
-              {step > 1 && (
+              {/* Editing starts at step 2: the source kind is fixed once made. */}
+              {step > (editing ? 2 : 1) && (
                 <button
                   onClick={() => setStep(step - 1)}
                   className={cn(
