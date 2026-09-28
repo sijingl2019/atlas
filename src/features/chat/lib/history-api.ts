@@ -101,6 +101,11 @@ export function archiveThread(threadId: string): Promise<void> {
   return invoke<void>("threads_archive", { threadId });
 }
 
+/** Put an archived thread back in the active list. */
+export function unarchiveThread(threadId: string): Promise<void> {
+  return invoke<void>("threads_unarchive", { threadId });
+}
+
 /** Whether an agent can be imported from, and why not when it cannot. */
 export type ImportStatus =
   | { kind: "ready"; importable: number }

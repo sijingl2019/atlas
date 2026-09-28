@@ -2097,6 +2097,11 @@ impl AgentHost {
         Ok(())
     }
 
+    pub fn unarchive_thread(&self, thread_id: ThreadId) -> Result<()> {
+        self.history_or_err()?.store().unarchive(thread_id);
+        Ok(())
+    }
+
     /// Which installed agents can be imported from, and how much they have.
     ///
     /// Connecting to every installed agent is the price of the answer, and Zed

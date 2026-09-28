@@ -34,6 +34,7 @@ import {
   BrainCircuit,
   Ellipsis,
   Archive,
+  ArchiveRestore,
   Play,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -49,6 +50,8 @@ import { useChildSessionIds } from "@/features/subagents/stores/subagents-store"
 import { openAgentSession, openNewAgentChat } from "@/features/chat/lib/open-agent-session";
 import {
   archiveThread,
+  threadHistory,
+  unarchiveThread,
   onThreadsChanged,
   threadProjects,
   type ThreadProject,
@@ -57,7 +60,8 @@ import {
 import { AtlasLoader } from "@/components/atlas-loader";
 import { AgentIcons } from "@/components/agent-icons";
 import { useSessionPinsStore } from "../stores/session-pins-store";
-import { latestWorkspaceSession, workspaceSessions } from "../lib/sidebar-sessions";
+import { comparablePath, latestWorkspaceSession, workspaceSessions } from "../lib/sidebar-sessions";
+import { basename } from "@/lib/paths";
 import { useAppStore } from "@/features/app/stores/app-store";
 import { useOrgStore } from "@/features/organisations/stores/org-store";
 import { useActiveOrgProjects, useActiveOrgGroups } from "../lib/org-scope";
@@ -624,7 +628,7 @@ const GroupHeaderRow = memo(function GroupHeaderRow({
  *  `{icon, title, onClick}` object per render — an object prop defeats `memo`
  *  on every row, every frame. */
 const CLEAR_TITLE: Record<string, string> = {
-  "sec:recent": "Empty trash",
+  "sec:recent": "Empty trash (projects and integrations)",
   "sec:chats": "Clear recent chats",
 };
 
@@ -718,32 +722,6 @@ const SectionHeaderRow = memo(function SectionHeaderRow({
   );
 });
 
-const RecentProjectRow = memo(function RecentProjectRow({
-  name,
-  path,
-  onOpen,
-}: {
-  name: string;
-  path: string;
-  /** Takes the path so the parent can hand every row ONE stable callback. */
-  onOpen: (path: string) => void;
-}) {
-  return (
-    <div
-      data-hint
-      onClick={() => onOpen(path)}
-      style={{ height: ROW_CARD, paddingLeft: 8 }}
-      className="group flex items-center gap-2.5 pr-1.5 rounded-md cursor-pointer hover:bg-[var(--atlas-element-hover)]"
-      title={path}
-    >
-      <Folder size={13} className="shrink-0 text-[var(--muted-foreground)]" />
-      <span className="flex-1 min-w-0 truncate text-sm leading-normal text-[var(--secondary-foreground)] group-hover:text-[var(--foreground)]">
-        {name}
-      </span>
-    </div>
-  );
-});
-
 /** One integration: name, a status dot, and hover Run / Edit / Delete.
  *  Click opens its issue list. */
 const IntegrationRow = memo(function IntegrationRow({ item }: { item: IntegrationView }) {
@@ -833,21 +811,117 @@ const IntegrationRow = memo(function IntegrationRow({ item }: { item: Integratio
       </button>
       <button
         type="button"
-        onClick={async (e) => {
+        onClick={(e) => {
           e.stopPropagation();
-          const { ask } = await import("@tauri-apps/plugin-dialog");
-          const ok = await ask(`Delete the integration for "${integrationLabel(item)}"?`, {
-            title: "Delete integration",
-            kind: "warning",
-          });
-          if (ok) await integrationsApi.remove(item.id).catch((err) => toast.error(String(err)));
+          // Restorable from the Trash, so no confirm.
+          integrationsApi
+            .remove(item.id)
+            .then(() => toast.success(`${integrationLabel(item)} moved to the Trash`))
+            .catch((err) => toast.error(String(err)));
         }}
-        title="Delete"
-        aria-label="Delete"
+        title="Move to Trash"
+        aria-label="Move to Trash"
         className="flex size-5 items-center justify-center rounded text-[var(--muted-foreground)] opacity-0 group-hover:opacity-100 hover:bg-[var(--card)] hover:text-error cursor-pointer"
       >
         <Trash2 size={11} />
       </button>
+    </div>
+  );
+});
+
+/** A kind inside the Trash (Projects / Sessions / Integrations): a fold with
+ *  its count. */
+const TrashSubheadRow = memo(function TrashSubheadRow({
+  id,
+  label,
+  count,
+  collapsed,
+  onToggle,
+}: {
+  id: string;
+  label: string;
+  count: number;
+  collapsed: boolean;
+  onToggle: (id: string) => void;
+}) {
+  return (
+    <div
+      onClick={() => onToggle(id)}
+      style={{ height: HEADER_H }}
+      className="flex items-center gap-1.5 pl-2 pr-1.5 rounded-md cursor-pointer hover:bg-[var(--atlas-element-hover)]"
+    >
+      <ChevronRight
+        size={11}
+        className={cn(
+          "shrink-0 text-[var(--muted-foreground)] transition-transform",
+          !collapsed && "rotate-90",
+        )}
+      />
+      <span className="flex-1 text-xs text-[var(--secondary-foreground)]">{label}</span>
+      <span className="text-2xs text-[var(--muted-foreground)]">{count}</span>
+    </div>
+  );
+});
+
+/** One thing in the Trash. Click (or the hover button) restores it; a
+ *  trashed integration can also be deleted for good. */
+const TrashRow = memo(function TrashRow({
+  item,
+  onRestore,
+  onPurge,
+}: {
+  item: TrashItem;
+  onRestore: (item: TrashItem) => void;
+  onPurge: (item: TrashItem) => void;
+}) {
+  return (
+    <div
+      onClick={() => onRestore(item)}
+      style={{ height: ROW_CARD, paddingLeft: 20 }}
+      className="group flex items-center gap-2 pr-1.5 rounded-md cursor-pointer hover:bg-[var(--atlas-element-hover)]"
+      title={item.type === "project" ? `Restore ${item.id}` : "Restore"}
+    >
+      {item.type === "project" ? (
+        <Folder size={13} className="shrink-0 text-[var(--muted-foreground)]" />
+      ) : item.type === "session" ? (
+        <MessageCircle size={13} className="shrink-0 text-[var(--muted-foreground)]" />
+      ) : (
+        <SourceIcon kind={item.source} size={13} />
+      )}
+      <span className="flex-1 min-w-0 truncate text-sm leading-normal text-[var(--secondary-foreground)] group-hover:text-[var(--foreground)]">
+        {item.label}
+      </span>
+      {item.type === "session" && item.detail && (
+        <span className="shrink-0 truncate text-2xs text-[var(--muted-foreground)] group-hover:hidden">
+          {item.detail}
+        </span>
+      )}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onRestore(item);
+        }}
+        title="Restore"
+        aria-label="Restore"
+        className="hidden size-5 items-center justify-center rounded text-[var(--muted-foreground)] group-hover:flex hover:bg-[var(--card)] hover:text-[var(--foreground)] cursor-pointer"
+      >
+        <ArchiveRestore size={11} />
+      </button>
+      {item.type === "integration" && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onPurge(item);
+          }}
+          title="Delete for good"
+          aria-label="Delete for good"
+          className="hidden size-5 items-center justify-center rounded text-[var(--muted-foreground)] group-hover:flex hover:bg-[var(--card)] hover:text-error cursor-pointer"
+        >
+          <Trash2 size={11} />
+        </button>
+      )}
     </div>
   );
 });
@@ -977,9 +1051,17 @@ type Row =
   | { kind: "group"; group: ProjectGroup; count: number; key: string }
   | { kind: "ws"; ws: Project; indented: boolean; expanded: boolean; key: string }
   | { kind: "session"; session: WorkspaceSession; pinned: boolean; key: string }
-  | { kind: "recent"; name: string; path: string; key: string }
   | { kind: "chat"; session: WorkspaceSession; pinned: boolean; key: string }
-  | { kind: "integration"; item: IntegrationView; key: string };
+  | { kind: "integration"; item: IntegrationView; key: string }
+  | { kind: "subhead"; id: string; label: string; count: number; key: string }
+  | { kind: "trash"; item: TrashItem; key: string };
+
+/** One restorable thing in the Trash. `id`: the project's path, the
+ *  thread id, or the integration id. */
+type TrashItem =
+  | { type: "project"; id: string; label: string }
+  | { type: "session"; id: string; label: string; detail: string }
+  | { type: "integration"; id: string; label: string; source: IntegrationView["source"]["kind"] };
 
 export function ProjectSidebar() {
   const allProjects = useProjectStore.use.projects();
@@ -998,8 +1080,16 @@ export function ProjectSidebar() {
   const mountedProjectIds = useProjectStore.use.mountedProjectIds();
   const mountedIds = useMemo(() => new Set(mountedProjectIds), [mountedProjectIds]);
   const { addProject } = useProjectStore.use.actions();
-  const integrations = useIntegrationsStore((s) => s.items);
+  const allIntegrations = useIntegrationsStore((s) => s.items);
   useEffect(startIntegrationsSync, []);
+  const integrations = useMemo(
+    () => allIntegrations.filter((i) => !i.deletedAt),
+    [allIntegrations],
+  );
+  const trashedIntegrations = useMemo(
+    () => allIntegrations.filter((i) => i.deletedAt),
+    [allIntegrations],
+  );
   const { addTab, toggleRightPanelMode } = useLayoutStore.use.actions();
   // Which occupant the right slot shows, or null when closed — drives the
   // active state of the Source control item.
@@ -1056,9 +1146,15 @@ export function ProjectSidebar() {
     queryFn: () => threadProjects(""),
     staleTime: 30_000,
   });
+  const { data: archivedThreads = [] } = useQuery<ThreadRow[]>({
+    queryKey: ["thread-archived"],
+    queryFn: () => threadHistory(true),
+    staleTime: 30_000,
+  });
   useEffect(() => {
     const unlisten = onThreadsChanged(() => {
       void queryClient.invalidateQueries({ queryKey: ["thread-projects"] });
+      void queryClient.invalidateQueries({ queryKey: ["thread-archived"] });
     });
     return () => void unlisten.then((stop) => stop());
   }, [queryClient]);
@@ -1101,6 +1197,15 @@ export function ProjectSidebar() {
     [recentProjects, allProjects, activeOrganisationId, openPaths],
   );
 
+  // Archived sessions of THIS org's projects (the Trash's Sessions), newest
+  // first — scoped like recents, so another org's sessions never list here.
+  const archivedSessions = useMemo(() => {
+    const paths = new Set(projects.map((p) => comparablePath(p.path)));
+    return archivedThreads
+      .filter((t) => t.folderPaths.some((f) => paths.has(comparablePath(f))))
+      .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
+  }, [archivedThreads, projects]);
+
   const latestSessions = useMemo(
     () =>
       projects.flatMap((workspace) => {
@@ -1114,6 +1219,17 @@ export function ProjectSidebar() {
   // folders are collapsible; a collapsed section omits all its content rows.
   const rows = useMemo<Row[]>(() => {
     const out: Row[] = [];
+    // First: always shown (unlike Trash / Recent) — its "+" is how the first
+    // one is made.
+    out.push({
+      kind: "section",
+      id: "sec:integrations",
+      label: "Integrations",
+      key: "s:integrations",
+    });
+    if (!collapsed["sec:integrations"])
+      for (const item of integrations)
+        out.push({ kind: "integration", item, key: `int:${item.id}` });
     const pushWorkspace = (ws: Project, indented: boolean) => {
       const expanded = !!expandedProjects[ws.id];
       out.push({ kind: "ws", ws, indented, expanded, key: ws.id });
@@ -1157,22 +1273,6 @@ export function ProjectSidebar() {
       }
       for (const ws of unpinned.filter((w) => !w.groupId)) pushWorkspace(ws, false);
     }
-    if (recents.length) {
-      out.push({
-        kind: "section",
-        id: "sec:recent",
-        label: "Trash",
-        key: "s:recent",
-      });
-      if (!collapsed["sec:recent"])
-        for (const r of recents)
-          out.push({
-            kind: "recent",
-            name: r.name,
-            path: r.path,
-            key: `r:${r.path}`,
-          });
-    }
     if (latestSessions.length) {
       out.push({
         kind: "section",
@@ -1191,19 +1291,55 @@ export function ProjectSidebar() {
             key: `chat:${session.thread.threadId}`,
           });
     }
-    // Always shown (unlike Trash / Recent): its "+" is how the first one is made.
-    out.push({
-      kind: "section",
-      id: "sec:integrations",
-      label: "Integrations",
-      key: "s:integrations",
-    });
-    if (!collapsed["sec:integrations"])
-      for (const item of integrations)
-        out.push({ kind: "integration", item, key: `int:${item.id}` });
+    // Trash last: three kinds, each restorable, each its own fold.
+    const trashGroups: { id: string; label: string; items: TrashItem[] }[] = [
+      {
+        id: "trash:projects",
+        label: "Projects",
+        items: recents.map((r): TrashItem => ({ type: "project", id: r.path, label: r.name })),
+      },
+      {
+        id: "trash:sessions",
+        label: "Sessions",
+        items: archivedSessions.map((t): TrashItem => ({
+          type: "session",
+          id: t.threadId,
+          label: t.title || "Untitled session",
+          detail: basename(t.folderPaths[0] ?? ""),
+        })),
+      },
+      {
+        id: "trash:integrations",
+        label: "Integrations",
+        items: trashedIntegrations.map((i): TrashItem => ({
+          type: "integration",
+          id: i.id,
+          label: integrationLabel(i),
+          source: i.source.kind,
+        })),
+      },
+    ].filter((g) => g.items.length > 0);
+    if (trashGroups.length) {
+      out.push({ kind: "section", id: "sec:recent", label: "Trash", key: "s:recent" });
+      if (!collapsed["sec:recent"])
+        for (const g of trashGroups) {
+          out.push({
+            kind: "subhead",
+            id: g.id,
+            label: g.label,
+            count: g.items.length,
+            key: `sh:${g.id}`,
+          });
+          if (!collapsed[g.id])
+            for (const item of g.items)
+              out.push({ kind: "trash", item, key: `t:${item.type}:${item.id}` });
+        }
+    }
     return out;
   }, [
     integrations,
+    trashedIntegrations,
+    archivedSessions,
     pinned,
     unpinned,
     sortedGroups,
@@ -1224,17 +1360,55 @@ export function ProjectSidebar() {
   // is on screen), so the map is all this level needs.
   const summaries = useProjectGitStore.use.summaries();
 
-  const openRecent = useCallback((path: string) => void addProject(path), [addProject]);
-
+  // Emptying the Trash forgets closed projects and deletes trashed
+  // integrations for good. Archived sessions stay: they are history, and
+  // deleting a transcript is not something a clear-all should do.
   const clearSection = useCallback(
-    (id: string) => {
-      if (id === "sec:recent") {
-        clearRecents();
-        return;
+    async (id: string) => {
+      if (id !== "sec:recent") return;
+      if (trashedIntegrations.length) {
+        const { ask } = await import("@tauri-apps/plugin-dialog");
+        const ok = await ask(
+          `Empty the Trash? ${trashedIntegrations.length} integration(s) will be deleted for good. Archived sessions are kept.`,
+          { title: "Empty Trash", kind: "warning" },
+        );
+        if (!ok) return;
+        for (const i of trashedIntegrations) await integrationsApi.purge(i.id).catch(() => {});
       }
+      clearRecents();
     },
-    [clearRecents],
+    [clearRecents, trashedIntegrations],
   );
+
+  const restoreTrash = useCallback(
+    (item: TrashItem) => {
+      const done =
+        item.type === "project"
+          ? addProject(item.id)
+          : item.type === "session"
+            ? unarchiveThread(item.id).then(() =>
+                Promise.all([
+                  queryClient.invalidateQueries({ queryKey: ["thread-archived"] }),
+                  queryClient.invalidateQueries({ queryKey: ["thread-projects"] }),
+                ]),
+              )
+            : integrationsApi.restore(item.id);
+      void Promise.resolve(done).catch((error) =>
+        toast.error(`Couldn't restore: ${error instanceof Error ? error.message : error}`),
+      );
+    },
+    [addProject, queryClient],
+  );
+
+  const purgeTrash = useCallback(async (item: TrashItem) => {
+    if (item.type !== "integration") return;
+    const { ask } = await import("@tauri-apps/plugin-dialog");
+    const ok = await ask(`Delete the integration for "${item.label}" for good?`, {
+      title: "Delete integration",
+      kind: "warning",
+    });
+    if (ok) await integrationsApi.purge(item.id).catch((e) => toast.error(String(e)));
+  }, []);
 
   const openSession = useCallback(async (session: WorkspaceSession) => {
     // Focus the owning project before loading the selected session.
@@ -1252,6 +1426,7 @@ export function ProjectSidebar() {
       void archiveThread(threadId)
         .then(() => {
           removeSessionPin(threadId);
+          void queryClient.invalidateQueries({ queryKey: ["thread-archived"] });
           return queryClient.invalidateQueries({ queryKey: ["thread-projects"] });
         })
         .catch((error) =>
@@ -1325,11 +1500,12 @@ export function ProjectSidebar() {
           mountedIds={mountedIds}
           onToggle={toggle}
           onToggleProject={toggleProject}
-          onOpenRecent={openRecent}
           onOpenSession={openSession}
           onToggleSessionPin={toggleSessionPin}
           onArchiveSession={archiveSession}
           onClearSection={clearSection}
+          onRestoreTrash={restoreTrash}
+          onPurgeTrash={purgeTrash}
         >
           {/* Project-scoped tools under their own collapsible "Modules"
            *  heading, the same disclosure the list below uses, so the rail
@@ -1500,11 +1676,12 @@ interface RailRowCtx {
   mountedIds: Set<string>;
   onToggle: (id: string) => void;
   onToggleProject: (id: string) => void;
-  onOpenRecent: (path: string) => void;
   onOpenSession: (session: WorkspaceSession) => void;
   onToggleSessionPin: (threadId: string) => void;
   onArchiveSession: (threadId: string) => void;
   onClearSection: (id: string) => void;
+  onRestoreTrash: (item: TrashItem) => void;
+  onPurgeTrash: (item: TrashItem) => void;
 }
 
 /** One row, with every prop reduced to a primitive or a stable identity — so
@@ -1558,10 +1735,20 @@ function renderRailRow(row: Row, ctx: RailRowCtx) {
           onArchive={ctx.onArchiveSession}
         />
       );
-    case "recent":
-      return <RecentProjectRow name={row.name} path={row.path} onOpen={ctx.onOpenRecent} />;
     case "integration":
       return <IntegrationRow item={row.item} />;
+    case "subhead":
+      return (
+        <TrashSubheadRow
+          id={row.id}
+          label={row.label}
+          count={row.count}
+          collapsed={!!ctx.collapsed[row.id]}
+          onToggle={ctx.onToggle}
+        />
+      );
+    case "trash":
+      return <TrashRow item={row.item} onRestore={ctx.onRestoreTrash} onPurge={ctx.onPurgeTrash} />;
     case "chat":
       return (
         <SessionRow
@@ -1700,7 +1887,7 @@ function VirtualRail({
       if (k === "ws") return WS_H;
       if (k === "session") return ROW_H;
       if (k === "chat") return CHAT_H;
-      if (k === "recent" || k === "integration") return ROW_H;
+      if (k === "integration" || k === "trash") return ROW_H;
       if (k === "section") return SECTION_H;
       return HEADER_H + 2; // group headers
     },

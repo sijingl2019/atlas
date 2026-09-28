@@ -57,6 +57,8 @@ export interface Integration {
   autoPush: boolean;
   /** Per-issue agent / model, by issue key. */
   issueOverrides: Record<string, IssueOverride>;
+  /** Set while it is in the Trash. */
+  deletedAt?: string | null;
 }
 
 export interface IssueOverride {
@@ -103,7 +105,11 @@ export const integrationsApi = {
   /** `secret: null` keeps the stored one. */
   save: (integration: Integration, secret: string | null) =>
     invoke<void>("integrations_save", { integration, secret }),
+  /** Move to the Trash (restorable). */
   remove: (id: string) => invoke<void>("integrations_delete", { id }),
+  restore: (id: string) => invoke<void>("integrations_restore", { id }),
+  /** Delete for good (emptying the Trash). */
+  purge: (id: string) => invoke<void>("integrations_purge", { id }),
   /** Copy an integration (starts disabled); resolves the copy's id. */
   duplicate: (id: string) => invoke<string>("integrations_duplicate", { id }),
   test: (source: IntegrationSource, secret: string | null, id: string | null) =>

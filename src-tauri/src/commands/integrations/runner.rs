@@ -23,8 +23,17 @@ use crate::commands::subagents::manager::SubagentHost;
 const TICK: Duration = Duration::from_secs(60);
 /// The longest one issue's turn may take before it is cancelled.
 const TURN_TIMEOUT: Duration = Duration::from_secs(60 * 60);
+/// How long after launch the resume pass waits: the agent host is managed by
+/// then, but installed agents are still being read in.
+const STARTUP_DELAY: Duration = Duration::from_secs(5);
 
-type Waiter = oneshot::Sender<Result<(), String>>;
+/// A run waiting on its turn.
+struct Waiter {
+    tx: oneshot::Sender<Result<(), String>>,
+    /// Set by the turn's own `Running`. Reopening a session replays its
+    /// history, and a replayed `TurnFinished` must not end the new turn.
+    started: bool,
+}
 
 pub struct IntegrationsRuntime {
     pub store: Store,
@@ -55,20 +64,21 @@ impl IntegrationsRuntime {
     pub fn start(self: &Arc<Self>, app: AppHandle) {
         let rt = self.clone();
         tauri::async_runtime::spawn(async move {
+            // What the last launch left unfinished goes first, in its own
+            // sessions; the first tick then pulls every integration.
+            tokio::time::sleep(STARTUP_DELAY).await;
+            rt.resume_interrupted(&app).await;
             let mut ticker = tokio::time::interval(TICK);
             loop {
                 ticker.tick().await;
-                for integration in rt.store.integrations().into_iter().filter(|i| i.enabled) {
+                for integration in rt.store.integrations().into_iter().filter(|i| i.active()) {
                     let due = {
                         let mut last = rt.last_poll.lock().unwrap();
                         let every =
                             Duration::from_secs(u64::from(integration.interval_minutes) * 60);
-                        // First sight counts as a poll: launching the app
-                        // does not start work before the interval passes.
-                        let at = *last
-                            .entry(integration.id.clone())
-                            .or_insert_with(Instant::now);
-                        at.elapsed() >= every
+                        // Never polled this launch = due now.
+                        last.get(&integration.id)
+                            .is_none_or(|at| at.elapsed() >= every)
                     };
                     if due {
                         let (rt, app) = (rt.clone(), app.clone());
@@ -85,9 +95,50 @@ impl IntegrationsRuntime {
         self.waiters.lock().unwrap().contains_key(session_id)
     }
 
-    fn settle(&self, session_id: &str, outcome: Result<(), String>) {
-        if let Some(tx) = self.waiters.lock().unwrap().remove(session_id) {
-            let _ = tx.send(outcome);
+    fn mark_started(&self, session_id: &str) {
+        if let Some(w) = self.waiters.lock().unwrap().get_mut(session_id) {
+            w.started = true;
+        }
+    }
+
+    /// End the wait. `turn_end`: only once the turn has started (see
+    /// [`Waiter::started`]); an error ends it regardless.
+    fn settle(&self, session_id: &str, outcome: Result<(), String>, turn_end: bool) {
+        let mut waiters = self.waiters.lock().unwrap();
+        if turn_end && !waiters.get(session_id).is_some_and(|w| w.started) {
+            return;
+        }
+        if let Some(w) = waiters.remove(session_id) {
+            let _ = w.tx.send(outcome);
+        }
+    }
+
+    /// Continue every run the last launch was in the middle of, in its own
+    /// session, one after another.
+    async fn resume_interrupted(&self, app: &AppHandle) {
+        let runs = self.store.runs();
+        for integration in self.store.integrations().into_iter().filter(|i| i.active()) {
+            let interrupted = runs
+                .get(&integration.id)
+                .into_iter()
+                .flatten()
+                .filter(|r| r.status == RunStatus::Interrupted);
+            for rec in interrupted {
+                let issue = if rec.issue.key.is_empty() {
+                    // Recorded before runs kept their issue.
+                    Issue {
+                        key: rec.issue_key.clone(),
+                        title: rec.title.clone(),
+                        ..Issue::default()
+                    }
+                } else {
+                    rec.issue.clone()
+                };
+                let mode = RunMode::Continue {
+                    session_id: rec.session_id.clone(),
+                };
+                self.run_one(app, &integration.id, issue, mode).await;
+            }
         }
     }
 
@@ -138,7 +189,7 @@ impl IntegrationsRuntime {
                         .store
                         .integrations()
                         .into_iter()
-                        .find(|i| i.id == integration.id && i.enabled)
+                        .find(|i| i.id == integration.id && i.active())
                     else {
                         break;
                     };
@@ -173,7 +224,7 @@ impl IntegrationsRuntime {
             .store
             .integrations()
             .into_iter()
-            .find(|i| i.id == integration_id)
+            .find(|i| i.id == integration_id && i.deleted_at.is_none())
         else {
             return;
         };
@@ -322,35 +373,32 @@ impl IntegrationsRuntime {
     ) -> Result<(), String> {
         let host = app.state::<Arc<AgentHost>>().inner().clone();
         let cwd = integration.project_path.clone();
-        let reopened = match resume.clone().flatten() {
-            Some(session_id) => {
-                match SubagentHost::reopen_session(
-                    &host,
-                    agent_id.to_string(),
-                    session_id,
-                    cwd.clone(),
+        let key = match &resume {
+            // An interrupted run continues in its own session or not at all:
+            // a new one would not know what the old one had done.
+            Some(Some(session_id)) => {
+                SubagentHost::reopen_session(&host, agent_id.to_string(), session_id.clone(), cwd)
+                    .await
+                    .map_err(|e| format!("the interrupted session could not be reopened: {e}"))?
+            }
+            Some(None) => {
+                return Err(
+                    "the interrupted run recorded no session to continue; start it over".into(),
                 )
-                .await
-                {
-                    Ok(key) => Some(key),
-                    Err(e) => {
-                        tracing::warn!(target: "atlas::integrations", "session not reopened, starting anew: {e}");
-                        None
+            }
+            None => {
+                let key =
+                    SubagentHost::start_session(&host, agent_id.to_string(), cwd, None).await?;
+                // A reopened session keeps the model it ran with.
+                if let Some(model) = model {
+                    if let Err(e) = host.set_model(&key, model.to_string()).await {
+                        let _ = SubagentHost::drop_session(&host, key.session_id).await;
+                        return Err(format!("model {model} could not be selected: {e}"));
                     }
                 }
+                key
             }
-            None => None,
         };
-        let key = match reopened {
-            Some(key) => key,
-            None => SubagentHost::start_session(&host, agent_id.to_string(), cwd, None).await?,
-        };
-        if let Some(model) = model {
-            if let Err(e) = host.set_model(&key, model.to_string()).await {
-                let _ = SubagentHost::drop_session(&host, key.session_id).await;
-                return Err(format!("model {model} could not be selected: {e}"));
-            }
-        }
         // Recorded now, so a quit from here on can be continued.
         rec.session_id = Some(key.session_id.clone());
         rec.agent_handle = Some(key.agent_id);
@@ -360,7 +408,7 @@ impl IntegrationsRuntime {
         self.waiters
             .lock()
             .unwrap()
-            .insert(key.session_id.clone(), tx);
+            .insert(key.session_id.clone(), Waiter { tx, started: false });
 
         let text = if resume.is_some() {
             continue_prompt(&rec.issue)
@@ -412,8 +460,8 @@ fn outcome(
 
 fn continue_prompt(issue: &Issue) -> String {
     format!(
-        "Your previous run on this issue was interrupted before it finished. The working tree still has the changes made so far — review them and finish the work. Do not run git commit.\n\n{}",
-        prompt(issue)
+        "Your last turn on [{}] {} was cut off when Atlas closed. Carry on from where you stopped and finish the issue; the changes you had made are still in the working tree. Do not run git commit.",
+        issue.key, issue.title
     )
 }
 
@@ -474,12 +522,16 @@ impl OutboundMiddleware<SessionDeltaEnvelope> for IntegrationMiddleware {
         }
         let sid = envelope.session_id.as_str();
         match &envelope.delta {
-            SessionDelta::TurnFinished { .. } => rt.settle(sid, Ok(())),
-            SessionDelta::TurnFailed { error, .. } => rt.settle(sid, Err(error.clone())),
+            SessionDelta::Status {
+                status: SessionStatus::Running,
+                ..
+            } => rt.mark_started(sid),
+            SessionDelta::TurnFinished { .. } => rt.settle(sid, Ok(()), true),
+            SessionDelta::TurnFailed { error, .. } => rt.settle(sid, Err(error.clone()), true),
             SessionDelta::Status {
                 status: SessionStatus::Error,
                 ..
-            } => rt.settle(sid, Err("the agent reported an error".into())),
+            } => rt.settle(sid, Err("the agent reported an error".into()), false),
             SessionDelta::PermissionRequest {
                 request_id,
                 options,
@@ -523,6 +575,37 @@ fn allow_option(options: &Value) -> Option<String> {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn a_replayed_turn_end_does_not_settle_a_new_turn() {
+        let rt = IntegrationsRuntime::new(Store::new(std::env::temp_dir()));
+        let (tx, mut rx) = oneshot::channel();
+        rt.waiters
+            .lock()
+            .unwrap()
+            .insert("s".into(), Waiter { tx, started: false });
+        // History replayed on reopen: ignored.
+        rt.settle("s", Ok(()), true);
+        assert!(rx.try_recv().is_err());
+        assert!(rt.tracks("s"));
+        // The new turn starts, then ends.
+        rt.mark_started("s");
+        rt.settle("s", Ok(()), true);
+        assert_eq!(rx.try_recv().unwrap(), Ok(()));
+        assert!(!rt.tracks("s"));
+    }
+
+    #[test]
+    fn an_error_settles_before_the_turn_starts() {
+        let rt = IntegrationsRuntime::new(Store::new(std::env::temp_dir()));
+        let (tx, mut rx) = oneshot::channel();
+        rt.waiters
+            .lock()
+            .unwrap()
+            .insert("s".into(), Waiter { tx, started: false });
+        rt.settle("s", Err("boom".into()), false);
+        assert_eq!(rx.try_recv().unwrap(), Err("boom".into()));
+    }
 
     #[test]
     fn branch_names() {

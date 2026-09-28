@@ -1535,6 +1535,13 @@ pub fn threads_archive(thread_id: String, host: State<'_, Arc<AgentHost>>) -> Re
         .map_err(CmdError::from)
 }
 
+/// Put an archived thread back in the active list (the sidebar's Trash).
+#[tauri::command]
+pub fn threads_unarchive(thread_id: String, host: State<'_, Arc<AgentHost>>) -> Result<(), CmdError> {
+    host.unarchive_thread(parse_thread_id(&thread_id)?)
+        .map_err(CmdError::from)
+}
+
 /// Which installed agents can be imported from, and how much they have.
 ///
 /// Spawns each installed agent to ask — the capability only exists after

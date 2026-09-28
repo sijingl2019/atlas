@@ -592,7 +592,7 @@ export function IntegrationDialog() {
                 )}
               >
                 <Trash2 size={12} />
-                Delete
+                Move to Trash
               </button>
             )}
             <div className="ml-auto flex gap-2">

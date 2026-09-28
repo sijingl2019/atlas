@@ -54,9 +54,18 @@ pub struct Integration {
     /// Per-issue agent / model, keyed by issue key.
     #[serde(default)]
     pub issue_overrides: HashMap<String, IssueOverride>,
+    /// When it was moved to the Trash (RFC 3339); a trashed integration
+    /// never runs until restored.
+    #[serde(default)]
+    pub deleted_at: Option<String>,
 }
 
 impl Integration {
+    /// Whether the scheduler runs it.
+    pub fn active(&self) -> bool {
+        self.enabled && self.deleted_at.is_none()
+    }
+
     /// The agent and model an issue runs with. An override that names an
     /// agent brings its own model (the integration's may not exist on it).
     pub fn agent_for(&self, issue_key: &str) -> (String, Option<String>) {
@@ -263,6 +272,14 @@ impl Store {
         write_json(&self.dir.join(RUNS_FILE), &all, false)
     }
 
+    pub fn remove_runs(&self, integration_id: &str) -> Result<(), String> {
+        let mut all = self.runs();
+        if all.remove(integration_id).is_some() {
+            write_json(&self.dir.join(RUNS_FILE), &all, false)?;
+        }
+        Ok(())
+    }
+
     pub fn secrets(&self) -> HashMap<String, String> {
         read_json(&self.dir.join(SECRETS_FILE))
     }
@@ -388,6 +405,7 @@ pub fn integrations_duplicate(
         .ok_or("no such integration")?;
     copy.id = uuid::Uuid::new_v4().to_string();
     copy.enabled = false;
+    copy.deleted_at = None;
     if let Some(secret) = rt.store.secrets().remove(&id) {
         rt.store.set_secret(&copy.id, Some(secret))?;
     }
@@ -398,8 +416,48 @@ pub fn integrations_duplicate(
     Ok(new_id)
 }
 
+/// Move an integration to the Trash: it stops running, and keeps its
+/// config, credential and runs so a restore brings all of it back.
 #[tauri::command]
 pub fn integrations_delete(
+    id: String,
+    rt: State<'_, Arc<IntegrationsRuntime>>,
+    app: AppHandle,
+) -> Result<(), String> {
+    set_deleted(&rt, &app, &id, Some(now()))
+}
+
+/// Take an integration back out of the Trash.
+#[tauri::command]
+pub fn integrations_restore(
+    id: String,
+    rt: State<'_, Arc<IntegrationsRuntime>>,
+    app: AppHandle,
+) -> Result<(), String> {
+    set_deleted(&rt, &app, &id, None)
+}
+
+fn set_deleted(
+    rt: &IntegrationsRuntime,
+    app: &AppHandle,
+    id: &str,
+    deleted_at: Option<String>,
+) -> Result<(), String> {
+    let mut list = rt.store.integrations();
+    let integration = list
+        .iter_mut()
+        .find(|i| i.id == id)
+        .ok_or("no such integration")?;
+    integration.deleted_at = deleted_at;
+    rt.store.save_integrations(&list)?;
+    announce(app);
+    Ok(())
+}
+
+/// Delete an integration for good (emptying the Trash): config, credential
+/// and runs.
+#[tauri::command]
+pub fn integrations_purge(
     id: String,
     rt: State<'_, Arc<IntegrationsRuntime>>,
     app: AppHandle,
@@ -408,6 +466,7 @@ pub fn integrations_delete(
     list.retain(|i| i.id != id);
     rt.store.save_integrations(&list)?;
     rt.store.set_secret(&id, None)?;
+    rt.store.remove_runs(&id)?;
     announce(&app);
     Ok(())
 }
@@ -459,8 +518,9 @@ pub async fn integrations_issues(
     sources::fetch_issues(&integration.source, &secret).await
 }
 
-/// Run one issue now: continue it when its last run was interrupted,
-/// otherwise start it afresh (a retry, or a queued issue ahead of its turn).
+/// Run one issue now: continue it (in its own session) when its last run was
+/// interrupted, otherwise start it afresh (a retry, or a queued issue ahead
+/// of its turn).
 #[tauri::command]
 pub async fn integrations_rerun(
     id: String,
@@ -600,6 +660,7 @@ mod tests {
             auto_push: true,
             model: None,
             issue_overrides: HashMap::new(),
+            deleted_at: None,
         };
         store.save_integrations(&[i]).unwrap();
         assert_eq!(
