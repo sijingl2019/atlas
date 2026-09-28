@@ -748,7 +748,7 @@ const SessionRow = memo(function SessionRow({
   onTogglePin: (threadId: string) => void;
   onArchive: (threadId: string) => void;
 }) {
-  // Cersei (the Atlas native agent) gets its own brand mark — falling through
+  // The Atlas native agent gets its own brand mark — falling through
   // to the Claude icon mislabeled Atlas chats in this panel.
   const agentType = agentTypeFromPluginId(session.thread.agentId);
   const AgentIcon =
@@ -774,7 +774,7 @@ const SessionRow = memo(function SessionRow({
     >
       {running ? (
         <AtlasLoader size={12} className="shrink-0 text-[var(--primary)]" />
-      ) : agentType === "cersei" ? (
+      ) : agentType === "atlas-agent" ? (
         <AtlasIcon size={13} className="shrink-0" />
       ) : (
         <AgentIcon className="size-[13px] shrink-0 opacity-80" />

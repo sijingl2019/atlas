@@ -48,7 +48,7 @@ use atlas_agent_transcript::TranscriptKind;
 use atlas_agent_wire::{
     classify_message, AgentId, ErrorClass, Message, PlanEntry, SessionStatus, Usage,
 };
-use atlas_native_agent::CERSEI_AGENT_ID;
+use atlas_native_agent::ATLAS_AGENT_ID;
 use atlas_thread_metadata::{
     affects_thread_metadata, collect_all_sessions, importable_threads, PathList, ThreadFilter,
     ThreadId, ThreadMetadata, ThreadMetadataStore, ThreadRecorder, ThreadSnapshot,
@@ -271,7 +271,7 @@ const BACKFILL_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(120
 /// the process too. `ended` may be called for a session that already ended;
 /// the implementation keeps it to one end.
 pub trait SessionLifecycle: Send + Sync {
-    /// `agent` is the durable plugin id (`cersei` for the native agent).
+    /// `agent` is the durable plugin id (`atlas-agent` for the native agent).
     fn session_started(&self, session_id: &str, agent: &str, cwd: &str);
     fn session_ended(&self, session_id: &str);
 }
@@ -302,6 +302,22 @@ struct SessionMcpSlot(Mutex<Option<Arc<dyn SessionMcpServers>>>);
 impl SessionMcpServers for SessionMcpSlot {
     fn offer(&self, request: &SessionMcpRequest) -> SessionMcpOffer {
         atlas_agent_servers::session_mcp::offer_for(lock(&self.0).as_ref(), request)
+    }
+
+    fn describe_call(
+        &self,
+        call: atlas_agent_servers::CallToApprove<'_>,
+    ) -> futures::future::BoxFuture<'static, Option<atlas_agent_servers::CallDescription>> {
+        match lock(&self.0).as_ref() {
+            Some(servers) => servers.describe_call(call),
+            None => Box::pin(async { None }),
+        }
+    }
+
+    fn approved_call(&self, call: atlas_agent_servers::CallToApprove<'_>) {
+        if let Some(servers) = lock(&self.0).as_ref() {
+            servers.approved_call(call);
+        }
     }
 }
 
@@ -361,7 +377,7 @@ struct RequestElicitations {
 
 /// Builds the native agent.
 ///
-/// There is no longer a switch here. It existed so the Cersei path could keep
+/// There is no longer a switch here. It existed so the previous native path could keep
 /// shipping while the ported engine was proved (#45); that path is deleted
 /// (#54), so this constructs the one implementation there is.
 ///
@@ -547,7 +563,7 @@ impl AgentHost {
         &self.registry
     }
 
-    // `native_sessions` and `native_delete_session` are gone with the Cersei
+    // `native_sessions` and `native_delete_session` are gone with the previous native
     // runtime that owned those files (#54). They read a second, engine-private
     // session store; the ported engine keeps its own under a different shape,
     // and pointing the timeline at it would recreate exactly the scrape-reader
@@ -613,7 +629,7 @@ impl AgentHost {
     /// always available because it is in-process, and any other id must appear
     /// in the installed map. Nothing is downloaded, discovered or guessed here.
     pub fn agent_for(&self, plugin_id: &str) -> Result<Agent> {
-        if plugin_id == CERSEI_AGENT_ID {
+        if plugin_id == ATLAS_AGENT_ID {
             return Ok(Agent::Native);
         }
         let id = atlas_acp_thread::AgentId::new(plugin_id);
@@ -632,7 +648,7 @@ impl AgentHost {
 
     fn plugin_id_of(agent: &Agent) -> String {
         match agent {
-            Agent::Native => CERSEI_AGENT_ID.to_string(),
+            Agent::Native => ATLAS_AGENT_ID.to_string(),
             Agent::Custom { id } => id.as_str().to_string(),
         }
     }
@@ -680,11 +696,10 @@ impl AgentHost {
         let installed =
             atlas_agent_servers::instance::installed_id(&atlas_acp_thread::AgentId::new(plugin_id));
         let plugin_id = installed.as_str();
-        if plugin_id == CERSEI_AGENT_ID {
-            // The name changes here; the id above does not. `CERSEI_AGENT_ID`
-            // is a storage key every recorded thread resolves through (D7), so
-            // the two deliberately disagree — this is the only place the user
-            // ever sees either of them.
+        if plugin_id == ATLAS_AGENT_ID {
+            // `ATLAS_AGENT_ID` is a storage key every recorded thread resolves
+            // through; the product name is what the user sees, and this is the
+            // only place the two meet.
             return "Atlas Agent".to_string();
         }
         self.store
@@ -846,6 +861,56 @@ impl AgentHost {
         self.forget_sessions_of(agent);
     }
 
+    /// Whether any open session on `plugin_id` has a turn running. `false` for
+    /// an agent that is not installed.
+    pub fn agent_turn_running(&self, plugin_id: &str) -> bool {
+        let Ok(agent) = self.agent_for(plugin_id) else {
+            return false;
+        };
+        let sessions: Vec<String> = lock(&self.sessions)
+            .iter()
+            .filter(|(_, record)| record.agent == agent)
+            .map(|(id, _)| id.clone())
+            .collect();
+        sessions
+            .iter()
+            .any(|id| self.thread(id).is_ok_and(|handle| lock_thread(&handle).is_generating()))
+    }
+
+    /// Restart `plugin_id` so its next connect runs the version the registry
+    /// now lists. The caller has waited for [`Self::agent_turn_running`] to
+    /// clear — this never interrupts a reply.
+    ///
+    /// The same move as the native model refresh below: every open chat on
+    /// the agent is told it is disconnected first, which is what lets the tab
+    /// rebind (respawn + `session/load`) on its next send with its transcript
+    /// intact. Dropping the connection without that left each tab holding a
+    /// session nothing knew any more — its next message failed with "unknown
+    /// session id".
+    pub fn restart_for_update(&self, plugin_id: &str, version: &str) -> Result<()> {
+        let agent = self.agent_for(plugin_id)?;
+        let sessions: Vec<String> = lock(&self.sessions)
+            .iter()
+            .filter(|(_, record)| record.agent == agent)
+            .map(|(id, _)| id.clone())
+            .collect();
+        for id in &sessions {
+            let session_id = acp::SessionId::new(id.as_str());
+            self.projector.note_agent_disconnected(
+                &session_id,
+                format!("updated to v{version}; the next message reconnects"),
+            );
+            // The projection holds the session's only strong thread handle,
+            // and through it the connection: left in place, the old process
+            // outlives the restart until the tab closes — while the update
+            // rewrites the `node_modules` it loads from. Closing it is what
+            // lets the process go now. After the notice, which needs it.
+            self.projector.close_session(&session_id);
+        }
+        self.kill_agent(plugin_id, &agent);
+        Ok(())
+    }
+
     /// Drop the native agent's connection, if one is open.
     ///
     /// Sign-out calls this (#62): the engine's token cache lives on the
@@ -858,7 +923,7 @@ impl AgentHost {
     /// next spawn reconnects and mints fresh — or fails, honestly, now that
     /// there is nothing to mint with.
     pub fn drop_native_connection(&self) {
-        self.forget_request_elicitations(&ThreadAgentId::new(CERSEI_AGENT_ID));
+        self.forget_request_elicitations(&ThreadAgentId::new(ATLAS_AGENT_ID));
         self.manager.drop_connection(&Agent::Native);
         self.forget_sessions_of(&Agent::Native);
     }
@@ -1553,7 +1618,7 @@ impl AgentHost {
             .map_err(|e| HostError::classified(e.to_string()))
     }
 
-    // Tool-output compression is gone (#54). It was a knob on the Cersei
+    // Tool-output compression is gone (#54). It was a knob on the old native
     // runtime's RTK tool-output compressor, and the engine has no counterpart —
     // a named casualty (D8). The command and its toggle went with it, rather
     // than leaving a control that silently does nothing.
@@ -2555,8 +2620,8 @@ pub fn icon_data_url(agent: &atlas_agent_store::RegistryAgent) -> Option<String>
 /// transcripts agents write for themselves, and knowing where those are is
 /// per-agent knowledge no protocol advertises.
 pub fn transcript_kind_for(plugin_id: &str) -> TranscriptKind {
-    if plugin_id == CERSEI_AGENT_ID {
-        return TranscriptKind::CerseiJson;
+    if plugin_id == ATLAS_AGENT_ID {
+        return TranscriptKind::Native;
     }
     TranscriptKind::None
 }
@@ -3007,11 +3072,11 @@ mod tests {
 
     impl AgentConnection for RebindingNative {
         fn agent_id(&self) -> atlas_acp_thread::AgentId {
-            atlas_acp_thread::AgentId::new(CERSEI_AGENT_ID)
+            atlas_acp_thread::AgentId::new(ATLAS_AGENT_ID)
         }
 
         fn telemetry_id(&self) -> Arc<str> {
-            CERSEI_AGENT_ID.into()
+            ATLAS_AGENT_ID.into()
         }
 
         fn new_session(
@@ -3088,7 +3153,7 @@ mod tests {
 
     impl AgentServer for RebindingNative {
         fn agent_id(&self) -> atlas_acp_thread::AgentId {
-            atlas_acp_thread::AgentId::new(CERSEI_AGENT_ID)
+            atlas_acp_thread::AgentId::new(ATLAS_AGENT_ID)
         }
 
         fn connect(
@@ -3126,11 +3191,11 @@ mod tests {
 
     impl AgentConnection for LiveNative {
         fn agent_id(&self) -> atlas_acp_thread::AgentId {
-            atlas_acp_thread::AgentId::new(CERSEI_AGENT_ID)
+            atlas_acp_thread::AgentId::new(ATLAS_AGENT_ID)
         }
 
         fn telemetry_id(&self) -> Arc<str> {
-            CERSEI_AGENT_ID.into()
+            ATLAS_AGENT_ID.into()
         }
 
         fn new_session(
@@ -3181,7 +3246,7 @@ mod tests {
 
     impl AgentServer for LiveNative {
         fn agent_id(&self) -> atlas_acp_thread::AgentId {
-            atlas_acp_thread::AgentId::new(CERSEI_AGENT_ID)
+            atlas_acp_thread::AgentId::new(ATLAS_AGENT_ID)
         }
 
         fn connect(
@@ -3230,7 +3295,7 @@ mod tests {
     #[tokio::test]
     async fn a_dropped_session_leaves_its_start_end_and_agent() {
         let (host, dir, project, record) = recording_host(LiveNative::new("s-drop"));
-        let agent_id = host.spawn(CERSEI_AGENT_ID).await.expect("spawn").agent_id;
+        let agent_id = host.spawn(ATLAS_AGENT_ID).await.expect("spawn").agent_id;
         host.new_session(agent_id, project.clone(), Vec::new())
             .await
             .expect("a session opens");
@@ -3244,7 +3309,7 @@ mod tests {
             record.sessions().unwrap(),
             vec![atlas_memory::record::SessionRow {
                 session_id: "s-drop".into(),
-                agent: CERSEI_AGENT_ID.into(),
+                agent: ATLAS_AGENT_ID.into(),
                 started_at: Some(100),
                 ended_at: Some(200),
             }],
@@ -3257,7 +3322,7 @@ mod tests {
     #[tokio::test]
     async fn an_agent_process_exit_ends_its_session() {
         let (host, dir, project, record) = recording_host(LiveNative::new("s-exit"));
-        let agent_id = host.spawn(CERSEI_AGENT_ID).await.expect("spawn").agent_id;
+        let agent_id = host.spawn(ATLAS_AGENT_ID).await.expect("spawn").agent_id;
         host.new_session(agent_id, project.clone(), Vec::new())
             .await
             .expect("a session opens");
@@ -3275,7 +3340,7 @@ mod tests {
         }
 
         let row = &record.sessions().unwrap()[0];
-        assert_eq!(row.agent, CERSEI_AGENT_ID);
+        assert_eq!(row.agent, ATLAS_AGENT_ID);
         assert_eq!((row.started_at, row.ended_at), (Some(100), Some(200)));
 
         // The tab closing afterwards does not end it a second time.
@@ -3295,7 +3360,7 @@ mod tests {
     #[tokio::test]
     async fn killing_an_agent_ends_its_sessions() {
         let (host, dir, project, record) = recording_host(LiveNative::new("s-kill"));
-        let agent_id = host.spawn(CERSEI_AGENT_ID).await.expect("spawn").agent_id;
+        let agent_id = host.spawn(ATLAS_AGENT_ID).await.expect("spawn").agent_id;
         host.new_session(agent_id, project.clone(), Vec::new())
             .await
             .expect("a session opens");
@@ -3318,7 +3383,7 @@ mod tests {
         });
         let (host, dir) = fresh_host_with_native(native);
 
-        let agent_id = host.spawn(CERSEI_AGENT_ID).await.expect("spawn").agent_id;
+        let agent_id = host.spawn(ATLAS_AGENT_ID).await.expect("spawn").agent_id;
         let init = host
             .new_session(agent_id, PathBuf::from("/tmp/atlas"), Vec::new())
             .await
@@ -3344,9 +3409,7 @@ mod tests {
         let native = Arc::new(RebindingNative { fresh_id: "s-1" });
         let (host, dir) = fresh_host_with_native(native);
 
-        host.spawn(CERSEI_AGENT_ID)
-            .await
-            .expect("native agent spawns");
+        host.spawn(ATLAS_AGENT_ID).await.expect("native agent spawns");
         // The Connecting→Connected flip runs on a spawned task; on the test's
         // current-thread runtime it needs the yield before `connected` sees it.
         tokio::task::yield_now().await;
@@ -3504,10 +3567,10 @@ mod tests {
         let history = host.history().expect("a fresh host has history");
 
         let thread = atlas_thread_metadata::ThreadMetadata {
-            session_id: Some(acp::SessionId::new("cersei-era-id")),
+            session_id: Some(acp::SessionId::new("pre-rename-id")),
             ..atlas_thread_metadata::ThreadMetadata::new(
                 atlas_thread_metadata::ThreadId::new(),
-                CERSEI_AGENT_ID.into(),
+                ATLAS_AGENT_ID.into(),
                 atlas_thread_metadata::PathList::new(&[PathBuf::from("/tmp/atlas")]),
             )
         };
@@ -3523,7 +3586,7 @@ mod tests {
         // The live feed's first write under the new id must land on the row
         // the user clicked, not mint a second one.
         history.record_connected(
-            &atlas_acp_thread::AgentId::new(CERSEI_AGENT_ID),
+            &atlas_acp_thread::AgentId::new(ATLAS_AGENT_ID),
             &acp::SessionId::new("engine-fresh-id"),
             atlas_thread_metadata::ThreadSnapshot {
                 is_draft: false,
@@ -3552,10 +3615,10 @@ mod tests {
 
         let plugins = host.list_plugins();
         assert_eq!(plugins.len(), 1, "one agent, and it is the native one");
-        assert_eq!(plugins[0].plugin_id, CERSEI_AGENT_ID);
+        assert_eq!(plugins[0].plugin_id, ATLAS_AGENT_ID);
         assert!(!plugins[0].external);
 
-        assert!(matches!(host.agent_for(CERSEI_AGENT_ID), Ok(Agent::Native)));
+        assert!(matches!(host.agent_for(ATLAS_AGENT_ID), Ok(Agent::Native)));
         for id in ["claude-code-ts", "codex", "opencode", "cursor", "kilo"] {
             let Err(err) = host.agent_for(id) else {
                 panic!("{id} must not be runnable");
@@ -3569,7 +3632,7 @@ mod tests {
         // Nothing has connected, so nothing is running and no capability is
         // claimed — capabilities only exist after `initialize`.
         assert!(host.list_agents().is_empty());
-        let caps = host.capabilities(CERSEI_AGENT_ID);
+        let caps = host.capabilities(ATLAS_AGENT_ID);
         assert!(caps.auth_kinds.is_empty());
         assert!(!caps.supports_logout);
         // `session/fork` has no equivalent on the ported seam, so this is
@@ -3661,7 +3724,7 @@ mod tests {
             .into_iter()
             .map(|plugin| plugin.plugin_id)
             .collect();
-        assert_eq!(ids, [CERSEI_AGENT_ID, "some-agent"]);
+        assert_eq!(ids, [ATLAS_AGENT_ID, "some-agent"]);
 
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -3695,10 +3758,7 @@ mod tests {
     /// rows reopen at all.
     #[test]
     fn only_the_native_agent_keeps_its_own_readable_transcript() {
-        assert_eq!(
-            transcript_kind_for(CERSEI_AGENT_ID),
-            TranscriptKind::CerseiJson
-        );
+        assert_eq!(transcript_kind_for(ATLAS_AGENT_ID), TranscriptKind::Native);
         for id in [
             "claude-code-ts",
             "claude-code",
@@ -3781,7 +3841,7 @@ mod tests {
     fn a_row_named_after_injected_memory_reads_as_the_default_title() {
         let mut row = ThreadMetadata::new(
             ThreadId::new(),
-            ThreadAgentId::new(CERSEI_AGENT_ID),
+            ThreadAgentId::new(ATLAS_AGENT_ID),
             PathList::default(),
         );
 

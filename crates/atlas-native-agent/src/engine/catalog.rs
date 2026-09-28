@@ -57,9 +57,9 @@ use std::path::PathBuf;
 
 use anyhow::Context;
 use anyhow::Result;
-use codex_protocol::openai_models::ModelsResponse;
-use serde_json::json;
+use atlas_engine_protocol::openai_models::ModelsResponse;
 use serde_json::Value;
+use serde_json::json;
 
 /// The file the engine reads the catalogue from.
 const CATALOG_FILE: &str = "models.json";
@@ -162,7 +162,7 @@ pub fn row(
         // is wrong on every row here — the trademark scrub that fixes it is its
         // own gated piece of work, and doing it inside the catalogue would put
         // a rewritten system prompt in a commit about model metadata.
-        "model_messages": { "instructions_template": codex_models_manager::model_info::BASE_INSTRUCTIONS.as_str() },
+        "model_messages": { "instructions_template": atlas_engine_models_manager::model_info::BASE_INSTRUCTIONS.as_str() },
         "include_skills_usage_instructions": true,
         // Both name surfaces that belong to the upstream product, not to Atlas.
         "include_plugin_usage_instructions": false,
@@ -195,19 +195,16 @@ pub async fn write_models_json(home: &Path, catalogue: &ModelsResponse) -> Resul
     tokio::fs::write(&tmp, body)
         .await
         .with_context(|| format!("writing the model catalogue to {}", tmp.display()))?;
-    tokio::fs::rename(&tmp, &path).await.with_context(|| {
-        format!(
-            "moving the model catalogue into place at {}",
-            path.display()
-        )
-    })?;
+    tokio::fs::rename(&tmp, &path)
+        .await
+        .with_context(|| format!("moving the model catalogue into place at {}", path.display()))?;
     Ok(path)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use codex_protocol::openai_models::ModelInfo;
+    use atlas_engine_protocol::openai_models::ModelInfo;
 
     fn parse(value: Value) -> ModelInfo {
         match serde_json::from_value(value) {
@@ -221,14 +218,7 @@ mod tests {
         // The whole point: the engine's remote fetch cannot read the gateway's
         // list, so this row is what the engine knows about a model. A row that
         // does not parse leaves the picker empty and no model selectable.
-        let model = parse(row(
-            "claude-opus-5",
-            "Claude Opus 5",
-            Some("big"),
-            Some(200_000),
-            None,
-            1,
-        ));
+        let model = parse(row("claude-opus-5", "Claude Opus 5", Some("big"), Some(200_000), None, 1));
         assert_eq!(model.slug, "claude-opus-5");
         assert_eq!(model.display_name, "Claude Opus 5");
         assert_eq!(model.description.as_deref(), Some("big"));
@@ -241,14 +231,7 @@ mod tests {
     fn a_row_without_metadata_still_parses_and_states_no_ceiling() {
         // What every row looks like until the gateway sends metadata: the
         // slug doubles as the name, and there is no window to compact against.
-        let model = parse(row(
-            "gemini-3.6-flash",
-            "gemini-3.6-flash",
-            None,
-            None,
-            None,
-            3,
-        ));
+        let model = parse(row("gemini-3.6-flash", "gemini-3.6-flash", None, None, None, 3));
         assert_eq!(model.description, None);
         assert_eq!(model.context_window, None);
         assert_eq!(model.max_context_window, None);
@@ -267,19 +250,10 @@ mod tests {
                 .map(|m| format!("{m:?}").to_ascii_lowercase())
                 .collect()
         };
-        let stated: Vec<String> = ["video", "image", "text", "audio"]
-            .iter()
-            .map(ToString::to_string)
-            .collect();
-        assert_eq!(
-            names(row("m", "m", None, None, Some(&stated), 1)),
-            ["image", "text", "audio"]
-        );
+        let stated: Vec<String> = ["video", "image", "text", "audio"].iter().map(ToString::to_string).collect();
+        assert_eq!(names(row("m", "m", None, None, Some(&stated), 1)), ["image", "text", "audio"]);
         let video_only: Vec<String> = vec!["video".to_string()];
-        assert_eq!(
-            names(row("m", "m", None, None, Some(&video_only), 1)),
-            ["text"]
-        );
+        assert_eq!(names(row("m", "m", None, None, Some(&video_only), 1)), ["text"]);
         assert_eq!(names(row("m", "m", None, None, None, 1)), ["text", "image"]);
     }
 
@@ -304,11 +278,7 @@ mod tests {
         // visible only as an agent that has forgotten how to do its job.
         let model = parse(row("m", "m", None, None, None, 1));
         let instructions = model.get_model_instructions(/*personality*/ None);
-        assert!(
-            instructions.len() > 1_000,
-            "no usable system prompt ({} bytes)",
-            instructions.len()
-        );
+        assert!(instructions.len() > 1_000, "no usable system prompt ({} bytes)", instructions.len());
     }
 
     #[test]
@@ -316,9 +286,7 @@ mod tests {
         // The dialect flattens freeform tools and turns the reply back, so this
         // stays on. If that round trip is ever removed, this row becomes a tool
         // the model is offered and cannot successfully call.
-        assert!(parse(row("m", "m", None, None, None, 1))
-            .apply_patch_tool_type
-            .is_some());
+        assert!(parse(row("m", "m", None, None, None, 1)).apply_patch_tool_type.is_some());
     }
 
     #[tokio::test]
@@ -336,10 +304,7 @@ mod tests {
             panic!("the catalogue must be writable");
         };
         assert!(path.is_file());
-        assert_eq!(
-            path.file_name().and_then(|n| n.to_str()),
-            Some(CATALOG_FILE)
-        );
+        assert_eq!(path.file_name().and_then(|n| n.to_str()), Some(CATALOG_FILE));
 
         // Round-trips through disk, which is the path the engine takes.
         let Ok(body) = std::fs::read_to_string(&path) else {

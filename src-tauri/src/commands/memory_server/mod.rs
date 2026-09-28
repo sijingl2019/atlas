@@ -42,6 +42,9 @@ pub use offers::{MemorySessionOffers, OfferDecision};
 #[allow(unused_imports)]
 pub(crate) use tokens::require_token;
 pub use tokens::{Grant, MemoryTokens};
+/// How long an agent may cache a `tools/list` answer; the UI tool server
+/// answers under the same rule.
+pub(crate) use tools::TOOLS_LIST_TTL_MS;
 #[allow(unused_imports)]
 pub use tools::{
     Bootstrap, BootstrapSource, DocumentsShown, IndexDoc, IndexEvict, IndexSearch, INSTRUCTIONS,

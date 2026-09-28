@@ -599,7 +599,7 @@ impl SessionMcpServers for SubagentSessionOffers {
         };
         let cwd = request.cwd.to_string_lossy().into_owned();
         let tokens = self.host.tokens().clone();
-        let token = tokens.mint_unbound(&agent, &cwd);
+        let token = tokens.mint_unbound(&agent, &cwd, None, false);
         let server = acp::McpServer::Http(
             acp::McpServerHttp::new(AGENTS_SERVER_NAME, url).headers(vec![acp::HttpHeader::new(
                 "Authorization",

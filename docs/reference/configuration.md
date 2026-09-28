@@ -116,13 +116,25 @@ enterToSend = true
 # session. (default: false)
 graphDefault3d = false
 
-# The agent a new chat starts on, by agentType: "cersei" is the
-# native Atlas Agent, "claude-code" / "codex" are the first-party
-# ACP agents, and an installed external agent uses its plugin id.
+# The agent a new chat starts on, by agentType: "atlas-agent" is the
+# native Atlas Agent, a first-party ACP agent uses its own id
+# (e.g. "claude-code"), and an installed external agent uses its plugin id.
 # Settings only offers agents you have installed; an id that is
 # unknown or no longer installed falls back to the native agent.
-# (default: "cersei")
-defaultAgent = "cersei"
+# (default: "atlas-agent")
+defaultAgent = "atlas-agent"
+# Let Atlas Agent act on the window: open files at a line, switch tabs
+# and panels, fill in a chat message, type a command for you to run.
+# It never switches projects, sends for you or presses Enter. Off: its
+# UI tools are withdrawn and every call is refused. (default: true)
+agentUiNavigation = true
+
+# Let Atlas Agent act in your organisation, as you: read the recorded
+# sessions, comments, members and conversations of the organisation a
+# cloud-bound Project belongs to. Anything that reaches another person
+# asks you first. Off: its organisation tools are withdrawn and every
+# call is refused. (default: true)
+agentOrgAccess = true
 
 # Terminal notifications: a command that fails, runs longer than
 # terminalNotifyMinDurationMs, or asks for input raises an in-app
@@ -202,7 +214,9 @@ wrote; `toml_edit` just preserves whatever comments are already there.
 | `updaterIgnoredVersion` | string, or absent | absent | — |
 | `enterToSend` | boolean | `true` | — |
 | `graphDefault3d` | boolean | `false` | — |
-| `defaultAgent` | string | `"cersei"` | any `agentType`; one that is unknown or no longer installed falls back to the native agent |
+| `defaultAgent` | string | `"atlas-agent"` | any `agentType`; one that is unknown or no longer installed falls back to the native agent |
+| `agentUiNavigation` | boolean | `true` | — |
+| `agentOrgAccess` | boolean | `true` | — |
 | `terminalNotifications` | boolean | `true` | — |
 | `terminalNotifyMinDurationMs` | integer | `10000` | 0 ≤ n ≤ 3600000 |
 | `terminalNotifyOnFailure` | boolean | `true` | — |

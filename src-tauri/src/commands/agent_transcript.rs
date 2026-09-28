@@ -586,7 +586,7 @@ mod tests {
         // chunks persisted every assistant reply cut off after a few words —
         // which is exactly how a reopened native-agent session painted.
         let st = TranscriptState::new(tmp());
-        st.note_prompt("s", "/w", "cersei", "explain this", Vec::new(), "t0".into());
+        st.note_prompt("s", "/w", "atlas-agent", "explain this", Vec::new(), "t0".into());
         st.note_message("s", "assistant", "The", None, Some("m1"), "t1".into());
         st.note_text_chunk("s", "m1", " whole", "t2".into());
         st.note_text_chunk("s", "m1", " answer.", "t3".into());
@@ -599,7 +599,7 @@ mod tests {
         // The run's `MessageAppended` can arrive with empty text and no
         // recordable content; the chunks that follow are the reply.
         let st = TranscriptState::new(tmp());
-        st.note_prompt("s", "/w", "cersei", "q", Vec::new(), "t0".into());
+        st.note_prompt("s", "/w", "atlas-agent", "q", Vec::new(), "t0".into());
         st.note_text_chunk("s", "m9", "late text", "t1".into());
         let snap = st.snapshot("s").unwrap();
         assert_eq!(snap.messages[1].content, "late text");
@@ -613,7 +613,7 @@ mod tests {
         // paint an empty bubble, so it must not reach disk.
         let dir = tmp();
         let st = TranscriptState::new(tmp());
-        st.note_prompt("s", "/w", "cersei", "q", Vec::new(), "t0".into());
+        st.note_prompt("s", "/w", "atlas-agent", "q", Vec::new(), "t0".into());
         st.note_message("s", "assistant", "", None, Some("thought-1"), "t1".into());
         st.note_message("s", "assistant", "real", None, Some("m2"), "t2".into());
         save(&dir, &st.snapshot("s").unwrap()).unwrap();

@@ -53,6 +53,23 @@ impl MemoryServer {
         gate: SharingGate,
         sources: Sources,
     ) -> std::io::Result<Self> {
+        Self::start_with(memory, tokens, clocks, reads, gate, sources, Vec::new()).await
+    }
+
+    /// [`start`](Self::start), also serving each of `mounts` — another MCP
+    /// service already routed at its own path, such as the UI tool server at
+    /// `/ui` — on the same listener and behind the same token check. One
+    /// listener means one token per session covers every service: the token
+    /// table holds one token per session, so a second would revoke the first.
+    pub async fn start_with(
+        memory: SharedMemoryStore,
+        tokens: Arc<MemoryTokens>,
+        clocks: Arc<SessionClocks>,
+        reads: Arc<SessionReads>,
+        gate: SharingGate,
+        sources: Sources,
+        mounts: Vec<axum::Router>,
+    ) -> std::io::Result<Self> {
         let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0)).await?;
         let addr = listener.local_addr()?;
         let tools = MemoryTools::new(memory, gate, clocks, reads, sources);
@@ -61,8 +78,10 @@ impl MemoryServer {
             Arc::new(LocalSessionManager::default()),
             StreamableHttpServerConfig::default(),
         );
-        let router = axum::Router::new()
-            .nest_service(MCP_PATH, service)
+        let router = mounts
+            .into_iter()
+            .fold(axum::Router::new().nest_service(MCP_PATH, service), axum::Router::merge)
+            // Last, so it wraps every mounted service too.
             .layer(middleware::from_fn_with_state(tokens, require_token));
         let (stop, stopped) = oneshot::channel::<()>();
         tokio::spawn(async move {
@@ -76,15 +95,17 @@ impl MemoryServer {
             }
         });
         tracing::info!(target: "atlas::memory_server", "memory tool server on http://{addr}{MCP_PATH}");
-        Ok(Self {
-            addr,
-            stop: Some(stop),
-        })
+        Ok(Self { addr, stop: Some(stop) })
     }
 
     /// The MCP endpoint, e.g. `http://127.0.0.1:53124/mcp`.
     pub fn url(&self) -> String {
         format!("http://{}{MCP_PATH}", self.addr)
+    }
+
+    /// The endpoint of a service mounted at `path`, e.g. `url_at("/ui")`.
+    pub fn url_at(&self, path: &str) -> String {
+        format!("http://{}{path}", self.addr)
     }
 
     /// Stop serving.
@@ -128,8 +149,9 @@ impl MemoryServerHost {
         &self.clocks
     }
 
-    /// Which sessions have read memory, and which have been told they did not
-    /// (dropped by the session lifecycle when the session ends).
+    /// Which sessions have read memory. Only the tests ask any more; the
+    /// dispatcher still records reads so that distinction stays pinned.
+    #[cfg(test)]
     pub fn reads(&self) -> &Arc<SessionReads> {
         &self.reads
     }
@@ -140,34 +162,45 @@ impl MemoryServerHost {
         self.server.get().map(MemoryServer::url)
     }
 
-    /// Start the server on the async runtime; returns at once. A failure to
-    /// bind is logged and leaves [`url`](Self::url) `None`.
-    pub fn start(self: &Arc<Self>, memory: SharedMemoryStore, gate: SharingGate, sources: Sources) {
+    /// The endpoint of a service mounted at `path`, once the server has bound.
+    pub fn url_at(&self, path: &str) -> Option<String> {
+        self.server.get().map(|s| s.url_at(path))
+    }
+
+    /// Start the server on the async runtime, with `mounts` served beside the
+    /// memory tools; returns at once. A failure to bind is logged and leaves
+    /// [`url`](Self::url) `None`.
+    pub fn start(
+        self: &Arc<Self>,
+        memory: SharedMemoryStore,
+        gate: SharingGate,
+        sources: Sources,
+        mounts: Vec<axum::Router>,
+    ) {
         let host = self.clone();
         tauri::async_runtime::spawn(async move {
-            let started = MemoryServer::start(
+            let started = MemoryServer::start_with(
                 memory,
                 host.tokens.clone(),
                 host.clocks.clone(),
                 host.reads.clone(),
                 gate,
                 sources,
+                mounts,
             )
             .await;
             match started {
                 Ok(server) => {
                     let _ = host.server.set(server);
                 }
-                Err(e) => {
-                    tracing::warn!(target: "atlas::memory_server", "memory tool server did not start: {e}")
-                }
+                Err(e) => tracing::warn!(target: "atlas::memory_server", "memory tool server did not start: {e}"),
             }
         });
     }
 
     /// A server that is already running, for tests.
     #[cfg(test)]
-    pub(super) fn adopt(&self, server: MemoryServer) {
+    pub(crate) fn adopt(&self, server: MemoryServer) {
         let _ = self.server.set(server);
     }
 }

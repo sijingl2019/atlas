@@ -5,6 +5,7 @@ import { Hint } from "@/ui/tooltip";
 import { invoke } from "@tauri-apps/api/core";
 import { useExplorerStore } from "@/features/explorer/stores/explorer-store";
 import { useLayoutStore } from "@/features/layout/stores/layout-store";
+import { openFile } from "@/lib/open-file";
 import { useSessionStore } from "@/features/app/stores/session-store";
 import { useAppStore } from "@/features/app/stores/app-store";
 import { Search, FileCode, Clock, X, BookOpen } from "lucide-react";
@@ -49,7 +50,6 @@ export function SearchOverlay({
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const rootPath = useExplorerStore.use.rootPath();
-  const { addTab } = useLayoutStore.use.actions();
   const session = useSessionStore.use.session();
   const { addSearchHistory, removeSearchHistory, clearSearchHistory, saveSession } =
     useSessionStore.use.actions();
@@ -149,14 +149,7 @@ export function SearchOverlay({
 
   const openResult = (result: SearchResult) => {
     const fullPath = rootPath ? `${rootPath}/${result.file_path}` : result.file_path;
-    addTab({
-      id: `editor-${fullPath}`,
-      type: "editor",
-      title: result.file_path.split("/").pop() ?? "file",
-      closable: true,
-      dirty: false,
-      data: { filePath: fullPath },
-    });
+    void openFile(fullPath, { reveal: { line: result.line } });
     onOpenChange(false);
   };
 

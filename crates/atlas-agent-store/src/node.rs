@@ -123,10 +123,7 @@ impl NodeRuntime {
     /// Callers that will go on to run npm call this first, so the user sees
     /// "Downloading Node.js…" during the one step that can take minutes rather
     /// than a bare "Starting …". When Node is already present nothing is sent.
-    pub async fn ensure_installed(
-        &self,
-        loading_status: Option<&LoadingStatus>,
-    ) -> Result<PathBuf> {
+    pub async fn ensure_installed(&self, loading_status: Option<&LoadingStatus>) -> Result<PathBuf> {
         self.install_if_needed(loading_status).await
     }
 
@@ -142,18 +139,14 @@ impl NodeRuntime {
     ) -> Result<Output> {
         let node_dir = self.install_if_needed(None).await?;
 
-        let mut output = self
-            .npm_attempt(&node_dir, directory, subcommand, args)
-            .await;
+        let mut output = self.npm_attempt(&node_dir, directory, subcommand, args).await;
         // Retry spawn/IO failures only. A timeout already waited ten minutes;
         // doing it again would double the hang the deadline exists to end.
         if output
             .as_ref()
             .is_err_and(|error| !error.is::<NpmTimedOut>())
         {
-            output = self
-                .npm_attempt(&node_dir, directory, subcommand, args)
-                .await;
+            output = self.npm_attempt(&node_dir, directory, subcommand, args).await;
         }
         let output = output.with_context(|| format!("launching npm {subcommand}"))?;
 
@@ -185,9 +178,7 @@ impl NodeRuntime {
         );
 
         let mut command = atlas_process::async_command(&node_binary);
-        command.args(npm_command_args(
-            &npm_file, node_dir, directory, subcommand, args,
-        ));
+        command.args(npm_command_args(&npm_file, node_dir, directory, subcommand, args));
         command.envs(npm_command_env(&node_binary));
         for key in inherited_npm_config_keys(std::env::vars_os().map(|(key, _)| key)) {
             command.env_remove(key);
@@ -282,8 +273,8 @@ impl NodeRuntime {
 
             // A fresh runtime starts with a fresh npm cache. This is the only
             // place the cache is wiped: keeping it across launches is what lets
-            // `--prefer-offline` answer an already-installed package without a
-            // registry round-trip.
+            // an install revalidate metadata instead of re-downloading tarballs,
+            // and lets an offline host fall back to what it already fetched.
             let _ = tokio::fs::remove_dir_all(node_dir.join("cache")).await;
         }
 
@@ -414,13 +405,16 @@ fn inherited_npm_config_keys(
 /// platform tarball alone is 220 MB. Note `fetch-timeout` is npm's per-socket
 /// *idle* timeout (`@npmcli/agent` maps it to `timeouts.idle`), not a transfer
 /// cap — it ends a stalled socket, never a slow download; the whole-invocation
-/// deadline is [`npm_timeout`]. `--prefer-offline` makes a warm cache skip the
-/// registry entirely, and audit/fund are two more round-trips that answer
-/// nothing we act on.
+/// deadline is [`npm_timeout`]. Audit/fund are two more round-trips that
+/// answer nothing we act on.
+///
+/// No cache policy here (`--prefer-offline` / `--prefer-online`): each caller
+/// picks its own, because npm resolves the two by precedence rather than by
+/// order — with both on the line `--prefer-offline` wins, so a default here
+/// silently overrode every caller that asked to go online.
 const NPM_FETCH_ARGS: &[&str] = &[
     "--no-audit",
     "--no-fund",
-    "--prefer-offline",
     "--fetch-timeout",
     "300000",
     "--fetch-retries",
@@ -449,12 +443,7 @@ fn npm_command_args(
     command_args.push(subcommand.to_string());
     command_args.push(format!("--cache={}", node_dir.join("cache").display()));
     command_args.push("--userconfig".into());
-    command_args.push(
-        node_dir
-            .join("blank_user_npmrc")
-            .to_string_lossy()
-            .into_owned(),
-    );
+    command_args.push(node_dir.join("blank_user_npmrc").to_string_lossy().into_owned());
     command_args.push("--globalconfig".into());
     command_args.push(
         node_dir
@@ -462,16 +451,7 @@ fn npm_command_args(
             .to_string_lossy()
             .into_owned(),
     );
-    // A caller asking for `--prefer-online` must not also get our
-    // `--prefer-offline`: with both set npm honours offline, so the online
-    // request was silently a no-op.
-    let online = args.contains(&"--prefer-online");
-    command_args.extend(
-        NPM_FETCH_ARGS
-            .iter()
-            .filter(|a| !(online && **a == "--prefer-offline"))
-            .map(std::string::ToString::to_string),
-    );
+    command_args.extend(NPM_FETCH_ARGS.iter().map(std::string::ToString::to_string));
     command_args.extend(args.iter().map(std::string::ToString::to_string));
     command_args
 }
@@ -508,7 +488,8 @@ fn path_with_node_binary_prepended(node_binary: &Path) -> Option<String> {
     let existing = std::env::var_os("PATH");
     let joined = match &existing {
         Some(existing) => std::env::join_paths(
-            std::iter::once(node_bin_dir.to_path_buf()).chain(std::env::split_paths(existing)),
+            std::iter::once(node_bin_dir.to_path_buf())
+                .chain(std::env::split_paths(existing)),
         )
         .ok()?,
         None => node_bin_dir.as_os_str().to_owned(),
@@ -621,6 +602,22 @@ pub fn installed_version_satisfies(installed: &str, wanted_spec: &str) -> bool {
     }
 }
 
+/// Whether `installed` is strictly older than the version `wanted_spec` names.
+///
+/// The ceiling check lets any older copy through on purpose — an offline host
+/// can keep running the version it has. But npm resolves the bounded range
+/// against whatever packument it has, and one cached before the wanted
+/// release was published makes it install an older version and exit 0. This
+/// is how the caller tells "npm gave us the release the registry asked for"
+/// from "npm gave us whatever its cache knew about".
+/// A spec with no ceiling, or a version that does not parse, is never below.
+pub fn installed_below_ceiling(installed: &str, wanted_spec: &str) -> bool {
+    let Some(ceiling) = package_spec_ceiling(wanted_spec) else {
+        return false;
+    };
+    Version::parse(installed.trim()).is_ok_and(|installed| installed < ceiling)
+}
+
 /// The `version` an installed npm package declares, or `None` when it is not
 /// installed or its `package.json` does not parse.
 pub async fn installed_package_version(node_modules_dir: &Path, name: &str) -> Option<String> {
@@ -634,6 +631,7 @@ pub async fn installed_package_version(node_modules_dir: &Path, name: &str) -> O
     let package_json: PackageJson = serde_json::from_str(&contents).ok()?;
     Some(package_json.version.unwrap_or_default())
 }
+
 
 /// The SHA-256 nodejs.org publishes for `file_name`.
 ///
@@ -716,7 +714,10 @@ mod tests {
 
         // A well-formed listing that names the right file — with the digest of
         // something else entirely.
-        let listing = format!("{}  {file_name}\n", "1".repeat(64),);
+        let listing = format!(
+            "{}  {file_name}\n",
+            "1".repeat(64),
+        );
 
         let mut routes = HashMap::new();
         routes.insert(
@@ -798,6 +799,17 @@ mod tests {
     }
 
     #[test]
+    fn below_ceiling_is_strict_and_needs_a_ceiling() {
+        assert!(installed_below_ceiling("0.76.0", "@scope/pkg@0.81.2"));
+        assert!(installed_below_ceiling("0.81.2-preview.1", "pkg@0.81.2"));
+        assert!(!installed_below_ceiling("0.81.2", "pkg@0.81.2"));
+        assert!(!installed_below_ceiling("0.81.3", "pkg@0.81.2"));
+        assert!(!installed_below_ceiling("0.1.0", "pkg@latest"));
+        assert!(!installed_below_ceiling("0.1.0", "pkg"));
+        assert!(!installed_below_ceiling("garbage", "pkg@1.0.0"));
+    }
+
+    #[test]
     fn unparseable_installed_version_forces_a_reinstall() {
         assert!(!installed_version_satisfies("", "pkg@1.2.3"));
         assert!(!installed_version_satisfies("garbage", "pkg@1.2.3"));
@@ -824,57 +836,24 @@ mod tests {
         );
 
         let joined = args.join(" ");
-        assert!(
-            joined.starts_with(&format!(
-                "{} --prefix /opt/atlas/npx/codex install --cache=/opt/atlas/node/node-v24/cache \
+        assert!(joined.starts_with(&format!(
+            "{} --prefix /opt/atlas/npx/codex install --cache=/opt/atlas/node/node-v24/cache \
              --userconfig /opt/atlas/node/node-v24/blank_user_npmrc \
              --globalconfig /opt/atlas/node/node-v24/blank_global_npmrc ",
-                npm.display()
-            )),
-            "got {joined}"
-        );
-        assert!(
-            joined.contains(
-                "--no-audit --no-fund --prefer-offline --fetch-timeout 300000 --fetch-retries 2 \
+            npm.display()
+        )), "got {joined}");
+        assert!(joined.contains(
+            "--no-audit --no-fund --fetch-timeout 300000 --fetch-retries 2 \
              --fetch-retry-mintimeout 2000 --fetch-retry-maxtimeout 10000"
-            ),
-            "got {joined}"
-        );
+        ), "got {joined}");
         // The caller's own args come last.
-        assert_eq!(
-            &args[args.len() - 2..],
-            ["codex-acp@0.0.0 - 1.0.0", "--save-exact"]
-        );
-    }
-
-    #[test]
-    fn prefer_online_replaces_prefer_offline() {
-        let node_dir = Path::new("/opt/atlas/node/node-v24");
-        let args = npm_command_args(
-            &node_dir.join("bin/npm"),
-            node_dir,
-            None,
-            "install",
-            &["pkg@1.0.0", "--prefer-online"],
-        );
-        assert!(
-            !args.iter().any(|a| a == "--prefer-offline"),
-            "got {args:?}"
-        );
-        assert!(args.iter().any(|a| a == "--prefer-online"));
+        assert_eq!(&args[args.len() - 2..], ["codex-acp@0.0.0 - 1.0.0", "--save-exact"]);
     }
 
     #[test]
     fn inherited_npm_config_and_node_env_are_stripped_case_insensitively() {
-        let keys = [
-            "npm_config_omit",
-            "NPM_CONFIG_ARCH",
-            "NODE_ENV",
-            "HOME",
-            "PATH",
-            "node_env",
-        ]
-        .map(std::ffi::OsString::from);
+        let keys = ["npm_config_omit", "NPM_CONFIG_ARCH", "NODE_ENV", "HOME", "PATH", "node_env"]
+            .map(std::ffi::OsString::from);
         let stripped = inherited_npm_config_keys(keys);
         assert_eq!(
             stripped,

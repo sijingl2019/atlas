@@ -98,16 +98,39 @@ describe("snapshotMessageToWire", () => {
       message({
         role: "user",
         content: "",
-        attachments: [{ mimeType: "image/png", dataBase64: "aGVsbG8=" }],
+        images: [{ mime_type: "image/png", data: "aGVsbG8=" }],
       }),
     );
 
     expect(wire.attachments).toEqual([{ mimeType: "image/png", dataBase64: "aGVsbG8=" }]);
   });
 
-  it("leaves attachments empty when there are none", () => {
+  it("leaves attachments off when there are none", () => {
     const wire = snapshotMessageToWire(message({ role: "user", content: "hi" }));
 
-    expect(wire.attachments).toEqual([]);
+    expect(wire.attachments).toBeUndefined();
+  });
+});
+
+/**
+ * A reopened conversation used to show the text `Image` where a picture had
+ * been: the snapshot flattened it. The images now ride the snapshot, and the
+ * adapter hands them to the store in the shape the sent message had.
+ */
+describe("snapshotMessageToWire images", () => {
+  it("maps a user message's images to attachments", () => {
+    const wire = snapshotMessageToWire(
+      message({
+        role: "user",
+        mode: "text",
+        content: "can you see this?",
+        images: [{ mime_type: "image/png", data: "iVBORw0K" }],
+      }),
+    );
+    expect(wire.attachments).toEqual([{ mimeType: "image/png", dataBase64: "iVBORw0K" }]);
+  });
+
+  it("adds no attachments key when there are no images", () => {
+    expect(snapshotMessageToWire(message())).not.toHaveProperty("attachments");
   });
 });

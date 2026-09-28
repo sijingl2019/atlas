@@ -355,15 +355,26 @@ pub struct AppSettings {
     /// session. Default OFF.
     #[serde(default)]
     pub graph_default_3d: bool,
-    /// The agent a BRAND-NEW chat starts on, by `agentType`: `"cersei"` for
-    /// the native Atlas Agent, `"claude-code"` / `"codex"` for the first-party
+    /// The agent a BRAND-NEW chat starts on, by `agentType`: `"atlas-agent"` for
+    /// the native Atlas Agent, `"claude-code"` etc. for the first-party
     /// ACP agents, or an installed external agent's plugin id. The frontend
     /// resolves it against the installed catalog and falls back to the native
     /// agent when the id is unknown or no longer installed, so a stale value
     /// here can never wedge a fresh chat on an agent the user does not have.
-    /// Default `"cersei"`: the one agent every profile is guaranteed to have.
+    /// Default `"atlas-agent"`: the one agent every profile is guaranteed to have.
     #[serde(default = "default_agent_id")]
     pub default_agent: String,
+    /// Let Atlas Agent act on the window through the UI tool server
+    /// (ADR-0012). Off: sessions are not offered the server and every call in
+    /// a running one is refused. Default ON.
+    #[serde(default = "default_true")]
+    pub agent_ui_navigation: bool,
+    /// Let Atlas Agent act in the organisation the session's Project is bound
+    /// to, through the organisation tool server (ADR-0014). Off: sessions are
+    /// not offered the server and every call in a running one is refused.
+    /// Default ON.
+    #[serde(default = "default_true")]
+    pub agent_org_access: bool,
     /// Terminal notifications master switch. A command that fails, runs
     /// longer than `terminal_notify_min_duration_ms`, or asks for input raises
     /// an in-app notification, a toast when its terminal is off screen and a
@@ -426,7 +437,7 @@ pub fn default_embedding_model() -> String {
 /// agent a fresh profile is guaranteed to have, which is why it is the
 /// default for a new chat.
 pub fn default_agent_id() -> String {
-    "cersei".to_string()
+    "atlas-agent".to_string()
 }
 
 pub fn default_terminal_font_size() -> u32 {
@@ -483,6 +494,8 @@ impl Default for AppSettings {
             enter_to_send: true,
             graph_default_3d: false,
             default_agent: default_agent_id(),
+            agent_ui_navigation: true,
+            agent_org_access: true,
             terminal_notifications: true,
             terminal_notify_min_duration_ms: default_terminal_notify_min_duration_ms(),
             terminal_notify_on_failure: true,
@@ -651,12 +664,27 @@ const SETTINGS_DOCS: &[(&str, &str)] = &[
     ),
     (
         "defaultAgent",
-        "# The agent a new chat starts on, by agentType: \"cersei\" is the\n\
-         # native Atlas Agent, \"claude-code\" / \"codex\" are the first-party\n\
-         # ACP agents, and an installed external agent uses its plugin id.\n\
+        "# The agent a new chat starts on, by agentType: \"atlas-agent\" is the\n\
+         # native Atlas Agent, a first-party ACP agent uses its own id\n\
+         # (e.g. \"claude-code\"), and an installed external agent uses its plugin id.\n\
          # Settings only offers agents you have installed; an id that is\n\
          # unknown or no longer installed falls back to the native agent.\n\
-         # (default: \"cersei\")",
+         # (default: \"atlas-agent\")",
+    ),
+    (
+        "agentUiNavigation",
+        "# Let Atlas Agent act on the window: open files at a line, switch tabs\n\
+         # and panels, fill in a chat message, type a command for you to run.\n\
+         # It never switches projects, sends for you or presses Enter. Off: its\n\
+         # UI tools are withdrawn and every call is refused. (default: true)",
+    ),
+    (
+        "agentOrgAccess",
+        "# Let Atlas Agent act in your organisation, as you: read the recorded\n\
+         # sessions, comments, members and conversations of the organisation a\n\
+         # cloud-bound Project belongs to. Anything that reaches another person\n\
+         # asks you first. Off: its organisation tools are withdrawn and every\n\
+         # call is refused. (default: true)",
     ),
     (
         "terminalNotifications",
@@ -1024,6 +1052,8 @@ pub struct SettingsPatch {
     pub enter_to_send: Option<bool>,
     pub graph_default_3d: Option<bool>,
     pub default_agent: Option<String>,
+    pub agent_ui_navigation: Option<bool>,
+    pub agent_org_access: Option<bool>,
     pub terminal_notifications: Option<bool>,
     pub terminal_notify_min_duration_ms: Option<u32>,
     pub terminal_notify_on_failure: Option<bool>,
@@ -1102,6 +1132,12 @@ impl SettingsPatch {
         if let Some(v) = &self.default_agent {
             settings.default_agent = v.clone();
         }
+        if let Some(v) = self.agent_ui_navigation {
+            settings.agent_ui_navigation = v;
+        }
+        if let Some(v) = self.agent_org_access {
+            settings.agent_org_access = v;
+        }
         if let Some(v) = self.terminal_notifications {
             settings.terminal_notifications = v;
         }
@@ -1169,6 +1205,8 @@ impl SettingsPatch {
         if let Some(v) = &self.default_agent {
             table["defaultAgent"] = toml_edit::value(v.as_str());
         }
+        set_bool!(agent_ui_navigation, "agentUiNavigation");
+        set_bool!(agent_org_access, "agentOrgAccess");
         set_bool!(terminal_notifications, "terminalNotifications");
         set_bool!(terminal_notify_on_failure, "terminalNotifyOnFailure");
         set_bool!(terminal_notify_on_attention, "terminalNotifyOnAttention");
@@ -1285,6 +1323,8 @@ pub fn settings_from_legacy_json(raw: Option<&serde_json::Value>) -> AppSettings
     take_bool!(auto_update, "autoUpdate");
     take_bool!(curated_plugin_sync, "curatedPluginSync");
     take_bool!(enter_to_send, "enterToSend");
+    take_bool!(agent_ui_navigation, "agentUiNavigation");
+    take_bool!(agent_org_access, "agentOrgAccess");
 
     if let Some(v) = raw.get("uiScale").and_then(serde_json::Value::as_f64) {
         let v = v as f32;
@@ -2175,6 +2215,32 @@ mod tests {
         assert!(validate(&AppSettings::default()).is_ok());
     }
 
+    /// ADR-0012: on unless the user switched it off, and a file that predates
+    /// the key reads as on.
+    #[test]
+    fn agent_ui_navigation_is_on_by_default_and_read_from_the_file() {
+        assert!(AppSettings::default().agent_ui_navigation);
+        let (_dir, path) = tmp_config_path();
+        let mgr = ConfigManager::from_raw(path, "schemaVersion = 1\n\n[settings]\nenterToSend = false\n").unwrap();
+        assert!(mgr.effective().agent_ui_navigation);
+        let (_dir, path) = tmp_config_path();
+        let mgr = ConfigManager::from_raw(path, "schemaVersion = 1\n\n[settings]\nagentUiNavigation = false\n").unwrap();
+        assert!(!mgr.effective().agent_ui_navigation);
+    }
+
+    /// ADR-0014: on unless the user switched it off, and a file that predates
+    /// the key reads as on.
+    #[test]
+    fn agent_org_access_is_on_by_default_and_read_from_the_file() {
+        assert!(AppSettings::default().agent_org_access);
+        let (_dir, path) = tmp_config_path();
+        let mgr = ConfigManager::from_raw(path, "schemaVersion = 1\n\n[settings]\nenterToSend = false\n").unwrap();
+        assert!(mgr.effective().agent_org_access);
+        let (_dir, path) = tmp_config_path();
+        let mgr = ConfigManager::from_raw(path, "schemaVersion = 1\n\n[settings]\nagentOrgAccess = false\n").unwrap();
+        assert!(!mgr.effective().agent_org_access);
+    }
+
     #[test]
     fn missing_keys_fall_back_to_defaults() {
         let (_dir, path) = tmp_config_path();
@@ -2555,6 +2621,8 @@ someFutureKey = \"left alone\"
             curated_plugin_sync: Some(!defaults.curated_plugin_sync),
             updater_ignored_version: Some(Some("9.9.9".to_string())),
             enter_to_send: Some(!defaults.enter_to_send),
+            agent_ui_navigation: Some(!defaults.agent_ui_navigation),
+            agent_org_access: Some(!defaults.agent_org_access),
             terminal_notifications: Some(!defaults.terminal_notifications),
             terminal_notify_min_duration_ms: Some(defaults.terminal_notify_min_duration_ms + 1),
             terminal_notify_on_failure: Some(!defaults.terminal_notify_on_failure),

@@ -18,6 +18,7 @@ use tokio::sync::{broadcast, mpsc};
 
 use crate::conn::{self, ConnEvent, ExitReason};
 use crate::error::Result;
+use crate::CommsError;
 use crate::events::{CommsEnvelope, CommsEvent, ConnReason, ConnectionState, WireMessage};
 use crate::rest::RestClient;
 use crate::state::{
@@ -25,8 +26,7 @@ use crate::state::{
     SendStatus, StateDelta,
 };
 use crate::store::CommsStore;
-use crate::wire::{ClientFrame, Message, ReactionRow, ServerFrame, CHAT_TYPING_INTERVAL_MS};
-use crate::CommsError;
+use crate::wire::{SessionReference, ClientFrame, Message, ReactionRow, ServerFrame, CHAT_TYPING_INTERVAL_MS};
 use crate::{chat_base, socket_url, OrgTarget, TokenSource};
 
 const RECONNECT_BASE_MS: u64 = 1_000;
@@ -749,6 +749,7 @@ impl CommsManager {
                 reply_to_id: sent.reply_to_id.clone(),
                 attachments: sent.attachments.clone(),
                 code_refs: Vec::new(),
+                artifact_refs: sent.artifact_refs.clone(),
             });
         }
     }
@@ -756,6 +757,11 @@ impl CommsManager {
     // -- outbound ------------------------------------------------------------
 
     /// Write a message. Returns the `client_msg_id` that identifies it.
+    ///
+    /// `artifact_refs` are the recorded sessions and checkpoints it points at
+    /// (at most [`CHAT_MESSAGE_ARTIFACT_REF_MAX`](crate::wire::CHAT_MESSAGE_ARTIFACT_REF_MAX)),
+    /// kept on the optimistic row so the card draws at once, and on the
+    /// pending send so a resend carries them too.
     ///
     /// The optimistic row is created here, in Rust, because the `ack` carries
     /// only ids — the body has to be remembered somewhere, and splitting that
@@ -771,6 +777,7 @@ impl CommsManager {
         body: String,
         reply_to_id: Option<String>,
         attachments: Vec<String>,
+        artifact_refs: Vec<SessionReference>,
     ) -> Result<String> {
         if self.session().is_none() {
             return Err(CommsError::Protocol("no organisation is connected".into()));
@@ -806,6 +813,7 @@ impl CommsManager {
             created_at: now,
             attachments: self.attachment_meta(&attachments),
             code_refs: Vec::new(),
+            artifact_refs: artifact_refs.clone(),
             draft_id: None,
         };
 
@@ -817,6 +825,7 @@ impl CommsManager {
                 body: body.clone(),
                 reply_to_id: reply_to_id.clone(),
                 attachments: attachments.clone(),
+                artifact_refs: artifact_refs.clone(),
                 sent_at: now,
             },
         );
@@ -848,6 +857,7 @@ impl CommsManager {
             reply_to_id,
             attachments,
             code_refs: Vec::new(),
+            artifact_refs,
         });
 
         Ok(client_msg_id)
@@ -901,6 +911,7 @@ impl CommsManager {
                     row.message.body.clear();
                     row.message.attachments.clear();
                     row.message.code_refs.clear();
+                    row.message.artifact_refs.clear();
                     found = Some((conv_id.clone(), row.clone()));
                     break;
                 }
@@ -1259,11 +1270,7 @@ impl CommsManager {
     }
 
     fn upload_cancelled(&self, upload_id: &str) -> bool {
-        self.inner
-            .cancelled_uploads
-            .lock()
-            .unwrap()
-            .contains(upload_id)
+        self.inner.cancelled_uploads.lock().unwrap().contains(upload_id)
     }
 
     /// Resolve file ids to the metadata their upload returned.
@@ -1276,24 +1283,18 @@ impl CommsManager {
         file_ids
             .iter()
             .map(|id| {
-                done.get(id)
-                    .cloned()
-                    .unwrap_or_else(|| crate::wire::Attachment {
-                        id: id.clone(),
-                        filename: "file".into(),
-                        content_type: "application/octet-stream".into(),
-                        bytes: 0,
-                    })
+                done.get(id).cloned().unwrap_or_else(|| crate::wire::Attachment {
+                    id: id.clone(),
+                    filename: "file".into(),
+                    content_type: "application/octet-stream".into(),
+                    bytes: 0,
+                })
             })
             .collect()
     }
 
     fn finish_upload(&self, upload_id: &str) {
-        self.inner
-            .cancelled_uploads
-            .lock()
-            .unwrap()
-            .remove(upload_id);
+        self.inner.cancelled_uploads.lock().unwrap().remove(upload_id);
     }
 
     fn emit_upload(
@@ -1338,11 +1339,7 @@ impl CommsManager {
     pub async fn download_recording(&self, url: &str, download_id: &str) -> Result<Vec<u8>> {
         let progress = self.progress_reporter(download_id);
         let mut on_chunk = progress;
-        let result = self
-            .inner
-            .rest
-            .download_recording_with(url, &mut on_chunk)
-            .await;
+        let result = self.inner.rest.download_recording_with(url, &mut on_chunk).await;
         self.finish_download(download_id, &result);
         result
     }
@@ -1634,11 +1631,7 @@ impl CommsManager {
                 at_ms,
             }),
             StateDelta::ReactionsChanged { message_id } => Some(CommsEvent::ReactionsChanged {
-                rows: state
-                    .reactions
-                    .get(&message_id)
-                    .cloned()
-                    .unwrap_or_default(),
+                rows: state.reactions.get(&message_id).cloned().unwrap_or_default(),
                 message_id,
             }),
             StateDelta::PinsChanged { conv_id } => Some(CommsEvent::PinsChanged {
@@ -1810,6 +1803,7 @@ pub fn to_wire(row: &LocalMessage) -> WireMessage {
         created_at: row.message.created_at,
         attachments: row.message.attachments.clone(),
         code_refs: row.message.code_refs.clone(),
+        artifact_refs: row.message.artifact_refs.clone(),
         draft_id: row.message.draft_id.clone(),
         client_msg_id: row.client_msg_id.clone(),
         status: match row.status {
@@ -1831,7 +1825,10 @@ fn backoff_ms(attempt: u32) -> u64 {
 }
 
 /// Fill `buf`, tolerating a short final read at EOF.
-async fn read_exact_or_eof(file: &mut tokio::fs::File, buf: &mut Vec<u8>) -> std::io::Result<()> {
+async fn read_exact_or_eof(
+    file: &mut tokio::fs::File,
+    buf: &mut Vec<u8>,
+) -> std::io::Result<()> {
     use tokio::io::AsyncReadExt;
     let mut filled = 0;
     while filled < buf.len() {
@@ -1900,8 +1897,8 @@ impl CommsManager {
 
 #[cfg(test)]
 mod tests {
-    use super::backoff_ms;
     use super::*;
+    use super::backoff_ms;
 
     struct NoToken;
     impl TokenSource for NoToken {
@@ -2034,7 +2031,9 @@ mod tests {
     }
 
     fn target(org: &str) -> Option<OrgTarget> {
-        Some(OrgTarget { org_id: org.into() })
+        Some(OrgTarget {
+            org_id: org.into(),
+        })
     }
 
     fn fresh() -> CommsManager {
@@ -2089,18 +2088,12 @@ mod tests {
 
         mgr.set_target(target("org_a"));
         let after = mgr.session().expect("targeted");
-        assert!(
-            after.generation > before.generation,
-            "unavailable → respawn"
-        );
+        assert!(after.generation > before.generation, "unavailable → respawn");
 
         mgr.set_connection(ConnectionState::Disconnected, None, Some("org_a".into()));
         mgr.set_target(target("org_a"));
         let again = mgr.session().expect("targeted");
-        assert!(
-            again.generation > after.generation,
-            "disconnected → respawn"
-        );
+        assert!(again.generation > after.generation, "disconnected → respawn");
     }
 
     /// A stale attempt returning from its token mint used to install its
@@ -2135,10 +2128,7 @@ mod tests {
             conv_id: "c1".into(),
             seq: 2,
         });
-        assert!(
-            live_rx.try_recv().is_ok(),
-            "the live socket survives a stale release"
-        );
+        assert!(live_rx.try_recv().is_ok(), "the live socket survives a stale release");
         mgr.release_outbound(live.generation);
         assert!(mgr.inner.outbound.lock().unwrap().is_none());
     }
@@ -2261,6 +2251,7 @@ mod tests {
             created_at: 1,
             attachments: vec![],
             code_refs: vec![],
+            artifact_refs: vec![],
             draft_id: None,
         };
         assert!(!mgr.adopt_page(&stale, "c1", vec![message], false));
@@ -2294,7 +2285,7 @@ mod tests {
     async fn send_without_a_target_is_an_error_with_no_side_effects() {
         let mgr = fresh();
         let mut rx = mgr.subscribe();
-        assert!(mgr.send("c1", "hello".into(), None, vec![]).is_err());
+        assert!(mgr.send("c1", "hello".into(), None, vec![], vec![]).is_err());
         assert!(mgr.inner.pending.lock().unwrap().is_empty());
         assert!(mgr.with_state(|s| s.messages.is_empty()));
         assert!(rx.try_recv().is_err());
@@ -2369,10 +2360,7 @@ mod tests {
         let mut rx = mgr.subscribe();
         let session = mgr.session().expect("targeted");
         // …and the REST page, fetched before that frame, still says live.
-        mgr.adopt_calls(
-            &session,
-            vec![call("call_1", None), call("call_2", Some(50))],
-        );
+        mgr.adopt_calls(&session, vec![call("call_1", None), call("call_2", Some(50))]);
 
         // The frame's answer stands; the new row was learned.
         mgr.with_state(|state| {
@@ -2407,10 +2395,7 @@ mod tests {
 
         // Detaching drops every per-org fact, hydration included.
         mgr.set_target(None);
-        assert!(
-            !mgr.is_hydrated("c1"),
-            "hydration must not survive an org change"
-        );
+        assert!(!mgr.is_hydrated("c1"), "hydration must not survive an org change");
     }
 
     /// The optimism contract: a `react` mutates local state and emits its
@@ -2441,6 +2426,7 @@ mod tests {
                     created_at: 1,
                     attachments: vec![],
                     code_refs: vec![],
+                    artifact_refs: vec![],
                     draft_id: None,
                 })],
             );
@@ -2493,6 +2479,7 @@ mod tests {
                     created_at: 1,
                     attachments: vec![],
                     code_refs: vec![],
+                    artifact_refs: vec![],
                     draft_id: None,
                 })],
             );

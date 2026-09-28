@@ -18,7 +18,7 @@ use std::time::Duration;
 
 use agent_client_protocol::schema::v1 as acp;
 use atlas_agent_wire::{MessageMode, MessageRole, SessionDeltaEnvelope};
-use atlas_native_agent::CERSEI_AGENT_ID;
+use atlas_native_agent::ATLAS_AGENT_ID;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -169,7 +169,7 @@ async fn child_connection(
     host: &Arc<AgentHost>,
     plugin_id: &str,
 ) -> std::result::Result<AgentId, String> {
-    let connection = if plugin_id == CERSEI_AGENT_ID {
+    let connection = if plugin_id == ATLAS_AGENT_ID {
         plugin_id.to_string()
     } else {
         let instance = format!("sub-{}", &uuid::Uuid::new_v4().simple().to_string()[..8]);
@@ -366,7 +366,7 @@ impl SubagentManager {
                 vec!["claude-acp", "claude-code", "claude-agent-acp"]
             }
             "pi" | "pi-acp" => vec!["pi-acp", "pi"],
-            "atlas" | "cersei" | "native" => vec![CERSEI_AGENT_ID],
+            "atlas" | "atlas-agent" | "native" => vec![ATLAS_AGENT_ID],
             _ => vec![kind],
         };
         candidates
@@ -1350,7 +1350,7 @@ mod tests {
             tool_calls: tools,
             plan: None,
             model: None,
-            attachments: Vec::new(),
+            images: Vec::new(),
             timestamp: chrono::Utc::now(),
         };
         let call = ToolCall {

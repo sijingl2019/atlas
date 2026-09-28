@@ -35,9 +35,9 @@ pub enum TranscriptKind {
     /// No on-disk transcript — sessions are in-memory only and die with the
     /// process. These are the ones Atlas records itself.
     None,
-    /// Native Cersei agent — JSON transcript under the app config dir, replayed
+    /// Native agent — JSON transcript under the app config dir, replayed
     /// by the native agent itself rather than through this module.
-    CerseiJson,
+    Native,
 }
 
 /// Claude Code encodes the project cwd as a folder name by replacing every
@@ -135,7 +135,7 @@ const NEXT_STEPS_MARKER: &str =
     "\u{2550}\u{2550}\u{2550} Atlas next-steps \u{2550}\u{2550}\u{2550}";
 
 /// The boundary marker Codex itself puts between a model-context preamble and
-/// the user's real request — `codex_protocol::protocol::USER_MESSAGE_BEGIN`.
+/// the user's real request — `atlas_engine_protocol::protocol::USER_MESSAGE_BEGIN`.
 /// Older Atlas builds inserted it for Codex sessions, so transcripts and titles
 /// on disk still carry it.
 const CODEX_USER_MESSAGE_BEGIN: &str = "## My request for Codex:";

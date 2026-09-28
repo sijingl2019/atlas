@@ -20,7 +20,6 @@
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 
-use crate::attachments::ImageAttachment;
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -188,12 +187,22 @@ pub struct Message {
     /// deriving it from live state (which mislabels after model switches).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
-    /// Images attached to a user message. Snapshot/replay carries them so a
-    /// reopened transcript still shows what was sent. Assistant messages are
-    /// empty.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub attachments: Vec<ImageAttachment>,
+    /// Images the user sent with this message (user messages only). Carried on
+    /// snapshots so a reopened conversation shows what was attached; before
+    /// this field existed they were flattened to the text `` `Image` ``.
+    /// Omitted when empty, so every message without one serializes exactly as
+    /// it did before — the frozen delta stream never sends user messages.
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub images: Vec<MessageImage>,
     pub timestamp: DateTime<Utc>,
+}
+
+/// One image on a [`Message`]: base64 bytes plus their MIME type, the same
+/// pair an ACP image content block carries.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, serde::Deserialize)]
+pub struct MessageImage {
+    pub mime_type: String,
+    pub data: String,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]

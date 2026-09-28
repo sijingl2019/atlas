@@ -36,7 +36,7 @@ const MEMORY_ENVELOPE_CLOSE = "</atlas-memory>";
 const NEXT_STEPS_MARKER = "═══ Atlas next-steps ═══";
 
 // The boundary marker Codex itself puts between a model-context preamble and
-// the user's real request (`codex_protocol::protocol::USER_MESSAGE_BEGIN`).
+// the user's real request (`atlas_engine_protocol::protocol::USER_MESSAGE_BEGIN`).
 // Older Atlas builds inserted it for Codex sessions, so transcripts and titles
 // on disk still carry it. Mirrors `CODEX_USER_MESSAGE_BEGIN` in
 // `crates/atlas-agent-transcript`.

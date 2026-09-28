@@ -11,7 +11,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 type AgentCatalogEntry = import("@/types/agent-catalog").AgentCatalogEntry;
 
 const mocks = vi.hoisted(() => ({
-  defaultAgent: "cersei",
+  defaultAgent: "atlas-agent",
   catalog: [] as unknown[],
 }));
 
@@ -66,8 +66,8 @@ function entry(e: Partial<AgentCatalogEntry> & Pick<AgentCatalogEntry, "id">): A
 
 /** The native agent, which every install has and no install can remove. */
 const NATIVE = entry({
-  id: "cersei",
-  agentType: "cersei",
+  id: "atlas-agent",
+  agentType: "atlas-agent",
   name: "Atlas Agent",
   kind: "native",
   source: "in-process",
@@ -78,7 +78,7 @@ const NATIVE = entry({
 const CODEX = entry({ id: "codex", agentType: "codex", name: "Codex", source: "npx" });
 
 beforeEach(() => {
-  mocks.defaultAgent = "cersei";
+  mocks.defaultAgent = "atlas-agent";
   mocks.catalog = [NATIVE];
 });
 
@@ -86,7 +86,7 @@ describe("the agent a new chat starts on", () => {
   it("is the native agent by default", () => {
     // ADR-0002: Atlas ships no ACP agents, so the native agent is the one
     // thing a fresh install is guaranteed to have.
-    expect(defaultAgentForNewSession()).toBe("cersei");
+    expect(defaultAgentForNewSession()).toBe("atlas-agent");
   });
 
   it("is the configured agent once it is installed", () => {
@@ -99,12 +99,12 @@ describe("the agent a new chat starts on", () => {
     // The pick outlived an uninstall. Naming Codex here would render a chat
     // whose composer is disabled by the missing agent, with no way back.
     mocks.defaultAgent = "codex";
-    expect(defaultAgentForNewSession()).toBe("cersei");
+    expect(defaultAgentForNewSession()).toBe("atlas-agent");
   });
 
   it("falls back to the native agent when the configured id is nonsense", () => {
     mocks.defaultAgent = "not-an-agent";
-    expect(defaultAgentForNewSession()).toBe("cersei");
+    expect(defaultAgentForNewSession()).toBe("atlas-agent");
   });
 
   it("trusts the configured agent before the catalog has answered", () => {

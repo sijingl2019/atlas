@@ -118,7 +118,7 @@ fn message(role: MessageRole, mode: MessageMode, content: String, tools: Vec<Too
         tool_calls: tools,
         plan: None,
         model: None,
-        attachments: Vec::new(),
+        images: Vec::new(),
         timestamp: Utc::now(),
     }
 }

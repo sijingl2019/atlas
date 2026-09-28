@@ -96,9 +96,21 @@ export interface AppSettings {
    *  installed external's plugin id. Settings -> General only offers agents
    *  the catalog currently lists as installed; `defaultAgentForNewSession`
    *  falls back to the native agent when this names one that is gone, so a
-   *  stale value can never wedge a fresh chat. Default "cersei" (the native
+   *  stale value can never wedge a fresh chat. Default "atlas-agent" (the native
    *  agent), the one agent every profile is guaranteed to have. */
   defaultAgent: string;
+  /** Let Atlas Agent act on this window through its UI tool server — open
+   *  files, switch tabs and panels, steer a chat composer, type into a
+   *  terminal (ADR-0012). Off: new sessions are not offered the tools and
+   *  every UI action in a running one is refused. Default ON. */
+  agentUiNavigation: boolean;
+  /** Let Atlas Agent act in your organisation, as you, through its
+   *  organisation tool server: read the recorded sessions, comments, members
+   *  and conversations of the organisation a cloud-bound Project belongs to,
+   *  and act there; anything that reaches another person asks first
+   *  (ADR-0014). Off: new sessions are not offered the tools and every call
+   *  in a running one is refused. Default ON. */
+  agentOrgAccess: boolean;
   /** Terminal notifications master switch: a command finishing (failed, or
    *  longer than `terminalNotifyMinDurationMs`) or wanting input raises an
    *  in-app notification, a toast when the terminal is off screen, and a
@@ -173,6 +185,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   enterToSend: true,
   graphDefault3d: false,
   defaultAgent: NATIVE_AGENT_ID,
+  agentUiNavigation: true,
+  agentOrgAccess: true,
   terminalNotifications: true,
   terminalNotifyMinDurationMs: 10_000,
   terminalNotifyOnFailure: true,

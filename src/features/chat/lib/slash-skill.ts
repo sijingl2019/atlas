@@ -8,7 +8,7 @@
 //     (`@agentclientprotocol/codex-acp` builds `name: "$" + skill.name`), so
 //     its skills arrive as `$atlas-self-configure` and the composer token is
 //     `/$atlas-self-configure`. The `$` is the adapter's own marker, and it is
-//     also the mention the Codex engine resolves, which is why the wire token
+//     also the mention the Atlas engine resolves, which is why the wire token
 //     keeps it.
 //   - **Atlas's own agent** advertises the skills `skills/list` found for the
 //     session's cwd as ordinary rows, so it tags them

@@ -912,6 +912,67 @@ struct RunningTurn {
     id: u32,
 }
 
+/// The marker line opening the next-steps directive Atlas appends to every wire
+/// prompt.
+///
+/// Mirrors `NEXT_STEPS_MARKER` in `src/features/chat/lib/next-steps.ts` and in
+/// `crates/atlas-checkpoint/src/capture.rs`; all three must change together, and
+/// `tests/next-steps-marker-parity.test.ts` is what says so out loud.
+const NEXT_STEPS_MARKER: &str = "═══ Atlas next-steps ═══";
+
+/// Whether a title is the agent having named the session after Atlas's own
+/// prompt machinery rather than after the conversation.
+///
+/// Atlas appends a hidden next-steps directive to the wire prompt, so a short
+/// user message ("here you go") reaches the agent outweighed several times over
+/// by Atlas's own words. An agent that titles sessions by summarising the first
+/// prompt — Claude Code does — then answers with `Atlas next-steps`, and every
+/// surface that renders a thread name repeats it back as if the user had said
+/// it. The directive is stripped from the transcript (`capture.rs`) and from
+/// display (`next-steps.ts`); the title is the one string that travels back
+/// *from* the agent already contaminated, so it is the one that has to be
+/// caught on the way in.
+///
+/// Deliberately narrow. The title must both mention next steps *and* consist of
+/// nothing but the marker's own words, so a thread about a release's next steps
+/// ("Next steps for 0.3.4") keeps its name. When it does fire the cost is small:
+/// the thread falls back to [`AcpThread::fallback_title`], which is the first
+/// line the user actually typed.
+///
+/// Named here, beside the only field it guards, rather than taking a host-
+/// supplied predicate the way [`AcpThread::fallback_title`] takes its cleaner.
+/// That cleaner parses a block format the host owns; this is one constant, and
+/// the readers of [`AcpThread::title`] are spread across three crates — a
+/// predicate each of them had to remember to apply is a predicate one of them
+/// will forget.
+pub fn is_host_machinery_title(title: &str) -> bool {
+    /// Lowercase, with every run of non-alphanumerics collapsed to one space,
+    /// so `Atlas next-steps`, `atlas next steps` and `═══ Atlas next-steps ═══`
+    /// all compare equal.
+    fn normalize(text: &str) -> String {
+        let mut out = String::with_capacity(text.len());
+        for ch in text.chars() {
+            if ch.is_alphanumeric() {
+                out.extend(ch.to_lowercase());
+            } else if !out.ends_with(' ') {
+                out.push(' ');
+            }
+        }
+        out.trim().to_string()
+    }
+
+    // The tag Atlas asks for in the reply. An agent that echoes it into a title
+    // is quoting machinery whatever else the title says.
+    if title.contains("<next_steps>") {
+        return true;
+    }
+    let title = normalize(title);
+    if title.is_empty() {
+        return false;
+    }
+    title.contains("next step") && normalize(NEXT_STEPS_MARKER).contains(&title)
+}
+
 pub struct AcpThread {
     session_id: acp::SessionId,
     work_dirs: Vec<PathBuf>,
@@ -976,7 +1037,8 @@ impl AcpThread {
             session_id,
             work_dirs,
             parent_session_id: None,
-            title: clean_agent_title(title),
+            // Kingo: strip injected context; main: drop host-machinery titles.
+            title: clean_agent_title(title).filter(|title| !is_host_machinery_title(title)),
             entries: Vec::new(),
             entry_created_at: Vec::new(),
             elicitations: ElicitationStore::default(),
@@ -1219,6 +1281,13 @@ impl AcpThread {
                     let title = atlas_agent_transcript::strip_injected_context(&title);
                     if !title.is_empty() {
                         let title: Arc<str> = title.into();
+                        // Dropped, not stored-then-hidden: every consumer of
+                        // `title()` is in another crate, and the one that keeps a
+                        // title the user never sees is the one that shows it.
+                        if is_host_machinery_title(&title) {
+                            tracing::debug!(%title, "ignoring agent title naming Atlas's own prompt machinery");
+                            return Ok(());
+                        }
                         if self.title.as_ref() != Some(&title) {
                             self.title = Some(title);
                             self.emit(AcpThreadEvent::TitleUpdated);
@@ -1620,6 +1689,42 @@ impl AcpThread {
             let _ = events.send(AcpThreadEvent::ToolAuthorizationReceived(tool_call_id));
             outcome
         })
+    }
+
+    /// Asks again about a call already waiting for confirmation, with a new
+    /// card: `tool_call` and `options` replace the ones showing. The card
+    /// showing is resolved on the wire and the new one announced, in that
+    /// order and under the one borrow, so nothing can be raised between them;
+    /// the row keeps the status it had before it was first asked about.
+    ///
+    /// For a card that has to be up before everything it will say is known —
+    /// an outward action's approval, shown as "preparing" while the host
+    /// describes whom the call reaches (ADR-0014). The first card's waiter
+    /// must be dropped, not awaited: it would resolve `Cancelled` and announce
+    /// a second resolution for this call.
+    pub fn reraise_tool_call_authorization(
+        &mut self,
+        tool_call: acp::ToolCallUpdate,
+        options: PermissionOptions,
+        kind: AuthorizationKind,
+    ) -> Result<impl std::future::Future<Output = RequestPermissionOutcome> + Send, acp::Error>
+    {
+        let id = tool_call.tool_call_id.clone();
+        let was_waiting = match self.tool_call_mut(&id) {
+            Some((_, call)) => match &call.status {
+                ToolCallStatus::WaitingForConfirmation { current_status, .. } => {
+                    // Dropping the old responder here is what retires it.
+                    call.status = (*current_status).into();
+                    true
+                }
+                _ => false,
+            },
+            None => false,
+        };
+        if was_waiting {
+            self.emit(AcpThreadEvent::ToolAuthorizationReceived(id));
+        }
+        self.request_tool_call_authorization(tool_call, options, kind)
     }
 
     pub fn cancel_tool_call_authorization(&mut self, id: &acp::ToolCallId) {

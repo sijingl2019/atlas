@@ -433,6 +433,58 @@ async fn a_status_update_does_not_close_an_open_permission_request() {
     assert_eq!(status_of(&thread, "t1"), "In Progress");
 }
 
+/// A card re-raised on a call already waiting (an outward action's approval,
+/// shown as "preparing" while the host describes the call, ADR-0014) resolves
+/// the card showing and announces the new one, in that order and nothing in
+/// between; the row keeps the status it had before it was asked about, and an
+/// answer to the new card lands as usual.
+#[tokio::test]
+async fn reraising_a_card_resolves_the_one_showing_and_announces_the_new_one() {
+    let (mut thread, mut events, _conn) = new_thread();
+
+    thread
+        .upsert_tool_call(tool_call("t1", "send", acp::ToolCallStatus::InProgress))
+        .unwrap();
+    let first = thread
+        .request_tool_call_authorization(
+            tool_call_update("t1", None),
+            PermissionOptions::Flat(Vec::new()),
+            AuthorizationKind::PermissionGrant,
+        )
+        .unwrap();
+    while events.try_recv().is_ok() {}
+
+    let second = thread
+        .reraise_tool_call_authorization(
+            tool_call_update("t1", None),
+            PermissionOptions::Flat(Vec::new()),
+            AuthorizationKind::PermissionGrant,
+        )
+        .unwrap();
+    drop(first);
+
+    let mut order = Vec::new();
+    while let Ok(event) = events.try_recv() {
+        match event {
+            AcpThreadEvent::ToolAuthorizationReceived(id) => order.push(format!("resolved {id}")),
+            AcpThreadEvent::ToolAuthorizationRequested { id, .. } => order.push(format!("requested {id}")),
+            _ => {}
+        }
+    }
+    assert_eq!(order, ["resolved t1", "requested t1"]);
+    assert_eq!(status_of(&thread, "t1"), "Waiting for confirmation");
+
+    thread.authorize_tool_call(
+        acp::ToolCallId::new("t1"),
+        SelectedPermissionOutcome::new(
+            acp::PermissionOptionId::new("allow"),
+            acp::PermissionOptionKind::AllowOnce,
+        ),
+    );
+    assert!(matches!(second.await, RequestPermissionOutcome::Selected(_)));
+    assert_eq!(status_of(&thread, "t1"), "In Progress", "the status it had before the first card");
+}
+
 /// Adapted from `test_cancel_tool_call_authorization_resolves_permission_request`.
 #[tokio::test]
 async fn cancelling_an_authorization_resolves_the_waiter() {
@@ -928,4 +980,120 @@ async fn a_titled_permission_request_for_an_unknown_call_keeps_its_title() {
         .tool_call(&acp::ToolCallId::new("t9"))
         .expect("the call exists");
     assert_eq!(call.label, "Delete the database");
+}
+
+// ------------------------------------------------------- host-machinery titles
+
+/// Whether the thread announced a title while these events were queued.
+fn saw_title_update(events: &mut EventStream<AcpThreadEvent>) -> bool {
+    let mut seen = false;
+    while let Ok(event) = events.try_recv() {
+        seen |= matches!(event, AcpThreadEvent::TitleUpdated);
+    }
+    seen
+}
+
+/// Build the `session_info_update` an agent sends when it names a session.
+fn title_update(title: &str) -> acp::SessionUpdate {
+    acp::SessionUpdate::SessionInfoUpdate(acp::SessionInfoUpdate::new().title(title.to_string()))
+}
+
+#[tokio::test]
+async fn an_agent_title_is_accepted_and_announced() {
+    let (mut thread, mut events, _conn) = new_thread();
+
+    thread
+        .handle_session_update(title_update("Rename the parser"))
+        .unwrap();
+
+    assert_eq!(thread.title().map(Arc::as_ref), Some("Rename the parser"));
+    assert!(saw_title_update(&mut events));
+}
+
+/// The bug: Atlas appends its next-steps directive to the wire prompt, so an
+/// agent titling a short message summarises Atlas instead of the user. Every
+/// reader of `title()` lives in another crate, so the rejection has to happen
+/// here — the thread must never hold the string at all.
+#[tokio::test]
+async fn an_agent_title_naming_atlass_own_directive_is_rejected() {
+    let (mut thread, mut events, _conn) = new_thread();
+
+    thread
+        .handle_session_update(title_update("Atlas next-steps"))
+        .unwrap();
+
+    assert_eq!(thread.title(), None);
+    assert!(!saw_title_update(&mut events));
+}
+
+#[tokio::test]
+async fn a_rejected_title_does_not_clobber_a_good_one() {
+    let (mut thread, _events, _conn) = new_thread();
+
+    thread
+        .handle_session_update(title_update("Rename the parser"))
+        .unwrap();
+    thread
+        .handle_session_update(title_update("═══ Atlas next-steps ═══"))
+        .unwrap();
+
+    assert_eq!(thread.title().map(Arc::as_ref), Some("Rename the parser"));
+}
+
+/// A resume seeds the thread from the stored row, and rows written before the
+/// filter existed still carry the bad title.
+#[tokio::test]
+async fn a_seeded_machinery_title_is_dropped_at_construction() {
+    let (tx, _rx) = event_channel();
+    let thread = AcpThread::new(
+        acp::SessionId::new("test-session"),
+        StubAgentConnection::new(),
+        Vec::new(),
+        Some(Arc::from("Atlas next-steps")),
+        tx,
+    );
+    assert_eq!(thread.title(), None);
+
+    let (tx, _rx) = event_channel();
+    let thread = AcpThread::new(
+        acp::SessionId::new("test-session"),
+        StubAgentConnection::new(),
+        Vec::new(),
+        Some(Arc::from("Rename the parser")),
+        tx,
+    );
+    assert_eq!(thread.title().map(Arc::as_ref), Some("Rename the parser"));
+}
+
+#[test]
+fn the_machinery_predicate_is_narrow_enough_to_keep_real_titles() {
+    // Machinery: the marker's own words and nothing else, however spelled.
+    for title in [
+        "Atlas next-steps",
+        "atlas next steps",
+        "═══ Atlas next-steps ═══",
+        "Next steps",
+        "next-steps",
+        // The reply tag, wherever it appears.
+        "Add a <next_steps> block to the composer",
+    ] {
+        assert!(
+            is_host_machinery_title(title),
+            "should be rejected: {title}"
+        );
+    }
+
+    // Titles a user could genuinely land on. Losing these to the fallback would
+    // trade one wrong name for another.
+    for title in [
+        "Next steps for 0.3.4",
+        "Plan the next steps after the release",
+        "Atlas",
+        "Atlas theme keys",
+        "Fix the flaky auth test",
+        "",
+        "   ",
+    ] {
+        assert!(!is_host_machinery_title(title), "should be kept: {title}");
+    }
 }
