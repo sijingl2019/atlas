@@ -15,7 +15,10 @@ use serde_json::Value;
 use tauri::{AppHandle, Manager};
 use tokio::sync::oneshot;
 
-use super::{announce, now, sources, BranchMode, Integration, Issue, RunRecord, RunStatus, Store};
+use super::{
+    announce, description, now, sources, BranchMode, Integration, Issue, RunRecord, RunStatus,
+    Store,
+};
 use crate::commands::agent_host::{AgentHost, PermissionDecision};
 use crate::commands::subagents::manager::SubagentHost;
 
@@ -357,6 +360,22 @@ impl IntegrationsRuntime {
         outcome(&rec, RunStatus::Done, Some(commit), None)
     }
 
+    /// `key` as the tracker lists it now; `None` when it cannot say.
+    async fn refetch(&self, integration: &Integration, key: &str) -> Option<Issue> {
+        let secret = self
+            .store
+            .secrets()
+            .remove(&integration.id)
+            .unwrap_or_default();
+        match sources::fetch_issues(&integration.source, &secret).await {
+            Ok(issues) => issues.into_iter().find(|i| i.key == key),
+            Err(e) => {
+                tracing::warn!(target: "atlas::integrations", id = %integration.id, "refetch failed: {e}");
+                None
+            }
+        }
+    }
+
     /// One agent session, one turn, then the session is closed. `resume`
     /// (`Some`) continues an interrupted run: from its session when the agent
     /// can reopen it, else in a new session told to pick up the tree as is.
@@ -408,13 +427,25 @@ impl IntegrationsRuntime {
             .unwrap()
             .insert(key.session_id.clone(), Waiter { tx, started: false });
 
-        let text = if resume.is_some() {
-            continue_prompt(&rec.issue)
+        let content = if resume.is_some() {
+            vec![acp::ContentBlock::Text(acp::TextContent::new(
+                continue_prompt(&rec.issue),
+            ))]
         } else {
-            prompt(&rec.issue)
+            // Image links lapse (ONES signs them for an hour), and a batch
+            // runs for longer than that: fetch the issue again for live ones.
+            if description::has_images(&rec.issue.body) {
+                if let Some(fresh) = self.refetch(integration, &rec.issue.key).await {
+                    rec.issue = fresh;
+                    let _ = self.store.put_run(&integration.id, rec.clone());
+                }
+            }
+            let images = host
+                .snapshot_meta(&key)
+                .is_ok_and(|s| s.prompt_image_supported);
+            prompt(&rec.issue, images).await
         };
         // Explicit paths: `SubagentHost` has a `send`/`cancel` of its own.
-        let content = vec![acp::ContentBlock::Text(acp::TextContent::new(text))];
         let result = match AgentHost::send(&host, &key, content) {
             Err(e) => Err(e.to_string()),
             Ok(()) => match tokio::time::timeout(TURN_TIMEOUT, rx).await {
@@ -463,20 +494,18 @@ fn continue_prompt(issue: &Issue) -> String {
     )
 }
 
-fn prompt(issue: &Issue) -> String {
-    let mut p = format!(
+/// The issue, its description as text with its images attached in place
+/// (`images`: the agent takes them), then its link.
+async fn prompt(issue: &Issue, images: bool) -> Vec<acp::ContentBlock> {
+    let lead = format!(
         "Implement the following issue in this repository. Make the code changes only; do not run git commit — it is committed for you afterwards.\n\n[{}] {}",
         issue.key, issue.title
     );
-    if !issue.body.trim().is_empty() {
-        p.push_str("\n\n");
-        p.push_str(issue.body.trim());
-    }
+    let mut parts = description::parse(&issue.body);
     if !issue.url.is_empty() {
-        p.push_str("\n\n");
-        p.push_str(&issue.url);
+        parts.push(description::Part::Text(issue.url.clone()));
     }
-    p
+    description::blocks(lead, parts, &issue.url, images).await
 }
 
 /// `atlas/<key>` with anything git would reject in a ref replaced by `-`.

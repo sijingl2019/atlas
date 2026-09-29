@@ -6,30 +6,21 @@
  * An agent never used in a chat has none yet: the picker then takes a model
  * id by hand.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
-import { agents } from "@/features/chat/lib/agents-api";
+import { useAgentRegistryStore } from "@/features/agents/stores/agent-registry-store";
 import { loadCachedAcpModels } from "@/features/chat/lib/acp-models-cache";
 import type { AgentCatalogEntry } from "@/types/agent-catalog";
 
 export const selectClass =
   "h-7 w-full rounded-md border border-[var(--border)] bg-[var(--card)] px-2 text-xs text-[var(--foreground)]";
 
-let catalogCache: AgentCatalogEntry[] | null = null;
-
-/** Installed agents (and the built-in one). */
+/** Installed agents (and the built-in one). Reads the live registry store:
+ *  the dialog mounts at boot, before the installed map lands, so a one-shot
+ *  fetch here saw only the native agent. */
 export function useInstalledAgents(): AgentCatalogEntry[] {
-  const [list, setList] = useState<AgentCatalogEntry[]>(catalogCache ?? []);
-  useEffect(() => {
-    agents
-      .catalog()
-      .then((c) => {
-        catalogCache = c.entries.filter((e) => e.installed || e.kind === "native");
-        setList(catalogCache);
-      })
-      .catch(() => {});
-  }, []);
-  return list;
+  const catalog = useAgentRegistryStore((s) => s.catalog);
+  return useMemo(() => catalog.filter((e) => e.installed || e.kind === "native"), [catalog]);
 }
 
 export function ModelSelect({

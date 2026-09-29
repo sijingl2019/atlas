@@ -11,6 +11,7 @@
 //! `integrations-secrets.json` (mode 0600, the same reasoning as
 //! `auth/store.rs` for not using the keychain).
 
+mod description;
 pub mod runner;
 pub mod sources;
 
