@@ -53,12 +53,12 @@ export function AppLayout() {
   const showRight =
     rightPanel.visible && (rightPanel.mode === "chat" ? personalSync : !!currentProject);
   return (
-    <div className="flex h-screen">
+    <div className="flex h-screen bg-sidebar">
       {/* DOCKED project sidebar — an in-flow left column that pushes the
           whole shell right. Full-height so it sits beside the titlebar; the
           sidebar's own top bar already dodges the traffic lights. */}
       {sidebarOpen && (
-        <div className="atlas-project-rail h-screen w-[244px] shrink-0 border-r border-border-subtle">
+        <div className="atlas-project-rail h-screen w-[244px] shrink-0">
           <ProjectSidebar />
         </div>
       )}
@@ -82,7 +82,14 @@ export function AppLayout() {
           by its content, but the content still contributes to the group's
           intrinsic width. Capping the column here is what keeps the shell
           inside the window no matter what any panel renders. */}
-      <div className="flex flex-col flex-1 min-h-0 min-w-0">
+      {/* Same floating-card recipe as the sidebar's rail card. With the rail
+          open its own `m-1.5` already supplies the gap on the left. */}
+      <div
+        className={cn(
+          "flex flex-col flex-1 min-h-0 min-w-0 m-1.5 overflow-hidden rounded-lg bg-background shadow-lg ring-1 ring-border",
+          sidebarOpen && "ml-0",
+        )}
+      >
         <Titlebar />
 
         <div className="flex-1 min-h-0">
