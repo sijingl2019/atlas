@@ -131,25 +131,28 @@ fn walk_kb_files(project_path: &str) -> Vec<(String, PathBuf)> {
     out
 }
 
+/// Honors `.knowledgeignore` files (gitignore syntax) at any depth under `dir`;
+/// `.gitignore` and friends are deliberately not consulted.
 fn walk_files(dir: &Path, prefix: &str, out: &mut Vec<(String, PathBuf)>) {
-    let Ok(read) = fs::read_dir(dir) else { return };
-    for entry in read.flatten() {
-        let name = entry.file_name().to_string_lossy().to_string();
-        if name.starts_with('.') {
+    let walker = ignore::WalkBuilder::new(dir)
+        .standard_filters(false)
+        .hidden(true)
+        .follow_links(true)
+        .add_custom_ignore_filename(".knowledgeignore")
+        .build();
+    for entry in walker.flatten() {
+        if !entry.file_type().is_some_and(|t| t.is_file()) {
             continue;
         }
-        let path = entry.path();
+        let Ok(rel) = entry.path().strip_prefix(dir) else { continue };
+        let rel = rel.to_string_lossy().replace('\\', "/");
         let id_part = if prefix.is_empty() {
-            name.clone()
+            rel
         } else {
-            format!("{prefix}/{name}")
+            format!("{prefix}/{rel}")
         };
-        if path.is_dir() {
-            walk_files(&path, &id_part, out);
-        } else if path.is_file() {
-            let id = id_part.strip_suffix(".md").unwrap_or(&id_part).to_string();
-            out.push((id, path));
-        }
+        let id = id_part.strip_suffix(".md").unwrap_or(&id_part).to_string();
+        out.push((id, entry.into_path()));
     }
 }
 
@@ -1007,6 +1010,25 @@ mod linked_source_tests {
             "# Searchable body"
         );
         assert_eq!(walk_kb(&tmp.to_string_lossy()).len(), 1);
+        fs::remove_dir_all(tmp).unwrap();
+    }
+
+    #[test]
+    fn knowledgeignore_is_honored_at_every_depth() {
+        let tmp = std::env::temp_dir().join(format!("atlas-kb-ignore-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(tmp.join("drafts")).unwrap();
+        fs::create_dir_all(tmp.join("sub/deep")).unwrap();
+        fs::write(tmp.join(".knowledgeignore"), "drafts/\n*.log\n!keep.log\n").unwrap();
+        fs::write(tmp.join("sub/.knowledgeignore"), "deep\n").unwrap();
+        for f in ["a.md", "x.log", "keep.log", "drafts/d.md", "sub/b.md", "sub/deep/c.md"] {
+            fs::write(tmp.join(f), "").unwrap();
+        }
+        fs::write(tmp.join(".gitignore"), "a.md\n").unwrap();
+        let mut out = Vec::new();
+        walk_files(&tmp, "vault", &mut out);
+        let mut ids: Vec<_> = out.into_iter().map(|(id, _)| id).collect();
+        ids.sort();
+        assert_eq!(ids, ["vault/a", "vault/keep.log", "vault/sub/b"]);
         fs::remove_dir_all(tmp).unwrap();
     }
 
