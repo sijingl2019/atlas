@@ -1444,7 +1444,7 @@ export function ProjectSidebar() {
       // app-layout.tsx, not here. Putting the blur on this child would break
       // it: the wrapper's opacity/transform isolates its own layer, leaving a
       // descendant's backdrop-filter nothing to sample.
-      className="flex flex-col h-screen w-[244px] shrink-0 bg-transparent"
+      className="flex flex-col h-full w-[244px] shrink-0 bg-transparent"
       data-tauri-drag-region
     >
       {/* Virtualized list. */}

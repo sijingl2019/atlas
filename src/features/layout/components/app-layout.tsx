@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { Group, Panel, Separator, useDefaultLayout, usePanelRef } from "react-resizable-panels";
 import { useLayoutStore } from "../stores/layout-store";
 import { useAppStore } from "@/features/app/stores/app-store";
@@ -8,6 +8,7 @@ import { ProjectSidebar } from "@/features/projects/components/project-sidebar";
 import { useProjectGitPrefetch } from "@/features/projects/lib/use-project-prefetch";
 import { Titlebar } from "@/components/titlebar";
 import { cn } from "@/lib/utils";
+import { isLinux, isWindows } from "@/lib/platform";
 import { LeftPanel } from "./left-panel";
 import { RightPanel } from "./right-panel";
 import { CenterPanel } from "./center-panel";
@@ -18,6 +19,75 @@ import { CenterPanel } from "./center-panel";
 // rather than reset. Panel ids (`atlas-left` / `atlas-center` / `atlas-right`)
 // are load-bearing for the same reason — a layout is a map keyed by them.
 const MAIN_LAYOUT_ID = "atlas-main-layout";
+
+/**
+ * Padding that keeps the shell on screen while the window is maximized.
+ * An undecorated window on Windows (and some Linux WMs) is maximized past the
+ * monitor's edges, so the webview's outer pixels are off screen: the cards'
+ * `m-1.5` gap and the titlebar's close button were clipped. Measured per side
+ * against the monitor's work area rather than assumed, since how far it
+ * overhangs depends on the DPI.
+ */
+function useMaximizedInsets(): CSSProperties | undefined {
+  const [insets, setInsets] = useState<CSSProperties>();
+  useEffect(() => {
+    if (!isWindows && !isLinux) return;
+    let unlisten: (() => void) | undefined;
+    let disposed = false;
+    (async () => {
+      try {
+        const { getCurrentWindow, currentMonitor } = await import("@tauri-apps/api/window");
+        const win = getCurrentWindow();
+        const measure = async () => {
+          const monitor = await currentMonitor();
+          if (!monitor || !(await win.isMaximized())) return setInsets(undefined);
+          const [pos, size, scale] = await Promise.all([
+            win.innerPosition(),
+            win.innerSize(),
+            win.scaleFactor(),
+          ]);
+          const work = monitor.workArea;
+          // Left/top from where the window sits. Right/bottom from what the
+          // webview actually lays out against the visible work area: the
+          // window's reported size can fit while the webview still overhangs.
+          const left = Math.max(0, (work.position.x - pos.x) / scale);
+          const top = Math.max(0, (work.position.y - pos.y) / scale);
+          const visibleW = work.size.width / scale;
+          const visibleH = work.size.height / scale;
+          const right = Math.max(0, window.innerWidth - left - visibleW);
+          const bottom = Math.max(0, window.innerHeight - top - visibleH);
+          if (import.meta.env.DEV) {
+            console.debug("[maximized-insets]", {
+              pos,
+              size,
+              scale,
+              work,
+              inner: [window.innerWidth, window.innerHeight],
+              insets: { left, top, right, bottom },
+            });
+          }
+          setInsets({
+            paddingLeft: `${left}px`,
+            paddingTop: `${top}px`,
+            paddingRight: `${right}px`,
+            paddingBottom: `${bottom}px`,
+          });
+        };
+        await measure();
+        const stop = await win.onResized(() => void measure());
+        if (disposed) stop();
+        else unlisten = stop;
+      } catch {
+        // not in Tauri context
+      }
+    })();
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, []);
+  return insets;
+}
 
 export function AppLayout() {
   const leftPanel = useLayoutStore.use.leftPanel();
@@ -32,6 +102,7 @@ export function AppLayout() {
   // v4 replaced `autoSaveId` with this hook: it owns the localStorage read and
   // write, and the Group takes the result as `defaultLayout` + `onLayoutChanged`.
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({ id: MAIN_LAYOUT_ID });
+  const maximizedInsets = useMaximizedInsets();
 
   const showLeft = leftPanel.visible && !!currentProject;
 
@@ -53,12 +124,12 @@ export function AppLayout() {
   const showRight =
     rightPanel.visible && (rightPanel.mode === "chat" ? personalSync : !!currentProject);
   return (
-    <div className="flex h-screen bg-sidebar">
+    <div className="flex h-screen bg-sidebar" style={maximizedInsets}>
       {/* DOCKED project sidebar — an in-flow left column that pushes the
           whole shell right. Full-height so it sits beside the titlebar; the
           sidebar's own top bar already dodges the traffic lights. */}
       {sidebarOpen && (
-        <div className="atlas-project-rail h-screen w-[244px] shrink-0">
+        <div className="atlas-project-rail h-full w-[244px] shrink-0">
           <ProjectSidebar />
         </div>
       )}
