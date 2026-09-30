@@ -1,7 +1,8 @@
 //! The poll loop and one issue's run: branch → agent session → commit → push.
 //!
-//! Issues run one at a time across all integrations (`run_lock`): two agents
+//! Issues run one at a time per checkout (`checkout_lock`): two agents
 //! editing the same checkout at once would commit each other's work.
+//! Integrations on different checkouts run in parallel.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
@@ -40,7 +41,8 @@ struct Waiter {
 
 pub struct IntegrationsRuntime {
     pub store: Store,
-    run_lock: tokio::sync::Mutex<()>,
+    /// One lock per checkout path, see [`Self::checkout_lock`].
+    run_locks: Mutex<HashMap<String, Arc<tokio::sync::Mutex<()>>>>,
     /// Sessions this module started, keyed by session id, resolved when the
     /// turn ends.
     waiters: Mutex<HashMap<String, Waiter>>,
@@ -56,7 +58,7 @@ impl IntegrationsRuntime {
     pub fn new(store: Store) -> Self {
         Self {
             store,
-            run_lock: Default::default(),
+            run_locks: Default::default(),
             waiters: Default::default(),
             last_poll: Default::default(),
             in_flight: Default::default(),
@@ -70,7 +72,7 @@ impl IntegrationsRuntime {
             // What the last launch left unfinished goes first, in its own
             // sessions; the first tick then pulls every integration.
             tokio::time::sleep(STARTUP_DELAY).await;
-            rt.resume_interrupted(&app).await;
+            rt.resume_interrupted(&app);
             let mut ticker = tokio::time::interval(TICK);
             loop {
                 ticker.tick().await;
@@ -92,6 +94,18 @@ impl IntegrationsRuntime {
                 }
             }
         });
+    }
+
+    /// The lock serialising runs in `path`'s checkout.
+    // ponytail: keyed by the path as written, so two spellings of one directory
+    // (case, trailing slash) get separate locks; canonicalize if that bites.
+    fn checkout_lock(&self, path: &str) -> Arc<tokio::sync::Mutex<()>> {
+        self.run_locks
+            .lock()
+            .unwrap()
+            .entry(path.to_string())
+            .or_default()
+            .clone()
     }
 
     fn tracks(&self, session_id: &str) -> bool {
@@ -117,28 +131,36 @@ impl IntegrationsRuntime {
     }
 
     /// Finish what the last launch left: continue every interrupted run in
-    /// its own session, and run what was queued by hand, one after another.
-    async fn resume_interrupted(&self, app: &AppHandle) {
-        let runs = self.store.runs();
+    /// its own session, and run what was queued by hand: one after another
+    /// within an integration, integrations in parallel.
+    fn resume_interrupted(self: &Arc<Self>, app: &AppHandle) {
+        let mut runs = self.store.runs();
         for integration in self.store.integrations().into_iter().filter(|i| i.active()) {
-            let interrupted = runs
-                .get(&integration.id)
+            let pending: Vec<RunRecord> = runs
+                .remove(&integration.id)
+                .unwrap_or_default()
                 .into_iter()
-                .flatten()
-                .filter(|r| matches!(r.status, RunStatus::Interrupted | RunStatus::Queued));
-            for rec in interrupted {
-                let issue = if rec.issue.key.is_empty() {
-                    // Recorded before runs kept their issue.
-                    Issue {
-                        key: rec.issue_key.clone(),
-                        title: rec.title.clone(),
-                        ..Issue::default()
-                    }
-                } else {
-                    rec.issue.clone()
-                };
-                self.run_one(app, &integration.id, issue, rec.mode()).await;
+                .filter(|r| matches!(r.status, RunStatus::Interrupted | RunStatus::Queued))
+                .collect();
+            if pending.is_empty() {
+                continue;
             }
+            let (rt, app) = (self.clone(), app.clone());
+            tauri::async_runtime::spawn(async move {
+                for rec in pending {
+                    let issue = if rec.issue.key.is_empty() {
+                        // Recorded before runs kept their issue.
+                        Issue {
+                            key: rec.issue_key.clone(),
+                            title: rec.title.clone(),
+                            ..Issue::default()
+                        }
+                    } else {
+                        rec.issue.clone()
+                    };
+                    rt.run_one(&app, &integration.id, issue, rec.mode()).await;
+                }
+            });
         }
     }
 
@@ -152,7 +174,6 @@ impl IntegrationsRuntime {
         {
             return;
         }
-        let _guard = self.run_lock.lock().await;
         self.last_poll
             .lock()
             .unwrap()
@@ -193,6 +214,11 @@ impl IntegrationsRuntime {
                     else {
                         break;
                     };
+                    // Per issue, not per batch, so a Run clicked meanwhile
+                    // gets its turn between issues. `seen` is read under the
+                    // lock: a Run may have taken this issue while we waited.
+                    let lock = self.checkout_lock(&current.project_path);
+                    let _guard = lock.lock().await;
                     let seen = self.store.runs().remove(&current.id).unwrap_or_default();
                     if seen
                         .iter()
@@ -210,7 +236,7 @@ impl IntegrationsRuntime {
     }
 
     /// Run one issue by hand (the tab's Retry / Continue / Run), queued
-    /// behind whatever is running.
+    /// behind whatever is running in the same checkout.
     pub async fn run_one(
         &self,
         app: &AppHandle,
@@ -218,14 +244,19 @@ impl IntegrationsRuntime {
         issue: Issue,
         mode: RunMode,
     ) {
-        let _guard = self.run_lock.lock().await;
+        let find = || {
+            self.store
+                .integrations()
+                .into_iter()
+                .find(|i| i.id == integration_id && i.deleted_at.is_none())
+        };
+        let Some(integration) = find() else {
+            return;
+        };
+        let lock = self.checkout_lock(&integration.project_path);
+        let _guard = lock.lock().await;
         // Re-read: overrides may have changed while this waited.
-        let Some(integration) = self
-            .store
-            .integrations()
-            .into_iter()
-            .find(|i| i.id == integration_id && i.deleted_at.is_none())
-        else {
+        let Some(integration) = find() else {
             return;
         };
         let rec = self.run_issue(app, &integration, &issue, mode).await;

@@ -72,6 +72,7 @@ export interface RunRecord {
   issueKey: string;
   title: string;
   status: RunStatus;
+  issue: Issue;
   commit: string | null;
   error: string | null;
   at: string;

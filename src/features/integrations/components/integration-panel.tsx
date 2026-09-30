@@ -11,6 +11,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   ChevronRight,
   Copy,
+  ExternalLink,
   Loader2,
   Pencil,
   Play,
@@ -112,6 +113,23 @@ export function IntegrationPanel({ integrationId }: { integrationId: string }) {
 
   const current = Object.values(runs).find((r) => r.status === "running");
   const agentName = (id: string) => catalog.find((a) => a.id === id)?.name ?? id;
+  // Issues already run stay listed after the tracker drops them (status
+  // changed, closed) or fails to load.
+  const displayedIssues = issues?.slice() ?? (error ? [] : null);
+  if (displayedIssues) {
+    const listedKeys = new Set(displayedIssues.map((issue) => issue.key));
+    for (const run of Object.values(runs)) {
+      if (listedKeys.has(run.issueKey)) continue;
+      displayedIssues.push({
+        key: run.issueKey,
+        title: run.issue?.title || run.title,
+        body: run.issue?.body ?? "",
+        url: run.issue?.url ?? "",
+        creator: run.issue?.creator ?? "",
+        createdAt: run.issue?.createdAt ?? "",
+      });
+    }
+  }
 
   // Queued behind whatever is running; the row shows Queued until it starts.
   const rerun = (key: string) =>
@@ -200,12 +218,12 @@ export function IntegrationPanel({ integrationId }: { integrationId: string }) {
             <Loader2 size={14} className="animate-spin" /> Loading issues…
           </div>
         )}
-        {issues && issues.length === 0 && (
+        {displayedIssues && displayedIssues.length === 0 && (
           <div className="px-4 py-3 text-sm text-[var(--muted-foreground)]">
             No matching issues.
           </div>
         )}
-        {issues && issues.length > 0 && (
+        {displayedIssues && displayedIssues.length > 0 && (
           <table className="w-full text-sm">
             <thead className="sticky top-0 z-10 bg-[var(--background)] text-left text-xs text-[var(--muted-foreground)]">
               <tr>
@@ -217,7 +235,7 @@ export function IntegrationPanel({ integrationId }: { integrationId: string }) {
               </tr>
             </thead>
             <tbody>
-              {issues.map((issue) => (
+              {displayedIssues.map((issue) => (
                 <IssueRow
                   key={issue.key}
                   item={item}
@@ -368,6 +386,16 @@ function IssueRow({
             {(run?.status === "failed" || run?.status === "skipped") && (
               <button className={actionButton} onClick={() => onRerun(issue.key)}>
                 <RotateCcw size={11} /> Retry
+              </button>
+            )}
+            {/* The tracker still lists it: nudge the user to move its status on. */}
+            {run?.status === "done" && issue.url && (
+              <button
+                className={cn(actionButton, "border-success/40 text-success")}
+                title="Committed. Open the issue to update its status."
+                onClick={() => void openUrl(issue.url).catch((e) => toast.error(String(e)))}
+              >
+                <ExternalLink size={11} /> Update issue
               </button>
             )}
             {!run && (
