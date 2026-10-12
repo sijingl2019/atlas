@@ -44,7 +44,7 @@ atlas-profile = { path = "../crates/atlas-profile" }
 # `unstable` enables the multiwebview API (`Window::add_child`) used to embed a
 # real WebKit child webview inside the browser tab (see `commands::browser`).
 # Pinned to the 2.11.1 already in the lockfile — no new resolution.
-tauri = { version = "2", features = ["protocol-asset", "macos-private-api", "unstable"] }
+tauri = { version = "2", features = ["protocol-asset", "macos-private-api", "tray-icon", "unstable"] }
 # Used to embed KB cover images as `data:` URLs (covers live under the
 # hidden `.atlas/` dir, which the asset protocol won't serve). Pinned to the
 # version already in the lockfile so no new resolution is pulled in.

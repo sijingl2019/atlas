@@ -284,6 +284,25 @@ export function App() {
       }),
       listenUpdateError((e) => a.setError(e.message)),
       listenUpdateChecking((e) => a.setChecking(e.checking)),
+      // Tray ▸ Check for Updates — same flow as the titlebar's item.
+      listen("atlas:tray-check-updates", () => {
+        const { phase, checking } = useUpdaterStore.getState();
+        if (phase === "ready" || phase === "applying") {
+          a.openModal();
+          return;
+        }
+        if (checking || phase === "downloading") return;
+        void updater
+          .checkNow()
+          .then((status) => {
+            if (!status.available) {
+              toast.success(`You're on the latest version (${status.currentVersion}).`);
+            }
+          })
+          .catch((e) =>
+            toast.error(`Update check failed: ${e instanceof Error ? e.message : String(e)}`),
+          );
+      }),
     ];
     // Hydrate from the current backend state (e.g. staged before this mount).
     // Show the titlebar badge but don't pop the modal on launch — the live

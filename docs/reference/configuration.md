@@ -287,6 +287,7 @@ wrote; `toml_edit` just preserves whatever comments are already there.
 | `gitBlameInline` | boolean | `true` | — |
 | `gitAutoFetch` | boolean | `true` | — |
 | `keepAwakeWhileRunning` | boolean | `false` | no effect on Windows |
+| `closeButtonExits` | boolean | `false` | — . Off: the close button hides the main window to the tray |
 | `autoUpdate` | boolean | `true` | — |
 | `curatedPluginSync` | boolean | `false` | — |
 | `instructionSync` | boolean | `false` | — . See [Mirrored instructions](#mirrored-instructions-instructionsync) |

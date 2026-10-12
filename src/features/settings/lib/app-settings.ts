@@ -90,6 +90,9 @@ export interface AppSettings {
   /** Keep the computer awake while an Atlas agent is actively running.
    *  Default OFF. Prevents idle system sleep; display can still turn off. */
   keepAwakeWhileRunning: boolean;
+  /** Close button quits Atlas. Default OFF — closing hides the main window
+   *  and Atlas stays in the tray. */
+  closeButtonExits: boolean;
   /** Let the Atlas Agent's engine sync OpenAI's curated plugin catalogue
    *  (github.com/openai/plugins) when it starts. OFF by default — it is a
    *  network fetch at every launch. Applies the next time the agent starts. */
@@ -222,6 +225,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   gitBlameInline: true,
   gitAutoFetch: true,
   keepAwakeWhileRunning: false,
+  closeButtonExits: false,
   autoUpdate: true,
   curatedPluginSync: false,
   instructionSync: false,

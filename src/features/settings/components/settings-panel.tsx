@@ -520,6 +520,15 @@ function GeneralSettings() {
           onChange={(next) => updateSettings({ keepAwakeWhileRunning: next })}
         />
       </SettingRow>
+      <SettingRow
+        label="Quit when the window is closed"
+        description="Off: the close button hides the window and Atlas keeps running in the tray. Use the tray's Exit to quit."
+      >
+        <Toggle
+          checked={settings.closeButtonExits}
+          onChange={(next) => updateSettings({ closeButtonExits: next })}
+        />
+      </SettingRow>
       <NotificationsSettings />
 
       <SectionTitle title="Behavior" subtitle="Files, logs and the editor" />

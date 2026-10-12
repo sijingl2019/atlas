@@ -380,6 +380,10 @@ pub struct AppSettings {
     /// Default OFF. See `crate::keep_awake`.
     #[serde(default)]
     pub keep_awake_while_running: bool,
+    /// Whether the window's close button quits Atlas. Default OFF: closing
+    /// hides the main window and Atlas stays in the tray. See `crate::tray`.
+    #[serde(default)]
+    pub close_button_exits: bool,
     /// Auto-update master switch. See `crate::commands::updater`.
     #[serde(default = "default_true")]
     pub auto_update: bool,
@@ -605,6 +609,7 @@ impl Default for AppSettings {
             git_blame_inline: true,
             git_auto_fetch: true,
             keep_awake_while_running: false,
+            close_button_exits: false,
             auto_update: true,
             curated_plugin_sync: false,
             instruction_sync: false,
@@ -799,6 +804,11 @@ const SETTINGS_DOCS: &[(&str, &str)] = &[
         "# Keep the computer awake while an Atlas agent is actively running.\n\
          # Prevents idle system sleep; display can still turn off. No effect on\n\
          # Windows. (default: false)",
+    ),
+    (
+        "closeButtonExits",
+        "# Quit Atlas when the window's close button is clicked. Off: closing
+         # hides the window and Atlas keeps running in the tray. (default: false)",
     ),
     (
         "autoUpdate",
@@ -1322,6 +1332,7 @@ pub struct SettingsPatch {
     pub git_blame_inline: Option<bool>,
     pub git_auto_fetch: Option<bool>,
     pub keep_awake_while_running: Option<bool>,
+    pub close_button_exits: Option<bool>,
     pub auto_update: Option<bool>,
     pub curated_plugin_sync: Option<bool>,
     pub instruction_sync: Option<bool>,
@@ -1422,6 +1433,9 @@ impl SettingsPatch {
         }
         if let Some(v) = self.keep_awake_while_running {
             settings.keep_awake_while_running = v;
+        }
+        if let Some(v) = self.close_button_exits {
+            settings.close_button_exits = v;
         }
         if let Some(v) = self.auto_update {
             settings.auto_update = v;
@@ -1560,6 +1574,7 @@ impl SettingsPatch {
         set_bool!(git_blame_inline, "gitBlameInline");
         set_bool!(git_auto_fetch, "gitAutoFetch");
         set_bool!(keep_awake_while_running, "keepAwakeWhileRunning");
+        set_bool!(close_button_exits, "closeButtonExits");
         set_bool!(auto_update, "autoUpdate");
         set_bool!(curated_plugin_sync, "curatedPluginSync");
         set_bool!(instruction_sync, "instructionSync");
@@ -1727,6 +1742,7 @@ pub fn settings_from_legacy_json(raw: Option<&serde_json::Value>) -> AppSettings
     take_bool!(git_blame_inline, "gitBlameInline");
     take_bool!(git_auto_fetch, "gitAutoFetch");
     take_bool!(keep_awake_while_running, "keepAwakeWhileRunning");
+    take_bool!(close_button_exits, "closeButtonExits");
     take_bool!(auto_update, "autoUpdate");
     take_bool!(curated_plugin_sync, "curatedPluginSync");
     take_bool!(enter_to_send, "enterToSend");
@@ -3067,6 +3083,7 @@ someFutureKey = \"left alone\"
             git_blame_inline: Some(!defaults.git_blame_inline),
             git_auto_fetch: Some(!defaults.git_auto_fetch),
             keep_awake_while_running: Some(!defaults.keep_awake_while_running),
+            close_button_exits: Some(!defaults.close_button_exits),
             auto_update: Some(!defaults.auto_update),
             curated_plugin_sync: Some(!defaults.curated_plugin_sync),
             instruction_sync: Some(!defaults.instruction_sync),

@@ -12,6 +12,8 @@ const thread = (threadId: string, createdAt: string, updatedAt = createdAt): Thr
   archived: false,
   projectName: "atlas",
   folderPaths: ["C:\\repo\\atlas"],
+  liveElsewhere: false,
+  branch: null,
 });
 
 const projects: ThreadProject[] = [

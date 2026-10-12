@@ -8,6 +8,7 @@ mod menu;
 mod notifier;
 mod state;
 mod telemetry;
+mod tray;
 mod window_background;
 
 use std::sync::Arc;
@@ -106,10 +107,8 @@ pub fn run() {
     let builder = builder.plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
         use tauri::Emitter;
         tracing::info!(target: "atlas::cli", "second-instance argv: {argv:?}");
-        if let Some(window) = app.get_webview_window("main") {
-            let _ = window.unminimize();
-            let _ = window.set_focus();
-        }
+        // The window may be hidden to the tray, not just minimised.
+        tray::show_main(app);
         // argv[0] is the executable path — strip it before parsing.
         let positional = argv.get(1..).unwrap_or(&[]);
         if let Some(path) = commands::cli::parse_project_path(positional) {
@@ -397,6 +396,9 @@ pub fn run() {
             app.manage(Arc::new(notifier::Notifier::new(app.handle())));
 
             commands::updater::init_on_startup(app.handle());
+            if let Err(e) = tray::install(app.handle()) {
+                tracing::warn!("tray icon unavailable: {e}");
+            }
             // No automatic update checks for the dev profile: an update it
             // staged would be the released installer, and applying it on quit
             // would upgrade the user's installed Atlas from inside a source
@@ -454,6 +456,17 @@ pub fn run() {
         // webview label for multi-window project scoping).
         .on_window_event(|window, event| {
             match event {
+                // The close button hides the main window to the tray unless
+                // the user opted into `closeButtonExits`. See `tray.rs`.
+                tauri::WindowEvent::CloseRequested { api, .. }
+                    if window.label() == "main"
+                        && !window
+                            .try_state::<state::AtlasConfigHandle>()
+                            .is_some_and(|config| config.lock().effective().close_button_exits) =>
+                {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
                 tauri::WindowEvent::Destroyed => {
                     let label = window.label();
                     if let Some(root) = window.state::<FileIndexState>().drop_window(label) {
@@ -973,6 +986,9 @@ pub fn run() {
                 tauri::RunEvent::Exit => {
                     commands::updater::apply_on_exit(app_handle);
                 }
+                // Dock icon click with the main window hidden to the tray.
+                #[cfg(target_os = "macos")]
+                tauri::RunEvent::Reopen { .. } => tray::show_main(app_handle),
                 _ => {}
             }
         });
