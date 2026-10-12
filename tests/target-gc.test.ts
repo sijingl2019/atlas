@@ -78,7 +78,8 @@ beforeEach(() => {
 
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
-describe("target-gc.sh", () => {
+// The script and its stubbed PATH (`:/usr/bin:/bin`) are Unix-only; CI runs it on macOS/Linux.
+describe.skipIf(process.platform === "win32")("target-gc.sh", () => {
   it("records the compiler on first sight and sweeps nothing for it", () => {
     run("1.99.0");
     expect(stamp()).toBe("1.99.0");
