@@ -587,7 +587,9 @@ impl Session {
         let session_telemetry_for_context = session_telemetry;
         let available_models = models_manager.try_list_models().unwrap_or_default();
         let unified_exec_shell_mode = UnifiedExecShellMode::for_session(
-            atlas_engine_tools::unified_exec_feature_mode_for_features(per_turn_config.features.get()),
+            atlas_engine_tools::unified_exec_feature_mode_for_features(
+                per_turn_config.features.get(),
+            ),
             crate::tools::tool_user_shell_type(user_shell),
             shell_zsh_path,
             main_execve_wrapper_exe,
@@ -624,7 +626,9 @@ impl Session {
         turn_metadata_state
             .set_responses_api_metadata(per_turn_config.responses_api_metadata.clone());
         let (current_date, timezone) = local_time_context();
-        let extension_data = Arc::new(atlas_engine_extension_api::ExtensionData::new(sub_id.clone()));
+        let extension_data = Arc::new(atlas_engine_extension_api::ExtensionData::new(
+            sub_id.clone(),
+        ));
         extension_data.insert(skills_snapshot);
         TurnContext {
             sub_id,

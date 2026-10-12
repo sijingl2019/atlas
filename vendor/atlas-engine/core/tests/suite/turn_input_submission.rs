@@ -43,7 +43,9 @@ async fn submit_user_message(
     atlas_engine: &atlas_engine_core::AtlasEngineThread,
     text: &str,
 ) -> atlas_engine_protocol::error::Result<TurnInputSubmission> {
-    atlas_engine.start_or_steer_turn(user_message_request(text)).await
+    atlas_engine
+        .start_or_steer_turn(user_message_request(text))
+        .await
 }
 
 #[tokio::test]
@@ -323,7 +325,10 @@ async fn turn_input_submission_applies_thread_settings_only_after_accepted_input
     release_response
         .send(())
         .expect("response gate should remain open");
-    wait_for_event(atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let rejected_cwd = test.config.cwd.join("rejected-environment");
     let rejected = atlas_engine
@@ -456,7 +461,10 @@ async fn start_or_steer_turn_requires_matching_active_output_schema() {
     release_response
         .send(())
         .expect("response gate should remain open");
-    wait_for_event(atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let requests = server.requests().await;
     assert_eq!(requests.len(), 2);

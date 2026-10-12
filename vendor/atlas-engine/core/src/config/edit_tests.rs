@@ -28,7 +28,8 @@ fn blocking_set_model_top_level() {
     )
     .expect("persist");
 
-    let contents = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    let contents =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     let expected = r#"model = "gpt-5.4"
 model_reasoning_effort = "high"
 "#;
@@ -45,7 +46,8 @@ fn set_service_tier_saves_default_as_default() {
         .apply_blocking()
         .expect("persist");
 
-    let contents = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    let contents =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     assert_eq!(contents, "service_tier = \"default\"\n");
 }
 
@@ -59,7 +61,8 @@ fn set_service_tier_saves_priority_as_fast() {
         .apply_blocking()
         .expect("persist");
 
-    let contents = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    let contents =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     assert_eq!(contents, "service_tier = \"fast\"\n");
 }
 
@@ -73,7 +76,8 @@ fn set_service_tier_preserves_unknown_service_tier() {
         .apply_blocking()
         .expect("persist");
 
-    let contents = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    let contents =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     assert_eq!(contents, "service_tier = \"experimental-tier-id\"\n");
 }
 
@@ -90,7 +94,8 @@ fn builder_with_edits_applies_custom_paths() {
         .apply_blocking()
         .expect("persist");
 
-    let contents = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    let contents =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     assert_eq!(contents, "enabled = true\n");
 }
 
@@ -225,7 +230,8 @@ fn session_picker_view_edit_writes_root_tui_setting() {
         .apply_blocking()
         .expect("persist");
 
-    let contents = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    let contents =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     let expected = r#"[tui]
 session_picker_view = "dense"
 "#;
@@ -242,7 +248,8 @@ fn keymap_binding_edit_writes_root_action_binding() {
         .apply_blocking()
         .expect("persist");
 
-    let contents = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    let contents =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     let expected = r#"[tui.keymap.composer]
 submit = "ctrl-enter"
 "#;
@@ -263,7 +270,8 @@ fn keymap_bindings_edit_writes_single_binding_as_string() {
         .apply_blocking()
         .expect("persist");
 
-    let contents = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    let contents =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     let expected = r#"[tui.keymap.composer]
 submit = "ctrl-enter"
 "#;
@@ -284,7 +292,8 @@ fn keymap_bindings_edit_writes_multiple_bindings_as_array() {
         .apply_blocking()
         .expect("persist");
 
-    let raw = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    let raw =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     let value: TomlValue = toml::from_str(&raw).expect("parse config");
 
     assert_eq!(
@@ -326,7 +335,8 @@ submit = "shift-enter"
         .apply_blocking()
         .expect("persist");
 
-    let raw = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    let raw =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     let value: TomlValue = toml::from_str(&raw).expect("parse config");
 
     assert_eq!(
@@ -373,7 +383,8 @@ submit = "shift-enter"
         .apply_blocking()
         .expect("persist");
 
-    let raw = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    let raw =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     let value: TomlValue = toml::from_str(&raw).expect("parse config");
 
     assert_eq!(
@@ -408,7 +419,8 @@ fn set_model_availability_nux_count_writes_shown_count() {
         .apply_blocking()
         .expect("persist");
 
-    let contents = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    let contents =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     let expected = r#"[tui.model_availability_nux]
 gpt-foo = 4
 "#;
@@ -428,7 +440,8 @@ fn set_skill_config_writes_disabled_entry() {
         .apply_blocking()
         .expect("persist");
 
-    let contents = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    let contents =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     let expected = r#"[[skills.config]]
 path = "/tmp/skills/demo/SKILL.md"
 enabled = false
@@ -457,7 +470,8 @@ enabled = false
         .apply_blocking()
         .expect("persist");
 
-    let contents = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    let contents =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     assert_eq!(contents, "");
 }
 
@@ -474,7 +488,8 @@ fn set_skill_config_writes_name_selector_entry() {
         .apply_blocking()
         .expect("persist");
 
-    let contents = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    let contents =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     let expected = r#"[[skills.config]]
 name = "github:yeet"
 enabled = false
@@ -506,7 +521,8 @@ profiles = { fast = { model = "gpt-4o", sandbox_mode = "strict" } }
     )
     .expect("persist");
 
-    let raw = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    let raw =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     let value: TomlValue = toml::from_str(&raw).expect("parse config");
 
     assert_eq!(
@@ -638,7 +654,8 @@ network_access = false
     )
     .expect("apply");
 
-    let updated = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    let updated =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     let expected = r#"approval_policy = "never"
 
 [mcp_servers.linear]
@@ -679,7 +696,8 @@ profiles = { fast = { model = "gpt-4o", sandbox_mode = "strict" } }
     )
     .expect("persist");
 
-    let contents = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    let contents =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     let expected = r#"profile = "fast"
 
 profiles = { fast = { model = "gpt-4o", sandbox_mode = "strict" } }
@@ -711,7 +729,8 @@ model_reasoning_effort = "low"
     )
     .expect("persist");
 
-    let contents = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    let contents =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     let expected = r#"profile = "team"
 model = "o5-preview"
 model_reasoning_effort = "minimal"
@@ -743,7 +762,8 @@ existing = "value"
     )
     .expect("persist");
 
-    let contents = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    let contents =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     let expected = r#"# Global comment
 
 [notice]
@@ -772,7 +792,8 @@ existing = "value"
     )
     .expect("persist");
 
-    let contents = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    let contents =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     let expected = r#"[notice]
 existing = "value"
 hide_rate_limit_model_nudge = true
@@ -800,7 +821,8 @@ existing = "value"
     )
     .expect("persist");
 
-    let contents = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    let contents =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     let expected = r#"[notice]
 existing = "value"
 hide_gpt5_1_migration_prompt = true
@@ -828,7 +850,8 @@ existing = "value"
     )
     .expect("persist");
 
-    let contents = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    let contents =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     let expected = r#"[notice]
 existing = "value"
 "hide_gpt-5.1-codex-max_migration_prompt" = true
@@ -856,7 +879,8 @@ existing = "value"
     )
     .expect("persist");
 
-    let contents = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    let contents =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     let expected = r#"[notice]
 existing = "value"
 
@@ -885,7 +909,8 @@ existing = "value"
     )
     .expect("persist");
 
-    let contents = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    let contents =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     let expected = r#"[notice]
 existing = "value"
 
@@ -917,7 +942,8 @@ existing = "value"
     )
     .expect("persist");
 
-    let contents = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    let contents =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     let expected = r#"[notice]
 existing = "value"
 
@@ -944,7 +970,8 @@ existing = "value"
     )
     .expect("persist");
 
-    let contents = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    let contents =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     let expected = r#"[notice]
 existing = "value"
 
@@ -976,7 +1003,8 @@ existing = "value"
     )
     .expect("persist");
 
-    let contents = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    let contents =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     let expected = r#"[notice]
 existing = "value"
 
@@ -1070,7 +1098,8 @@ fn blocking_replace_mcp_servers_round_trips() {
     )
     .expect("persist");
 
-    let raw = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    let raw =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     let expected = "\
 [mcp_servers.http]
 url = \"https://example.com\"
@@ -1144,7 +1173,8 @@ fn blocking_replace_mcp_servers_serializes_tool_approval_overrides() {
 
     apply_blocking(atlas_agent_home, &[ConfigEdit::ReplaceMcpServers(servers)]).expect("persist");
 
-    let raw = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    let raw =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     let expected = "\
 [mcp_servers.docs]
 command = \"docs-server\"
@@ -1201,7 +1231,8 @@ foo = { command = "cmd" }
 
     apply_blocking(atlas_agent_home, &[ConfigEdit::ReplaceMcpServers(servers)]).expect("persist");
 
-    let contents = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    let contents =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     let expected = r#"[mcp_servers]
 # keep me
 foo = { command = "cmd" }
@@ -1253,7 +1284,8 @@ foo = { command = "cmd" } # keep me
 
     apply_blocking(atlas_agent_home, &[ConfigEdit::ReplaceMcpServers(servers)]).expect("persist");
 
-    let contents = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    let contents =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     let expected = r#"[mcp_servers]
 foo = { command = "cmd" , enabled = false } # keep me
 "#;
@@ -1304,7 +1336,8 @@ foo = { command = "cmd", args = ["--flag"] } # keep me
 
     apply_blocking(atlas_agent_home, &[ConfigEdit::ReplaceMcpServers(servers)]).expect("persist");
 
-    let contents = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    let contents =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     let expected = r#"[mcp_servers]
 foo = { command = "cmd"} # keep me
 "#;
@@ -1356,7 +1389,8 @@ foo = { command = "cmd" }
 
     apply_blocking(atlas_agent_home, &[ConfigEdit::ReplaceMcpServers(servers)]).expect("persist");
 
-    let contents = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    let contents =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     let expected = r#"[mcp_servers]
 # keep me
 foo = { command = "cmd" , enabled = false }
@@ -1398,7 +1432,8 @@ fn blocking_set_path_updates_notifications() {
     )
     .expect("apply");
 
-    let raw = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    let raw =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     let config: TomlValue = toml::from_str(&raw).expect("parse config");
     let notifications = config
         .get("tui")
@@ -1419,7 +1454,8 @@ async fn async_builder_set_model_persists() {
         .await
         .expect("persist");
 
-    let contents = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    let contents =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     let expected = r#"model = "gpt-5.4"
 model_reasoning_effort = "high"
 "#;
@@ -1449,14 +1485,16 @@ model_reasoning_effort = "high"
         .set_model(Some("gpt-5.4"), Some(ReasoningEffort::High))
         .apply_blocking()
         .expect("persist update");
-    contents = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    contents =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     assert_eq!(contents, updated_expected);
 
     ConfigEditsBuilder::new(atlas_agent_home)
         .set_model(Some("o4-mini"), Some(ReasoningEffort::Low))
         .apply_blocking()
         .expect("persist revert");
-    contents = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    contents =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     assert_eq!(contents, initial_expected);
 }
 
@@ -1471,7 +1509,8 @@ async fn blocking_set_asynchronous_helpers_available() {
         .await
         .expect("persist");
 
-    let raw = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    let raw =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     let notice = toml::from_str::<TomlValue>(&raw)
         .expect("parse config")
         .get("notice")
@@ -1492,7 +1531,8 @@ fn blocking_builder_set_realtime_audio_persists_and_clears() {
         .apply_blocking()
         .expect("persist realtime audio");
 
-    let raw = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    let raw =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     let config: TomlValue = toml::from_str(&raw).expect("parse config");
     let realtime_audio = config
         .get("audio")
@@ -1512,7 +1552,8 @@ fn blocking_builder_set_realtime_audio_persists_and_clears() {
         .apply_blocking()
         .expect("clear realtime microphone");
 
-    let raw = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    let raw =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     let config: TomlValue = toml::from_str(&raw).expect("parse config");
     let realtime_audio = config
         .get("audio")
@@ -1535,7 +1576,8 @@ fn blocking_builder_set_realtime_voice_persists_and_clears() {
         .apply_blocking()
         .expect("persist realtime voice");
 
-    let raw = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    let raw =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     let config: TomlValue = toml::from_str(&raw).expect("parse config");
     let realtime = config
         .get("realtime")
@@ -1551,7 +1593,8 @@ fn blocking_builder_set_realtime_voice_persists_and_clears() {
         .apply_blocking()
         .expect("clear realtime voice");
 
-    let raw = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    let raw =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     let config: TomlValue = toml::from_str(&raw).expect("parse config");
     let realtime = config
         .get("realtime")
@@ -1576,6 +1619,7 @@ fn replace_mcp_servers_blocking_clears_table_when_empty() {
     )
     .expect("persist");
 
-    let contents = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    let contents =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     assert!(!contents.contains("mcp_servers"));
 }

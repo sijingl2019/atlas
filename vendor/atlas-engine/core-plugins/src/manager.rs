@@ -81,8 +81,8 @@ use atlas_engine_config::types::ToolSuggestDisabledTool;
 use atlas_engine_config::types::ToolSuggestDiscoverableType;
 use atlas_engine_hooks::plugin_hook_declarations;
 use atlas_engine_http_client::HttpClientFactory;
-use atlas_engine_login::AuthManager;
 use atlas_engine_login::AtlasEngineAuth;
+use atlas_engine_login::AuthManager;
 use atlas_engine_plugin::AppConnectorId;
 use atlas_engine_plugin::PluginCapabilitySummary;
 use atlas_engine_plugin::PluginId;
@@ -235,11 +235,26 @@ impl RemoteCatalogCacheRefreshRequest {
     fn has_same_cache_identity(&self, other: &Self) -> bool {
         self.service_config == other.service_config
             && self.auth.as_ref().and_then(AtlasEngineAuth::get_account_id)
-                == other.auth.as_ref().and_then(AtlasEngineAuth::get_account_id)
-            && self.auth.as_ref().and_then(AtlasEngineAuth::get_chatgpt_user_id)
-                == other.auth.as_ref().and_then(AtlasEngineAuth::get_chatgpt_user_id)
-            && self.auth.as_ref().map(AtlasEngineAuth::is_workspace_account)
-                == other.auth.as_ref().map(AtlasEngineAuth::is_workspace_account)
+                == other
+                    .auth
+                    .as_ref()
+                    .and_then(AtlasEngineAuth::get_account_id)
+            && self
+                .auth
+                .as_ref()
+                .and_then(AtlasEngineAuth::get_chatgpt_user_id)
+                == other
+                    .auth
+                    .as_ref()
+                    .and_then(AtlasEngineAuth::get_chatgpt_user_id)
+            && self
+                .auth
+                .as_ref()
+                .map(AtlasEngineAuth::is_workspace_account)
+                == other
+                    .auth
+                    .as_ref()
+                    .map(AtlasEngineAuth::is_workspace_account)
     }
 }
 
@@ -584,7 +599,10 @@ impl PluginsManager {
     }
 
     fn remote_global_catalog_active(&self, config: &PluginsConfigInput) -> bool {
-        config.remote_plugin_enabled && self.auth_mode().is_some_and(AuthMode::uses_atlas_engine_backend)
+        config.remote_plugin_enabled
+            && self
+                .auth_mode()
+                .is_some_and(AuthMode::uses_atlas_engine_backend)
     }
 
     /// Starts the local curated marketplace sync when the remote catalog is unavailable.
@@ -1597,8 +1615,8 @@ impl PluginsManager {
         let auth_policy = resolved.policy.authentication;
         let plugin_version =
             if is_openai_curated_marketplace_name(&resolved.plugin_id.marketplace_name) {
-                let curated_plugin_version = read_curated_plugins_sha(self.atlas_agent_home.as_path())
-                    .ok_or_else(|| {
+                let curated_plugin_version =
+                    read_curated_plugins_sha(self.atlas_agent_home.as_path()).ok_or_else(|| {
                         PluginStoreError::Invalid(
                             "local curated marketplace sha is not available".to_string(),
                         )
@@ -2001,7 +2019,9 @@ impl PluginsManager {
             ));
         }
         let loaded_manifest =
-            if atlas_engine_utils_plugins::find_plugin_manifest_path(source_path.as_path()).is_some() {
+            if atlas_engine_utils_plugins::find_plugin_manifest_path(source_path.as_path())
+                .is_some()
+            {
                 load_plugin_manifest_with_format(source_path.as_path())
             } else {
                 plugin
@@ -2456,10 +2476,12 @@ impl PluginsManager {
             }
         };
         let policy = MarketplacePolicy::from_requirements(config.config_layer_stack.requirements());
-        let mut configured_plugin_keys =
-            configured_plugins_from_stack(&config.config_layer_stack, self.atlas_agent_home.as_path())
-                .into_keys()
-                .collect::<Vec<_>>();
+        let mut configured_plugin_keys = configured_plugins_from_stack(
+            &config.config_layer_stack,
+            self.atlas_agent_home.as_path(),
+        )
+        .into_keys()
+        .collect::<Vec<_>>();
         configured_plugin_keys.sort_unstable();
         let mut configured_plugin_sources = Vec::new();
         let mut roots = outcome
@@ -2634,7 +2656,9 @@ impl PluginsManager {
                 match sync_openai_plugins_repo(atlas_agent_home.as_path(), http_client_factory) {
                     Ok(curated_plugin_version) => {
                         let configured_curated_plugin_ids =
-                            configured_curated_plugin_ids_from_atlas_agent_home(atlas_agent_home.as_path());
+                            configured_curated_plugin_ids_from_atlas_agent_home(
+                                atlas_agent_home.as_path(),
+                            );
                         match refresh_curated_plugin_cache(
                             atlas_agent_home.as_path(),
                             &curated_plugin_version,
@@ -2875,8 +2899,10 @@ impl PluginsManager {
         &self,
         config: &PluginsConfigInput,
     ) -> (HashSet<String>, HashSet<String>) {
-        let configured_plugins =
-            configured_plugins_from_stack(&config.config_layer_stack, self.atlas_agent_home.as_path());
+        let configured_plugins = configured_plugins_from_stack(
+            &config.config_layer_stack,
+            self.atlas_agent_home.as_path(),
+        );
         let installed_plugins = configured_plugins
             .keys()
             .filter(|plugin_key| {
@@ -2909,7 +2935,8 @@ impl PluginsManager {
         let curated_marketplace_path = if include_openai_curated {
             match target_curated_marketplace(self.auth_mode()) {
                 TargetCuratedMarketplace::OpenAi | TargetCuratedMarketplace::OpenAiWithRemote => {
-                    let curated_repo_root = curated_plugins_repo_path(self.atlas_agent_home.as_path());
+                    let curated_repo_root =
+                        curated_plugins_repo_path(self.atlas_agent_home.as_path());
                     curated_repo_root.is_dir().then_some(curated_repo_root)
                 }
                 TargetCuratedMarketplace::OpenAiApi => {

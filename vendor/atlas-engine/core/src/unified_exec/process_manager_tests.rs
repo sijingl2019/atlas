@@ -49,7 +49,8 @@ fn env_overlay_for_exec_server_keeps_runtime_changes_only() {
             "current-profile".to_string(),
         ),
         (
-            atlas_engine_apply_patch::ATLAS_AGENT_APPLY_PATCH_PRESERVE_LINE_ENDINGS_ENV_VAR.to_string(),
+            atlas_engine_apply_patch::ATLAS_AGENT_APPLY_PATCH_PRESERVE_LINE_ENDINGS_ENV_VAR
+                .to_string(),
             "1".to_string(),
         ),
     ]);
@@ -64,7 +65,8 @@ fn env_overlay_for_exec_server_keeps_runtime_changes_only() {
             "current-profile".to_string(),
         ),
         (
-            atlas_engine_apply_patch::ATLAS_AGENT_APPLY_PATCH_PRESERVE_LINE_ENDINGS_ENV_VAR.to_string(),
+            atlas_engine_apply_patch::ATLAS_AGENT_APPLY_PATCH_PRESERVE_LINE_ENDINGS_ENV_VAR
+                .to_string(),
             "1".to_string(),
         ),
         (
@@ -83,7 +85,8 @@ fn env_overlay_for_exec_server_keeps_runtime_changes_only() {
                 "current-profile".to_string(),
             ),
             (
-                atlas_engine_apply_patch::ATLAS_AGENT_APPLY_PATCH_PRESERVE_LINE_ENDINGS_ENV_VAR.to_string(),
+                atlas_engine_apply_patch::ATLAS_AGENT_APPLY_PATCH_PRESERVE_LINE_ENDINGS_ENV_VAR
+                    .to_string(),
                 "1".to_string(),
             ),
             (
@@ -126,7 +129,8 @@ fn exec_env_policy_excludes_non_inheritable_and_runtime_variables() {
             ignore_default_excludes: policy.ignore_default_excludes,
             exclude: vec![
                 ATLAS_AGENT_PERMISSION_PROFILE_ENV_VAR.to_string(),
-                atlas_engine_apply_patch::ATLAS_AGENT_APPLY_PATCH_PRESERVE_LINE_ENDINGS_ENV_VAR.to_string(),
+                atlas_engine_apply_patch::ATLAS_AGENT_APPLY_PATCH_PRESERVE_LINE_ENDINGS_ENV_VAR
+                    .to_string(),
                 PLUGIN_METRICS_OUTPUT_ENV_VAR.to_string(),
             ],
             r#set: HashMap::from([("KEEP".to_string(), "value".to_string())]),
@@ -157,7 +161,10 @@ fn exec_server_params_use_path_uri_and_env_policy_overlay_contract() {
                 "HTTP_PROXY".to_string(),
                 "http://127.0.0.1:43123".to_string(),
             ),
-            ("ATLAS_AGENT_NETWORK_PROXY_ACTIVE".to_string(), "1".to_string()),
+            (
+                "ATLAS_AGENT_NETWORK_PROXY_ACTIVE".to_string(),
+                "1".to_string(),
+            ),
             (
                 "SSL_CERT_FILE".to_string(),
                 "/client/custom-ca.pem".to_string(),
@@ -178,7 +185,10 @@ fn exec_server_params_use_path_uri_and_env_policy_overlay_contract() {
                     "HTTP_PROXY".to_string(),
                     "http://127.0.0.1:43123".to_string(),
                 ),
-                ("ATLAS_AGENT_NETWORK_PROXY_ACTIVE".to_string(), "1".to_string()),
+                (
+                    "ATLAS_AGENT_NETWORK_PROXY_ACTIVE".to_string(),
+                    "1".to_string(),
+                ),
                 (
                     "SSL_CERT_FILE".to_string(),
                     "/client/custom-ca.pem".to_string(),
@@ -228,11 +238,16 @@ fn exec_server_params_use_path_uri_and_env_policy_overlay_contract() {
                 "HTTP_PROXY".to_string(),
                 "http://127.0.0.1:43123".to_string(),
             ),
-            ("ATLAS_AGENT_NETWORK_PROXY_ACTIVE".to_string(), "1".to_string(),),
+            (
+                "ATLAS_AGENT_NETWORK_PROXY_ACTIVE".to_string(),
+                "1".to_string(),
+            ),
         ])
     );
     request.exec_server_sandbox = Some(
-        atlas_engine_exec_server::FileSystemSandboxContext::from_permission_profile(permission_profile),
+        atlas_engine_exec_server::FileSystemSandboxContext::from_permission_profile(
+            permission_profile,
+        ),
     );
     let first = params_for_request(&request);
     let second = params_for_request(&request);
@@ -459,10 +474,12 @@ async fn failed_initial_end_for_unstored_process_uses_fallback_output() {
         .await
         .expect("timed out waiting for failed command execution item")
         .expect("event channel closed");
-    let atlas_engine_protocol::protocol::EventMsg::ItemCompleted(completed_event) = event.msg else {
+    let atlas_engine_protocol::protocol::EventMsg::ItemCompleted(completed_event) = event.msg
+    else {
         panic!("expected ItemCompleted event");
     };
-    let atlas_engine_protocol::items::TurnItem::CommandExecution(item) = completed_event.item else {
+    let atlas_engine_protocol::items::TurnItem::CommandExecution(item) = completed_event.item
+    else {
         panic!("expected CommandExecution item");
     };
     assert_eq!(item.id, "call-unified-denied");

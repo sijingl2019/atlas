@@ -52,6 +52,10 @@ pub struct IntegrationsRuntime {
     in_flight: Mutex<HashSet<String>>,
     /// The last fetch failure per integration, cleared by a good fetch.
     pub poll_errors: Mutex<HashMap<String, String>>,
+    /// Issue keys the last good fetch listed, so the sidebar's status skips
+    /// runs of issues the tracker has since dropped. In memory only: the
+    /// records stay, they are what keeps a finished issue from running again.
+    pub listed: Mutex<HashMap<String, HashSet<String>>>,
 }
 
 impl IntegrationsRuntime {
@@ -63,6 +67,7 @@ impl IntegrationsRuntime {
             last_poll: Default::default(),
             in_flight: Default::default(),
             poll_errors: Default::default(),
+            listed: Default::default(),
         }
     }
 
@@ -194,13 +199,20 @@ impl IntegrationsRuntime {
                 announce(app);
             }
             Ok(issues) => {
-                if self
+                let keys: HashSet<String> = issues.iter().map(|i| i.key.clone()).collect();
+                let relisted = self
+                    .listed
+                    .lock()
+                    .unwrap()
+                    .insert(integration.id.clone(), keys.clone())
+                    .is_none_or(|old| old != keys);
+                let cleared = self
                     .poll_errors
                     .lock()
                     .unwrap()
                     .remove(&integration.id)
-                    .is_some()
-                {
+                    .is_some();
+                if relisted || cleared {
                     announce(app);
                 }
                 for issue in issues {
@@ -489,7 +501,12 @@ impl IntegrationsRuntime {
             },
         };
         self.waiters.lock().unwrap().remove(&key.session_id);
-        let _ = SubagentHost::drop_session(&host, key.session_id).await;
+        // Off the run's path: `session/close` waits on the agent with no
+        // timeout, and an agent that never answers would leave the run
+        // `running` with its finished work never committed.
+        tauri::async_runtime::spawn(async move {
+            let _ = SubagentHost::drop_session(&host, key.session_id).await;
+        });
         result
     }
 }

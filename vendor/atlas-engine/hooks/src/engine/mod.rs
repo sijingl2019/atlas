@@ -102,13 +102,17 @@ impl ConfiguredHandler {
     fn event_name_label(&self) -> &'static str {
         match self.event_name {
             atlas_engine_protocol::protocol::HookEventName::PreToolUse => "pre-tool-use",
-            atlas_engine_protocol::protocol::HookEventName::PermissionRequest => "permission-request",
+            atlas_engine_protocol::protocol::HookEventName::PermissionRequest => {
+                "permission-request"
+            }
             atlas_engine_protocol::protocol::HookEventName::PostToolUse => "post-tool-use",
             atlas_engine_protocol::protocol::HookEventName::PreCompact => "pre-compact",
             atlas_engine_protocol::protocol::HookEventName::PostCompact => "post-compact",
             atlas_engine_protocol::protocol::HookEventName::SessionStart => "session-start",
             atlas_engine_protocol::protocol::HookEventName::SessionEnd => "session-end",
-            atlas_engine_protocol::protocol::HookEventName::UserPromptSubmit => "user-prompt-submit",
+            atlas_engine_protocol::protocol::HookEventName::UserPromptSubmit => {
+                "user-prompt-submit"
+            }
             atlas_engine_protocol::protocol::HookEventName::SubagentStart => "subagent-start",
             atlas_engine_protocol::protocol::HookEventName::SubagentStop => "subagent-stop",
             atlas_engine_protocol::protocol::HookEventName::Stop => "stop",

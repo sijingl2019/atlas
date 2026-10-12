@@ -1,7 +1,8 @@
 // Modified by Atlas from upstream OpenAI Codex (Apache-2.0). See CONTEXT.md.
 use atlas_engine_config::CloudConfigBundle;
 
-const CLOUD_CONFIG_BUNDLE_FETCH_ATTEMPT_METRIC: &str = "atlas_agent.cloud_config_bundle.fetch_attempt";
+const CLOUD_CONFIG_BUNDLE_FETCH_ATTEMPT_METRIC: &str =
+    "atlas_agent.cloud_config_bundle.fetch_attempt";
 const CLOUD_CONFIG_BUNDLE_FETCH_FINAL_METRIC: &str = "atlas_agent.cloud_config_bundle.fetch_final";
 const CLOUD_CONFIG_BUNDLE_LOAD_METRIC: &str = "atlas_agent.cloud_config_bundle.load";
 

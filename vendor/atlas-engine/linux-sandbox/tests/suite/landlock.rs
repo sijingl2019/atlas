@@ -197,7 +197,9 @@ async fn run_cmd_result_with_permission_profile_for_cwd(
     .await
 }
 
-fn is_bwrap_unavailable_output(output: &atlas_engine_protocol::exec_output::ExecToolCallOutput) -> bool {
+fn is_bwrap_unavailable_output(
+    output: &atlas_engine_protocol::exec_output::ExecToolCallOutput,
+) -> bool {
     output.stderr.text.contains(BWRAP_UNAVAILABLE_ERR)
         || (output
             .stderr

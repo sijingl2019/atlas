@@ -1063,7 +1063,10 @@ impl ThreadHistoryBuilder {
         self.upsert_item_in_current_turn(item);
     }
 
-    fn handle_collab_close_end(&mut self, payload: &atlas_engine_protocol::protocol::CollabCloseEndEvent) {
+    fn handle_collab_close_end(
+        &mut self,
+        payload: &atlas_engine_protocol::protocol::CollabCloseEndEvent,
+    ) {
         let status = match &payload.status {
             AgentStatus::Errored(_) | AgentStatus::NotFound => CollabAgentToolCallStatus::Failed,
             _ => CollabAgentToolCallStatus::Completed,
@@ -3238,7 +3241,9 @@ mod tests {
                 completed_at_ms: Some(1_042),
                 status: GuardianAssessmentStatus::Denied,
                 risk_level: Some(atlas_engine_protocol::protocol::GuardianRiskLevel::High),
-                user_authorization: Some(atlas_engine_protocol::protocol::GuardianUserAuthorization::Low),
+                user_authorization: Some(
+                    atlas_engine_protocol::protocol::GuardianUserAuthorization::Low,
+                ),
                 rationale: Some("Would delete user data.".into()),
                 decision_source: Some(
                     atlas_engine_protocol::protocol::GuardianAssessmentDecisionSource::Agent,
@@ -4057,18 +4062,20 @@ mod tests {
                 local_images: Vec::new(),
                 ..Default::default()
             }),
-            EventMsg::CollabAgentSpawnEnd(atlas_engine_protocol::protocol::CollabAgentSpawnEndEvent {
-                call_id: "spawn-1".into(),
-                completed_at_ms: 0,
-                sender_thread_id,
-                new_thread_id: Some(spawned_thread_id),
-                new_agent_nickname: Some("Scout".into()),
-                new_agent_role: Some("explorer".into()),
-                prompt: "inspect the repo".into(),
-                model: "gpt-5.4-mini".into(),
-                reasoning_effort: atlas_engine_protocol::openai_models::ReasoningEffort::Medium,
-                status: AgentStatus::Running,
-            }),
+            EventMsg::CollabAgentSpawnEnd(
+                atlas_engine_protocol::protocol::CollabAgentSpawnEndEvent {
+                    call_id: "spawn-1".into(),
+                    completed_at_ms: 0,
+                    sender_thread_id,
+                    new_thread_id: Some(spawned_thread_id),
+                    new_agent_nickname: Some("Scout".into()),
+                    new_agent_role: Some("explorer".into()),
+                    prompt: "inspect the repo".into(),
+                    model: "gpt-5.4-mini".into(),
+                    reasoning_effort: atlas_engine_protocol::openai_models::ReasoningEffort::Medium,
+                    status: AgentStatus::Running,
+                },
+            ),
         ];
 
         let items = events
@@ -4088,7 +4095,9 @@ mod tests {
                 receiver_thread_ids: vec!["00000000-0000-0000-0000-000000000002".into()],
                 prompt: Some("inspect the repo".into()),
                 model: Some("gpt-5.4-mini".into()),
-                reasoning_effort: Some(atlas_engine_protocol::openai_models::ReasoningEffort::Medium),
+                reasoning_effort: Some(
+                    atlas_engine_protocol::openai_models::ReasoningEffort::Medium
+                ),
                 agents_states: [(
                     "00000000-0000-0000-0000-000000000002".into(),
                     CollabAgentState {
@@ -4380,7 +4389,9 @@ mod tests {
                 status: TurnStatus::Failed,
                 error: Some(TurnError {
                     message: "Selected model is at capacity. Please try a different model.".into(),
-                    atlas_engine_error_info: Some(crate::protocol::v2::AtlasEngineErrorInfo::ServerOverloaded),
+                    atlas_engine_error_info: Some(
+                        crate::protocol::v2::AtlasEngineErrorInfo::ServerOverloaded
+                    ),
                     additional_details: None,
                     // Replayed history: whatever wait this error announced is
                     // long over, so there is nothing left to count down to.
@@ -4494,7 +4505,9 @@ mod tests {
             })),
             RolloutItem::ResponseItem(
                 atlas_engine_protocol::models::ResponseItem::Message {
-                    id: Some(atlas_engine_protocol::ResponseItemId::with_suffix("msg", "1")),
+                    id: Some(atlas_engine_protocol::ResponseItemId::with_suffix(
+                        "msg", "1",
+                    )),
                     role: "user".into(),
                     content: vec![atlas_engine_protocol::models::ContentItem::InputText {
                         text: "plain text".into(),

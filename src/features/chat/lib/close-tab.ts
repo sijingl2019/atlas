@@ -3,6 +3,7 @@ import { useLayoutStore } from "@/features/layout/stores/layout-store";
 import { useTerminalStore } from "@/features/terminal/stores/terminal-store";
 import { useChatStore } from "@/features/chat/stores/chat-store";
 import { agents } from "./agents-api";
+import { clearSessionAttention } from "@/features/notifications/lib/agent-notifier";
 import { isBusyAgentStatus } from "@/types/agent";
 import { useStopAgentsConfirmStore } from "@/features/projects/lib/stop-agents-confirm";
 
@@ -59,6 +60,7 @@ function finishClose(tabId: string): void {
   if (s) {
     if (s.acpSessionId) {
       chat.actions.clearPermissionsForSession(s.acpSessionId);
+      clearSessionAttention(s.acpSessionId);
     }
     chat.actions.removeSession(tabId);
     // The closed chat's live row was the sidebar's only handle on it — re-list

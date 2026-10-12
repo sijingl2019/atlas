@@ -14,6 +14,7 @@ import {
   formatDuration,
   groupSessions,
   prettyModel,
+  sessionTitle,
   startOfDay,
   startOfMonth,
   startOfWeek,
@@ -74,7 +75,8 @@ describe("formatDuration", () => {
   it("drops minutes, then hours, rather than overflowing its tile", () => {
     // Nobody reads the `06m` in `42488h 06m`, and the tile is 150px wide.
     expect(formatDuration(142 * 3600)).toBe("142h");
-    expect(formatDuration(42_488 * 3600 + 6 * 60)).toBe("1,770d");
+    // `toLocaleString` groups the days in the machine's locale (1,770 / 1.770).
+    expect(formatDuration(42_488 * 3600 + 6 * 60)).toBe(`${(1770).toLocaleString()}d`);
   });
 
   it("never renders wider than a stat tile can hold", () => {
@@ -180,5 +182,46 @@ describe("grouping grain", () => {
     const [week] = groupSessions(rows, "week");
     expect(week.sessions).toHaveLength(3);
     expect(week.label).toBe("This week");
+  });
+});
+
+describe("sessionTitle", () => {
+  // Titles stored before capture learned to derive past agent markup are the
+  // prompt's first line verbatim — these are the shapes that reached the board.
+  it("reads a stored paste opener as Pasted text", () => {
+    expect(sessionTitle('<pasted_content id="8a17">')).toBe("Pasted text");
+    expect(sessionTitle('</pasted_content id="8a17">')).toBe("Pasted text");
+  });
+
+  it("is null for a title that is any other lone wrapper tag", () => {
+    expect(sessionTitle("<system-reminder>")).toBeNull();
+    expect(sessionTitle('<some-new-wrapper kind="x">')).toBeNull();
+  });
+
+  it("keeps the words around inline markup", () => {
+    expect(
+      sessionTitle('fix <pasted_content id="01">TypeError</pasted_content id="01"> please'),
+    ).toBe("fix TypeError please");
+    expect(sessionTitle("[Image #1] why is this button misaligned")).toBe(
+      "why is this button misaligned",
+    );
+    expect(
+      sessionTitle("<command-name>/review</command-name> <command-args>auth</command-args>"),
+    ).toBe("/review auth");
+    expect(sessionTitle("<system-reminder>opened foo.ts</system-reminder> explain this")).toBe(
+      "explain this",
+    );
+  });
+
+  it("labels a title that was only an attachment placeholder", () => {
+    expect(sessionTitle("[Pasted text #1 +42 lines]")).toBe("Pasted text");
+    expect(sessionTitle("[Image #1] [Image #2]")).toBe("Image");
+  });
+
+  it("leaves ordinary titles, angle brackets included, alone", () => {
+    expect(sessionTitle("Fix the drain")).toBe("Fix the drain");
+    expect(sessionTitle("convert Vec<String> to a slice")).toBe("convert Vec<String> to a slice");
+    expect(sessionTitle("why is a < b but <div> renders")).toBe("why is a < b but <div> renders");
+    expect(sessionTitle(null)).toBeNull();
   });
 });

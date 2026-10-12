@@ -14,7 +14,7 @@
 
 use serde::Serialize;
 
-use super::git::{git_log_compute, git_refs_compute, GitLogEntry, GitRefs};
+use super::git::{git_commit_count, git_log_compute, git_refs_compute, GitLogEntry, GitRefs};
 
 const LANE_COLORS: [&str; 10] = [
     "#60a5fa", // blue
@@ -69,6 +69,10 @@ pub struct CommitRow {
 pub struct BuiltGraph {
     pub rows: Vec<CommitRow>,
     pub lane_count: usize,
+    /// Every commit in scope, not just the `limit` rows shipped — so the
+    /// header can say "1,000 of 1,231" instead of passing the page size
+    /// off as the repository's size.
+    pub total_commits: usize,
 }
 
 #[tauri::command]
@@ -81,18 +85,27 @@ pub async fn git_graph_build(
     let all_flag = all.unwrap_or(true);
     let path_for_log = path.clone();
     let path_for_refs = path.clone();
+    let path_for_count = path.clone();
 
-    // Two `git` invocations in parallel on the blocking pool. Both
+    // Three `git` invocations in parallel on the blocking pool. All
     // are independent reads; serializing them would add a needless
     // ~50ms on warm caches.
-    let (log_result, refs_result) = tokio::join!(
+    let (log_result, refs_result, count_result) = tokio::join!(
         tokio::task::spawn_blocking(move || git_log_compute(&path_for_log, lim, all_flag)),
         tokio::task::spawn_blocking(move || git_refs_compute(&path_for_refs)),
+        tokio::task::spawn_blocking(move || git_commit_count(&path_for_count, all_flag)),
     );
     let commits = log_result.map_err(|e| e.to_string())??;
     let refs_info = refs_result.map_err(|e| e.to_string())??;
 
-    Ok(build_graph(commits, refs_info))
+    let mut graph = build_graph(commits, refs_info);
+    // A failed count is not worth failing the graph over — the loaded rows
+    // are a correct lower bound.
+    graph.total_commits = count_result
+        .ok()
+        .flatten()
+        .map_or(graph.rows.len(), |n| n.max(graph.rows.len()));
+    Ok(graph)
 }
 
 /// Port of `buildGraph` from `src/features/git/lib/git-graph.ts`.
@@ -334,9 +347,11 @@ fn build_graph(commits: Vec<GitLogEntry>, refs_info: GitRefs) -> BuiltGraph {
         });
     }
 
+    let total_commits = rows.len();
     BuiltGraph {
         rows,
         lane_count: max_used_lane + 1,
+        total_commits,
     }
 }
 

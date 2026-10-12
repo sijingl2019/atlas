@@ -10,13 +10,13 @@ use crate::ipc_framed::Message;
 use crate::ipc_framed::decode_bytes;
 use crate::ipc_framed::read_frame;
 use crate::run_windows_sandbox_capture;
-use base64::Engine;
-use base64::engine::general_purpose::STANDARD as BASE64;
 use atlas_engine_protocol::config_types::WindowsSandboxLevel;
 use atlas_engine_protocol::models::PermissionProfile;
 use atlas_engine_utils_absolute_path::AbsolutePathBuf;
 use atlas_engine_utils_pty::ProcessDriver;
 use atlas_engine_utils_pty::ProcessSignal;
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD as BASE64;
 use pretty_assertions::assert_eq;
 use std::collections::HashMap;
 use std::fs;
@@ -211,7 +211,12 @@ async fn collect_stdout_and_exit(
     });
     let exit_code = timeout(timeout_duration, exit_rx)
         .await
-        .unwrap_or_else(|_| panic!("timed out waiting for exit\n{}", sandbox_log(atlas_agent_home)))
+        .unwrap_or_else(|_| {
+            panic!(
+                "timed out waiting for exit\n{}",
+                sandbox_log(atlas_agent_home)
+            )
+        })
         .unwrap_or(-1);
     let stdout = timeout(timeout_duration, stdout_task)
         .await
@@ -293,7 +298,8 @@ fn legacy_non_tty_cmd_emits_output() {
         .expect("spawn legacy non-tty cmd session");
         println!("cmd spawn returned");
         let (stdout, exit_code) =
-            collect_stdout_and_exit(spawned, atlas_agent_home.path(), Duration::from_secs(10)).await;
+            collect_stdout_and_exit(spawned, atlas_agent_home.path(), Duration::from_secs(10))
+                .await;
         println!("cmd collect returned exit_code={exit_code}");
         let stdout = String::from_utf8_lossy(&stdout);
         assert_eq!(exit_code, 0, "stdout={stdout:?}");
@@ -340,7 +346,8 @@ fn elevated_non_tty_cmd_forwards_env_output_and_exit() {
         .await
         .expect("spawn elevated non-tty cmd session");
         let (stdout, exit_code) =
-            collect_stdout_and_exit(spawned, atlas_agent_home.path(), Duration::from_secs(10)).await;
+            collect_stdout_and_exit(spawned, atlas_agent_home.path(), Duration::from_secs(10))
+                .await;
         let stdout = String::from_utf8_lossy(&stdout);
         assert_eq!(exit_code, 23, "stdout={stdout:?}");
         assert!(stdout.contains("ELEVATED-ENV-OK"), "stdout={stdout:?}");
@@ -613,7 +620,10 @@ fn legacy_capture_emits_output_and_preserves_descendant_after_normal_exit() {
     let _guard = legacy_process_test_guard();
     let cwd = sandbox_cwd();
     let atlas_agent_home = sandbox_home("legacy-capture-pwsh");
-    println!("capture pwsh atlas_agent_home={}", atlas_agent_home.path().display());
+    println!(
+        "capture pwsh atlas_agent_home={}",
+        atlas_agent_home.path().display()
+    );
     let ready_marker = atlas_agent_home.path().join("descendant-started");
     let release_marker = atlas_agent_home.path().join("release-descendant");
     let survival_marker = atlas_agent_home.path().join("descendant-survived");
@@ -629,7 +639,12 @@ fn legacy_capture_emits_output_and_preserves_descendant_after_normal_exit() {
     );
     let parent_command = format!(
         "Write-Output LEGACY-CAPTURE-DIRECT; {}",
-        start_powershell_child(&pwsh, atlas_agent_home.path(), &descendant_command, &parent_tail,),
+        start_powershell_child(
+            &pwsh,
+            atlas_agent_home.path(),
+            &descendant_command,
+            &parent_tail,
+        ),
     );
     let permission_profile = PermissionProfile::workspace_write();
     let result = run_windows_sandbox_capture(
@@ -765,9 +780,12 @@ fn legacy_workspace_write_delete_is_limited_to_writable_roots() {
         )
         .await
         .expect("spawn legacy delete session");
-        let (stdout, exit_code) =
-            collect_stdout_and_exit(spawned, atlas_agent_home.path(), Duration::from_secs(/*secs*/ 10))
-                .await;
+        let (stdout, exit_code) = collect_stdout_and_exit(
+            spawned,
+            atlas_agent_home.path(),
+            Duration::from_secs(/*secs*/ 10),
+        )
+        .await;
         let stdout = String::from_utf8_lossy(&stdout);
 
         assert_eq!(
@@ -989,7 +1007,10 @@ fn legacy_tty_powershell_emits_output_and_accepts_input() {
     runtime.block_on(async move {
         let cwd = sandbox_cwd();
         let atlas_agent_home = sandbox_home("legacy-tty-pwsh");
-        println!("tty pwsh atlas_agent_home={}", atlas_agent_home.path().display());
+        println!(
+            "tty pwsh atlas_agent_home={}",
+            atlas_agent_home.path().display()
+        );
         let permission_profile = PermissionProfile::workspace_write();
         let spawned = spawn_windows_sandbox_session_legacy(
             &permission_profile,
@@ -1028,7 +1049,8 @@ fn legacy_tty_powershell_emits_output_and_accepts_input() {
         spawned.session.close_stdin();
 
         let (stdout, exit_code) =
-            collect_stdout_and_exit(spawned, atlas_agent_home.path(), Duration::from_secs(15)).await;
+            collect_stdout_and_exit(spawned, atlas_agent_home.path(), Duration::from_secs(15))
+                .await;
         let stdout = String::from_utf8_lossy(&stdout);
         assert_eq!(exit_code, 0, "stdout={stdout:?}");
         assert!(stdout.contains("ready"), "stdout={stdout:?}");
@@ -1043,7 +1065,10 @@ fn legacy_tty_cmd_emits_output_and_accepts_input() {
     runtime.block_on(async move {
         let cwd = sandbox_cwd();
         let atlas_agent_home = sandbox_home("legacy-tty-cmd");
-        println!("tty cmd atlas_agent_home={}", atlas_agent_home.path().display());
+        println!(
+            "tty cmd atlas_agent_home={}",
+            atlas_agent_home.path().display()
+        );
         let permission_profile = PermissionProfile::workspace_write();
         let spawned = spawn_windows_sandbox_session_legacy(
             &permission_profile,
@@ -1079,7 +1104,8 @@ fn legacy_tty_cmd_emits_output_and_accepts_input() {
         spawned.session.close_stdin();
 
         let (stdout, exit_code) =
-            collect_stdout_and_exit(spawned, atlas_agent_home.path(), Duration::from_secs(15)).await;
+            collect_stdout_and_exit(spawned, atlas_agent_home.path(), Duration::from_secs(15))
+                .await;
         let stdout = String::from_utf8_lossy(&stdout);
         assert_eq!(exit_code, 0, "stdout={stdout:?}");
         assert!(stdout.contains("ready"), "stdout={stdout:?}");
@@ -1133,7 +1159,8 @@ fn legacy_tty_cmd_default_desktop_emits_output_and_accepts_input() {
         spawned.session.close_stdin();
 
         let (stdout, exit_code) =
-            collect_stdout_and_exit(spawned, atlas_agent_home.path(), Duration::from_secs(15)).await;
+            collect_stdout_and_exit(spawned, atlas_agent_home.path(), Duration::from_secs(15))
+                .await;
         let stdout = String::from_utf8_lossy(&stdout);
         assert_eq!(exit_code, 0, "stdout={stdout:?}");
         assert!(stdout.contains("ready"), "stdout={stdout:?}");

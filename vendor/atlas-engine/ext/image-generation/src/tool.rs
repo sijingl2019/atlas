@@ -2,8 +2,6 @@
 use std::collections::HashSet;
 use std::io;
 
-use base64::Engine;
-use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use atlas_engine_api::ImageBackground;
 use atlas_engine_api::ImageEditRequest;
 use atlas_engine_api::ImageGenerationRequest;
@@ -46,6 +44,8 @@ use atlas_engine_utils_absolute_path::AbsolutePathBuf;
 use atlas_engine_utils_image::PromptImageMode;
 use atlas_engine_utils_image::load_for_prompt_bytes;
 use atlas_engine_utils_path_uri::PathUri;
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use schemars::JsonSchema;
 use schemars::r#gen::SchemaSettings;
 use serde::Deserialize;

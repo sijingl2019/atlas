@@ -520,8 +520,9 @@ async fn skills_list_loads_remote_installed_plugin_skills_from_cache() -> Result
     let atlas_agent_home = TempDir::new()?;
     let cwd = TempDir::new()?;
     let server = MockServer::start().await;
-    let expected_skill_path =
-        std::fs::canonicalize(write_cached_remote_plugin_with_skill(atlas_agent_home.path())?)?;
+    let expected_skill_path = std::fs::canonicalize(write_cached_remote_plugin_with_skill(
+        atlas_agent_home.path(),
+    )?)?;
     write_plugins_enabled_config_with_base_url(
         atlas_agent_home.path(),
         &format!("{}/backend-api/", server.uri()),
@@ -701,7 +702,8 @@ async fn skills_list_loads_remote_installed_plugin_skills_from_cache() -> Result
 }
 
 #[tokio::test]
-async fn skills_list_excludes_plugin_skills_when_workspace_atlas_engine_plugins_disabled() -> Result<()> {
+async fn skills_list_excludes_plugin_skills_when_workspace_atlas_engine_plugins_disabled()
+-> Result<()> {
     let atlas_agent_home = TempDir::new()?;
     let repo_root = TempDir::new()?;
     let server = MockServer::start().await;

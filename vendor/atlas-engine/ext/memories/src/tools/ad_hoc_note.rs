@@ -69,8 +69,10 @@ where
     async fn handle_call(
         &self,
         call: ToolCall,
-    ) -> Result<Box<dyn atlas_engine_extension_api::ToolOutput>, atlas_engine_extension_api::FunctionCallError>
-    {
+    ) -> Result<
+        Box<dyn atlas_engine_extension_api::ToolOutput>,
+        atlas_engine_extension_api::FunctionCallError,
+    > {
         let backend = self.backend.clone();
         let args: AddAdHocNoteArgs = parse_args(&call)?;
         let response = backend

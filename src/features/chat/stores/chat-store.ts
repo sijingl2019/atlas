@@ -13,7 +13,7 @@ import type {
   PendingSend,
   QueuedMessage,
 } from "@/types/agent";
-import { CLAUDE_PERMISSION_MODES, pluginIdForAgent } from "@/types/agent";
+import { CLAUDE_PERMISSION_MODES, isBusyAgentStatus, pluginIdForAgent } from "@/types/agent";
 import type { PendingPermission } from "@/types/acp";
 import type {
   AgentDelta,
@@ -432,6 +432,13 @@ interface ChatActions {
     /** Pick a generic ACP session mode and push it to the bound agent.
      *  The Codex equivalent of `setClaudePermissionMode`. */
     setAcpMode: (sessionId: string, modeId: string) => void;
+    /** Forget this tab's ACP mode pick (not the saved preference): a resume
+     *  could not apply it, so the picker now shows the agent's own mode, which
+     *  the user never chose. */
+    dropAcpModePick: (sessionId: string) => void;
+    /** Set or clear (`undefined`) the mode a resume could not restore. A mode
+     *  pick clears it too. See `ChatSession.unrestoredModeId`. */
+    setUnrestoredMode: (sessionId: string, modeId: string | undefined) => void;
     /** Set an agent-advertised config option (P2.2). Optimistic locally; the
      *  agent's own `config_option_update` is the authority and overwrites it. */
     /** Clear the answered/dismissed elicitation (P3.3). */
@@ -889,6 +896,7 @@ export const useChatStore = createSelectors(
             sess.disconnected = undefined;
             sess.updatedTo = undefined;
             sess.bindError = undefined;
+            sess.unrestoredModeId = undefined;
             // The provider only applies to the native agent; clear it so the
             // composer re-defaults from BYOK keys if the native agent is chosen.
             sess.nativeProvider = undefined;
@@ -943,21 +951,31 @@ export const useChatStore = createSelectors(
               // what the pill shows meanwhile, and it must not be the previous
               // agent's.
               sess.acpConfigOptions = loadCachedAcpConfigOptions(agentType) ?? undefined;
-              sess.claudePermissionMode =
-                agentType === "claude-code" ? (sess.claudePermissionMode ?? "default") : undefined;
+              sess.claudePermissionMode = agentType === "claude-code" ? "default" : undefined;
               sess.claudePermissionModeExplicit = false;
               sess.acpModeExplicit = false;
+              sess.unrestoredModeId = undefined;
               if (agentType === "claude-code") {
                 // Claude has no ACP modes — clear any stale picker state left
                 // by the previously-selected agent so no ghost mode pill shows.
                 sess.acpAvailableModes = [];
                 sess.acpModesPending = false;
                 sess.acpCurrentMode = undefined;
+              } else {
+                // The previous agent's mode ids mean nothing to this one. Seed
+                // from this agent's cache (as `switchChatAgent` does) so the
+                // pick below is validated against the right list; the resume
+                // snapshot's `setAcpModes` confirms it right after. No pending
+                // flag: nothing on the resume path would clear it.
+                const cached = loadCachedAcpModes(agentType);
+                sess.acpAvailableModes = cached?.availableModes ?? [];
+                sess.acpCurrentMode = cached?.currentMode ?? undefined;
               }
-              // For codex and the native agent the resume flow calls `setAcpModes`
-              // immediately after with the session's real advertised modes, so
-              // no cache seeding is needed here. Crucially the ACP binding
-              // (acpAgentId/acpSessionId) is left intact — this only relabels.
+              // Same restore as createSession / switchChatAgent: after a
+              // restart every resumed ACP thread comes through here (see
+              // `resume-mode.ts`). The ACP binding (acpAgentId / acpSessionId)
+              // is left intact — this only relabels.
+              applyPersistedModePref(sess, agentType);
             }
             // Reseed model state even when the agent type is UNCHANGED. This
             // action only runs from the resume flow, where the tab is being
@@ -1148,6 +1166,7 @@ export const useChatStore = createSelectors(
               // A first message still waiting on the old bind belongs to the
               // conversation being dropped, exactly like the queue below.
               session.pendingSend = undefined;
+              session.unrestoredModeId = undefined;
             }
             delete s.queues[sessionId];
           }),
@@ -1163,6 +1182,7 @@ export const useChatStore = createSelectors(
             next = CLAUDE_PERMISSION_MODES[(i + 1) % CLAUDE_PERMISSION_MODES.length];
             session.claudePermissionMode = next;
             session.claudePermissionModeExplicit = true;
+            session.unrestoredModeId = undefined;
           });
           // "default" means "defer to the CLI's own configured default" —
           // cycling back to it DROPS the persisted pick rather than storing it.
@@ -1183,6 +1203,7 @@ export const useChatStore = createSelectors(
             if (session) {
               session.claudePermissionMode = mode;
               session.claudePermissionModeExplicit = true;
+              session.unrestoredModeId = undefined;
             }
           });
           saveLastModePref("claude-code", mode === "default" ? null : mode);
@@ -1263,6 +1284,7 @@ export const useChatStore = createSelectors(
             if (session) {
               session.acpCurrentMode = modeId;
               session.acpModeExplicit = true;
+              session.unrestoredModeId = undefined;
             }
           });
           // Persist the explicit pick per agent. agentType IS the plugin id
@@ -1272,6 +1294,16 @@ export const useChatStore = createSelectors(
           if (at && at !== "claude-code") saveLastModePref(at, modeId);
           pushAcpModeToAgent(get(), sessionId, previous);
         },
+        dropAcpModePick: (sessionId) =>
+          set((s) => {
+            const session = s.sessions[sessionId];
+            if (session) session.acpModeExplicit = false;
+          }),
+        setUnrestoredMode: (sessionId, modeId) =>
+          set((s) => {
+            const session = s.sessions[sessionId];
+            if (session) session.unrestoredModeId = modeId;
+          }),
         clearElicitation: (sessionId) =>
           set((s) => {
             const session = s.sessions[sessionId];
@@ -1622,11 +1654,13 @@ export const useChatStore = createSelectors(
             s.queues[sessionId] = next;
           }),
         shiftQueue: (sessionId) => {
-          let head: QueuedMessage | null = null;
+          // Read the head from committed state: a draft taken inside `set` is
+          // revoked once it returns.
+          const head: QueuedMessage | null = get().queues[sessionId]?.[0] ?? null;
+          if (!head) return null;
           set((s) => {
             const cur = s.queues[sessionId];
             if (!cur || cur.length === 0) return;
-            head = cur[0];
             const rest = cur.slice(1);
             if (rest.length === 0) delete s.queues[sessionId];
             else s.queues[sessionId] = rest;
@@ -1806,6 +1840,39 @@ export const useChatStore = createSelectors(
     })),
   ),
 );
+
+/**
+ * Keep every tab's `turnStartedAt` in step with its status: stamped once when
+ * the status enters a busy state (running/waiting — a turn paused on a
+ * permission is still the same turn), cleared to null when it leaves one.
+ *
+ * One subscription rather than a stamp at each status write, because the
+ * status is written from a dozen places (status / turn_finished / turn_failed
+ * deltas, the resume snapshot, kill, disconnect, bind failure…) and a writer
+ * that forgot the stamp would leave a timer counting forever. Each pass reads
+ * a handful of scalars and writes only on a transition. Registered at module
+ * load, so it is the store's first listener: its nested `setState` lands
+ * before any component reads the change, and no render sees a busy tab
+ * without a start.
+ */
+function turnStartsOutOfStep(state: ChatState): boolean {
+  for (const session of Object.values(state.sessions)) {
+    if (isBusyAgentStatus(session.status) !== (session.turnStartedAt != null)) return true;
+  }
+  return false;
+}
+
+useChatStore.subscribe((state) => {
+  if (!turnStartsOutOfStep(state)) return;
+  const now = Date.now();
+  useChatStore.setState((s) => {
+    for (const session of Object.values(s.sessions)) {
+      const busy = isBusyAgentStatus(session.status);
+      if (busy && session.turnStartedAt == null) session.turnStartedAt = now;
+      else if (!busy && session.turnStartedAt != null) session.turnStartedAt = null;
+    }
+  });
+});
 
 // ── Draft-mutating helpers ────────────────────────────────────────────────
 //
@@ -2455,6 +2522,7 @@ function applyDeltaToDraft(s: ChatDraft, env: AgentDelta): void {
         used: env.used,
         size: env.size,
         cost: env.cost,
+        currency: env.currency,
       };
       // Persist keyed by the stable transcript id so the gauge survives a
       // session switch (messages reload from disk) and an app restart (store

@@ -60,7 +60,8 @@ url = "https://example.com/mixed-transport"
         .await;
 
     assert_eq!(
-        fs::read_to_string(repo_root.join(".atlas-agent").join("config.toml")).expect("read config"),
+        fs::read_to_string(repo_root.join(".atlas-agent").join("config.toml"))
+            .expect("read config"),
         existing_config
     );
 }
@@ -178,9 +179,10 @@ async fn import_home_migrates_supported_config_fields_skills_and_agents_md() {
         "Atlas Agent guidance"
     );
 
-    let config: TomlValue =
-        toml::from_str(&fs::read_to_string(atlas_agent_home.join("config.toml")).expect("read config"))
-            .expect("parse config");
+    let config: TomlValue = toml::from_str(
+        &fs::read_to_string(atlas_agent_home.join("config.toml")).expect("read config"),
+    )
+    .expect("parse config");
     let expected: TomlValue = toml::from_str(
         r#"
 sandbox_mode = "workspace-write"
@@ -228,9 +230,10 @@ async fn import_home_config_uses_local_settings_over_project_settings() {
         }])
         .await;
 
-    let config: TomlValue =
-        toml::from_str(&fs::read_to_string(atlas_agent_home.join("config.toml")).expect("read config"))
-            .expect("parse config");
+    let config: TomlValue = toml::from_str(
+        &fs::read_to_string(atlas_agent_home.join("config.toml")).expect("read config"),
+    )
+    .expect("parse config");
     let expected: TomlValue = toml::from_str(
         r#"
 sandbox_mode = "workspace-write"
@@ -319,7 +322,8 @@ async fn import_local_plugins_returns_completed_status() {
     let plugin_root = marketplace_root.join("plugins").join("cloudflare");
     fs::create_dir_all(marketplace_root.join(EXTERNAL_AGENT_PLUGIN_MANIFEST_DIR))
         .expect("create marketplace manifest dir");
-    fs::create_dir_all(plugin_root.join(".atlas-agent-plugin")).expect("create plugin manifest dir");
+    fs::create_dir_all(plugin_root.join(".atlas-agent-plugin"))
+        .expect("create plugin manifest dir");
     fs::create_dir_all(&atlas_agent_home).expect("create atlas-agent home");
 
     fs::write(

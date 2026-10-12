@@ -798,7 +798,8 @@ async fn turn_start_emits_raw_response_completed_with_upstream_usage() -> Result
         mcp.read_stream_until_notification_message("rawResponse/completed"),
     )
     .await??;
-    let notification: atlas_engine_app_server_protocol::ServerNotification = notification.try_into()?;
+    let notification: atlas_engine_app_server_protocol::ServerNotification =
+        notification.try_into()?;
     let atlas_engine_app_server_protocol::ServerNotification::RawResponseCompleted(notification) =
         notification
     else {
@@ -974,7 +975,8 @@ async fn turn_start_tracks_thread_originator_in_analytics() -> Result<()> {
     )
     .await??;
 
-    let event = wait_for_analytics_event(&server, DEFAULT_READ_TIMEOUT, "atlas_engine_turn_event").await?;
+    let event =
+        wait_for_analytics_event(&server, DEFAULT_READ_TIMEOUT, "atlas_engine_turn_event").await?;
     assert_eq!(event["event_params"]["thread_id"], thread.id);
     assert_eq!(event["event_params"]["session_id"], thread.session_id);
     assert_eq!(event["event_params"]["turn_id"], turn.id);
@@ -1185,7 +1187,8 @@ async fn turn_profile_tracks_blocking_tool_and_follow_up_sampling() -> Result<()
     )
     .await??;
 
-    let event = wait_for_analytics_event(&server, DEFAULT_READ_TIMEOUT, "atlas_engine_turn_event").await?;
+    let event =
+        wait_for_analytics_event(&server, DEFAULT_READ_TIMEOUT, "atlas_engine_turn_event").await?;
     let params = &event["event_params"];
     assert_eq!(
         json!({
@@ -2292,7 +2295,9 @@ async fn turn_start_exec_approval_toggle_v2() -> Result<()> {
                     text_elements: Vec::new(),
                 }],
                 approval_policy: Some(atlas_engine_app_server_protocol::AskForApproval::Never),
-                sandbox_policy: Some(atlas_engine_app_server_protocol::SandboxPolicy::DangerFullAccess),
+                sandbox_policy: Some(
+                    atlas_engine_app_server_protocol::SandboxPolicy::DangerFullAccess,
+                ),
                 model: Some("mock-model".to_string()),
                 effort: Some(ReasoningEffort::Medium),
                 summary: Some(ReasoningSummary::Auto),
@@ -2568,12 +2573,14 @@ async fn turn_start_explicit_local_environment_updates_legacy_cwd_between_turns(
                 runtime_workspace_roots: None,
                 approval_policy: Some(atlas_engine_app_server_protocol::AskForApproval::Never),
                 approvals_reviewer: None,
-                sandbox_policy: Some(atlas_engine_app_server_protocol::SandboxPolicy::WorkspaceWrite {
-                    writable_roots: vec![first_writable_root],
-                    network_access: false,
-                    exclude_tmpdir_env_var: true,
-                    exclude_slash_tmp: true,
-                }),
+                sandbox_policy: Some(
+                    atlas_engine_app_server_protocol::SandboxPolicy::WorkspaceWrite {
+                        writable_roots: vec![first_writable_root],
+                        network_access: false,
+                        exclude_tmpdir_env_var: true,
+                        exclude_slash_tmp: true,
+                    },
+                ),
                 permissions: None,
                 model: Some("mock-model".to_string()),
                 effort: Some(ReasoningEffort::Medium),
@@ -4330,7 +4337,9 @@ async fn command_execution_notifications_include_process_id() -> Result<()> {
                     text: "run a command".to_string(),
                     text_elements: Vec::new(),
                 }],
-                sandbox_policy: Some(atlas_engine_app_server_protocol::SandboxPolicy::DangerFullAccess),
+                sandbox_policy: Some(
+                    atlas_engine_app_server_protocol::SandboxPolicy::DangerFullAccess,
+                ),
                 ..Default::default()
             },
         })
@@ -4487,7 +4496,9 @@ async fn command_execution_notifications_include_trusted_plugin_id() -> Result<(
                     text: "run a plugin command".to_string(),
                     text_elements: Vec::new(),
                 }],
-                sandbox_policy: Some(atlas_engine_app_server_protocol::SandboxPolicy::DangerFullAccess),
+                sandbox_policy: Some(
+                    atlas_engine_app_server_protocol::SandboxPolicy::DangerFullAccess,
+                ),
                 ..Default::default()
             },
         })
@@ -4584,7 +4595,9 @@ async fn turn_start_with_elevated_override_does_not_persist_project_trust() -> R
             params: TurnStartParams {
                 thread_id: thread.id,
                 cwd: Some(workspace.path().to_path_buf()),
-                sandbox_policy: Some(atlas_engine_app_server_protocol::SandboxPolicy::DangerFullAccess),
+                sandbox_policy: Some(
+                    atlas_engine_app_server_protocol::SandboxPolicy::DangerFullAccess,
+                ),
                 input: vec![V2UserInput::Text {
                     text: "Hello".to_string(),
                     text_elements: Vec::new(),

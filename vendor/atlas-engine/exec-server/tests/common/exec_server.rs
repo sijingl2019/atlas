@@ -69,7 +69,8 @@ impl Drop for DisconnectableWebSocketProxy {
 }
 
 pub(crate) fn test_atlas_engine_helper_paths() -> anyhow::Result<TestAtlasEngineHelperPaths> {
-    let (helper_binary, atlas_engine_linux_sandbox_exe) = super::current_test_binary_helper_paths()?;
+    let (helper_binary, atlas_engine_linux_sandbox_exe) =
+        super::current_test_binary_helper_paths()?;
     Ok(TestAtlasEngineHelperPaths {
         atlas_engine_exe: helper_binary,
         atlas_engine_linux_sandbox_exe,

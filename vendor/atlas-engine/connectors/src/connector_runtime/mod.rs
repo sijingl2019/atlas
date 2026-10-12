@@ -30,7 +30,8 @@ use self::persistence::persist_atlas_apps_cache;
 use self::persistence::server_info_cache_path;
 use self::persistence::tools_cache_path;
 
-const MCP_TOOLS_CACHE_PUBLISH_DURATION_METRIC: &str = "atlas_agent.mcp.tools.cache_publish.duration_ms";
+const MCP_TOOLS_CACHE_PUBLISH_DURATION_METRIC: &str =
+    "atlas_agent.mcp.tools.cache_publish.duration_ms";
 
 /// Values stored in the connector runtime's persisted tool snapshot.
 ///
@@ -78,7 +79,10 @@ pub fn connector_runtime_context_key(auth: Option<&AtlasEngineAuth>) -> Connecto
 }
 
 /// Returns the persisted connector runtime tools cache path for the active auth identity.
-pub fn connector_runtime_cache_path(atlas_agent_home: &Path, auth: Option<&AtlasEngineAuth>) -> PathBuf {
+pub fn connector_runtime_cache_path(
+    atlas_agent_home: &Path,
+    auth: Option<&AtlasEngineAuth>,
+) -> PathBuf {
     let identity = ConnectorRuntimeIdentity {
         atlas_agent_home: atlas_agent_home.to_path_buf(),
         key: connector_runtime_context_key(auth),
@@ -161,7 +165,10 @@ impl<T: ConnectorRuntimePayload> ConnectorRuntimeManager<T> {
         atlas_agent_home: PathBuf,
         key: ConnectorRuntimeContextKey,
     ) -> ConnectorRuntimeContext<T> {
-        let identity = ConnectorRuntimeIdentity { atlas_agent_home, key };
+        let identity = ConnectorRuntimeIdentity {
+            atlas_agent_home,
+            key,
+        };
         let mut entries = lock_unpoisoned(&self.entries);
         let entry = entries
             .entry(identity.clone())

@@ -623,7 +623,10 @@ impl FileSystemSandboxPolicy {
 
         append_default_read_only_project_root_subpath_if_no_explicit_rule(&mut entries, ".git");
         append_default_read_only_project_root_subpath_if_no_explicit_rule(&mut entries, ".agents");
-        append_default_read_only_project_root_subpath_if_no_explicit_rule(&mut entries, ".atlas-agent");
+        append_default_read_only_project_root_subpath_if_no_explicit_rule(
+            &mut entries,
+            ".atlas-agent",
+        );
         for writable_root in writable_roots {
             for protected_path in default_read_only_subpaths_for_writable_root(
                 writable_root,
@@ -1037,10 +1040,13 @@ impl FileSystemSandboxPolicy {
                 .ok()
                 .is_some_and(|cwd| normalize_effective_absolute_path(cwd) == root);
             let mut read_only_subpaths: Vec<AbsolutePathBuf> =
-                default_read_only_subpaths_for_writable_root(&root, protect_missing_dot_atlas_engine)
-                    .into_iter()
-                    .filter(|path| !has_explicit_resolved_path_entry(&resolved_entries, path))
-                    .collect();
+                default_read_only_subpaths_for_writable_root(
+                    &root,
+                    protect_missing_dot_atlas_engine,
+                )
+                .into_iter()
+                .filter(|path| !has_explicit_resolved_path_entry(&resolved_entries, path))
+                .collect();
             // Narrower explicit non-write entries carve out broader writable roots.
             // More specific write entries still remain writable because they appear
             // as separate WritableRoot values and are checked independently.
@@ -2199,12 +2205,10 @@ mod tests {
                 .contains(&explicit_dot_atlas_engine),
             "explicit .atlas-agent rule should win over the default protected carveout"
         );
-        assert!(
-            policy.can_write_path_with_cwd(
-                explicit_dot_atlas_engine.join("config.toml").as_path(),
-                cwd.path()
-            )
-        );
+        assert!(policy.can_write_path_with_cwd(
+            explicit_dot_atlas_engine.join("config.toml").as_path(),
+            cwd.path()
+        ));
     }
 
     #[test]

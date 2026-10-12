@@ -1,7 +1,6 @@
 // Modified by Atlas from upstream OpenAI Codex (Apache-2.0). See CONTEXT.md.
 mod find_up;
 
-use bytes::Bytes;
 use atlas_engine_protocol::config_types::WindowsSandboxLevel;
 use atlas_engine_protocol::config_types::WindowsSandboxProxySettingsMode;
 use atlas_engine_protocol::models::ManagedFileSystemPermissions;
@@ -17,6 +16,7 @@ use atlas_engine_protocol::permissions::FileSystemSpecialPath;
 use atlas_engine_protocol::permissions::NetworkSandboxPolicy;
 use atlas_engine_protocol::protocol::SandboxPolicy;
 use atlas_engine_utils_path_uri::PathUri;
+use bytes::Bytes;
 pub use find_up::FindUpErrorPolicy;
 pub use find_up::find_nearest_ancestor_with_markers;
 pub use find_up::find_nearest_native_ancestor_with_markers;

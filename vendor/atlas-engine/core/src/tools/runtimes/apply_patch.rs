@@ -213,10 +213,12 @@ impl ToolRuntime<ApplyPatchRequest, ApplyPatchRuntimeOutput> for ApplyPatchRunti
             if attempt.sandbox != SandboxType::None {
                 record_filesystem_sandbox_violation(attempt.sandbox, &output);
             }
-            return Err(ToolError::AtlasEngine(AtlasEngineErr::Sandbox(SandboxErr::Denied {
-                output: Box::new(output),
-                network_policy_decision: None,
-            })));
+            return Err(ToolError::AtlasEngine(AtlasEngineErr::Sandbox(
+                SandboxErr::Denied {
+                    output: Box::new(output),
+                    network_policy_decision: None,
+                },
+            )));
         }
         Ok(ApplyPatchRuntimeOutput {
             exec_output: output,

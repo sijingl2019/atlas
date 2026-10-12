@@ -110,9 +110,11 @@ impl ShellSnapshot {
             if let Some(failure_reason) = snapshot.as_ref().err() {
                 counter_tags.push(("failure_reason", *failure_reason));
             }
-            config
-                .session_telemetry
-                .counter("atlas_agent.shell_snapshot", /*inc*/ 1, &counter_tags);
+            config.session_telemetry.counter(
+                "atlas_agent.shell_snapshot",
+                /*inc*/ 1,
+                &counter_tags,
+            );
             snapshot.ok().map(Arc::new)
         }
         .instrument(snapshot_span)

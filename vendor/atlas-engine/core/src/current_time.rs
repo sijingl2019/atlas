@@ -6,10 +6,10 @@ use std::time::Duration;
 
 use anyhow::Result;
 use anyhow::anyhow;
-use chrono::DateTime;
-use chrono::Utc;
 use atlas_engine_features::CurrentTimeSource;
 use atlas_engine_protocol::ThreadId;
+use chrono::DateTime;
+use chrono::Utc;
 
 use crate::config::CurrentTimeReminderConfig;
 

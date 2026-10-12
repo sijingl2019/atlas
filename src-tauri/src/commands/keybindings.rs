@@ -11,7 +11,14 @@
 //! is syntactically a chord. Rust does NOT know the action registry — that
 //! lives in the renderer (`src/features/keybindings/lib/actions.ts`) — so
 //! unknown action ids are preserved verbatim: a profile written by a newer
-//! build must survive being loaded by an older one.
+//! build must survive being loaded by an older one. The same goes for a
+//! profile's `basedOn` preset id — the preset tables live in the renderer
+//! (`presets.ts`), so Rust only checks it is a non-empty string.
+//!
+//! Whether the file exists is also the first-run signal: the renderer asks
+//! "which editor are you coming from?" only while there is no file, and every
+//! answer — "decide later" included — writes one. A user who already set up
+//! keybindings by hand is never asked.
 
 use std::collections::{BTreeMap, HashSet};
 use std::fs;
@@ -33,6 +40,9 @@ pub struct Profile {
     pub name: String,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub built_in: bool,
+    /// Preset id layered under `bindings`. Opaque to Rust.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub based_on: Option<String>,
     /// action id → Some(chords) to override, None (JSON `null`) to unbind.
     /// BTreeMap so the file is written in a stable order.
     #[serde(default)]
@@ -63,6 +73,7 @@ fn default_profile() -> Profile {
         id: DEFAULT_PROFILE_ID.to_string(),
         name: "Default".to_string(),
         built_in: true,
+        based_on: None,
         bindings: BTreeMap::new(),
     }
 }
@@ -82,6 +93,9 @@ impl Default for KeybindingsFile {
 pub struct KeybindingsLoadResult {
     pub file: KeybindingsFile,
     pub path: String,
+    /// Whether `keybindings.json` is on disk — false means the first-run
+    /// keymap question has never been answered.
+    pub exists: bool,
     /// Non-fatal problems: a corrupt file we fell back from, repairs made
     /// while normalising. Surfaced in Settings, never blocking.
     pub warnings: Vec<String>,
@@ -118,6 +132,9 @@ fn normalize(file: &mut KeybindingsFile) -> Vec<String> {
     if !default.bindings.is_empty() {
         warnings.push("built-in Default profile had overrides; they were dropped".to_string());
         default.bindings.clear();
+    }
+    if default.based_on.take().is_some() {
+        warnings.push("built-in Default profile had a preset; it was dropped".to_string());
     }
     default.built_in = true;
     default.name = "Default".to_string();
@@ -162,7 +179,9 @@ fn is_plausible_combo(s: &str) -> bool {
             return false;
         }
         match part {
-            "cmd" | "meta" | "command" | "ctrl" | "control" | "alt" | "option" | "shift" => {
+            // Mirrors `MODIFIER_FLAG` in the renderer's `combo.ts`.
+            "cmd" | "mod" | "meta" | "command" | "super" | "win" | "ctrl" | "control" | "alt"
+            | "option" | "shift" => {
                 if !seen.insert(part) {
                     return false;
                 }
@@ -184,6 +203,9 @@ fn validate(file: &KeybindingsFile) -> Result<(), String> {
         }
         if !ids.insert(p.id.as_str()) {
             return Err(format!("duplicate profile id `{}`", p.id));
+        }
+        if p.based_on.as_deref().is_some_and(|b| b.trim().is_empty()) {
+            return Err(format!("profile `{}` has an empty `basedOn`", p.id));
         }
         for (action, chords) in &p.bindings {
             if action.trim().is_empty() {
@@ -238,6 +260,7 @@ fn write_file(path: &PathBuf, file: &KeybindingsFile) -> Result<(), String> {
 pub async fn keybindings_load() -> Result<KeybindingsLoadResult, String> {
     tokio::task::spawn_blocking(move || -> Result<KeybindingsLoadResult, String> {
         let path = keybindings_path()?;
+        let exists = path.exists();
         let (mut file, mut warnings) = read_file(&path);
         warnings.extend(normalize(&mut file));
         if let Err(e) = validate(&file) {
@@ -247,6 +270,7 @@ pub async fn keybindings_load() -> Result<KeybindingsLoadResult, String> {
         Ok(KeybindingsLoadResult {
             file,
             path: path.to_string_lossy().into_owned(),
+            exists,
             warnings,
         })
     })
@@ -283,6 +307,32 @@ pub async fn keybindings_open(app: AppHandle) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+/// Point the native Window ▸ Close Tab item at `accelerator` (Tauri's
+/// spelling — the renderer converts, see `native-accelerator.ts`), or leave it
+/// without one for `None`. A no-op where Atlas installs no menu.
+#[tauri::command]
+pub fn keybindings_set_close_tab_accelerator(
+    app: AppHandle,
+    accelerator: Option<String>,
+) -> Result<(), String> {
+    // The menu module is macOS-only (lib.rs); elsewhere there is no item to retarget.
+    #[cfg(target_os = "macos")]
+    {
+        use tauri::Manager;
+        let Some(item) = app.try_state::<crate::menu::CloseTabItem>() else {
+            return Ok(());
+        };
+        item.0
+            .set_accelerator(accelerator.as_deref())
+            .map_err(|e| e.to_string())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (app, accelerator);
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -292,6 +342,7 @@ mod tests {
             id: id.to_string(),
             name: id.to_string(),
             built_in: false,
+            based_on: None,
             bindings: bindings
                 .iter()
                 .map(|(k, v)| {
@@ -422,11 +473,43 @@ mod tests {
             "f5",
             "cmd++",
             "cmd+\\",
+            "mod+k",
+            "super+k",
+            "win+shift+b",
         ] {
             assert!(is_plausible_combo(ok), "{ok}");
         }
         for bad in ["", "cmd+", "cmd+shift", "cmd+b+c", "cmd+cmd+b", "+b"] {
             assert!(!is_plausible_combo(bad), "{bad}");
         }
+    }
+
+    #[test]
+    fn based_on_round_trips_and_is_omitted_when_absent() {
+        let mut file = KeybindingsFile::default();
+        let mut p = profile("mine", &[]);
+        p.based_on = Some("some-future-preset".into());
+        file.profiles.push(p);
+        let json = serde_json::to_string_pretty(&file).unwrap();
+        assert!(json.contains("\"basedOn\": \"some-future-preset\""));
+        // The Default profile carries no preset key at all.
+        assert_eq!(json.matches("basedOn").count(), 1);
+        let back: KeybindingsFile = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, file);
+    }
+
+    #[test]
+    fn empty_based_on_is_rejected_and_default_loses_its_preset() {
+        let mut file = KeybindingsFile::default();
+        let mut p = profile("mine", &[]);
+        p.based_on = Some("  ".into());
+        file.profiles.push(p);
+        assert!(validate(&file).is_err());
+
+        let mut file = KeybindingsFile::default();
+        file.profiles[0].based_on = Some("vscode".into());
+        let warnings = normalize(&mut file);
+        assert_eq!(file.profiles[0].based_on, None);
+        assert!(warnings.iter().any(|w| w.contains("preset")));
     }
 }

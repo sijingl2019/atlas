@@ -388,7 +388,9 @@ fn subagent_target_preserves_dotted_file_stem() {
 
     assert_eq!(
         subagent_target_file(&source_file, target_agents),
-        Some(PathBuf::from("/repo/.atlas-agent/agents/security.audit.toml"))
+        Some(PathBuf::from(
+            "/repo/.atlas-agent/agents/security.audit.toml"
+        ))
     );
 }
 
@@ -724,7 +726,10 @@ fn hook_command_paths_rewrite_to_target_hook_dir() {
     );
     let plugin_script_command = format!("${{{plugin_root_env_var}}}/scripts/format.sh");
     assert_eq!(
-        rewrite_hook_command_cla(&plugin_script_command, Some(Path::new("/repo/.atlas-agent")),),
+        rewrite_hook_command_cla(
+            &plugin_script_command,
+            Some(Path::new("/repo/.atlas-agent")),
+        ),
         plugin_script_command
     );
 }

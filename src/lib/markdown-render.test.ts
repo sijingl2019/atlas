@@ -27,6 +27,15 @@ describe("mention chips in rendered markdown", () => {
     expect(chipLabels(parseMarkdown("@file:src/lib/a.ts"))).toEqual(["a.ts"]);
   });
 
+  // A linked comment's label has a colon, slashes and spaces in it; it must
+  // stay one chip and never be shortened like a path.
+  it("draws a linked comment as one comment chip, label whole", () => {
+    const html = parseMarkdown('check @comment:"Grace: retry in src/net.ts never backs off" first');
+    expect(chipLabels(html)).toEqual(["Grace: retry in src/net.ts never backs off"]);
+    expect(html).toContain('data-mention-kind="comment"');
+    expect(html).toContain("first");
+  });
+
   it("peels trailing punctuation off a bare value", () => {
     const html = parseMarkdown("see @file:a.ts, then run");
     expect(chipLabels(html)).toEqual(["a.ts"]);

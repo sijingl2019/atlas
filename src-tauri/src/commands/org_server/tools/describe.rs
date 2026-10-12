@@ -31,7 +31,12 @@ impl OrgTools {
     /// amendment: an outward action is approved on what it reaches).
     ///
     /// [`SessionMcpServers::describe_call`]: atlas_agent_servers::SessionMcpServers::describe_call
-    pub async fn describe(&self, grant: &Grant, tool: &str, arguments: &Value) -> Option<CallDescription> {
+    pub async fn describe(
+        &self,
+        grant: &Grant,
+        tool: &str,
+        arguments: &Value,
+    ) -> Option<CallDescription> {
         match tool {
             "org_comment_reply" => self.describe_reply(grant, arguments).await,
             "org_send" => self.describe_send(grant, arguments).await,
@@ -43,11 +48,16 @@ impl OrgTools {
     /// thread is, and the reply.
     async fn describe_reply(&self, grant: &Grant, arguments: &Value) -> Option<CallDescription> {
         let args = ReplyArgs::of(arguments.as_object());
-        let comment_id = args.comment.unwrap_or_default();
+        let (comment_id, session) =
+            super::linked_comment(args.comment.unwrap_or_default(), args.session).ok()?;
+        let comment_id = comment_id.as_str();
         let body = args.body.unwrap_or_default();
         let scope = grant.org.clone();
         let thread = match &scope {
-            Some(scope) => self.reply_thread(grant, scope, (args.session, args.workspace), comment_id).await.ok(),
+            Some(scope) => self
+                .reply_thread(grant, scope, (session, args.workspace), comment_id)
+                .await
+                .ok(),
             None => None,
         };
         // The thread's first author is named from the roster, so it is read
@@ -59,7 +69,10 @@ impl OrgTools {
         // As it will be posted — a mention the call would refuse leaves the
         // body as written, since nothing is posted then — then read back.
         let posted = match &scope {
-            Some(scope) => self.post_body(&scope.org_id, body, &args.mentions, &mut roster).await.ok(),
+            Some(scope) => self
+                .post_body(&scope.org_id, body, &args.mentions, &mut roster)
+                .await
+                .ok(),
             None => None,
         };
         let roster = roster.as_deref();
@@ -76,7 +89,10 @@ impl OrgTools {
             .filter(|_| !root.is_deleted())
             .map(|b| format!(" \"{}\"", excerpt(&named_mentions(b, roster), 80)))
             .unwrap_or_default();
-        let place = target.title.clone().unwrap_or_else(|| format!("recorded session {}", target.id));
+        let place = target
+            .title
+            .clone()
+            .unwrap_or_else(|| format!("recorded session {}", target.id));
         Some(CallDescription {
             title: format!("Reply on {author}'s comment"),
             recipient: format!("{author}, on their comment{said} in {place}"),
@@ -107,13 +123,18 @@ impl OrgTools {
         // recipient whether or not the message mentions anyone.
         let mut roster = match (roster, &scope) {
             (Some(roster), _) => Some(roster),
-            (None, Some(scope)) if recipient.is_some() => self.cloud.members(&scope.org_id).await.ok(),
+            (None, Some(scope)) if recipient.is_some() => {
+                self.cloud.members(&scope.org_id).await.ok()
+            }
             _ => None,
         };
         // As it will be sent — a mention the call would refuse leaves the body
         // as written, since nothing is sent then — then read back.
         let posted = match &scope {
-            Some(scope) => self.post_body(&scope.org_id, body, &args.mentions, &mut roster).await.ok(),
+            Some(scope) => self
+                .post_body(&scope.org_id, body, &args.mentions, &mut roster)
+                .await
+                .ok(),
             None => None,
         }
         .unwrap_or_else(|| body.to_string());
@@ -123,9 +144,12 @@ impl OrgTools {
         // call appends when it cannot. One the call would refuse leaves the
         // body as written, and the card says it could not be read.
         let reference = match (args.session, &scope) {
-            (Some(session), Some(scope)) => {
-                Some((session, self.session_reference(grant, scope, (Some(session), args.workspace)).await.ok()))
-            }
+            (Some(session), Some(scope)) => Some((
+                session,
+                self.session_reference(grant, scope, (Some(session), args.workspace))
+                    .await
+                    .ok(),
+            )),
             (Some(session), None) => Some((session, None)),
             _ => None,
         };
@@ -146,13 +170,20 @@ impl OrgTools {
         // A DM is named by who else is in it, so the card needs to know who
         // the caller is; a channel and a new DM do not.
         let caller = match (&recipient, &scope) {
-            (Recipient::Conversation(c), Some(scope)) if c.member_ids.is_some() => {
-                self.cloud.caller(&scope.org_id).await.ok().map(|caller| caller.user_id)
-            }
+            (Recipient::Conversation(c), Some(scope)) if c.member_ids.is_some() => self
+                .cloud
+                .caller(&scope.org_id)
+                .await
+                .ok()
+                .map(|caller| caller.user_id),
             _ => None,
         };
         let (title, recipient) = OrgTools::send_card(&recipient, caller.as_deref(), roster);
-        Some(CallDescription { title, recipient: with_reference(recipient), body })
+        Some(CallDescription {
+            title,
+            recipient: with_reference(recipient),
+            body,
+        })
     }
 }
 

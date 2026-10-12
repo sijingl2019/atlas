@@ -6,8 +6,8 @@ use std::time::Duration;
 
 use atlas_engine_http_client::HttpClientFactory;
 use atlas_engine_http_client::OutboundProxyPolicy;
-use atlas_engine_login::AuthManager;
 use atlas_engine_login::AtlasEngineAuth;
+use atlas_engine_login::AuthManager;
 use atlas_engine_login::ExternalAuth;
 use atlas_engine_login::ExternalAuthFuture;
 use atlas_engine_login::ExternalAuthRefreshContext;
@@ -40,7 +40,10 @@ impl ExternalAuth for StaticExternalAuth {
         Box::pin(async { Ok(self.0.clone()) })
     }
 
-    fn refresh(&self, _context: ExternalAuthRefreshContext) -> ExternalAuthFuture<'_, AtlasEngineAuth> {
+    fn refresh(
+        &self,
+        _context: ExternalAuthRefreshContext,
+    ) -> ExternalAuthFuture<'_, AtlasEngineAuth> {
         self.resolve()
     }
 }

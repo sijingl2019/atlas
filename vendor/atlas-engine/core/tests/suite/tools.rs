@@ -1001,12 +1001,14 @@ async fn shell_command_timeout_handles_background_grandchild_stdout() -> Result<
     skip_if_no_network!(Ok(()));
 
     let server = start_mock_server().await;
-    let mut builder = test_atlas_engine().with_model("gpt-5.4").with_config(|config| {
-        config
-            .permissions
-            .set_permission_profile(PermissionProfile::Disabled)
-            .expect("set permission profile");
-    });
+    let mut builder = test_atlas_engine()
+        .with_model("gpt-5.4")
+        .with_config(|config| {
+            config
+                .permissions
+                .set_permission_profile(PermissionProfile::Disabled)
+                .expect("set permission profile");
+        });
     let test = builder.build(&server).await?;
 
     let call_id = "shell-command-grandchild-timeout";

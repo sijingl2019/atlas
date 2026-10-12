@@ -42,7 +42,10 @@ pub(super) async fn unarchive_thread(
     let mut restored_path = None;
     let mut rollout_moves = Vec::new();
     for rollout_path in rollout_paths {
-        if !rollout_path_is_archived(store.config.atlas_agent_home.as_path(), rollout_path.as_path()) {
+        if !rollout_path_is_archived(
+            store.config.atlas_agent_home.as_path(),
+            rollout_path.as_path(),
+        ) {
             continue;
         }
         let canonical_archived_path = scoped_rollout_path(
@@ -140,10 +143,10 @@ pub(super) async fn unarchive_thread(
 
 #[cfg(test)]
 mod tests {
-    use chrono::Utc;
     use atlas_engine_protocol::ThreadId;
     use atlas_engine_protocol::protocol::SessionSource;
     use atlas_engine_utils_absolute_path::test_support::PathExt;
+    use chrono::Utc;
     use pretty_assertions::assert_eq;
     use tempfile::TempDir;
     use uuid::Uuid;

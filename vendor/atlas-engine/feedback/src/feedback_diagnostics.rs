@@ -1,7 +1,8 @@
 // Modified by Atlas from upstream OpenAI Codex (Apache-2.0). See CONTEXT.md.
 use std::collections::HashMap;
 
-pub const FEEDBACK_DIAGNOSTICS_ATTACHMENT_FILENAME: &str = "atlas-engine-connectivity-diagnostics.txt";
+pub const FEEDBACK_DIAGNOSTICS_ATTACHMENT_FILENAME: &str =
+    "atlas-engine-connectivity-diagnostics.txt";
 const PROXY_ENV_VARS: &[&str] = &[
     "HTTP_PROXY",
     "http_proxy",

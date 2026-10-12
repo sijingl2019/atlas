@@ -100,7 +100,8 @@ async fn plugin_uninstall_tracks_analytics_event() -> Result<()> {
                 continue;
             };
             if let Some(request) = requests.iter().find(|request| {
-                request.method == "POST" && request.url.path() == "/atlas-agent/analytics-events/events"
+                request.method == "POST"
+                    && request.url.path() == "/atlas-agent/analytics-events/events"
             }) {
                 break request.body.clone();
             }

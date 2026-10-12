@@ -13,7 +13,6 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use chrono::DateTime;
 use atlas_engine_app_server_protocol::project_rollout_line;
 use atlas_engine_protocol::ThreadId;
 use atlas_engine_protocol::protocol::InternalSessionSource;
@@ -23,6 +22,7 @@ use atlas_engine_protocol::protocol::ThreadHistoryMode;
 use atlas_engine_protocol::protocol::ThreadSource;
 use atlas_engine_rollout::RolloutItem;
 use atlas_engine_rollout::RolloutLine;
+use chrono::DateTime;
 use serde::Serialize;
 use tokio::fs::File;
 use tokio::io::AsyncBufReadExt;
@@ -271,17 +271,23 @@ impl LocalThreadStore {
         let _maintenance_guard = match options.mode {
             RolloutMigrationMode::DryRun => None,
             RolloutMigrationMode::Apply => Some(
-                atlas_engine_rollout::try_acquire_rollout_maintenance_lock(&self.config.atlas_agent_home)
-                    .map_err(migration_error)?
-                    .ok_or_else(|| ThreadStoreError::Conflict {
-                        message: "rollout compression or another migration is already running"
-                            .to_string(),
-                    })?,
+                atlas_engine_rollout::try_acquire_rollout_maintenance_lock(
+                    &self.config.atlas_agent_home,
+                )
+                .map_err(migration_error)?
+                .ok_or_else(|| ThreadStoreError::Conflict {
+                    message: "rollout compression or another migration is already running"
+                        .to_string(),
+                })?,
             ),
         };
-        let mut paths =
-            find_rollout_paths(&self.config.atlas_agent_home.join(atlas_engine_rollout::SESSIONS_SUBDIR))
-                .await?;
+        let mut paths = find_rollout_paths(
+            &self
+                .config
+                .atlas_agent_home
+                .join(atlas_engine_rollout::SESSIONS_SUBDIR),
+        )
+        .await?;
         paths.extend(
             find_rollout_paths(
                 &self
@@ -292,7 +298,8 @@ impl LocalThreadStore {
             .await?,
         );
         if options.mode == RolloutMigrationMode::Apply {
-            let pending_thread_ids = pending_migration_thread_ids(&self.config.atlas_agent_home).await?;
+            let pending_thread_ids =
+                pending_migration_thread_ids(&self.config.atlas_agent_home).await?;
             paths.sort_by_key(|path| {
                 !thread_id_from_rollout_filename(path)
                     .is_some_and(|thread_id| pending_thread_ids.contains(&thread_id))
@@ -756,7 +763,9 @@ impl LocalThreadStore {
             if plan.is_none()
                 && matches!(
                     &line.item,
-                    RolloutItem::EventMsg(atlas_engine_protocol::protocol::EventMsg::ThreadRolledBack(_))
+                    RolloutItem::EventMsg(
+                        atlas_engine_protocol::protocol::EventMsg::ThreadRolledBack(_)
+                    )
                 )
             {
                 return Ok(CanonicalizationAttempt::NeedsRollbackPlan);
@@ -894,11 +903,12 @@ impl LocalThreadStore {
         rollout_path: &Path,
         limiter: &mut RolloutMigrationRateLimiter,
     ) -> ThreadStoreResult<()> {
-        let subagent_history_start_ordinal = atlas_engine_rollout::read_session_meta_line(rollout_path)
-            .await
-            .map_err(migration_error)?
-            .meta
-            .subagent_history_start_ordinal;
+        let subagent_history_start_ordinal =
+            atlas_engine_rollout::read_session_meta_line(rollout_path)
+                .await
+                .map_err(migration_error)?
+                .meta
+                .subagent_history_start_ordinal;
         let file = File::open(rollout_path).await.map_err(migration_error)?;
         let mut reader = BufReader::with_capacity(PROJECTION_BATCH_BYTES as usize, file);
         let mut line_bytes = Vec::new();

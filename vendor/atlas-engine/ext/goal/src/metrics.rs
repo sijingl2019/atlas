@@ -66,7 +66,8 @@ impl GoalMetrics {
             atlas_engine_state::ThreadGoalStatus::UsageLimited => GOAL_USAGE_LIMITED_METRIC,
             atlas_engine_state::ThreadGoalStatus::BudgetLimited => GOAL_BUDGET_LIMITED_METRIC,
             atlas_engine_state::ThreadGoalStatus::Complete => GOAL_COMPLETED_METRIC,
-            atlas_engine_state::ThreadGoalStatus::Active | atlas_engine_state::ThreadGoalStatus::Paused => {
+            atlas_engine_state::ThreadGoalStatus::Active
+            | atlas_engine_state::ThreadGoalStatus::Paused => {
                 return;
             }
         };

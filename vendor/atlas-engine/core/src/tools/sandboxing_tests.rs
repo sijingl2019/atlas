@@ -210,7 +210,8 @@ fn exec_server_env_keeps_command_native_and_carries_sandbox_context() {
         .try_into()
         .expect("absolute cwd");
     let cwd_uri = PathUri::from_abs_path(&cwd);
-    let exec_server_permissions = atlas_engine_protocol::models::PermissionProfile::workspace_write();
+    let exec_server_permissions =
+        atlas_engine_protocol::models::PermissionProfile::workspace_write();
     let permissions = exec_server_permissions
         .clone()
         .materialize_project_roots_with_workspace_roots(std::slice::from_ref(&cwd));

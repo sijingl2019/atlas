@@ -668,7 +668,10 @@ width = 320
 
     let desktop = config.desktop.expect("desktop settings present");
     assert_eq!(desktop.get("appearanceTheme"), Some(&json!("dark")));
-    assert_eq!(desktop.get("selected-avatar-id"), Some(&json!("atlas-agent")));
+    assert_eq!(
+        desktop.get("selected-avatar-id"),
+        Some(&json!("atlas-agent"))
+    );
     assert_eq!(
         desktop.get("workspace"),
         Some(&json!({
@@ -694,7 +697,11 @@ async fn config_read_includes_project_layers_for_cwd() -> Result<()> {
 model_reasoning_effort = "high"
 "#,
     )?;
-    set_project_trust_level(atlas_agent_home.path(), workspace.path(), TrustLevel::Trusted)?;
+    set_project_trust_level(
+        atlas_agent_home.path(),
+        workspace.path(),
+        TrustLevel::Trusted,
+    )?;
     let project_config = AbsolutePathBuf::try_from(project_config_dir)?;
 
     let mut mcp = TestAppServer::builder()
@@ -883,7 +890,8 @@ model = "gpt-old"
         .await?;
     let write: ConfigWriteResponse =
         timeout(DEFAULT_READ_TIMEOUT, mcp.read_response(write_id)).await??;
-    let expected_file_path = AbsolutePathBuf::resolve_path_against_base("config.toml", atlas_agent_home);
+    let expected_file_path =
+        AbsolutePathBuf::resolve_path_against_base("config.toml", atlas_agent_home);
 
     assert_eq!(write.status, WriteStatus::Ok);
     assert_eq!(write.file_path, expected_file_path);
@@ -1003,7 +1011,13 @@ model = "gpt-old"
 
     let write_id = mcp
         .send_config_value_write_request(ConfigValueWriteParams {
-            file_path: Some(atlas_agent_home.path().join("config.toml").display().to_string()),
+            file_path: Some(
+                atlas_agent_home
+                    .path()
+                    .join("config.toml")
+                    .display()
+                    .to_string(),
+            ),
             key_path: "model".to_string(),
             value: json!("gpt-new"),
             merge_strategy: MergeStrategy::Replace,
@@ -1065,7 +1079,8 @@ async fn config_batch_write_applies_multiple_edits() -> Result<()> {
     let batch_write: ConfigWriteResponse =
         timeout(DEFAULT_READ_TIMEOUT, mcp.read_response(batch_id)).await??;
     assert_eq!(batch_write.status, WriteStatus::Ok);
-    let expected_file_path = AbsolutePathBuf::resolve_path_against_base("config.toml", atlas_agent_home);
+    let expected_file_path =
+        AbsolutePathBuf::resolve_path_against_base("config.toml", atlas_agent_home);
     assert_eq!(batch_write.file_path, expected_file_path);
 
     let read_id = mcp
@@ -1142,8 +1157,9 @@ model = "gpt-5.3-spark"
         "unexpected error: {err:?}"
     );
 
-    let config: toml::Value =
-        toml::from_str(&std::fs::read_to_string(atlas_agent_home.join("config.toml"))?)?;
+    let config: toml::Value = toml::from_str(&std::fs::read_to_string(
+        atlas_agent_home.join("config.toml"),
+    )?)?;
     assert_eq!(
         config["profiles"]["team.prod"]["model"].as_str(),
         Some("gpt-5.3-spark")
@@ -1200,7 +1216,10 @@ async fn config_batch_write_updates_multiple_desktop_settings() -> Result<()> {
     let read: ConfigReadResponse =
         timeout(DEFAULT_READ_TIMEOUT, mcp.read_response(read_id)).await??;
     let desktop = read.config.desktop.expect("desktop settings present");
-    assert_eq!(desktop.get("selected-avatar-id"), Some(&json!("atlas-agent")));
+    assert_eq!(
+        desktop.get("selected-avatar-id"),
+        Some(&json!("atlas-agent"))
+    );
     assert_eq!(
         desktop.get("workspace"),
         Some(&json!({

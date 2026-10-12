@@ -9,6 +9,7 @@ import { openFile } from "@/lib/open-file";
 import { useSessionStore } from "@/features/app/stores/session-store";
 import { useAppStore } from "@/features/app/stores/app-store";
 import { Search, FileCode, Clock, X, BookOpen } from "lucide-react";
+import { codeGrep, type CodeGrepMatch, type CodeSearchOptions } from "@/components/code-search-api";
 import { useKbRoot } from "@/features/knowledge/lib/kb-root";
 import { useKnowledgeStore } from "@/features/knowledge/stores/knowledge-store";
 
@@ -27,13 +28,12 @@ interface KnowledgeResult {
   source: string;
 }
 
-export interface SearchResult {
-  file_path: string;
-  line: number;
-  content: string;
-  match_start: number;
-  match_end: number;
-}
+/** The switches beside the query, in VS Code's order and with its glyphs. */
+const TOGGLES: { key: keyof CodeSearchOptions; glyph: string; label: string }[] = [
+  { key: "caseSensitive", glyph: "Aa", label: "Match case" },
+  { key: "wholeWord", glyph: "ab", label: "Match whole word" },
+  { key: "regex", glyph: ".*", label: "Use regular expression" },
+];
 
 export function SearchOverlay({
   open,
@@ -43,12 +43,22 @@ export function SearchOverlay({
   onOpenChange: (open: boolean) => void;
 }) {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SearchResult[]>([]);
+  const [results, setResults] = useState<CodeGrepMatch[]>([]);
   const [knowledgeResults, setKnowledgeResults] = useState<KnowledgeResult[]>([]);
+  const [options, setOptions] = useState<CodeSearchOptions>({
+    regex: false,
+    caseSensitive: false,
+    wholeWord: false,
+  });
+  const [error, setError] = useState<string | null>(null);
+  const [truncated, setTruncated] = useState(false);
   const [searching, setSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Bumped by every search (and by closing): a response from an older one is
+  // dropped, so a slow search never overwrites a newer one's results.
+  const searchSeq = useRef(0);
   const rootPath = useExplorerStore.use.rootPath();
   const session = useSessionStore.use.session();
   const { addSearchHistory, removeSearchHistory, clearSearchHistory, saveSession } =
@@ -58,25 +68,32 @@ export function SearchOverlay({
 
   useEffect(() => {
     if (!open) {
+      searchSeq.current += 1;
+      setSearching(false);
       setQuery("");
       setResults([]);
       setKnowledgeResults([]);
+      setError(null);
+      setTruncated(false);
       setSelectedIndex(0);
       setHasSearched(false);
     }
   }, [open]);
 
-  const performSearch = async (searchQuery: string) => {
+  const performSearch = async (searchQuery: string, opts: CodeSearchOptions = options) => {
     if (!searchQuery.trim()) return;
+    const seq = ++searchSeq.current;
     setSearching(true);
     setHasSearched(true);
 
+    // Knowledge notes match on title, first heading or body.
     const needle = searchQuery.trim().toLowerCase();
     if (kbRoot) {
       try {
         const entries = await invoke<KnowledgeEntry[]>("list_knowledge", {
           projectPath: kbRoot,
         });
+        if (seq !== searchSeq.current) return;
         setKnowledgeResults(
           entries
             .filter((entry) => entry.source !== "file")
@@ -111,21 +128,29 @@ export function SearchOverlay({
       setSearching(false);
       return;
     }
-
     try {
-      const res = await invoke<SearchResult[]>("search_in_files", {
-        path: rootPath,
-        query: searchQuery.trim(),
-        maxResults: 50,
-      });
-      setResults(res);
+      const res = await codeGrep(rootPath, searchQuery.trim(), opts);
+      if (seq !== searchSeq.current) return;
+      setResults(res.matches);
+      setTruncated(res.truncated);
+      setError(null);
       setSelectedIndex(0);
       addSearchHistory(searchQuery.trim());
       if (currentProject) saveSession(currentProject.path);
-    } catch {
+    } catch (e) {
+      if (seq !== searchSeq.current) return;
       setResults([]);
+      setTruncated(false);
+      setError(String(e));
     }
     setSearching(false);
+  };
+
+  const toggle = (key: keyof CodeSearchOptions) => {
+    const next = { ...options, [key]: !options[key] };
+    setOptions(next);
+    inputRef.current?.focus();
+    if (hasSearched) void performSearch(query, next);
   };
 
   const openKnowledgeResult = (result: KnowledgeResult) => {
@@ -147,8 +172,8 @@ export function SearchOverlay({
     onOpenChange(false);
   };
 
-  const openResult = (result: SearchResult) => {
-    const fullPath = rootPath ? `${rootPath}/${result.file_path}` : result.file_path;
+  const openResult = (result: CodeGrepMatch) => {
+    const fullPath = rootPath ? `${rootPath}/${result.path}` : result.path;
     void openFile(fullPath, { reveal: { line: result.line } });
     onOpenChange(false);
   };
@@ -202,14 +227,41 @@ export function SearchOverlay({
             {searching && (
               <span className="text-2xs text-[var(--muted-foreground)]">Searching...</span>
             )}
+            {TOGGLES.map(({ key, glyph, label }) => (
+              <Hint key={key} label={label}>
+                <button
+                  type="button"
+                  aria-label={label}
+                  aria-pressed={options[key]}
+                  onClick={() => toggle(key)}
+                  className={cn(
+                    "h-6 min-w-6 px-1 rounded-md font-mono text-2xs shrink-0 transition-colors",
+                    options[key]
+                      ? "bg-[var(--atlas-element-hover)] text-[var(--foreground)]"
+                      : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]",
+                  )}
+                >
+                  {glyph}
+                </button>
+              </Hint>
+            ))}
           </div>
 
           <div className="overflow-y-auto flex-1 py-1">
-            {results.length === 0 && hasSearched && !searching && (
+            {error && !searching && (
               <div className="px-4 py-6 text-center text-xs text-[var(--muted-foreground)]">
-                No results found
+                {error}
               </div>
             )}
+            {results.length === 0 &&
+              knowledgeResults.length === 0 &&
+              hasSearched &&
+              !searching &&
+              !error && (
+                <div className="px-4 py-6 text-center text-xs text-[var(--muted-foreground)]">
+                  No results found
+                </div>
+              )}
             {!query.trim() && !hasSearched && session.searchHistory.length > 0 && (
               <div className="py-1">
                 <div className="flex items-center justify-between px-4 py-1">
@@ -287,7 +339,7 @@ export function SearchOverlay({
             ))}
             {results.map((result, i) => (
               <button
-                key={`${result.file_path}:${result.line}:${i}`}
+                key={`${result.path}:${result.line}:${i}`}
                 onClick={() => openResult(result)}
                 onMouseEnter={() => setSelectedIndex(i)}
                 className={cn(
@@ -298,17 +350,22 @@ export function SearchOverlay({
                 <div className="flex items-center gap-2">
                   <FileCode size={12} className="text-[var(--muted-foreground)] shrink-0" />
                   <span className="text-xs text-[var(--primary)] font-mono truncate">
-                    {result.file_path}
+                    {result.path}
                   </span>
                   <span className="text-2xs text-[var(--muted-foreground)] font-mono shrink-0">
                     :{result.line}
                   </span>
                 </div>
                 <div className="ml-5 text-xs font-mono text-[var(--secondary-foreground)] truncate mt-0.5">
-                  {result.content.trim()}
+                  {result.text.trim()}
                 </div>
               </button>
             ))}
+            {truncated && results.length > 0 && !searching && (
+              <div className="px-4 py-2 text-2xs text-[var(--muted-foreground)]">
+                Showing the first {results.length} matches. Narrow the search to see the rest.
+              </div>
+            )}
           </div>
         </Dialog.Popup>
       </Dialog.Portal>

@@ -2,11 +2,11 @@
 use std::time::Duration;
 
 use crate::AuthProvider;
-use bytes::Bytes;
 use atlas_engine_http_client::HttpResponse;
 use atlas_engine_http_client::RouteAwareClientPool;
 use atlas_engine_http_client::RouteAwareRequestBuilder;
 use atlas_engine_http_client::RouteAwareRequestError;
+use bytes::Bytes;
 use futures::Stream;
 use http::Method;
 use http::StatusCode;

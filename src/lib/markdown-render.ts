@@ -79,6 +79,7 @@ const MENTION_PREFIX_KIND: Record<string, string> = {
   "@member": "member",
   "@conversation": "conversation",
   "@recorded-session": "recorded_session",
+  "@comment": "comment",
   "#skill": "skill",
   "#command": "command",
   "#agent": "agent",
@@ -91,7 +92,7 @@ const MENTION_PREFIX_KIND: Record<string, string> = {
 // to the next whitespace, and its trailing punctuation is peeled back off into
 // plain text.
 const MENTION_TOKEN_RE =
-  /(?<![\w/])([@#](?:file|folder|symbol|note|repo|branch|msg|session|member|conversation|recorded-session|skill|command|agent|rule)):(?:"([^"\n]+)"|(?!")(\S+))/g;
+  /(?<![\w/])([@#](?:file|folder|symbol|note|repo|branch|msg|session|member|conversation|recorded-session|comment|skill|command|agent|rule)):(?:"([^"\n]+)"|(?!")(\S+))/g;
 
 // Tokens are lifted out of the source BEFORE remark parses it, and parked
 // behind private-use placeholders. Left in, GFM gets to them first: a Retina
@@ -245,6 +246,16 @@ const MENTION_GLYPH: Record<string, [string, Record<string, string | number>][]>
     ],
     ["path", { d: "M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12" }],
     ["path", { d: "M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17" }],
+  ],
+  comment: [
+    ["path", { d: "M14 14a2 2 0 0 0 2-2V8h-2" }],
+    [
+      "path",
+      {
+        d: "M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z",
+      },
+    ],
+    ["path", { d: "M8 14a2 2 0 0 0 2-2V8H8" }],
   ],
 };
 

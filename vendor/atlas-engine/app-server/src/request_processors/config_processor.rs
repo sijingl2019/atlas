@@ -630,8 +630,12 @@ fn map_network_unix_socket_permission_to_api(
     permission: atlas_engine_config::NetworkUnixSocketPermissionToml,
 ) -> NetworkUnixSocketPermission {
     match permission {
-        atlas_engine_config::NetworkUnixSocketPermissionToml::Allow => NetworkUnixSocketPermission::Allow,
-        atlas_engine_config::NetworkUnixSocketPermissionToml::Deny => NetworkUnixSocketPermission::Deny,
+        atlas_engine_config::NetworkUnixSocketPermissionToml::Allow => {
+            NetworkUnixSocketPermission::Allow
+        }
+        atlas_engine_config::NetworkUnixSocketPermissionToml::Deny => {
+            NetworkUnixSocketPermission::Deny
+        }
     }
 }
 

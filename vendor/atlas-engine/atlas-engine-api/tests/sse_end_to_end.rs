@@ -4,7 +4,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Result;
-use bytes::Bytes;
 use atlas_engine_api::AuthProvider;
 use atlas_engine_api::Compression;
 use atlas_engine_api::Provider;
@@ -16,6 +15,7 @@ use atlas_engine_client::Response;
 use atlas_engine_client::StreamResponse;
 use atlas_engine_client::TransportError;
 use atlas_engine_protocol::models::ResponseItem;
+use bytes::Bytes;
 use futures::StreamExt;
 use http::HeaderMap;
 use http::StatusCode;

@@ -359,7 +359,10 @@ fn build_proxy_env_exports() -> (String, String) {
 #[cfg(target_os = "macos")]
 fn build_atlas_engine_proxy_git_ssh_command_exports() -> (String, String) {
     let key = PROXY_GIT_SSH_COMMAND_ENV_KEY;
-    let marker_pattern = format!("{}\\ *", ATLAS_AGENT_PROXY_GIT_SSH_COMMAND_MARKER.trim_end());
+    let marker_pattern = format!(
+        "{}\\ *",
+        ATLAS_AGENT_PROXY_GIT_SSH_COMMAND_MARKER.trim_end()
+    );
     (
         format!(
             "__ATLAS_AGENT_SNAPSHOT_PROXY_GIT_SSH_COMMAND_SET=\"${{{key}+x}}\"\n__ATLAS_AGENT_SNAPSHOT_PROXY_GIT_SSH_COMMAND=\"${{{key}-}}\"\ncase \"$__ATLAS_AGENT_SNAPSHOT_PROXY_GIT_SSH_COMMAND\" in\n  {marker_pattern}) __ATLAS_AGENT_SNAPSHOT_PROXY_GIT_SSH_COMMAND_LIVE_MARKED=1 ;;\n  *) __ATLAS_AGENT_SNAPSHOT_PROXY_GIT_SSH_COMMAND_LIVE_MARKED= ;;\nesac"

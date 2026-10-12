@@ -369,7 +369,7 @@ mod cache_order_tests {
     /// nothing else about the request has changed.
     #[test]
     fn tools_come_out_in_the_same_order_whatever_order_they_went_in() {
-        let canonical = vec![
+        let canonical = [
             tool_info("atlas_memory", "memory_briefing"),
             tool_info("atlas_memory", "memory_search"),
             tool_info("zeta", "alpha"),

@@ -6,9 +6,9 @@ use serial_test::serial;
 use tempfile::tempdir;
 
 use super::*;
+use crate::auth::AtlasEngineAuth;
 use crate::auth::AuthKeyringBackendKind;
 use crate::auth::AuthManager;
-use crate::auth::AtlasEngineAuth;
 use crate::auth::storage::AuthStorageBackend;
 use crate::auth::storage::FileAuthStorage;
 

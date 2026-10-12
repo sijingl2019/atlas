@@ -221,7 +221,11 @@ pub struct TurnAtlasEngineErrorFact {
 }
 
 impl TurnAtlasEngineErrorFact {
-    pub fn from_atlas_engine_err(thread_id: String, turn_id: String, error: &AtlasEngineErr) -> Self {
+    pub fn from_atlas_engine_err(
+        thread_id: String,
+        turn_id: String,
+        error: &AtlasEngineErr,
+    ) -> Self {
         Self {
             turn_id,
             thread_id,

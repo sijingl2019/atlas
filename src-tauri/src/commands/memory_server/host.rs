@@ -80,7 +80,10 @@ impl MemoryServer {
         );
         let router = mounts
             .into_iter()
-            .fold(axum::Router::new().nest_service(MCP_PATH, service), axum::Router::merge)
+            .fold(
+                axum::Router::new().nest_service(MCP_PATH, service),
+                axum::Router::merge,
+            )
             // Last, so it wraps every mounted service too.
             .layer(middleware::from_fn_with_state(tokens, require_token));
         let (stop, stopped) = oneshot::channel::<()>();
@@ -95,7 +98,10 @@ impl MemoryServer {
             }
         });
         tracing::info!(target: "atlas::memory_server", "memory tool server on http://{addr}{MCP_PATH}");
-        Ok(Self { addr, stop: Some(stop) })
+        Ok(Self {
+            addr,
+            stop: Some(stop),
+        })
     }
 
     /// The MCP endpoint, e.g. `http://127.0.0.1:53124/mcp`.
@@ -193,7 +199,9 @@ impl MemoryServerHost {
                 Ok(server) => {
                     let _ = host.server.set(server);
                 }
-                Err(e) => tracing::warn!(target: "atlas::memory_server", "memory tool server did not start: {e}"),
+                Err(e) => {
+                    tracing::warn!(target: "atlas::memory_server", "memory tool server did not start: {e}")
+                }
             }
         });
     }

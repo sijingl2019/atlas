@@ -2,7 +2,7 @@
 name = "atlas-agent-wire"
 version = "0.1.0"
 edition = "2021"
-description = "The frozen session-delta wire shapes, shared by both ACP stacks."
+description = "The additive-only session-delta wire shapes, enforced by tests/contract.rs."
 
 [lib]
 name = "atlas_agent_wire"

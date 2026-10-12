@@ -3,8 +3,8 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use atlas_engine_features::Feature;
-use atlas_engine_login::AuthManager;
 use atlas_engine_login::AtlasEngineAuth;
+use atlas_engine_login::AuthManager;
 use atlas_engine_mcp::ToolInfo;
 use atlas_engine_model_provider::create_model_provider;
 use atlas_engine_model_provider_info::AMAZON_BEDROCK_GPT_5_5_MODEL_ID;
@@ -433,15 +433,17 @@ fn dynamic_tool(namespace: Option<&str>, name: &str, defer_loading: bool) -> Dyn
         defer_loading,
     };
     match namespace {
-        Some(namespace) => {
-            DynamicToolSpec::Namespace(atlas_engine_protocol::dynamic_tools::DynamicToolNamespaceSpec {
+        Some(namespace) => DynamicToolSpec::Namespace(
+            atlas_engine_protocol::dynamic_tools::DynamicToolNamespaceSpec {
                 name: namespace.to_string(),
                 description: format!("{namespace} dynamic tools"),
                 tools: vec![
-                    atlas_engine_protocol::dynamic_tools::DynamicToolNamespaceTool::Function(function),
+                    atlas_engine_protocol::dynamic_tools::DynamicToolNamespaceTool::Function(
+                        function,
+                    ),
                 ],
-            })
-        }
+            },
+        ),
         None => DynamicToolSpec::Function(function),
     }
 }
@@ -654,7 +656,8 @@ async fn request_user_input_stays_direct_in_code_mode_only() {
         ToolExposure::DirectModelOnly
     );
 
-    let ToolSpec::Freeform(exec) = plan.visible_spec(atlas_engine_code_mode::PUBLIC_TOOL_NAME) else {
+    let ToolSpec::Freeform(exec) = plan.visible_spec(atlas_engine_code_mode::PUBLIC_TOOL_NAME)
+    else {
         panic!("expected code mode exec tool");
     };
     assert!(!exec.description.contains("request_user_input"));
@@ -868,8 +871,9 @@ async fn zsh_fork_unified_exec_hides_shell_parameter() {
                 Feature::UnifiedExecZshFork,
             ],
         );
-        turn.unified_exec_shell_mode =
-            atlas_engine_tools::UnifiedExecShellMode::ZshFork(zsh_fork_config_for_spec_plan_tests());
+        turn.unified_exec_shell_mode = atlas_engine_tools::UnifiedExecShellMode::ZshFork(
+            zsh_fork_config_for_spec_plan_tests(),
+        );
     })
     .await;
 
@@ -893,8 +897,9 @@ async fn zsh_fork_unified_exec_keeps_shell_parameter_when_remote_environment_ava
                 Feature::UnifiedExecZshFork,
             ],
         );
-        turn.unified_exec_shell_mode =
-            atlas_engine_tools::UnifiedExecShellMode::ZshFork(zsh_fork_config_for_spec_plan_tests());
+        turn.unified_exec_shell_mode = atlas_engine_tools::UnifiedExecShellMode::ZshFork(
+            zsh_fork_config_for_spec_plan_tests(),
+        );
         let remote_cwd = turn
             .environments
             .primary()
@@ -1087,7 +1092,8 @@ async fn sleep_tool_stays_direct_and_outside_code_mode() {
         );
         plan.assert_registered_lacks(&[wait_agent_tool_name.as_str()]);
 
-        let ToolSpec::Freeform(exec) = plan.visible_spec(atlas_engine_code_mode::PUBLIC_TOOL_NAME) else {
+        let ToolSpec::Freeform(exec) = plan.visible_spec(atlas_engine_code_mode::PUBLIC_TOOL_NAME)
+        else {
             panic!("expected code mode exec tool");
         };
         if code_mode_only {
@@ -1779,7 +1785,8 @@ async fn code_mode_uses_the_first_normalized_tool_identity() {
             assert_eq!(shadow.description, "lookup dynamic tool");
         }
 
-        let ToolSpec::Freeform(exec) = plan.visible_spec(atlas_engine_code_mode::PUBLIC_TOOL_NAME) else {
+        let ToolSpec::Freeform(exec) = plan.visible_spec(atlas_engine_code_mode::PUBLIC_TOOL_NAME)
+        else {
             panic!("expected code mode exec tool");
         };
         assert!(!exec.description.contains("lookup dynamic tool"));
@@ -2116,7 +2123,8 @@ async fn code_mode_config_updates_exec_description() {
         })
         .await;
 
-        let ToolSpec::Freeform(exec) = plan.visible_spec(atlas_engine_code_mode::PUBLIC_TOOL_NAME) else {
+        let ToolSpec::Freeform(exec) = plan.visible_spec(atlas_engine_code_mode::PUBLIC_TOOL_NAME)
+        else {
             panic!("expected code mode exec tool");
         };
         assert!(
@@ -2164,7 +2172,8 @@ async fn code_mode_only_exposes_configured_dynamic_namespace_directly() {
         panic!("expected direct-only namespace function tool");
     };
     assert_eq!(tool.defer_loading, None);
-    let ToolSpec::Freeform(exec) = plan.visible_spec(atlas_engine_code_mode::PUBLIC_TOOL_NAME) else {
+    let ToolSpec::Freeform(exec) = plan.visible_spec(atlas_engine_code_mode::PUBLIC_TOOL_NAME)
+    else {
         panic!("expected code mode exec tool");
     };
     assert!(!exec.description.contains("direct_only_lookup(args:"));
@@ -2183,7 +2192,8 @@ async fn code_mode_only_exposes_default_namespace_tools_directly() {
     plan.assert_visible_contains(&["update_plan"]);
     assert_eq!(plan.exposure("update_plan"), ToolExposure::DirectModelOnly);
 
-    let ToolSpec::Freeform(exec) = plan.visible_spec(atlas_engine_code_mode::PUBLIC_TOOL_NAME) else {
+    let ToolSpec::Freeform(exec) = plan.visible_spec(atlas_engine_code_mode::PUBLIC_TOOL_NAME)
+    else {
         panic!("expected code mode exec tool");
     };
     assert!(!exec.description.contains("update_plan(args:"));
@@ -2211,7 +2221,8 @@ async fn excluded_deferred_namespaces_do_not_enable_nested_tool_guidance() {
     )
     .await;
 
-    let ToolSpec::Freeform(exec) = plan.visible_spec(atlas_engine_code_mode::PUBLIC_TOOL_NAME) else {
+    let ToolSpec::Freeform(exec) = plan.visible_spec(atlas_engine_code_mode::PUBLIC_TOOL_NAME)
+    else {
         panic!("expected code mode exec tool");
     };
     assert!(
@@ -2239,7 +2250,8 @@ async fn code_mode_excludes_default_namespace_tools() {
     plan.assert_registered_contains(&["update_plan"]);
     assert_eq!(plan.exposure("update_plan"), ToolExposure::Direct);
 
-    let ToolSpec::Freeform(exec) = plan.visible_spec(atlas_engine_code_mode::PUBLIC_TOOL_NAME) else {
+    let ToolSpec::Freeform(exec) = plan.visible_spec(atlas_engine_code_mode::PUBLIC_TOOL_NAME)
+    else {
         panic!("expected code mode exec tool");
     };
     assert!(!exec.description.contains("update_plan(args:"));

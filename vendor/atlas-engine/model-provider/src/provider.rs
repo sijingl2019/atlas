@@ -9,8 +9,8 @@ use atlas_engine_api::ApiError;
 use atlas_engine_api::Provider;
 use atlas_engine_api::SharedAuthProvider;
 use atlas_engine_api::is_azure_responses_provider;
-use atlas_engine_login::AuthManager;
 use atlas_engine_login::AtlasEngineAuth;
+use atlas_engine_login::AuthManager;
 use atlas_engine_model_provider_info::ModelProviderInfo;
 use atlas_engine_models_manager::cache::ModelsCache;
 use atlas_engine_models_manager::manager::OpenAiModelsManager;
@@ -174,7 +174,9 @@ pub trait ModelProvider: fmt::Debug + Send + Sync {
     }
 
     /// Returns provider configuration adapted for the API client.
-    fn api_provider(&self) -> ModelProviderFuture<'_, atlas_engine_protocol::error::Result<Provider>> {
+    fn api_provider(
+        &self,
+    ) -> ModelProviderFuture<'_, atlas_engine_protocol::error::Result<Provider>> {
         Box::pin(async move {
             let auth = self.auth().await;
             self.info()
@@ -538,9 +540,12 @@ mod tests {
     use super::*;
     use crate::auth::AgentIdentitySessionFallback;
 
-
     /// A gateway error, as the transport hands it up.
-    fn gateway_http_error(status: u16, body: &str, retry_after: Option<&str>) -> atlas_engine_api::ApiError {
+    fn gateway_http_error(
+        status: u16,
+        body: &str,
+        retry_after: Option<&str>,
+    ) -> atlas_engine_api::ApiError {
         let Ok(status) = http::StatusCode::from_u16(status) else {
             panic!("{status} is not a status code");
         };
@@ -579,8 +584,12 @@ mod tests {
         // `UnexpectedStatus` — which the turn loop retries against a wall that
         // cannot clear for weeks.
         let body = r#"{"error":{"message":"The org monthly AI budget is spent.","code":"cap_exceeded","window":"monthly","scope":"org","used":307425,"cap":350000}}"#;
-        let err = provider_on_wire(WireApi::Chat).map_api_error(gateway_http_error(402, body, None));
-        assert!(!err.is_retryable(), "a filled cap must produce zero retries: {err:?}");
+        let err =
+            provider_on_wire(WireApi::Chat).map_api_error(gateway_http_error(402, body, None));
+        assert!(
+            !err.is_retryable(),
+            "a filled cap must produce zero retries: {err:?}"
+        );
         assert!(
             err.to_string().contains("307425"),
             "the cap detail has to survive: {err}",
@@ -605,8 +614,8 @@ mod tests {
         // not speak the gateway's error vocabulary — a 402 from some other
         // OpenAI-compatible endpoint means whatever that endpoint says it does.
         let body = r#"{"error":{"code":"cap_exceeded"}}"#;
-        let err = provider_on_wire(WireApi::Responses)
-            .map_api_error(gateway_http_error(402, body, None));
+        let err =
+            provider_on_wire(WireApi::Responses).map_api_error(gateway_http_error(402, body, None));
         assert!(
             err.is_retryable(),
             "upstream classifies a 402 as UnexpectedStatus; changing that is not this arm's job",
@@ -644,7 +653,10 @@ mod tests {
     }
 
     fn test_atlas_agent_home() -> std::path::PathBuf {
-        std::env::temp_dir().join(format!("atlas-engine-model-provider-test-{}", std::process::id()))
+        std::env::temp_dir().join(format!(
+            "atlas-engine-model-provider-test-{}",
+            std::process::id()
+        ))
     }
 
     fn provider_for(base_url: String) -> ModelProviderInfo {
@@ -782,9 +794,9 @@ mod tests {
     fn configured_provider_uses_luna_for_approval_review_with_api_key_auth() {
         let provider = create_model_provider(
             ModelProviderInfo::create_openai_provider(/*base_url*/ None),
-            Some(AuthManager::from_auth_for_testing(AtlasEngineAuth::from_api_key(
-                "openai-api-key",
-            ))),
+            Some(AuthManager::from_auth_for_testing(
+                AtlasEngineAuth::from_api_key("openai-api-key"),
+            )),
         );
 
         assert_eq!(provider.approval_review_preferred_model(), "gpt-5.6-luna");
@@ -843,9 +855,9 @@ mod tests {
                 profile: Some("atlas-engine-bedrock".to_string()),
                 region: None,
             })),
-            Some(AuthManager::from_auth_for_testing(AtlasEngineAuth::from_api_key(
-                "openai-api-key",
-            ))),
+            Some(AuthManager::from_auth_for_testing(
+                AtlasEngineAuth::from_api_key("openai-api-key"),
+            )),
         );
 
         assert!(provider.auth_manager().is_none());
@@ -883,9 +895,9 @@ mod tests {
     fn openai_provider_returns_api_key_account_state() {
         let provider = create_model_provider(
             ModelProviderInfo::create_openai_provider(/*base_url*/ None),
-            Some(AuthManager::from_auth_for_testing(AtlasEngineAuth::from_api_key(
-                "openai-api-key",
-            ))),
+            Some(AuthManager::from_auth_for_testing(
+                AtlasEngineAuth::from_api_key("openai-api-key"),
+            )),
         );
 
         assert_eq!(

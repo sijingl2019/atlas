@@ -248,9 +248,9 @@ fn config_path_for_layer(layer: &ConfigLayerEntry, config_toml_file: &str) -> Op
         ConfigLayerSource::PackagedDefaults { file } => Some(file.to_path_buf()),
         ConfigLayerSource::System { file } => Some(file.to_path_buf()),
         ConfigLayerSource::User { file, .. } => Some(file.to_path_buf()),
-        ConfigLayerSource::Project { dot_atlas_agent_folder } => {
-            Some(dot_atlas_agent_folder.as_path().join(config_toml_file))
-        }
+        ConfigLayerSource::Project {
+            dot_atlas_agent_folder,
+        } => Some(dot_atlas_agent_folder.as_path().join(config_toml_file)),
         ConfigLayerSource::LegacyManagedConfigTomlFromFile { file } => Some(file.to_path_buf()),
         ConfigLayerSource::Mdm { .. }
         | ConfigLayerSource::EnterpriseManaged { .. }

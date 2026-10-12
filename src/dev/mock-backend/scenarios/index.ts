@@ -21,10 +21,15 @@ import {
 import { chatLongPrompt } from "./chat-long-prompt";
 import { chatMarkdown } from "./chat-markdown";
 import { chatTools } from "./chat-tools";
+import { collab } from "./collab";
 import { designSystem } from "./design-system";
 import { gitConflict } from "./git-conflict";
+import { keymapFirstRun } from "./keymap-first-run";
 import { knowledge } from "./knowledge";
 import { subagents } from "./subagents";
+import { memorySetup } from "./memory-setup";
+import { northwind } from "./northwind";
+import { timelineEmpty } from "./timeline-empty";
 
 /** Every variant `permission-modal.tsx` renders, callable from any chat
  *  scenario once a session is bound: a plain command, a long/multi-line one,
@@ -58,6 +63,11 @@ const all: Scenario[] = [
   chatMarkdown,
   gitConflict,
   knowledge,
+  collab,
+  northwind,
+  memorySetup,
+  timelineEmpty,
+  keymapFirstRun,
   designSystem,
   subagents,
 ];

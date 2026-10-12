@@ -1970,9 +1970,11 @@ impl TestAppServerBuilder {
                         // Local auto environments normally use stdio. Start a
                         // host-local WebSocket fixture so the delay interposer has a
                         // socket stream to wrap.
-                        let local_websocket_exec_server =
-                            LocalWebsocketExecServer::start(&atlas_agent_home, &exec_server_program)
-                                .await?;
+                        let local_websocket_exec_server = LocalWebsocketExecServer::start(
+                            &atlas_agent_home,
+                            &exec_server_program,
+                        )
+                        .await?;
                         let interposer = WebsocketDelayInterposer::start(
                             local_websocket_exec_server.websocket_url(),
                             added_delay,
@@ -2001,7 +2003,10 @@ impl TestAppServerBuilder {
                         ATLAS_AGENT_EXEC_SERVER_NOISE_ENVIRONMENT_ID_ENV_VAR.to_string(),
                         None,
                     ),
-                    (ATLAS_AGENT_EXEC_SERVER_NOISE_AUTH_TOKEN_ENV_VAR.to_string(), None),
+                    (
+                        ATLAS_AGENT_EXEC_SERVER_NOISE_AUTH_TOKEN_ENV_VAR.to_string(),
+                        None,
+                    ),
                     (
                         ATLAS_AGENT_EXEC_SERVER_NOISE_CHATGPT_ACCOUNT_ID_ENV_VAR.to_string(),
                         None,

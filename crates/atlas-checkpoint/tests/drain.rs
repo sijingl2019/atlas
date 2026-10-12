@@ -220,7 +220,11 @@ fn handle(
             .lock()
             .unwrap()
             .push(String::from_utf8_lossy(&body).into_owned());
-        respond(&mut stream, 200, "{\"status\":\"no_match\",\"candidates\":[]}");
+        respond(
+            &mut stream,
+            200,
+            "{\"status\":\"no_match\",\"candidates\":[]}",
+        );
         return;
     }
 
@@ -484,7 +488,10 @@ fn registering_without_a_name_omits_the_field_rather_than_sending_null() {
     let token = always_token();
     register_workspace(
         &config(&stub.base_url, &token),
-        Registration { slug: "atlas", ..Registration::default() },
+        Registration {
+            slug: "atlas",
+            ..Registration::default()
+        },
     )
     .expect("registers without a name or fingerprints");
 
@@ -506,7 +513,10 @@ fn a_schema_refusal_reports_the_server_message_not_the_store() {
     let token = always_token();
     let err = register_workspace(
         &config(&stub.base_url, &token),
-        Registration { slug: "null", ..Registration::default() },
+        Registration {
+            slug: "null",
+            ..Registration::default()
+        },
     )
     .expect_err("a 422 is an error");
     let text = err.to_string();
@@ -535,7 +545,11 @@ fn connecting_on_fingerprints_alone_sends_no_null_keys() {
     let body = bodies[0].as_object().expect("object body");
     let mut keys: Vec<&str> = body.keys().map(String::as_str).collect();
     keys.sort_unstable();
-    assert_eq!(keys, ["create", "gitUrl", "orgId", "rootCommitSha"], "{body:?}");
+    assert_eq!(
+        keys,
+        ["create", "gitUrl", "orgId", "rootCommitSha"],
+        "{body:?}"
+    );
     assert!(body.values().all(|v| !v.is_null()), "{body:?}");
     assert_eq!(body["create"], false);
 }
@@ -546,7 +560,10 @@ fn registering_a_taken_slug_is_refused_plainly() {
     let token = always_token();
     let err = register_workspace(
         &config(&stub.base_url, &token),
-        Registration { slug: "taken", ..Registration::default() },
+        Registration {
+            slug: "taken",
+            ..Registration::default()
+        },
     )
     .expect_err("a 409 is an error");
     assert!(err.to_string().contains("already taken"), "{err}");
@@ -1142,7 +1159,10 @@ fn a_budgeted_pass_yields_after_a_batch_and_the_next_pass_finishes() {
     budgeted.deadline = Some(std::time::Instant::now());
     let first = drain(&store, &budgeted).unwrap();
     assert_eq!(first.status, DrainStatus::Yielded);
-    assert!(first.sent > 0 && first.sent <= atlas_checkpoint::sync::MAX_BATCH_COUNT, "one batch: {first:?}");
+    assert!(
+        first.sent > 0 && first.sent <= atlas_checkpoint::sync::MAX_BATCH_COUNT,
+        "one batch: {first:?}"
+    );
     assert!(first.still_pending > 0, "{first:?}");
     assert_eq!(stub.ingest_calls(), 1);
 
@@ -1164,7 +1184,10 @@ fn a_drain_on_a_sibling_never_holds_up_recording() {
     record(&mut store, "before", "queued before the drain");
 
     let sibling = store.sibling().expect("a sibling opens");
-    assert!(sibling.is_writer(), "the sibling writes under this process's lock");
+    assert!(
+        sibling.is_writer(),
+        "the sibling writes under this process's lock"
+    );
     let base_url = stub.base_url.clone();
     let draining = std::thread::spawn(move || {
         let token = always_token();
@@ -1176,9 +1199,16 @@ fn a_drain_on_a_sibling_never_holds_up_recording() {
     }
 
     let started = std::time::Instant::now();
-    record(&mut store, "during", "recorded while the drain waits on the uplink");
+    record(
+        &mut store,
+        "during",
+        "recorded while the drain waits on the uplink",
+    );
     let took = started.elapsed();
-    assert!(took < Duration::from_millis(1_000), "recording waited {took:?} on the drain");
+    assert!(
+        took < Duration::from_millis(1_000),
+        "recording waited {took:?} on the drain"
+    );
 
     let outcome = draining.join().unwrap();
     assert_eq!(outcome.status, DrainStatus::Drained);
@@ -1204,6 +1234,8 @@ fn a_sibling_holds_the_writer_lock_after_its_origin_is_dropped() {
     drop(store);
     assert!(!Store::open(dir.path().join(".atlas")).unwrap().is_writer());
     drop(sibling);
-    assert!(Store::open(dir.path().join(".atlas")).unwrap().is_writer(), "released with the last connection");
+    assert!(
+        Store::open(dir.path().join(".atlas")).unwrap().is_writer(),
+        "released with the last connection"
+    );
 }
-

@@ -5,8 +5,45 @@ export function fmtTokens(n: number): string {
   return String(n);
 }
 
-export function fmtCost(n: number): string {
-  return `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+// A money amount has two independent parts: the currency it is in (a fact about
+// the data) and how a number reads (a fact about the reader). `Intl` takes both
+// and owns the symbol, its placement and the separators — `$1,234.50` in en-US,
+// `1.234,50 $` in de-DE, `1.234,50 €` for EUR. Never paste a symbol onto
+// locale-formatted digits: that is what printed `$15,00` (issue 333).
+const formatters = new Map<string, Intl.NumberFormat>();
+
+function currencyFormat(currency: string, fractionDigits?: number): Intl.NumberFormat {
+  const key = `${currency}:${fractionDigits ?? ""}`;
+  let f = formatters.get(key);
+  if (!f) {
+    f = new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency,
+      minimumFractionDigits: fractionDigits,
+      maximumFractionDigits: fractionDigits,
+    });
+    formatters.set(key, f);
+  }
+  return f;
+}
+
+/**
+ * A money amount in the reader's locale: `fmtCost(15)` → "$15.00" in en-US.
+ * `currency` is an ISO 4217 code; `fractionDigits` overrides the currency's
+ * own (2 for USD, 0 for JPY). A code `Intl` rejects is shown after the number
+ * rather than thrown — it came from an agent, and the amount is still true.
+ */
+export function fmtCost(n: number, currency = "USD", fractionDigits?: number): string {
+  try {
+    return currencyFormat(currency, fractionDigits).format(n);
+  } catch {
+    const digits = fractionDigits ?? 2;
+    const num = n.toLocaleString(undefined, {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    });
+    return `${num} ${currency}`;
+  }
 }
 
 export function fmtDate(ms: number | null): string {

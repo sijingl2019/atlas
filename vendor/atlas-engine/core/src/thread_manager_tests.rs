@@ -708,8 +708,10 @@ async fn mcp_invalidation_refreshes_threads_that_are_still_starting() {
         fn contribute<'a>(
             &'a self,
             _context: atlas_engine_extension_api::McpServerContributionContext<'a, Config>,
-        ) -> atlas_engine_extension_api::ExtensionFuture<'a, Vec<atlas_engine_extension_api::McpServerContribution>>
-        {
+        ) -> atlas_engine_extension_api::ExtensionFuture<
+            'a,
+            Vec<atlas_engine_extension_api::McpServerContribution>,
+        > {
             Box::pin(async move {
                 if self.projections.fetch_add(1, Ordering::AcqRel) != 0 {
                     self.refreshed.notify_one();
@@ -855,8 +857,10 @@ async fn start_thread_seeds_extension_data_for_mcp_and_lifecycle_contributors() 
         fn contribute<'a>(
             &'a self,
             context: atlas_engine_extension_api::McpServerContributionContext<'a, Config>,
-        ) -> atlas_engine_extension_api::ExtensionFuture<'a, Vec<atlas_engine_extension_api::McpServerContribution>>
-        {
+        ) -> atlas_engine_extension_api::ExtensionFuture<
+            'a,
+            Vec<atlas_engine_extension_api::McpServerContribution>,
+        > {
             Box::pin(async move {
                 let thread_init = context
                     .thread_init()
@@ -885,13 +889,15 @@ async fn start_thread_seeds_extension_data_for_mcp_and_lifecycle_contributors() 
                 server.environment_id = environment_id.clone();
                 server.enabled = false;
                 let plugin_id = selected_root.id;
-                vec![atlas_engine_extension_api::McpServerContribution::SelectedPlugin {
-                    name: plugin_id.clone(),
-                    plugin_display_name: plugin_id.clone(),
-                    plugin_id,
-                    selection_order: 0,
-                    config: Box::new(server),
-                }]
+                vec![
+                    atlas_engine_extension_api::McpServerContribution::SelectedPlugin {
+                        name: plugin_id.clone(),
+                        plugin_display_name: plugin_id.clone(),
+                        plugin_id,
+                        selection_order: 0,
+                        config: Box::new(server),
+                    },
+                ]
             })
         }
     }
@@ -915,8 +921,9 @@ async fn start_thread_seeds_extension_data_for_mcp_and_lifecycle_contributors() 
     let mut extensions = atlas_engine_extension_api::ExtensionRegistryBuilder::new();
     extensions.thread_lifecycle_contributor(recorder.clone());
     extensions.mcp_server_contributor(recorder);
-    let auth_manager =
-        AuthManager::from_auth_for_testing(AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing());
+    let auth_manager = AuthManager::from_auth_for_testing(
+        AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing(),
+    );
     let manager = ThreadManager::new(
         &config,
         auth_manager.clone(),
@@ -1041,7 +1048,9 @@ async fn start_thread_seeds_extension_data_for_mcp_and_lifecycle_contributors() 
         .remove(atlas_engine_mcp::ATLAS_APPS_MCP_SERVER_NAME)
         .expect("Atlas Agent Apps server should be configured");
     let atlas_apps_headers = match atlas_apps_server.transport {
-        atlas_engine_config::McpServerTransportConfig::StreamableHttp { http_headers, .. } => http_headers,
+        atlas_engine_config::McpServerTransportConfig::StreamableHttp { http_headers, .. } => {
+            http_headers
+        }
         atlas_engine_config::McpServerTransportConfig::Stdio { .. } => {
             panic!("Atlas Agent Apps server should use streamable HTTP")
         }
@@ -1120,8 +1129,9 @@ async fn resume_and_fork_do_not_restore_thread_environments_from_rollout() {
     config.cwd = config.atlas_agent_home.abs();
     std::fs::create_dir_all(&config.atlas_agent_home).expect("create atlas-agent home");
 
-    let auth_manager =
-        AuthManager::from_auth_for_testing(AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing());
+    let auth_manager = AuthManager::from_auth_for_testing(
+        AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing(),
+    );
     let manager = ThreadManager::new(
         &config,
         auth_manager.clone(),
@@ -1251,8 +1261,9 @@ async fn explicit_installation_id_skips_atlas_agent_home_file() {
     config.cwd = config.atlas_agent_home.abs();
     std::fs::create_dir_all(&config.atlas_agent_home).expect("create atlas-agent home");
 
-    let auth_manager =
-        AuthManager::from_auth_for_testing(AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing());
+    let auth_manager = AuthManager::from_auth_for_testing(
+        AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing(),
+    );
     let installation_id = uuid::Uuid::new_v4().to_string();
     let state_db = init_state_db(&config).await;
     let thread_store = thread_store_from_config(&config, state_db.clone());
@@ -1278,7 +1289,12 @@ async fn explicit_installation_id_skips_atlas_agent_home_file() {
         .await
         .expect("start thread with explicit installation id");
 
-    assert!(!config.atlas_agent_home.join(INSTALLATION_ID_FILENAME).exists());
+    assert!(
+        !config
+            .atlas_agent_home
+            .join(INSTALLATION_ID_FILENAME)
+            .exists()
+    );
     assert_eq!(thread.thread.session.installation_id, installation_id);
 
     thread
@@ -1297,8 +1313,9 @@ async fn resume_active_thread_from_rollout_returns_running_thread() {
     config.cwd = config.atlas_agent_home.abs();
     std::fs::create_dir_all(&config.atlas_agent_home).expect("create atlas-agent home");
 
-    let auth_manager =
-        AuthManager::from_auth_for_testing(AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing());
+    let auth_manager = AuthManager::from_auth_for_testing(
+        AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing(),
+    );
     let manager = ThreadManager::new(
         &config,
         auth_manager.clone(),
@@ -1359,8 +1376,9 @@ async fn resume_stopped_thread_from_rollout_spawns_new_thread() {
     config.cwd = config.atlas_agent_home.abs();
     std::fs::create_dir_all(&config.atlas_agent_home).expect("create atlas-agent home");
 
-    let auth_manager =
-        AuthManager::from_auth_for_testing(AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing());
+    let auth_manager = AuthManager::from_auth_for_testing(
+        AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing(),
+    );
     let manager = ThreadManager::new(
         &config,
         auth_manager.clone(),
@@ -1426,8 +1444,9 @@ async fn resume_stopped_thread_from_rollout_preserves_thread_source() {
     config.cwd = config.atlas_agent_home.abs();
     std::fs::create_dir_all(&config.atlas_agent_home).expect("create atlas-agent home");
 
-    let auth_manager =
-        AuthManager::from_auth_for_testing(AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing());
+    let auth_manager = AuthManager::from_auth_for_testing(
+        AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing(),
+    );
     let state_db = init_state_db(&config).await;
     let thread_store = thread_store_from_config(&config, state_db.clone());
     let manager = ThreadManager::new(
@@ -1513,8 +1532,9 @@ async fn subtree_listing_uses_injected_graph_store_without_state_db() {
         root_thread_id,
         descendant_thread_ids: descendant_thread_ids.clone(),
     });
-    let auth_manager =
-        AuthManager::from_auth_for_testing(AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing());
+    let auth_manager = AuthManager::from_auth_for_testing(
+        AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing(),
+    );
     let manager = ThreadManager::new(
         &config,
         auth_manager.clone(),
@@ -1554,8 +1574,9 @@ async fn rollout_path_resume_and_fork_read_history_through_thread_store() {
     };
     std::fs::create_dir_all(&config.atlas_agent_home).expect("create atlas-agent home");
 
-    let auth_manager =
-        AuthManager::from_auth_for_testing(AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing());
+    let auth_manager = AuthManager::from_auth_for_testing(
+        AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing(),
+    );
     let state_db = init_state_db(&config).await;
     let thread_store = thread_store_from_config(&config, state_db.clone());
     let in_memory_store = thread_store
@@ -1665,8 +1686,9 @@ async fn metadata_update_without_result_reads_only_when_the_caller_needs_the_thr
     };
     std::fs::create_dir_all(&config.atlas_agent_home).expect("create atlas-agent home");
 
-    let auth_manager =
-        AuthManager::from_auth_for_testing(AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing());
+    let auth_manager = AuthManager::from_auth_for_testing(
+        AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing(),
+    );
     let thread_store = thread_store_from_config(&config, /*state_db*/ None);
     let in_memory_store = thread_store
         .as_any()
@@ -1796,8 +1818,9 @@ async fn new_uses_active_provider_for_model_refresh() {
     config.model_catalog = None;
     config.model_provider.base_url = Some(server.uri());
 
-    let auth_manager =
-        AuthManager::from_auth_for_testing(AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing());
+    let auth_manager = AuthManager::from_auth_for_testing(
+        AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing(),
+    );
     let manager = ThreadManager::new(
         &config,
         auth_manager.clone(),
@@ -1838,8 +1861,9 @@ async fn injected_models_manager_controls_refresh_policy() {
     config.model_catalog = None;
     config.model_provider.base_url = Some(server.uri());
 
-    let auth_manager =
-        AuthManager::from_auth_for_testing(AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing());
+    let auth_manager = AuthManager::from_auth_for_testing(
+        AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing(),
+    );
     let provider = create_model_provider(
         config.model_provider.clone(),
         Some(Arc::clone(&auth_manager)),
@@ -2092,8 +2116,9 @@ async fn interrupted_fork_snapshot_does_not_synthesize_turn_id_for_legacy_histor
     config.cwd = config.atlas_agent_home.abs();
     std::fs::create_dir_all(&config.atlas_agent_home).expect("create atlas-agent home");
 
-    let auth_manager =
-        AuthManager::from_auth_for_testing(AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing());
+    let auth_manager = AuthManager::from_auth_for_testing(
+        AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing(),
+    );
     let state_db = init_state_db(&config).await;
     let manager = ThreadManager::new(
         &config,
@@ -2205,8 +2230,9 @@ async fn interrupted_fork_snapshot_preserves_explicit_turn_id() {
     config.cwd = config.atlas_agent_home.abs();
     std::fs::create_dir_all(&config.atlas_agent_home).expect("create atlas-agent home");
 
-    let auth_manager =
-        AuthManager::from_auth_for_testing(AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing());
+    let auth_manager = AuthManager::from_auth_for_testing(
+        AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing(),
+    );
     let state_db = init_state_db(&config).await;
     let manager = ThreadManager::new(
         &config,
@@ -2308,8 +2334,9 @@ async fn interrupted_fork_snapshot_uses_persisted_mid_turn_history_without_live_
     config.cwd = config.atlas_agent_home.abs();
     std::fs::create_dir_all(&config.atlas_agent_home).expect("create atlas-agent home");
 
-    let auth_manager =
-        AuthManager::from_auth_for_testing(AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing());
+    let auth_manager = AuthManager::from_auth_for_testing(
+        AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing(),
+    );
     let state_db = init_state_db(&config).await;
     let manager = ThreadManager::new(
         &config,

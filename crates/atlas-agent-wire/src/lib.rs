@@ -1,7 +1,7 @@
-//! The frozen session-delta wire, shared by both ACP stacks.
+//! The session-delta wire: additive-only. See [`types`] for the rules.
 //!
-//! `docs/agents/delta-wire-contract.md` is the authority on these shapes; this
-//! crate is that document in code. Nothing here names a protocol version, which
+//! `tests/contract.rs` (Rust) and `tests/wire-shape-contract.test.ts` (TS) are
+//! the authority on these shapes. Nothing here names a protocol version, which
 //! is the whole point — see [`types`] for the reason.
 
 pub mod attachments;
@@ -13,8 +13,8 @@ pub use attachments::ImageAttachment;
 pub use delta::{DeltaSink, Emitter, SessionDelta, SessionDeltaEnvelope};
 pub use error::{classify_message, ErrorClass};
 pub use types::{
-    extract_content_blocks, Message, MessageImage, MessageMode, MessageRole, PlanEntry, RateLimitWindow,
-    SessionStatus, ToolCall, ToolCallStatus, ToolContentBlock, Usage,
+    extract_content_blocks, Message, MessageImage, MessageMode, MessageRole, PlanEntry,
+    RateLimitWindow, SessionStatus, ToolCall, ToolCallStatus, ToolContentBlock, Usage,
 };
 
 use serde::{Deserialize, Serialize};

@@ -33,7 +33,9 @@ impl ExecServerRuntimePaths {
     ) -> std::io::Result<Self> {
         Ok(Self {
             atlas_engine_self_exe: absolute_path(atlas_engine_self_exe)?,
-            atlas_engine_linux_sandbox_exe: atlas_engine_linux_sandbox_exe.map(absolute_path).transpose()?,
+            atlas_engine_linux_sandbox_exe: atlas_engine_linux_sandbox_exe
+                .map(absolute_path)
+                .transpose()?,
         })
     }
 }

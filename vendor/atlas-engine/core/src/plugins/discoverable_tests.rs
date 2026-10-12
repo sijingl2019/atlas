@@ -28,7 +28,9 @@ async fn list_tool_suggest_discoverable_plugins_returns_empty_when_plugins_featu
     let curated_root = curated_plugins_repo_path(atlas_agent_home.path());
     write_openai_api_curated_marketplace(&curated_root, &["slack"]);
     write_file(
-        &atlas_agent_home.path().join(crate::config::CONFIG_TOML_FILE),
+        &atlas_agent_home
+            .path()
+            .join(crate::config::CONFIG_TOML_FILE),
         r#"[features]
 plugins = false
 "#,
@@ -46,7 +48,9 @@ async fn list_tool_suggest_discoverable_plugins_omits_disabled_tool_suggestions(
     let curated_root = curated_plugins_repo_path(atlas_agent_home.path());
     write_openai_api_curated_marketplace(&curated_root, &["slack"]);
     write_file(
-        &atlas_agent_home.path().join(crate::config::CONFIG_TOML_FILE),
+        &atlas_agent_home
+            .path()
+            .join(crate::config::CONFIG_TOML_FILE),
         r#"[features]
 plugins = true
 
@@ -69,7 +73,9 @@ async fn list_tool_suggest_discoverable_plugins_includes_configured_plugin_ids()
     let curated_root = curated_plugins_repo_path(atlas_agent_home.path());
     write_openai_api_curated_marketplace(&curated_root, &["sample"]);
     write_file(
-        &atlas_agent_home.path().join(crate::config::CONFIG_TOML_FILE),
+        &atlas_agent_home
+            .path()
+            .join(crate::config::CONFIG_TOML_FILE),
         r#"[features]
 plugins = true
 

@@ -750,7 +750,10 @@ impl TurnRequestProcessor {
                         .as_ref()
                         .map(|environments| environments.legacy_fallback_cwd.to_path_buf()),
                     default_permissions: Some(permissions),
-                    atlas_engine_linux_sandbox_exe: self.arg0_paths.atlas_engine_linux_sandbox_exe.clone(),
+                    atlas_engine_linux_sandbox_exe: self
+                        .arg0_paths
+                        .atlas_engine_linux_sandbox_exe
+                        .clone(),
                     main_execve_wrapper_exe: self.arg0_paths.main_execve_wrapper_exe.clone(),
                     ..Default::default()
                 };
@@ -895,7 +898,9 @@ impl TurnRequestProcessor {
             .inject_response_items(items)
             .await
             .map_err(|err| match err.details() {
-                AtlasEngineErrorDetails::InvalidRequest(message) => invalid_request(message.clone()),
+                AtlasEngineErrorDetails::InvalidRequest(message) => {
+                    invalid_request(message.clone())
+                }
                 _ => internal_error(format!("failed to inject response items: {err}")),
             })?;
         Ok(ThreadInjectItemsResponse {})
@@ -1003,9 +1008,11 @@ impl TurnRequestProcessor {
                         };
                         let error = TurnError {
                             message: message.clone(),
-                            atlas_engine_error_info: Some(AtlasEngineErrorInfo::ActiveTurnNotSteerable {
-                                turn_kind: turn_kind.into(),
-                            }),
+                            atlas_engine_error_info: Some(
+                                AtlasEngineErrorInfo::ActiveTurnNotSteerable {
+                                    turn_kind: turn_kind.into(),
+                                },
+                            ),
                             additional_details: None,
                             // A refusal, not a retry: nothing is going to be
                             // attempted again for this to count down to.
@@ -1105,9 +1112,13 @@ impl TurnRequestProcessor {
                 flush_transcript_tail_on_session_end: params
                     .flush_transcript_tail_on_session_end
                     .unwrap_or(false),
-                atlas_engine_responses_as_items: params.atlas_engine_responses_as_items.unwrap_or(false),
+                atlas_engine_responses_as_items: params
+                    .atlas_engine_responses_as_items
+                    .unwrap_or(false),
                 atlas_engine_response_item_prefix: params.atlas_engine_response_item_prefix,
-                atlas_engine_response_handoff_mode: params.atlas_engine_response_handoff_mode.unwrap_or_default(),
+                atlas_engine_response_handoff_mode: params
+                    .atlas_engine_response_handoff_mode
+                    .unwrap_or_default(),
                 atlas_engine_response_handoff_channel_prefixes: params
                     .atlas_engine_response_handoff_channel_prefixes,
                 model: params.model,

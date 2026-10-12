@@ -1,7 +1,7 @@
 // Modified by Atlas from upstream OpenAI Codex (Apache-2.0). See CONTEXT.md.
 use anyhow::Result;
-use clap::Parser;
 use atlas_engine_execpolicy::ExecPolicyCheckCommand;
+use clap::Parser;
 
 /// CLI for evaluating exec policies
 #[derive(Parser)]

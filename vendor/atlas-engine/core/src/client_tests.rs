@@ -22,10 +22,10 @@ use atlas_engine_api::ResponseEvent;
 use atlas_engine_api::TransportError;
 use atlas_engine_http_client::HttpClientFactory;
 use atlas_engine_http_client::OutboundProxyPolicy;
+use atlas_engine_login::AtlasEngineAuth;
 use atlas_engine_login::AuthCredentialsStoreMode;
 use atlas_engine_login::AuthKeyringBackendKind;
 use atlas_engine_login::AuthManager;
-use atlas_engine_login::AtlasEngineAuth;
 use atlas_engine_login::auth::AgentIdentityAuthPolicy;
 use atlas_engine_model_provider::BearerAuthProvider;
 use atlas_engine_model_provider::SharedModelProvider;
@@ -412,7 +412,9 @@ fn started_inference_attempt(temp: &TempDir) -> anyhow::Result<InferenceTraceAtt
 
 fn output_message(id: &str, text: &str) -> ResponseItem {
     ResponseItem::Message {
-        id: Some(atlas_engine_protocol::ResponseItemId::with_suffix("msg", id)),
+        id: Some(atlas_engine_protocol::ResponseItemId::with_suffix(
+            "msg", id,
+        )),
         role: "assistant".to_string(),
         content: vec![ContentItem::OutputText {
             text: text.to_string(),
@@ -804,7 +806,9 @@ fn model_client_with_counting_attestation(
             Some(AuthManager::from_auth_for_testing(
                 AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing(),
             )),
-            ModelProviderInfo::create_openai_provider(Some(CHATGPT_ATLAS_AGENT_BASE_URL.to_string())),
+            ModelProviderInfo::create_openai_provider(Some(
+                CHATGPT_ATLAS_AGENT_BASE_URL.to_string(),
+            )),
         )
     } else {
         (

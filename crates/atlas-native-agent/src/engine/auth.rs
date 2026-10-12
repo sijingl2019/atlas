@@ -30,10 +30,10 @@ use std::time::Duration;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
-use atlas_engine_login::AtlasEngineAuth;
-pub use atlas_engine_login::ExternalAuthFuture;
 use atlas_engine_login::auth::ExternalAuth;
 use atlas_engine_login::auth::ExternalAuthRefreshContext;
+use atlas_engine_login::AtlasEngineAuth;
+pub use atlas_engine_login::ExternalAuthFuture;
 
 /// How long before a token's own expiry we stop trusting it.
 ///
@@ -161,7 +161,10 @@ impl AtlasExternalAuth {
 
     fn cached_if_fresh(&self) -> Option<String> {
         let now = self.clock.now_unix();
-        let cached = self.cached.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let cached = self
+            .cached
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         cached
             .as_ref()
             .filter(|c| now < c.renew_after)
@@ -179,7 +182,10 @@ impl AtlasExternalAuth {
             Some(exp) => exp.saturating_sub(REMINT_MARGIN.as_secs()).max(now + 1),
             None => now + ASSUMED_TTL.as_secs() - REMINT_MARGIN.as_secs(),
         };
-        *self.cached.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(CachedToken {
+        *self
+            .cached
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(CachedToken {
             token: token.clone(),
             renew_after,
         });
@@ -202,7 +208,10 @@ impl ExternalAuth for AtlasExternalAuth {
     /// The engine calls this on a 401. Always mints — the cached token is the
     /// one that just got rejected, so trusting it here is what would turn
     /// refresh-once into a loop.
-    fn refresh(&self, _context: ExternalAuthRefreshContext) -> ExternalAuthFuture<'_, AtlasEngineAuth> {
+    fn refresh(
+        &self,
+        _context: ExternalAuthRefreshContext,
+    ) -> ExternalAuthFuture<'_, AtlasEngineAuth> {
         Box::pin(async move { Ok(AtlasEngineAuth::from_api_key(&self.mint_fresh().await?)) })
     }
 }
@@ -288,7 +297,11 @@ mod tests {
 
         now.fetch_add(30, Ordering::SeqCst);
         auth.resolve().await.expect("still fresh");
-        assert_eq!(source.calls(), 1, "a token 30s into a 100s life is reusable");
+        assert_eq!(
+            source.calls(),
+            1,
+            "a token 30s into a 100s life is reusable"
+        );
 
         now.fetch_add(60, Ordering::SeqCst);
         auth.resolve().await.expect("past the margin");
@@ -353,7 +366,11 @@ mod tests {
             now.fetch_add(550, Ordering::SeqCst);
         }
 
-        assert_eq!(source.calls(), 6, "each lap crosses the margin and re-mints");
+        assert_eq!(
+            source.calls(),
+            6,
+            "each lap crosses the margin and re-mints"
+        );
         // Not vacuous: the credential really did rotate rather than the same
         // string being handed back six times.
         let distinct: std::collections::BTreeSet<_> = bearers.iter().collect();
@@ -386,7 +403,10 @@ mod tests {
         assert_ne!(first, refreshed, "refresh must produce a different token");
 
         // And the refreshed token is what subsequent resolves see.
-        assert_eq!(bearer(&auth.resolve().await.expect("after refresh")), refreshed);
+        assert_eq!(
+            bearer(&auth.resolve().await.expect("after refresh")),
+            refreshed
+        );
         assert_eq!(source.calls(), 2);
     }
 
@@ -399,10 +419,8 @@ mod tests {
             }
         }
         let now = Arc::new(AtomicU64::new(1_000_000));
-        let auth = AtlasExternalAuth::with_clock(
-            Arc::new(Opaque),
-            Arc::new(TestClock(now.clone())),
-        );
+        let auth =
+            AtlasExternalAuth::with_clock(Arc::new(Opaque), Arc::new(TestClock(now.clone())));
 
         assert_eq!(bearer(&auth.resolve().await.expect("resolve")), "not-a-jwt");
         now.fetch_add(539, Ordering::SeqCst);

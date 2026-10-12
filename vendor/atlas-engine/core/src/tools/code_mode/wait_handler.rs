@@ -116,7 +116,9 @@ impl CodeModeWaitHandler {
                     let runtime_cell_id = match response {
                         atlas_engine_code_mode::RuntimeResponse::Yielded { cell_id, .. }
                         | atlas_engine_code_mode::RuntimeResponse::Terminated { cell_id, .. }
-                        | atlas_engine_code_mode::RuntimeResponse::Result { cell_id, .. } => cell_id,
+                        | atlas_engine_code_mode::RuntimeResponse::Result { cell_id, .. } => {
+                            cell_id
+                        }
                     };
                     telemetry.cell_id = Some(runtime_cell_id.to_string());
                     if let Some(executed_tool_calls) =
@@ -124,7 +126,10 @@ impl CodeModeWaitHandler {
                     {
                         executed_tool_calls.register_cell(runtime_cell_id, &call_id);
                     }
-                    if !matches!(response, atlas_engine_code_mode::RuntimeResponse::Yielded { .. }) {
+                    if !matches!(
+                        response,
+                        atlas_engine_code_mode::RuntimeResponse::Yielded { .. }
+                    ) {
                         exec.session
                             .services
                             .rollout_thread_trace

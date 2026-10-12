@@ -5,8 +5,6 @@ use app_test_support::MockResponsesConfig;
 use app_test_support::TestAppServer;
 use app_test_support::to_response;
 use app_test_support::write_chatgpt_auth;
-use chrono::Duration;
-use chrono::Utc;
 use atlas_engine_app_server_protocol::Account;
 use atlas_engine_app_server_protocol::AuthMode;
 use atlas_engine_app_server_protocol::GetAccountParams;
@@ -21,6 +19,8 @@ use atlas_engine_config::types::AuthCredentialsStoreMode;
 use atlas_engine_features::Feature;
 use atlas_engine_login::REFRESH_TOKEN_URL_OVERRIDE_ENV_VAR;
 use atlas_engine_protocol::account::PlanType as AccountPlanType;
+use chrono::Duration;
+use chrono::Utc;
 use pretty_assertions::assert_eq;
 use std::path::Path;
 use tempfile::TempDir;
@@ -64,7 +64,10 @@ shell_snapshot = false
     )
 }
 
-fn create_config_toml_forced_login(atlas_agent_home: &Path, forced_method: &str) -> std::io::Result<()> {
+fn create_config_toml_forced_login(
+    atlas_agent_home: &Path,
+    forced_method: &str,
+) -> std::io::Result<()> {
     let config_toml = atlas_agent_home.join("config.toml");
     let contents = format!(
         r#"
@@ -169,7 +172,10 @@ async fn personal_access_token_without_email_supports_auth_status_and_account_re
         .with_env_overrides(&[
             ("OPENAI_API_KEY", None),
             ("ATLAS_AGENT_ACCESS_TOKEN", Some("at-test-token")),
-            ("ATLAS_AGENT_AUTHAPI_BASE_URL", Some(authapi_base_url.as_str())),
+            (
+                "ATLAS_AGENT_AUTHAPI_BASE_URL",
+                Some(authapi_base_url.as_str()),
+            ),
         ])
         .build_initialized_with_timeout(DEFAULT_READ_TIMEOUT)
         .await?;
@@ -235,7 +241,10 @@ async fn personal_access_token_without_email_supports_auth_status_and_account_re
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn get_auth_status_with_api_key_when_auth_not_required() -> Result<()> {
     let atlas_agent_home = TempDir::new()?;
-    create_config_toml_custom_provider(atlas_agent_home.path(), /*requires_openai_auth*/ false)?;
+    create_config_toml_custom_provider(
+        atlas_agent_home.path(),
+        /*requires_openai_auth*/ false,
+    )?;
 
     let mut mcp = TestAppServer::builder()
         .with_atlas_agent_home(atlas_agent_home.path())

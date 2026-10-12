@@ -294,12 +294,14 @@ async fn websocket_v2_test_atlas_engine_shell_chain() -> Result<()> {
     ]])
     .await;
 
-    let mut builder = test_atlas_engine().with_windows_cmd_shell().with_config(|config| {
-        config
-            .features
-            .enable(Feature::ResponsesWebsocketsV2)
-            .expect("test config should allow feature update");
-    });
+    let mut builder = test_atlas_engine()
+        .with_windows_cmd_shell()
+        .with_config(|config| {
+            config
+                .features
+                .enable(Feature::ResponsesWebsocketsV2)
+                .expect("test config should allow feature update");
+        });
 
     let test = builder.build_with_websocket_server(&server).await?;
     test.submit_turn_with_policy("run the echo command", test.config.legacy_sandbox_policy())

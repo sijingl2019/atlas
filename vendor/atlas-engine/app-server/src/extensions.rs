@@ -84,7 +84,9 @@ where
             thread_manager.clone(),
             goal_service,
             |config: &Config| GoalExtensionConfig {
-                enabled: config.features.enabled(atlas_engine_features::Feature::Goals),
+                enabled: config
+                    .features
+                    .enabled(atlas_engine_features::Feature::Goals),
                 max_goal_token_budget: config.max_goal_token_budget,
             },
         );
@@ -101,15 +103,19 @@ where
     atlas_engine_mcp_extension::install(&mut builder);
     atlas_engine_mcp_extension::install_executor_plugins(&mut builder, environment_manager);
     atlas_engine_web_search_extension::install(&mut builder, auth_manager.clone());
-    atlas_engine_image_generation_extension::install(&mut builder, auth_manager, |config: &Config| {
-        Some(config.atlas_agent_home.clone())
-    });
+    atlas_engine_image_generation_extension::install(
+        &mut builder,
+        auth_manager,
+        |config: &Config| Some(config.atlas_agent_home.clone()),
+    );
     let skill_providers = atlas_engine_skills_extension::SkillProviders::new()
         .with_executor_provider(executor_skill_provider)
         .with_orchestrator_provider(Arc::new(
             atlas_engine_skills_extension::OrchestratorSkillProvider::new(),
         ))
-        .with_host_provider(Arc::new(atlas_engine_skills_extension::HostSkillProvider::new()));
+        .with_host_provider(Arc::new(
+            atlas_engine_skills_extension::HostSkillProvider::new(),
+        ));
     atlas_engine_skills_extension::install_with_providers_and_metrics(
         &mut builder,
         skill_providers,

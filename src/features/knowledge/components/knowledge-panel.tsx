@@ -44,7 +44,9 @@ import { Copy, ExternalLink, GitBranch, PanelRight } from "lucide-react";
 
 const RECENTS_MAX = 5;
 
-export function KnowledgePanel() {
+/** `tabId` scopes the panel's shortcuts to its own tab — it stays mounted
+ *  while hidden (a persistent tab type), so it must not answer ⌘S elsewhere. */
+export function KnowledgePanel({ tabId }: { tabId?: string }) {
   const entries = useKnowledgeStore.use.entries();
   const activeEntryId = useKnowledgeStore.use.activeEntryId();
   const editContent = useKnowledgeStore.use.editContent();
@@ -261,6 +263,7 @@ export function KnowledgePanel() {
   // claims ⌘;/⌘' in the capture phase first, and declines them otherwise.
   useScopedHotkeys({
     capture: false,
+    tabId,
     handlers: {
       "kb.toggleSidebar": () => toggleKnowledgeSidebar(),
       "kb.toggleInspector": () => toggleKnowledgeInspector(),
@@ -283,11 +286,11 @@ export function KnowledgePanel() {
     },
   });
 
-  // Find — only when focus is inside this KB panel (so it doesn't hijack the
-  // shortcut for other tabs / the app).
+  // Find — only while this KB tab is the focused one (so it doesn't hijack
+  // the shortcut for other tabs / the app).
   useScopedHotkeys({
     rootRef,
-    requireFocusWithin: true,
+    ...(tabId !== undefined ? { tabId } : { requireFocusWithin: true }),
     capture: false,
     handlers: {
       "kb.focusFinder": () => {

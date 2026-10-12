@@ -614,8 +614,8 @@ impl PluginRequestProcessor {
             && config.features.enabled(Feature::RemotePlugin);
         let include_global_remote =
             !explicit_marketplace_kinds && config.features.enabled(Feature::RemotePlugin);
-        let use_remote_global_catalog =
-            include_global_remote && auth_mode.is_some_and(DomainAuthMode::uses_atlas_engine_backend);
+        let use_remote_global_catalog = include_global_remote
+            && auth_mode.is_some_and(DomainAuthMode::uses_atlas_engine_backend);
         let remote_plugin_service_config = remote_plugin_service_config(&config);
         let remote_catalog_cache_mode = if force_refetch {
             RemotePluginCatalogCacheMode::ForceRefetch
@@ -668,10 +668,12 @@ impl PluginRequestProcessor {
                     outcome
                         .errors
                         .into_iter()
-                        .map(|err| atlas_engine_app_server_protocol::MarketplaceLoadErrorInfo {
-                            marketplace_path: err.path,
-                            message: err.message,
-                        })
+                        .map(
+                            |err| atlas_engine_app_server_protocol::MarketplaceLoadErrorInfo {
+                                marketplace_path: err.path,
+                                message: err.message,
+                            },
+                        )
                         .collect(),
                 ))
             })
@@ -960,10 +962,12 @@ impl PluginRequestProcessor {
                 outcome
                     .errors
                     .into_iter()
-                    .map(|err| atlas_engine_app_server_protocol::MarketplaceLoadErrorInfo {
-                        marketplace_path: err.path,
-                        message: err.message,
-                    })
+                    .map(
+                        |err| atlas_engine_app_server_protocol::MarketplaceLoadErrorInfo {
+                            marketplace_path: err.path,
+                            message: err.message,
+                        },
+                    )
                     .collect(),
             ))
         })
@@ -1244,17 +1248,18 @@ impl PluginRequestProcessor {
 
         let auth = self.auth_manager.auth().await;
         let remote_plugin_service_config = remote_plugin_service_config(&config);
-        let remote_skill_detail = atlas_engine_core_plugins::remote::fetch_remote_plugin_skill_detail(
-            &remote_plugin_service_config,
-            auth.as_ref(),
-            &remote_marketplace_name,
-            &remote_plugin_id,
-            &skill_name,
-        )
-        .await
-        .map_err(|err| {
-            remote_plugin_catalog_error_to_jsonrpc(err, "read remote plugin skill details")
-        })?;
+        let remote_skill_detail =
+            atlas_engine_core_plugins::remote::fetch_remote_plugin_skill_detail(
+                &remote_plugin_service_config,
+                auth.as_ref(),
+                &remote_marketplace_name,
+                &remote_plugin_id,
+                &skill_name,
+            )
+            .await
+            .map_err(|err| {
+                remote_plugin_catalog_error_to_jsonrpc(err, "read remote plugin skill details")
+            })?;
 
         Ok(PluginSkillReadResponse {
             contents: remote_skill_detail.contents,
@@ -1664,47 +1669,49 @@ impl PluginRequestProcessor {
                 &actual_remote_marketplace_name,
                 &remote_plugin_name,
             );
-        let validated_bundle = atlas_engine_core_plugins::remote_bundle::validate_remote_plugin_bundle(
-            &remote_plugin_id,
-            &actual_remote_marketplace_name,
-            &remote_plugin_name,
-            remote_detail.release_version.as_deref(),
-            remote_detail.bundle_download_url.as_deref(),
-            remote_detail.app_manifest.clone(),
-        )
-        .map_err(|err| {
-            let error_type = remote_plugin_bundle_install_error_type(&err);
-            let sub_error_type = err.sub_error_type();
-            self.track_plugin_install_failed_for_remote_plugin(
+        let validated_bundle =
+            atlas_engine_core_plugins::remote_bundle::validate_remote_plugin_bundle(
                 &remote_plugin_id,
                 &actual_remote_marketplace_name,
-                Some(&resolved_plugin_id),
-                error_type,
-                sub_error_type,
-                err.to_string(),
-            );
-            remote_plugin_bundle_install_error_to_jsonrpc(err)
-        })?;
+                &remote_plugin_name,
+                remote_detail.release_version.as_deref(),
+                remote_detail.bundle_download_url.as_deref(),
+                remote_detail.app_manifest.clone(),
+            )
+            .map_err(|err| {
+                let error_type = remote_plugin_bundle_install_error_type(&err);
+                let sub_error_type = err.sub_error_type();
+                self.track_plugin_install_failed_for_remote_plugin(
+                    &remote_plugin_id,
+                    &actual_remote_marketplace_name,
+                    Some(&resolved_plugin_id),
+                    error_type,
+                    sub_error_type,
+                    err.to_string(),
+                );
+                remote_plugin_bundle_install_error_to_jsonrpc(err)
+            })?;
 
-        let result = atlas_engine_core_plugins::remote_bundle::download_and_install_remote_plugin_bundle(
-            &remote_plugin_service_config,
-            config.atlas_agent_home.to_path_buf(),
-            validated_bundle,
-        )
-        .await
-        .map_err(|err| {
-            let error_type = remote_plugin_bundle_install_error_type(&err);
-            let sub_error_type = err.sub_error_type();
-            self.track_plugin_install_failed_for_remote_plugin(
-                &remote_plugin_id,
-                &actual_remote_marketplace_name,
-                Some(&resolved_plugin_id),
-                error_type,
-                sub_error_type,
-                err.to_string(),
-            );
-            remote_plugin_bundle_install_error_to_jsonrpc(err)
-        })?;
+        let result =
+            atlas_engine_core_plugins::remote_bundle::download_and_install_remote_plugin_bundle(
+                &remote_plugin_service_config,
+                config.atlas_agent_home.to_path_buf(),
+                validated_bundle,
+            )
+            .await
+            .map_err(|err| {
+                let error_type = remote_plugin_bundle_install_error_type(&err);
+                let sub_error_type = err.sub_error_type();
+                self.track_plugin_install_failed_for_remote_plugin(
+                    &remote_plugin_id,
+                    &actual_remote_marketplace_name,
+                    Some(&resolved_plugin_id),
+                    error_type,
+                    sub_error_type,
+                    err.to_string(),
+                );
+                remote_plugin_bundle_install_error_to_jsonrpc(err)
+            })?;
 
         // Cache first so a backend install cannot succeed when local materialization fails.
         // If this backend call fails, the cache entry is harmless because remote installed state
@@ -2156,15 +2163,19 @@ impl PluginRequestProcessor {
 
         let auth = self.auth_manager.auth().await;
         let remote_plugin_service_config = remote_plugin_service_config(&config);
-        let uninstall_target = atlas_engine_core_plugins::remote::resolve_remote_plugin_uninstall_target(
-            &remote_plugin_service_config,
-            auth.as_ref(),
-            &plugin_id,
-        )
-        .await
-        .map_err(|err| {
-            remote_plugin_catalog_error_to_jsonrpc(err, "resolve remote plugin before uninstall")
-        })?;
+        let uninstall_target =
+            atlas_engine_core_plugins::remote::resolve_remote_plugin_uninstall_target(
+                &remote_plugin_service_config,
+                auth.as_ref(),
+                &plugin_id,
+            )
+            .await
+            .map_err(|err| {
+                remote_plugin_catalog_error_to_jsonrpc(
+                    err,
+                    "resolve remote plugin before uninstall",
+                )
+            })?;
         let plugins_manager = self.thread_manager.plugins_manager();
         let mut plugin_telemetry = plugins_manager
             .telemetry_metadata_for_installed_plugin_with_remote_id(

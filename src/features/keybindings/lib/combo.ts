@@ -10,16 +10,21 @@
  * String form (what lives in `keybindings.json`): lowercase tokens joined by
  * `+`, modifiers first in the canonical order `cmd+ctrl+alt+shift`, then one
  * key token — e.g. `cmd+shift+b`, `alt+;`, `cmd+alt+space`, `shift+tab`.
+ *
+ * `cmd` is the platform's PRIMARY modifier: ⌘ on macOS, Ctrl elsewhere (`mod`
+ * is accepted as an alias for readers who think in those terms). On macOS
+ * every modifier matches exactly, so `cmd+b` does not fire on ⌃B — which is
+ * the terminal's tmux prefix. Off macOS `cmd` and `ctrl` are the same key;
+ * see `effectiveCombo` for what that means for conflicts.
  */
 
-import { isLinux, isWindows } from "@/lib/platform";
+import { isLinux, isMac, isWindows } from "@/lib/platform";
 
 export interface Combo {
   /** `KeyboardEvent.code` value, e.g. "KeyB", "Digit1", "BracketLeft", "Space". */
   code: string;
-  /** ⌘ on macOS. Matches `metaKey || ctrlKey` unless `ctrl` is also set, so a
-   *  `cmd+…` combo keeps working on a Ctrl-based layout (the historical
-   *  `useHotkeys` behaviour). */
+  /** The primary modifier: ⌘ on macOS, Ctrl elsewhere. Off macOS, `meta`
+   *  together with `ctrl` means Ctrl+Super/Win. */
   meta: boolean;
   ctrl: boolean;
   shift: boolean;
@@ -113,6 +118,7 @@ export function codeToToken(code: string): string {
 
 const MODIFIER_FLAG: Record<string, keyof Omit<Combo, "code">> = {
   cmd: "meta",
+  mod: "meta",
   meta: "meta",
   command: "meta",
   super: "meta",
@@ -180,32 +186,52 @@ export function comboEquals(a: Combo, b: Combo): boolean {
   );
 }
 
-/** Build a combo from a live keydown. Null while only modifiers are held. */
-export function comboFromEvent(e: KeyboardEvent): Combo | null {
-  const code = e.code;
-  if (!code || MODIFIER_CODES.has(code)) return null;
-  return {
-    code,
-    meta: e.metaKey,
-    ctrl: e.ctrlKey && !e.metaKey,
-    shift: e.shiftKey,
-    alt: e.altKey,
-  };
+/** The modifiers held in a live keydown, in combo terms. Off macOS a plain
+ *  Ctrl is recorded as `cmd` (the primary modifier) so a recorded chord is
+ *  the same string on every platform. */
+export function modifiersFromEvent(
+  e: Pick<KeyboardEvent, "metaKey" | "ctrlKey" | "shiftKey" | "altKey">,
+  mac: boolean = isMac,
+): Omit<Combo, "code"> {
+  return mac
+    ? { meta: e.metaKey, ctrl: e.ctrlKey, shift: e.shiftKey, alt: e.altKey }
+    : {
+        meta: e.ctrlKey || e.metaKey,
+        ctrl: e.ctrlKey && e.metaKey,
+        shift: e.shiftKey,
+        alt: e.altKey,
+      };
 }
 
-/** Exact match on all four modifiers. `meta` accepts ctrlKey too (unless the
- *  combo names ctrl itself) so cmd combos survive a non-Mac keyboard. */
-export function matchesCombo(e: KeyboardEvent, c: Combo): boolean {
+/** Build a combo from a live keydown. Null while only modifiers are held. */
+export function comboFromEvent(e: KeyboardEvent, mac: boolean = isMac): Combo | null {
+  const code = e.code;
+  if (!code || MODIFIER_CODES.has(code)) return null;
+  return { code, ...modifiersFromEvent(e, mac) };
+}
+
+/**
+ * What a combo actually requires on this platform. Off macOS `cmd+k` and
+ * `ctrl+k` are both Ctrl+K, so they fold to one form — which is what conflict
+ * detection has to compare, or two commands on the same physical chord would
+ * look distinct.
+ */
+export function effectiveCombo(c: Combo, mac: boolean = isMac): Combo {
+  if (mac || c.meta === c.ctrl) return c;
+  return { ...c, meta: true, ctrl: false };
+}
+
+/** Exact match on all four modifiers, after platform folding. */
+export function matchesCombo(e: KeyboardEvent, c: Combo, mac: boolean = isMac): boolean {
   if (!matchCode(e, c.code)) return false;
-  if (c.shift !== e.shiftKey) return false;
-  if (c.alt !== e.altKey) return false;
-  if (c.ctrl) {
-    if (!e.ctrlKey) return false;
-    if (c.meta !== e.metaKey) return false;
-    return true;
-  }
-  const primary = e.metaKey || e.ctrlKey;
-  return c.meta === primary;
+  const want = effectiveCombo(c, mac);
+  const got = modifiersFromEvent(e, mac);
+  return (
+    want.meta === got.meta &&
+    want.ctrl === got.ctrl &&
+    want.shift === got.shift &&
+    want.alt === got.alt
+  );
 }
 
 function matchCode(e: KeyboardEvent, code: string): boolean {

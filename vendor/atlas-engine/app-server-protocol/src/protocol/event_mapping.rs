@@ -361,8 +361,11 @@ pub fn item_event_to_server_notification(
             })
         }
         EventMsg::AgentMessageContentDelta(event) => {
-            let atlas_engine_protocol::protocol::AgentMessageContentDeltaEvent { item_id, delta, .. } =
-                event;
+            let atlas_engine_protocol::protocol::AgentMessageContentDeltaEvent {
+                item_id,
+                delta,
+                ..
+            } = event;
             ServerNotification::AgentMessageDelta(AgentMessageDeltaNotification {
                 thread_id,
                 turn_id,
@@ -581,7 +584,9 @@ mod tests {
                     reasoning_effort: None,
                     agents_states: [(
                         receiver_id,
-                        CollabAgentState::from(atlas_engine_protocol::protocol::AgentStatus::NotFound),
+                        CollabAgentState::from(
+                            atlas_engine_protocol::protocol::AgentStatus::NotFound,
+                        ),
                     )]
                     .into_iter()
                     .collect(),

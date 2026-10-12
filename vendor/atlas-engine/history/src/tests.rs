@@ -126,7 +126,10 @@ fn response_item_envelope_ignores_unknown_harness_metadata_fields() -> Result<()
     let RolloutItem::ResponseItem(envelope) = line.item else {
         panic!("expected response item");
     };
-    assert_eq!(envelope.metadata, Some(AtlasEngineHarnessMetadata::default()));
+    assert_eq!(
+        envelope.metadata,
+        Some(AtlasEngineHarnessMetadata::default())
+    );
 
     let compacted = serde_json::from_value::<CompactedItem>(json!({
         "message": "summary",

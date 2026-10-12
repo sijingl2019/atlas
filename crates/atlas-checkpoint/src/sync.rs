@@ -195,7 +195,8 @@ pub fn drain(store: &Store, config: &SyncConfig<'_>) -> Result<DrainOutcome> {
 
     let Some(mut token) = (config.token)() else {
         outcome.status = DrainStatus::NoCredential;
-        outcome.still_pending = store.row_count_in_state(&config.workspace_id, SyncState::Pending)?;
+        outcome.still_pending =
+            store.row_count_in_state(&config.workspace_id, SyncState::Pending)?;
         return Ok(outcome);
     };
 
@@ -216,7 +217,11 @@ pub fn drain(store: &Store, config: &SyncConfig<'_>) -> Result<DrainOutcome> {
     loop {
         // Checked between batches, never inside one. At least one batch runs
         // per pass, so a short budget still makes progress.
-        if config.deadline.is_some_and(|d| std::time::Instant::now() >= d) && outcome.sent + outcome.failed > 0 {
+        if config
+            .deadline
+            .is_some_and(|d| std::time::Instant::now() >= d)
+            && outcome.sent + outcome.failed > 0
+        {
             outcome.status = DrainStatus::Yielded;
             break;
         }
@@ -448,7 +453,9 @@ enum Push {
     Unauthenticated,
     /// 403 — terminal.
     Forbidden,
-    RateLimited { retry_after: Option<Duration> },
+    RateLimited {
+        retry_after: Option<Duration>,
+    },
     /// 4xx that is not an auth problem: the payload itself was refused.
     Rejected,
     /// No response at all, or 5xx.
@@ -464,7 +471,9 @@ fn push(
     let response = client
         .post(format!("{}/ingest", config.base_url))
         .bearer_auth(token)
-        .json(&IngestRequest { artifacts: artifacts.to_vec() })
+        .json(&IngestRequest {
+            artifacts: artifacts.to_vec(),
+        })
         .send();
 
     let Ok(response) = response else {
@@ -485,7 +494,9 @@ fn push(
     match status.as_u16() {
         401 => Push::Unauthenticated,
         403 => Push::Forbidden,
-        429 => Push::RateLimited { retry_after: parse_retry_after(&response) },
+        429 => Push::RateLimited {
+            retry_after: parse_retry_after(&response),
+        },
         // 5xx is the server's problem, not this row's.
         500..=599 => Push::Unreachable,
         _ => Push::Rejected,
@@ -560,7 +571,9 @@ fn upload_blob(
         401 => Err(BlobError::Unauthenticated),
         403 => Err(BlobError::NotAuthorized),
         413 => Err(BlobError::TooLarge),
-        429 => Err(BlobError::RateLimited { retry_after: parse_retry_after(&response) }),
+        429 => Err(BlobError::RateLimited {
+            retry_after: parse_retry_after(&response),
+        }),
         _ => Err(BlobError::Offline),
     }
 }
@@ -679,8 +692,7 @@ pub struct Registration<'a> {
 /// rejected Slug leaves a half-bound Project behind. The identity signals
 /// travel as advisory data: the server must accept a registration with neither.
 pub fn register_workspace(config: &SyncConfig<'_>, reg: Registration<'_>) -> Result<String> {
-    let token = (config.token)()
-        .ok_or_else(|| Error::Remote("not signed in".into()))?;
+    let token = (config.token)().ok_or_else(|| Error::Remote("not signed in".into()))?;
     let client = config.client()?;
     let slug = reg.slug;
 
@@ -707,7 +719,9 @@ pub fn register_workspace(config: &SyncConfig<'_>, reg: Registration<'_>) -> Res
     if status == 409 {
         // Taken between the check and the confirm. Told plainly, and nothing
         // local has changed.
-        return Err(Error::Remote(format!("the slug \"{slug}\" is already taken")));
+        return Err(Error::Remote(format!(
+            "the slug \"{slug}\" is already taken"
+        )));
     }
     if !status.is_success() {
         return Err(server_refusal("register project", response));
@@ -748,7 +762,10 @@ pub struct RemoteWorkspace {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Preselection {
     /// Exactly one Project matches. One click.
-    One { project: RemoteWorkspace, reason: MatchReason },
+    One {
+        project: RemoteWorkspace,
+        reason: MatchReason,
+    },
     /// Several matched. **Pre-select nothing** and show them all.
     ///
     /// Every repository created from the same GitHub template shares a root
@@ -796,7 +813,11 @@ pub fn preselect(
                 }
             }
             0 => {}
-            _ => return Preselection::Ambiguous { candidates: matches },
+            _ => {
+                return Preselection::Ambiguous {
+                    candidates: matches,
+                }
+            }
         }
     }
 
@@ -814,7 +835,11 @@ pub fn preselect(
                 }
             }
             0 => {}
-            _ => return Preselection::Ambiguous { candidates: matches },
+            _ => {
+                return Preselection::Ambiguous {
+                    candidates: matches,
+                }
+            }
         }
     }
 
@@ -848,7 +873,9 @@ pub fn list_workspaces(config: &SyncConfig<'_>) -> Result<Vec<RemoteWorkspace>> 
     serde_json::from_value(rows).map_err(|e| {
         // A row this build cannot read is worth naming: the alternative was a
         // bare "unreadable response" that looked like a network fault.
-        let err = Error::Remote(format!("list workspaces: a workspace row did not parse: {e}"));
+        let err = Error::Remote(format!(
+            "list workspaces: a workspace row did not parse: {e}"
+        ));
         tracing::warn!(target: "atlas_checkpoint::sync", "{err}");
         err
     })
@@ -923,7 +950,9 @@ pub fn connect_workspace(
     let status = response.status();
     if status == 409 {
         let slug = req.slug.unwrap_or("that slug");
-        return Err(Error::Remote(format!("the slug \"{slug}\" is already taken")));
+        return Err(Error::Remote(format!(
+            "the slug \"{slug}\" is already taken"
+        )));
     }
     if !status.is_success() {
         return Err(server_refusal("connect project", response));
@@ -940,7 +969,11 @@ pub fn connect_workspace(
 ///
 /// `serde_json::json!` writes an `Option::None` as `null`, and the registry's
 /// schemas accept an *absent* optional but refuse a `null` one.
-fn insert_present(body: &mut serde_json::Map<String, serde_json::Value>, key: &str, value: Option<&str>) {
+fn insert_present(
+    body: &mut serde_json::Map<String, serde_json::Value>,
+    key: &str,
+    value: Option<&str>,
+) {
     if let Some(value) = value {
         body.insert(key.to_string(), value.into());
     }
@@ -1077,7 +1110,10 @@ mod tests {
             read_connect_outcome(&serde_json::json!({ "status": "no_match" })),
             ConnectOutcome::NoMatch
         );
-        assert_eq!(read_connect_outcome(&serde_json::json!({})), ConnectOutcome::NoMatch);
+        assert_eq!(
+            read_connect_outcome(&serde_json::json!({})),
+            ConnectOutcome::NoMatch
+        );
     }
 
     #[test]
@@ -1098,7 +1134,10 @@ mod tests {
         ];
         assert!(matches!(
             preselect(&all, Some("root-1"), None),
-            Preselection::One { reason: MatchReason::Fingerprint, .. }
+            Preselection::One {
+                reason: MatchReason::Fingerprint,
+                ..
+            }
         ));
     }
 
@@ -1106,21 +1145,35 @@ mod tests {
     fn a_fork_preselects_correctly_despite_a_different_origin() {
         // Same root commit, different remote — the case the fingerprint exists
         // for.
-        let all = vec![project("atlas", Some("root-1"), Some("github.com/tryatlas/atlas"))];
+        let all = vec![project(
+            "atlas",
+            Some("root-1"),
+            Some("github.com/tryatlas/atlas"),
+        )];
         let chosen = preselect(&all, Some("root-1"), Some("github.com/nafiz/atlas-fork"));
         assert!(matches!(
             chosen,
-            Preselection::One { reason: MatchReason::Fingerprint, .. }
+            Preselection::One {
+                reason: MatchReason::Fingerprint,
+                ..
+            }
         ));
     }
 
     #[test]
     fn an_origin_match_preselects_when_the_fingerprint_does_not() {
         // A squashed history has a different root commit but the same remote.
-        let all = vec![project("atlas", Some("other-root"), Some("github.com/tryatlas/atlas"))];
+        let all = vec![project(
+            "atlas",
+            Some("other-root"),
+            Some("github.com/tryatlas/atlas"),
+        )];
         assert!(matches!(
             preselect(&all, Some("root-1"), Some("github.com/tryatlas/atlas")),
-            Preselection::One { reason: MatchReason::OriginUrl, .. }
+            Preselection::One {
+                reason: MatchReason::OriginUrl,
+                ..
+            }
         ));
     }
 
@@ -1144,7 +1197,11 @@ mod tests {
     #[test]
     fn nothing_matching_preselects_nothing_but_does_not_block() {
         assert_eq!(
-            preselect(&[project("atlas", Some("root-1"), None)], Some("unrelated"), None),
+            preselect(
+                &[project("atlas", Some("root-1"), None)],
+                Some("unrelated"),
+                None
+            ),
             Preselection::None
         );
     }

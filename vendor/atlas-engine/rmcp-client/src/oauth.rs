@@ -959,7 +959,9 @@ fn compute_secret_name(server_name: &str, server_url: &str) -> Result<SecretName
 }
 
 fn fallback_file_path() -> Result<PathBuf> {
-    Ok(find_atlas_agent_home()?.join(FALLBACK_FILENAME).to_path_buf())
+    Ok(find_atlas_agent_home()?
+        .join(FALLBACK_FILENAME)
+        .to_path_buf())
 }
 
 fn read_fallback_file_unlocked() -> Result<Option<FallbackFile>> {

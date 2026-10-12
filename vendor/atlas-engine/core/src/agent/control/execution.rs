@@ -54,9 +54,9 @@ impl AgentControl {
         if self.agent_execution_limiter.has_capacity() {
             Ok(())
         } else {
-            Err(AtlasEngineErr::new(AtlasEngineErrorDetails::AgentLimitReached {
-                max_threads,
-            }))
+            Err(AtlasEngineErr::new(
+                AtlasEngineErrorDetails::AgentLimitReached { max_threads },
+            ))
         }
     }
 

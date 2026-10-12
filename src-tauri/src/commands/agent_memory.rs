@@ -276,11 +276,9 @@ pub async fn collect_corpus(project_path: &str) -> Vec<MemoryDoc> {
         });
     }
 
-    // Fold in the codebase index (current source: per-file structure + optional
-    // LLM summaries) so the chat is grounded in how the code works *now*, not just
-    // stale agent memory. Cheap disk read — the expensive scan/summarize happens
-    // in the separate `codebase_index_build` command.
-    docs.extend(read_codebase_docs(&project_path));
+    // Code is not folded in: agents search it through the `atlas_code` tools
+    // (`semantic_search`, `find_symbol`, grep), and memory keeps what code
+    // can't say (code-index plan Phase 4).
     docs.extend(read_shared_memory_docs(&project_path));
     // Fold the knowledge base in (source "note") so KB notes are retrievable by
     // every agent through the same embedding + the `memory_search` tool — they
@@ -550,35 +548,6 @@ mod shared_promo_tests {
     }
 }
 
-/// Map the persisted codebase index (`.atlas/codebase-index/docs.json`) into
-/// embeddable `MemoryDoc`s for the unified corpus.
-fn read_codebase_docs(project_path: &str) -> Vec<MemoryDoc> {
-    atlas_codeindex::load_index(project_path)
-        .docs
-        .into_iter()
-        .map(|d| {
-            let summary = if d.summary.trim().is_empty() {
-                format!("{} · {} symbols", d.language, d.symbols.len())
-            } else {
-                d.summary.clone()
-            };
-            let aliases = atlas_codeindex::aliases(&d.rel, &d.symbols);
-            MemoryDoc {
-                id: format!("codebase:{}", d.rel),
-                title: d.rel,
-                summary,
-                kind: "file".into(),
-                source: "codebase".into(),
-                file_path: Some(d.abs_path),
-                timestamp_ms: d.mtime_ms,
-                text: d.text,
-                aliases,
-                links: vec![],
-            }
-        })
-        .collect()
-}
-
 /// File mtime as unix ms, or 0 if unavailable.
 fn file_mtime_ms(path: &std::path::Path) -> i64 {
     std::fs::metadata(path)
@@ -665,9 +634,15 @@ pub(crate) fn claude_memory_dir(project_path: &str) -> std::path::PathBuf {
 /// copies back on the next turn. The reader is where the loop is cut: the files
 /// themselves belong to another program and are left exactly as they are.
 ///
+/// The instruction-sync block (`atlas_instruction_sync::BLOCK_START`) comes out
+/// too: it is a copy of `CLAUDE.md` and `.claude/rules/` written into
+/// `AGENTS.md`, and the corpus already holds `CLAUDE.md` itself, so keeping
+/// it would index and retrieve the same rules twice.
+///
 /// `None` for a file that does not exist, same as the plain read it replaces.
 pub(crate) fn read_without_injected_context(path: &Path) -> Option<String> {
     let raw = std::fs::read_to_string(path).ok()?;
+    let raw = atlas_instruction_sync::remove_block(&raw);
     Some(atlas_agent_transcript::strip_injected_context(&raw))
 }
 
@@ -904,6 +879,21 @@ mod tests {
     }
     use super::*;
 
+    /// Code is searched through `atlas_code`, not the memory corpus: even with
+    /// a built code index in the project, no `codebase` document is gathered.
+    #[tokio::test]
+    async fn the_corpus_has_no_codebase_docs() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join(".git")).unwrap();
+        std::fs::write(dir.path().join("lib.rs"), "pub fn indexed() {}\n").unwrap();
+        atlas_codeindex::CodeIndex::open(dir.path())
+            .unwrap()
+            .full_build(&atlas_search::CancelToken::new(), &|_| {})
+            .unwrap();
+        let docs = collect_corpus(dir.path().to_str().unwrap()).await;
+        assert!(docs.iter().all(|d| d.source != "codebase"));
+    }
+
     fn scratch() -> std::path::PathBuf {
         let d = std::env::temp_dir().join(format!("atlas-memory-read-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&d).unwrap();
@@ -1044,7 +1034,9 @@ mod tests {
             .find(|d| d.id == "atlas-agent:native-1")
             .expect("the native session is in the corpus");
         assert_eq!(doc.source, "atlas-agent");
-        assert!(doc.text.contains("refactor the retry loop in the gateway client"));
+        assert!(doc
+            .text
+            .contains("refactor the retry loop in the gateway client"));
 
         std::fs::remove_dir_all(&dir).ok();
     }

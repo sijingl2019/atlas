@@ -25,7 +25,6 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
-use bytes::BytesMut;
 use atlas_engine_exec_server::ExecOutputStream;
 use atlas_engine_exec_server::ExecProcess;
 use atlas_engine_exec_server::ExecProcessEvent;
@@ -33,6 +32,7 @@ use atlas_engine_exec_server::ExecProcessEventReceiver;
 use atlas_engine_exec_server::ProcessId;
 use atlas_engine_exec_server::ProcessOutputChunk;
 use atlas_engine_exec_server::WriteStatus;
+use bytes::BytesMut;
 use memchr::memchr;
 use rmcp::service::RoleClient;
 use rmcp::service::RxJsonRpcMessage;

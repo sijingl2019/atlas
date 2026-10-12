@@ -309,9 +309,9 @@ impl<'a> ToolRuntime<UnifiedExecRequest, UnifiedExecAttempt> for UnifiedExecRunt
                             .info()
                             .await
                             .map_err(|err| {
-                                ToolError::AtlasEngine(AtlasEngineErr::Io(io::Error::other(format!(
-                                    "failed to query exec-server capabilities: {err}"
-                                ))))
+                                ToolError::AtlasEngine(AtlasEngineErr::Io(io::Error::other(
+                                    format!("failed to query exec-server capabilities: {err}"),
+                                )))
                             })?;
                     if !environment_info.capabilities.network_proxy_launch {
                         return Err(ToolError::Rejected(
@@ -454,10 +454,12 @@ impl<'a> ToolRuntime<UnifiedExecRequest, UnifiedExecAttempt> for UnifiedExecRunt
                         .await
                         .map_err(|err| match err {
                             UnifiedExecError::SandboxDenied { output, .. } => {
-                                ToolError::AtlasEngine(AtlasEngineErr::Sandbox(SandboxErr::Denied {
-                                    output: Box::new(output),
-                                    network_policy_decision: None,
-                                }))
+                                ToolError::AtlasEngine(AtlasEngineErr::Sandbox(
+                                    SandboxErr::Denied {
+                                        output: Box::new(output),
+                                        network_policy_decision: None,
+                                    },
+                                ))
                             }
                             other => ToolError::Rejected(other.to_string()),
                         })?;

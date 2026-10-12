@@ -617,12 +617,15 @@ mod tests {
         std::fs::create_dir_all(&active_root).expect("create active root");
         std::fs::create_dir_all(&stale_root).expect("create stale root");
 
-        let stale_sid = workspace_write_cap_sid_for_root(&atlas_agent_home, &workspace, &stale_root)
-            .expect("stale sid");
-        let active_sid = workspace_write_cap_sid_for_root(&atlas_agent_home, &workspace, &active_root)
-            .expect("active sid");
-        let workspace_sid = workspace_write_cap_sid_for_root(&atlas_agent_home, &workspace, &workspace)
-            .expect("workspace sid");
+        let stale_sid =
+            workspace_write_cap_sid_for_root(&atlas_agent_home, &workspace, &stale_root)
+                .expect("stale sid");
+        let active_sid =
+            workspace_write_cap_sid_for_root(&atlas_agent_home, &workspace, &active_root)
+                .expect("active sid");
+        let workspace_sid =
+            workspace_write_cap_sid_for_root(&atlas_agent_home, &workspace, &workspace)
+                .expect("workspace sid");
         let caps = load_or_create_cap_sids(&atlas_agent_home).expect("load caps");
 
         let sid_strs = root_capability_sids(
@@ -655,10 +658,12 @@ mod tests {
         std::fs::create_dir_all(&nested_root).expect("create nested root");
         std::fs::create_dir_all(&unrelated_root).expect("create unrelated root");
 
-        let workspace_sid = workspace_write_cap_sid_for_root(&atlas_agent_home, &workspace, &workspace)
-            .expect("workspace sid");
-        let nested_sid = workspace_write_cap_sid_for_root(&atlas_agent_home, &workspace, &nested_root)
-            .expect("nested sid");
+        let workspace_sid =
+            workspace_write_cap_sid_for_root(&atlas_agent_home, &workspace, &workspace)
+                .expect("workspace sid");
+        let nested_sid =
+            workspace_write_cap_sid_for_root(&atlas_agent_home, &workspace, &nested_root)
+                .expect("nested sid");
         let unrelated_sid =
             workspace_write_cap_sid_for_root(&atlas_agent_home, &workspace, &unrelated_root)
                 .expect("unrelated sid");
@@ -709,12 +714,18 @@ mod tests {
             )
             .expect("managed permission profile");
 
-        let roots =
-            legacy_session_capability_roots(&permissions, &workspace, &HashMap::new(), &atlas_agent_home);
+        let roots = legacy_session_capability_roots(
+            &permissions,
+            &workspace,
+            &HashMap::new(),
+            &atlas_agent_home,
+        );
 
         assert!(roots.contains(&dunce::canonicalize(&workspace).expect("workspace")));
         assert!(roots.contains(&dunce::canonicalize(&active_root).expect("active root")));
-        assert!(!roots.contains(&dunce::canonicalize(&atlas_agent_home).expect("atlas-agent home")));
+        assert!(
+            !roots.contains(&dunce::canonicalize(&atlas_agent_home).expect("atlas-agent home"))
+        );
         assert!(!roots.contains(&dunce::canonicalize(&sandbox_root).expect("sandbox root")));
     }
 }

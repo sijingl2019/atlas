@@ -361,7 +361,10 @@ mod tests {
         let updates = parse_all_rate_limits(&headers);
         assert_eq!(updates.len(), 2);
         assert_eq!(updates[0].limit_id.as_deref(), Some("atlas_engine"));
-        assert_eq!(updates[1].limit_id.as_deref(), Some("atlas_engine_secondary"));
+        assert_eq!(
+            updates[1].limit_id.as_deref(),
+            Some("atlas_engine_secondary")
+        );
         assert_eq!(updates[0].limit_name, None);
         assert_eq!(updates[1].limit_name, None);
     }

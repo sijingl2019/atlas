@@ -1,9 +1,9 @@
 // Modified by Atlas from upstream OpenAI Codex (Apache-2.0). See CONTEXT.md.
 use anyhow::Result;
 use anyhow::anyhow;
+use atlas_engine_protocol::ThreadId;
 use chrono::DateTime;
 use chrono::Utc;
-use atlas_engine_protocol::ThreadId;
 use serde::Serialize;
 use sqlx::Row;
 use sqlx::sqlite::SqliteRow;

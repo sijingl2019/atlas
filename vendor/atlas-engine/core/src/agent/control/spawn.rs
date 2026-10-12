@@ -954,7 +954,9 @@ impl AgentControl {
             .as_deref()
             .map(AgentPath::try_from)
             .transpose()
-            .map_err(|err| AtlasEngineErr::InvalidRequest(format!("invalid stored agent path: {err}")))?;
+            .map_err(|err| {
+                AtlasEngineErr::InvalidRequest(format!("invalid stored agent path: {err}"))
+            })?;
         let resumed_agent_nickname = stored_thread.agent_nickname.clone();
         let resumed_agent_role = stored_thread.agent_role.clone();
         let history = load_agent_model_context(&state, thread_id, stored_thread.history_mode)

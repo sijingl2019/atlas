@@ -52,7 +52,10 @@ async fn atlas_engine_delegate_ignores_legacy_deltas() {
     mount_sse_sequence(&server, vec![sse_stream]).await;
 
     let mut builder = test_atlas_engine();
-    let test = builder.build(&server).await.expect("build test atlas-agent");
+    let test = builder
+        .build(&server)
+        .await
+        .expect("build test atlas-agent");
 
     // Kick off review (delegated).
     test.atlas_engine

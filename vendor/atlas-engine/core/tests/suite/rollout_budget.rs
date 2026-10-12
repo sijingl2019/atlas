@@ -149,8 +149,10 @@ async fn invalid_provider_rollout_budget_units_fail_without_retry() -> Result<()
         }]))
         .await?;
 
-    let EventMsg::Error(error) =
-        wait_for_event(&test.atlas_engine, |event| matches!(event, EventMsg::Error(_))).await
+    let EventMsg::Error(error) = wait_for_event(&test.atlas_engine, |event| {
+        matches!(event, EventMsg::Error(_))
+    })
+    .await
     else {
         unreachable!();
     };
@@ -158,7 +160,10 @@ async fn invalid_provider_rollout_budget_units_fail_without_retry() -> Result<()
         error.message,
         "Fatal error: response.completed usage.atlas_engine_rollout_budget_units must be finite and non-negative"
     );
-    assert_eq!(error.atlas_engine_error_info, Some(AtlasEngineErrorInfo::Other));
+    assert_eq!(
+        error.atlas_engine_error_info,
+        Some(AtlasEngineErrorInfo::Other)
+    );
     wait_for_event(&test.atlas_engine, |event| {
         matches!(event, EventMsg::TurnComplete(_))
     })

@@ -83,8 +83,14 @@ async fn regular_responses_turn_honors_respect_system_proxy() -> Result<()> {
             .env(SYSTEM_PROXY_TEST_SUBPROCESS_ENV_VAR, "1")
             .env("HTTP_PROXY", &proxy_url)
             .env("http_proxy", proxy_url)
-            .env("NO_PROXY", atlas_engine_network_proxy::DEFAULT_NO_PROXY_VALUE)
-            .env("no_proxy", atlas_engine_network_proxy::DEFAULT_NO_PROXY_VALUE);
+            .env(
+                "NO_PROXY",
+                atlas_engine_network_proxy::DEFAULT_NO_PROXY_VALUE,
+            )
+            .env(
+                "no_proxy",
+                atlas_engine_network_proxy::DEFAULT_NO_PROXY_VALUE,
+            );
 
         let output = command.output().await?;
         if !output.status.success() {

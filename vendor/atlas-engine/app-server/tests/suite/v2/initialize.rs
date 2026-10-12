@@ -32,7 +32,8 @@ async fn initialize_uses_client_info_name_as_originator() -> Result<()> {
     let responses = Vec::new();
     let server = create_mock_responses_server_sequence_unchecked(responses).await;
     let atlas_agent_home = TempDir::new()?;
-    let expected_atlas_agent_home = AbsolutePathBuf::try_from(atlas_agent_home.path().canonicalize()?)?;
+    let expected_atlas_agent_home =
+        AbsolutePathBuf::try_from(atlas_agent_home.path().canonicalize()?)?;
     MockResponsesConfig::new(&server.uri())
         .disable_feature(Feature::ShellSnapshot)
         .write(atlas_agent_home.path())?;
@@ -140,7 +141,8 @@ async fn initialize_respects_originator_override_env_var() -> Result<()> {
     let responses = Vec::new();
     let server = create_mock_responses_server_sequence_unchecked(responses).await;
     let atlas_agent_home = TempDir::new()?;
-    let expected_atlas_agent_home = AbsolutePathBuf::try_from(atlas_agent_home.path().canonicalize()?)?;
+    let expected_atlas_agent_home =
+        AbsolutePathBuf::try_from(atlas_agent_home.path().canonicalize()?)?;
     MockResponsesConfig::new(&server.uri())
         .disable_feature(Feature::ShellSnapshot)
         .write(atlas_agent_home.path())?;

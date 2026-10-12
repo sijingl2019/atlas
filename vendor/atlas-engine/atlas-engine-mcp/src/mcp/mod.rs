@@ -496,7 +496,9 @@ pub(crate) fn sanitize_responses_api_tool_name(name: &str) -> String {
 
 fn atlas_apps_mcp_bearer_token_env_var() -> Option<String> {
     match env::var(ATLAS_AGENT_CONNECTORS_TOKEN_ENV_VAR) {
-        Ok(value) if !value.trim().is_empty() => Some(ATLAS_AGENT_CONNECTORS_TOKEN_ENV_VAR.to_string()),
+        Ok(value) if !value.trim().is_empty() => {
+            Some(ATLAS_AGENT_CONNECTORS_TOKEN_ENV_VAR.to_string())
+        }
         Ok(_) => None,
         Err(env::VarError::NotPresent) => None,
         Err(env::VarError::NotUnicode(_)) => Some(ATLAS_AGENT_CONNECTORS_TOKEN_ENV_VAR.to_string()),

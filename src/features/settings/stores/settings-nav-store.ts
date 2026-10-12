@@ -31,12 +31,18 @@ export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
  *  freshly opened or already mounted on another section. */
 interface SettingsNavState {
   section: SettingsSection | null;
+  /** The section the mounted panel is showing right now (null: no panel) —
+   *  what lets a notification know the user is already looking at its subject. */
+  shown: string | null;
   goTo: (section: SettingsSection) => void;
   clear: () => void;
+  setShown: (section: string | null) => void;
 }
 
 export const useSettingsNav = create<SettingsNavState>((set) => ({
   section: null,
+  shown: null,
   goTo: (section) => set({ section }),
   clear: () => set({ section: null }),
+  setShown: (shown) => set({ shown }),
 }));

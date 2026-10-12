@@ -779,7 +779,8 @@ async fn guardian_subagent_does_not_inherit_parent_exec_policy_rules() {
         }
     );
 
-    let auth_manager = AuthManager::from_auth_for_testing(AtlasEngineAuth::from_api_key("Test API Key"));
+    let auth_manager =
+        AuthManager::from_auth_for_testing(AtlasEngineAuth::from_api_key("Test API Key"));
     let models_manager = models_manager_with_provider(
         config.atlas_agent_home.to_path_buf(),
         auth_manager.clone(),
@@ -810,7 +811,9 @@ async fn guardian_subagent_does_not_inherit_parent_exec_policy_rules() {
         skills_service,
         plugins_manager,
         mcp_manager,
-        code_mode_session_provider: Arc::new(atlas_engine_code_mode::DisabledCodeModeSessionProvider),
+        code_mode_session_provider: Arc::new(
+            atlas_engine_code_mode::DisabledCodeModeSessionProvider,
+        ),
         extensions: atlas_engine_extension_api::empty_extension_registry(),
         conversation_history: InitialHistory::New,
         requested_history_mode: None,

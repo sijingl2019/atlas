@@ -72,8 +72,9 @@ async fn exchange_sends_three_field_contract_and_caches_valid_response() {
         chatgpt_account_user_id: "membership-one".to_string(),
         chatgpt_plan_type: Some("enterprise".to_string()),
         expires_in: 600,
-        scope: "openid profile email chatgpt.workspace.feature.allow-atlas-engine-local-access.access"
-            .to_string(),
+        scope:
+            "openid profile email chatgpt.workspace.feature.allow-atlas-engine-local-access.access"
+                .to_string(),
         user_id: "user-one".to_string(),
         version: 1,
     };

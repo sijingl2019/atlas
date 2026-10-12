@@ -811,7 +811,9 @@ unknown = true
         ];
 
         for (index, (contents, expected)) in cases.into_iter().enumerate() {
-            let path = atlas_agent_home.path().join(format!("environments-{index}.toml"));
+            let path = atlas_agent_home
+                .path()
+                .join(format!("environments-{index}.toml"));
             std::fs::write(&path, contents).expect("write environments.toml");
 
             let err = load_environments_toml(&path).expect_err("unknown field should fail");
@@ -855,18 +857,17 @@ include_local = false
         )
         .expect("write environments.toml");
 
-        let provider =
-            environment_provider_from_atlas_agent_home(atlas_agent_home.path()).expect("environment provider");
+        let provider = environment_provider_from_atlas_agent_home(atlas_agent_home.path())
+            .expect("environment provider");
 
         let snapshot = provider.snapshot().await.expect("environments");
-        let environment_ids: Vec<_> = snapshot
+        let has_local = snapshot
             .environments
             .into_iter()
-            .map(|(id, _environment)| id)
-            .collect();
+            .any(|(id, _environment)| id == LOCAL_ENVIRONMENT_ID);
 
         assert!(!snapshot.include_local);
-        assert!(!environment_ids.contains(&LOCAL_ENVIRONMENT_ID.to_string()));
+        assert!(!has_local);
         assert_eq!(snapshot.default, EnvironmentDefault::Disabled);
     }
 
@@ -874,18 +875,17 @@ include_local = false
     async fn environment_provider_from_atlas_agent_home_falls_back_when_file_is_missing() {
         let atlas_agent_home = tempdir().expect("tempdir");
 
-        let provider =
-            environment_provider_from_atlas_agent_home(atlas_agent_home.path()).expect("environment provider");
+        let provider = environment_provider_from_atlas_agent_home(atlas_agent_home.path())
+            .expect("environment provider");
 
         let snapshot = provider.snapshot().await.expect("environments");
-        let environment_ids: Vec<_> = snapshot
+        let has_local = snapshot
             .environments
             .into_iter()
-            .map(|(id, _environment)| id)
-            .collect();
+            .any(|(id, _environment)| id == LOCAL_ENVIRONMENT_ID);
 
         assert!(snapshot.include_local);
-        assert!(!environment_ids.contains(&LOCAL_ENVIRONMENT_ID.to_string()));
+        assert!(!has_local);
         assert_eq!(
             snapshot.default,
             EnvironmentDefault::EnvironmentId(LOCAL_ENVIRONMENT_ID.to_string())

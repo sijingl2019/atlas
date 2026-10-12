@@ -517,7 +517,10 @@ async fn snapshot_model_visible_layout_resume_with_personality_change() -> Resul
             text_elements: Vec::new(),
         }]))
         .await?;
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
     let initial_request = initial_mock.single_request();
 
     let resumed_mock = mount_sse_once(
@@ -621,7 +624,10 @@ async fn snapshot_model_visible_layout_resume_override_matches_rollout_model() -
             text_elements: Vec::new(),
         }]))
         .await?;
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
     let initial_request = initial_mock.single_request();
 
     let resumed_mock = mount_sse_once(

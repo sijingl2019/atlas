@@ -39,8 +39,8 @@ impl CodeModeExecuteHandler {
         code: String,
         telemetry: &mut CodeModeToolCallGuard,
     ) -> Result<FunctionToolOutput, FunctionCallError> {
-        let args =
-            atlas_engine_code_mode::parse_exec_source(&code).map_err(FunctionCallError::RespondToModel)?;
+        let args = atlas_engine_code_mode::parse_exec_source(&code)
+            .map_err(FunctionCallError::RespondToModel)?;
         let exec = ExecContext { session, turn };
         let mut enabled_tools = Vec::with_capacity(self.nested_tool_specs.len());
         for (spec, cached_runtime) in &self.nested_tool_specs {
@@ -52,8 +52,9 @@ impl CodeModeExecuteHandler {
                 continue;
             }
 
-            let definitions =
-                atlas_engine_tools::collect_code_mode_tool_definitions(std::iter::once(spec.as_ref()));
+            let definitions = atlas_engine_tools::collect_code_mode_tool_definitions(
+                std::iter::once(spec.as_ref()),
+            );
             enabled_tools.extend(definitions.into_iter().map(|mut definition| {
                 definition.input_schema = None;
                 definition.output_schema = None;
@@ -115,7 +116,10 @@ impl CodeModeExecuteHandler {
         code_cell_trace.record_initial_response(&response);
         // Yielded cells keep running, so terminal lifecycle is only emitted
         // here when the first response also ended the runtime.
-        if !matches!(response, atlas_engine_code_mode::RuntimeResponse::Yielded { .. }) {
+        if !matches!(
+            response,
+            atlas_engine_code_mode::RuntimeResponse::Yielded { .. }
+        ) {
             code_cell_trace.record_ended(&response);
             exec.session
                 .services
@@ -124,11 +128,13 @@ impl CodeModeExecuteHandler {
             exec.session
                 .services
                 .analytics_events_client
-                .track_code_mode_tool_call(atlas_engine_analytics::CodeModeToolCallFact::CellClosed {
-                    thread_id: exec.session.thread_id.to_string(),
-                    turn_id: exec.turn.sub_id.clone(),
-                    cell_id: cell_id.to_string(),
-                });
+                .track_code_mode_tool_call(
+                    atlas_engine_analytics::CodeModeToolCallFact::CellClosed {
+                        thread_id: exec.session.thread_id.to_string(),
+                        turn_id: exec.turn.sub_id.clone(),
+                        cell_id: cell_id.to_string(),
+                    },
+                );
         }
         exec.session.services.elicitations.wait_until_clear().await;
         handle_runtime_response(&exec, response, args.max_output_tokens, started_at)

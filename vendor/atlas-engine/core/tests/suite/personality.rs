@@ -94,12 +94,14 @@ async fn user_turn_personality_none_does_not_add_update_message() -> anyhow::Res
 
     let server = start_mock_server().await;
     let resp_mock = mount_sse_once(&server, sse_completed("resp-1")).await;
-    let mut builder = test_atlas_engine().with_model("gpt-5.4").with_config(|config| {
-        config
-            .features
-            .enable(Feature::Personality)
-            .expect("test config should allow feature update");
-    });
+    let mut builder = test_atlas_engine()
+        .with_model("gpt-5.4")
+        .with_config(|config| {
+            config
+                .features
+                .enable(Feature::Personality)
+                .expect("test config should allow feature update");
+        });
     let test = builder.build(&server).await?;
 
     test.atlas_engine
@@ -111,7 +113,10 @@ async fn user_turn_personality_none_does_not_add_update_message() -> anyhow::Res
         ))
         .await?;
 
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let request = resp_mock.single_request();
     let developer_texts = request.message_input_texts("developer");
@@ -131,13 +136,15 @@ async fn config_personality_some_sets_instructions_template() -> anyhow::Result<
 
     let server = start_mock_server().await;
     let resp_mock = mount_sse_once(&server, sse_completed("resp-1")).await;
-    let mut builder = test_atlas_engine().with_model("gpt-5.4").with_config(|config| {
-        config
-            .features
-            .enable(Feature::Personality)
-            .expect("test config should allow feature update");
-        config.personality = Some(Personality::Friendly);
-    });
+    let mut builder = test_atlas_engine()
+        .with_model("gpt-5.4")
+        .with_config(|config| {
+            config
+                .features
+                .enable(Feature::Personality)
+                .expect("test config should allow feature update");
+            config.personality = Some(Personality::Friendly);
+        });
     let test = builder.build(&server).await?;
 
     test.atlas_engine
@@ -149,7 +156,10 @@ async fn config_personality_some_sets_instructions_template() -> anyhow::Result<
         ))
         .await?;
 
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let request = resp_mock.single_request();
     let instructions_text = request.instructions_text();
@@ -176,13 +186,15 @@ async fn config_personality_none_sends_no_personality() -> anyhow::Result<()> {
 
     let server = start_mock_server().await;
     let resp_mock = mount_sse_once(&server, sse_completed("resp-1")).await;
-    let mut builder = test_atlas_engine().with_model("gpt-5.4").with_config(|config| {
-        config
-            .features
-            .enable(Feature::Personality)
-            .expect("test config should allow feature update");
-        config.personality = Some(Personality::None);
-    });
+    let mut builder = test_atlas_engine()
+        .with_model("gpt-5.4")
+        .with_config(|config| {
+            config
+                .features
+                .enable(Feature::Personality)
+                .expect("test config should allow feature update");
+            config.personality = Some(Personality::None);
+        });
     let test = builder.build(&server).await?;
 
     test.atlas_engine
@@ -194,7 +206,10 @@ async fn config_personality_none_sends_no_personality() -> anyhow::Result<()> {
         ))
         .await?;
 
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let request = resp_mock.single_request();
     let instructions_text = request.instructions_text();
@@ -253,7 +268,10 @@ async fn config_personality_none_strips_baked_personality_section() -> anyhow::R
         ))
         .await?;
 
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     assert_eq!(
         resp_mock.single_request().instructions_text(),
@@ -271,14 +289,16 @@ async fn config_personality_none_preserves_explicit_base_instructions() -> anyho
 
     let server = start_mock_server().await;
     let resp_mock = mount_sse_once(&server, sse_completed("resp-1")).await;
-    let mut builder = test_atlas_engine().with_model("gpt-5.4").with_config(|config| {
-        config
-            .features
-            .enable(Feature::Personality)
-            .expect("test config should allow feature update");
-        config.personality = Some(Personality::None);
-        config.base_instructions = Some(CUSTOM_INSTRUCTIONS.to_string());
-    });
+    let mut builder = test_atlas_engine()
+        .with_model("gpt-5.4")
+        .with_config(|config| {
+            config
+                .features
+                .enable(Feature::Personality)
+                .expect("test config should allow feature update");
+            config.personality = Some(Personality::None);
+            config.base_instructions = Some(CUSTOM_INSTRUCTIONS.to_string());
+        });
     let test = builder.build(&server).await?;
 
     test.atlas_engine
@@ -290,7 +310,10 @@ async fn config_personality_none_preserves_explicit_base_instructions() -> anyho
         ))
         .await?;
 
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     assert_eq!(
         resp_mock.single_request().instructions_text(),
@@ -306,12 +329,14 @@ async fn default_personality_is_pragmatic_without_config_toml() -> anyhow::Resul
 
     let server = start_mock_server().await;
     let resp_mock = mount_sse_once(&server, sse_completed("resp-1")).await;
-    let mut builder = test_atlas_engine().with_model("gpt-5.4").with_config(|config| {
-        config
-            .features
-            .enable(Feature::Personality)
-            .expect("test config should allow feature update");
-    });
+    let mut builder = test_atlas_engine()
+        .with_model("gpt-5.4")
+        .with_config(|config| {
+            config
+                .features
+                .enable(Feature::Personality)
+                .expect("test config should allow feature update");
+        });
     let test = builder.build(&server).await?;
 
     test.atlas_engine
@@ -323,7 +348,10 @@ async fn default_personality_is_pragmatic_without_config_toml() -> anyhow::Resul
         ))
         .await?;
 
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let request = resp_mock.single_request();
     let instructions_text = request.instructions_text();
@@ -364,7 +392,10 @@ async fn user_turn_personality_some_adds_update_message() -> anyhow::Result<()> 
         ))
         .await?;
 
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     core_test_support::submit_thread_settings(
         &test.atlas_engine,
@@ -384,7 +415,10 @@ async fn user_turn_personality_some_adds_update_message() -> anyhow::Result<()> 
         ))
         .await?;
 
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let requests = resp_mock.requests();
     assert_eq!(requests.len(), 2, "expected two requests");
@@ -440,7 +474,10 @@ async fn user_turn_personality_same_value_does_not_add_update_message() -> anyho
         ))
         .await?;
 
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     core_test_support::submit_thread_settings(
         &test.atlas_engine,
@@ -460,7 +497,10 @@ async fn user_turn_personality_same_value_does_not_add_update_message() -> anyho
         ))
         .await?;
 
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let requests = resp_mock.requests();
     assert_eq!(requests.len(), 2, "expected two requests");
@@ -560,7 +600,10 @@ async fn user_turn_personality_skips_if_feature_disabled() -> anyhow::Result<()>
         ))
         .await?;
 
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     core_test_support::submit_thread_settings(
         &test.atlas_engine,
@@ -580,7 +623,10 @@ async fn user_turn_personality_skips_if_feature_disabled() -> anyhow::Result<()>
         ))
         .await?;
 
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let requests = resp_mock.requests();
     assert_eq!(requests.len(), 2, "expected two requests");
@@ -711,7 +757,10 @@ async fn remote_model_friendly_personality_instructions_with_feature() -> anyhow
         ))
         .await?;
 
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let request = resp_mock.single_request();
     let instructions_text = request.instructions_text();
@@ -838,7 +887,10 @@ async fn user_turn_personality_remote_model_template_includes_update_message() -
         ))
         .await?;
 
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     core_test_support::submit_thread_settings(
         &test.atlas_engine,
@@ -858,7 +910,10 @@ async fn user_turn_personality_remote_model_template_includes_update_message() -
         ))
         .await?;
 
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let requests = resp_mock.requests();
     assert_eq!(requests.len(), 2, "expected two requests");

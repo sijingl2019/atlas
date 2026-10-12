@@ -59,7 +59,10 @@ fn write_cache_file(cache: &CloudConfigBundleCache, cache_file: &CloudConfigBund
 }
 
 fn create_test_cache(atlas_agent_home: &Path) -> CloudConfigBundleCache {
-    CloudConfigBundleCache::new(AbsolutePathBuf::resolve_path_against_base(atlas_agent_home, "/"))
+    CloudConfigBundleCache::new(AbsolutePathBuf::resolve_path_against_base(
+        atlas_agent_home,
+        "/",
+    ))
 }
 
 #[tokio::test]

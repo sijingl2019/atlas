@@ -26,6 +26,7 @@ import { useOrgStore } from "@/features/organisations/stores/org-store";
 import { useLayoutStore } from "@/features/layout/stores/layout-store";
 import { useChatStore } from "../stores/chat-store";
 import { stripInjectedContext } from "../lib/atlas-context";
+import { useFrozenOrder } from "../hooks/use-frozen-order";
 import { bumpLoadToken, isLoadStale } from "../lib/load-tokens";
 import {
   archiveThread,
@@ -71,6 +72,9 @@ function itemFromThread(thread: ThreadRow, projectName: string, isCurrent: boole
     cwd: thread.folderPaths[0] ?? "",
   };
 }
+
+/** A row's identity for the frozen order. */
+const rowKey = (item: SidebarItem) => item.threadId;
 
 /** Compact token count: 1234 → "1.2k", 1_200_000 → "1.2M". */
 
@@ -359,9 +363,13 @@ export const SessionSidebar = memo(function SessionSidebar({
   // Headings are stamped AFTER filtering, not before: a search that hides a
   // project's first row would otherwise take the project's name with it and
   // leave the rest of its threads under the previous project's heading.
+  // Rows keep their order while the pointer is over the list or focus is in
+  // it, so a session another process keeps writing cannot jump under the
+  // pointer as it is clicked (`use-frozen-order.ts`).
+  const { ordered, listProps: frozenListProps } = useFrozenOrder(items, rowKey);
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const matching = q ? items.filter((it) => it.title.toLowerCase().includes(q)) : items;
+    const matching = q ? ordered.filter((it) => it.title.toLowerCase().includes(q)) : ordered;
     // Label the groups whenever more than one project is on screen, or when a
     // row belongs to some other project. Scoped to the open project this is
     // false and no headings are drawn — it earns its keep in the unscoped case
@@ -376,7 +384,7 @@ export const SessionSidebar = memo(function SessionSidebar({
       previous = item.projectName;
       return { ...item, projectHeading: heading };
     });
-  }, [items, search]);
+  }, [ordered, search]);
 
   // Singleton model: "New chat" always starts a fresh session in the CURRENT
   // tab (never a second tab). Shared with ⌘T / the palette / the context menu.
@@ -600,7 +608,11 @@ export const SessionSidebar = memo(function SessionSidebar({
       />
 
       {/* List */}
-      <div className="flex-1 overflow-y-auto hide-scrollbar">
+      <div
+        data-testid="session-list"
+        className="flex-1 overflow-y-auto hide-scrollbar"
+        {...frozenListProps}
+      >
         {isLoading && (
           <div className="text-xs text-[var(--muted-foreground)] px-3 py-2">Loading…</div>
         )}

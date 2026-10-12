@@ -691,6 +691,10 @@ async fn memory_search_also_returns_indexed_project_documents() {
         *asked.lock(),
         vec![(project.clone(), "the engine fork".to_string(), 6)]
     );
+    assert_eq!(
+        *asked.lock(),
+        vec![(project.clone(), "the engine fork".to_string(), 6)]
+    );
 
     // A working-memory search is a search of the record alone.
     let (_, found) = call(
@@ -730,7 +734,9 @@ async fn forgetting_through_the_tool_evicts_the_document_before_returning() {
         },
     )
     .await;
-    let client = connect(&server.url(), &tokens.mint("s1", "atlas-agent", &project)).await.unwrap();
+    let client = connect(&server.url(), &tokens.mint("s1", "atlas-agent", &project))
+        .await
+        .unwrap();
 
     let (err, remembered) = call(
         &client,
@@ -829,7 +835,9 @@ async fn search_never_returns_a_shared_document_whose_entry_is_gone() {
         },
     )
     .await;
-    let client = connect(&server.url(), &tokens.mint("s1", "atlas-agent", &project)).await.unwrap();
+    let client = connect(&server.url(), &tokens.mint("s1", "atlas-agent", &project))
+        .await
+        .unwrap();
 
     let (err, found) = call(
         &client,
@@ -874,7 +882,9 @@ async fn a_search_counts_as_consulting_memory_even_though_it_moves_no_clock() {
     )
     .await
     .unwrap();
-    let client = connect(&server.url(), &tokens.mint("s1", "atlas-agent", &project)).await.unwrap();
+    let client = connect(&server.url(), &tokens.mint("s1", "atlas-agent", &project))
+        .await
+        .unwrap();
 
     assert!(!reads.has_read("s1"), "nothing read yet");
 
@@ -905,7 +915,9 @@ async fn remembering_something_is_not_consulting_memory() {
     )
     .await
     .unwrap();
-    let client = connect(&server.url(), &tokens.mint("s1", "atlas-agent", &project)).await.unwrap();
+    let client = connect(&server.url(), &tokens.mint("s1", "atlas-agent", &project))
+        .await
+        .unwrap();
 
     let (err, _) = call(
         &client,

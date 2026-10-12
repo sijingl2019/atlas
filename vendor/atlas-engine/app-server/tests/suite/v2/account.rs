@@ -10,8 +10,6 @@ use app_test_support::DEFAULT_CLIENT_NAME;
 use app_test_support::encode_id_token;
 use app_test_support::write_chatgpt_auth;
 use app_test_support::write_models_cache;
-use chrono::Duration as ChronoDuration;
-use chrono::Utc;
 use atlas_engine_app_server_protocol::Account;
 use atlas_engine_app_server_protocol::AccountLoginCompletedNotification;
 use atlas_engine_app_server_protocol::AccountUpdatedNotification;
@@ -51,6 +49,8 @@ use atlas_engine_login::login_with_api_key;
 use atlas_engine_login::login_with_bedrock_api_key;
 use atlas_engine_protocol::account::PlanType as AccountPlanType;
 use atlas_engine_protocol::auth::AuthMode as DomainAuthMode;
+use chrono::Duration as ChronoDuration;
+use chrono::Utc;
 use core_test_support::responses;
 use pretty_assertions::assert_eq;
 use serde_json::json;
@@ -91,7 +91,10 @@ struct CreateConfigTomlParams {
     extra_provider_config: Option<String>,
 }
 
-fn create_config_toml(atlas_agent_home: &Path, params: CreateConfigTomlParams) -> std::io::Result<()> {
+fn create_config_toml(
+    atlas_agent_home: &Path,
+    params: CreateConfigTomlParams,
+) -> std::io::Result<()> {
     let config_toml = atlas_agent_home.join("config.toml");
     let base_url = params
         .base_url
@@ -662,10 +665,12 @@ async fn external_auth_refreshes_on_unauthorized() -> Result<()> {
     .await??;
 
     let thread_req = mcp
-        .send_thread_start_request_with_auto_env(atlas_engine_app_server_protocol::ThreadStartParams {
-            model: Some("mock-model".to_string()),
-            ..Default::default()
-        })
+        .send_thread_start_request_with_auto_env(
+            atlas_engine_app_server_protocol::ThreadStartParams {
+                model: Some("mock-model".to_string()),
+                ..Default::default()
+            },
+        )
         .await?;
     let thread: atlas_engine_app_server_protocol::ThreadStartResponse =
         timeout(DEFAULT_READ_TIMEOUT, mcp.read_response(thread_req)).await??;
@@ -763,10 +768,12 @@ async fn external_auth_refresh_error_fails_turn() -> Result<()> {
     .await??;
 
     let thread_req = mcp
-        .send_thread_start_request_with_auto_env(atlas_engine_app_server_protocol::ThreadStartParams {
-            model: Some("mock-model".to_string()),
-            ..Default::default()
-        })
+        .send_thread_start_request_with_auto_env(
+            atlas_engine_app_server_protocol::ThreadStartParams {
+                model: Some("mock-model".to_string()),
+                ..Default::default()
+            },
+        )
         .await?;
     let thread: atlas_engine_app_server_protocol::ThreadStartResponse =
         timeout(DEFAULT_READ_TIMEOUT, mcp.read_response(thread_req)).await??;
@@ -880,10 +887,12 @@ async fn external_auth_refresh_mismatched_workspace_fails_turn() -> Result<()> {
     .await??;
 
     let thread_req = mcp
-        .send_thread_start_request_with_auto_env(atlas_engine_app_server_protocol::ThreadStartParams {
-            model: Some("mock-model".to_string()),
-            ..Default::default()
-        })
+        .send_thread_start_request_with_auto_env(
+            atlas_engine_app_server_protocol::ThreadStartParams {
+                model: Some("mock-model".to_string()),
+                ..Default::default()
+            },
+        )
         .await?;
     let thread: atlas_engine_app_server_protocol::ThreadStartResponse =
         timeout(DEFAULT_READ_TIMEOUT, mcp.read_response(thread_req)).await??;
@@ -990,10 +999,12 @@ async fn external_auth_refresh_invalid_access_token_fails_turn() -> Result<()> {
     .await??;
 
     let thread_req = mcp
-        .send_thread_start_request_with_auto_env(atlas_engine_app_server_protocol::ThreadStartParams {
-            model: Some("mock-model".to_string()),
-            ..Default::default()
-        })
+        .send_thread_start_request_with_auto_env(
+            atlas_engine_app_server_protocol::ThreadStartParams {
+                model: Some("mock-model".to_string()),
+                ..Default::default()
+            },
+        )
         .await?;
     let thread: atlas_engine_app_server_protocol::ThreadStartResponse =
         timeout(DEFAULT_READ_TIMEOUT, mcp.read_response(thread_req)).await??;

@@ -20,7 +20,8 @@ pub fn installed_marketplace_roots_from_layer_stack(
     config_layer_stack: &ConfigLayerStack,
     atlas_agent_home: &Path,
 ) -> Vec<AbsolutePathBuf> {
-    let Some(user_config) = project_effective_user_config(config_layer_stack, atlas_agent_home) else {
+    let Some(user_config) = project_effective_user_config(config_layer_stack, atlas_agent_home)
+    else {
         return Vec::new();
     };
     let Some(marketplaces_value) = user_config.get("marketplaces") else {

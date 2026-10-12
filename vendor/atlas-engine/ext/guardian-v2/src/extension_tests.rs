@@ -17,8 +17,8 @@ use atlas_engine_extension_api::ToolPayload;
 use atlas_engine_extension_api::ToolStartInput;
 use atlas_engine_features::Feature;
 use atlas_engine_history::RolloutItem;
-use atlas_engine_login::AuthManager;
 use atlas_engine_login::AtlasEngineAuth;
+use atlas_engine_login::AuthManager;
 use atlas_engine_model_provider_info::ModelProviderInfo;
 use atlas_engine_protocol::ResponseItemId;
 use atlas_engine_protocol::models::ContentItem;
@@ -124,7 +124,11 @@ async fn sample_conversation_history(
     conversation_history: Vec<ResponseItem>,
     arguments: &str,
     guardian_policy: Option<&str>,
-) -> Result<(serde_json::Value, TestAtlasEngine, ExtensionRegistry<Config>)> {
+) -> Result<(
+    serde_json::Value,
+    TestAtlasEngine,
+    ExtensionRegistry<Config>,
+)> {
     let thread_server = responses::start_mock_server().await;
     let guardian_policy = guardian_policy.map(str::to_owned);
     let test = test_atlas_engine()
@@ -152,7 +156,8 @@ async fn sample_conversation_history(
         "http://{}/v1",
         server.uri().trim_start_matches("ws://")
     )));
-    let auth_manager = AuthManager::from_auth_for_testing(AtlasEngineAuth::from_api_key("test-api-key"));
+    let auth_manager =
+        AuthManager::from_auth_for_testing(AtlasEngineAuth::from_api_key("test-api-key"));
     let mut config = test.config.clone();
     config.model_provider = provider_info;
     config.features.enable(Feature::GuardianV2)?;
@@ -536,7 +541,9 @@ async fn contributor_reuses_the_latest_compatible_parent_compaction() -> Result<
     skip_if_no_network!(Ok(()));
 
     let thread_server = responses::start_mock_server().await;
-    let test = test_atlas_engine().build_with_auto_env(&thread_server).await?;
+    let test = test_atlas_engine()
+        .build_with_auto_env(&thread_server)
+        .await?;
     let events = vec![
         ev_assistant_message("sample", r#"{"scores":{"action_risk":0.25}}"#),
         ev_completed("response-1"),
@@ -546,7 +553,8 @@ async fn contributor_reuses_the_latest_compatible_parent_compaction() -> Result<
         "http://{}/v1",
         server.uri().trim_start_matches("ws://")
     )));
-    let auth_manager = AuthManager::from_auth_for_testing(AtlasEngineAuth::from_api_key("test-api-key"));
+    let auth_manager =
+        AuthManager::from_auth_for_testing(AtlasEngineAuth::from_api_key("test-api-key"));
     let mut config = test.config.clone();
     config.model_provider = provider_info;
     config.features.enable(Feature::GuardianV2)?;

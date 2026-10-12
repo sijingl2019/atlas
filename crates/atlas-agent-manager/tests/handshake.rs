@@ -160,6 +160,14 @@ async fn http_mcp_support_advertised_by(
         .new_session(key.clone(), vec![std::env::temp_dir()])
         .await
         .expect("a session opens on the real agent");
+    // Capabilities are read off the `Connected` entry, which the watcher task
+    // publishes after the connect future `new_session` awaited; wait for it so
+    // the answer is about what the agent advertised.
+    wait_for(|| {
+        (manager.connection_status(&key) == AgentConnectionStatus::Connected).then_some(())
+    })
+    .await
+    .expect("the entry reaches Connected");
     let supported = manager.supports_http_mcp(&key);
     drop(thread);
     manager.shutdown();

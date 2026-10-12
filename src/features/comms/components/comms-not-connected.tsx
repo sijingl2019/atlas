@@ -49,13 +49,13 @@ export function CommsNotConnected({ org }: { org: Organisation | null }) {
           decoration and disabled state — left the one explanation unreadable
           against the near-black surface. */}
       <div className="relative text-sm font-medium text-foreground">
-        {org ? `${org.name} isn't connected` : "No organisation selected"}
+        {org ? `${org.name} isn't connected` : "No organization selected"}
       </div>
       <p className="relative max-w-[220px] text-xs leading-relaxed text-secondary-foreground">
         {!org
-          ? "Select an organisation to use team chat."
+          ? "Select an organization to use team chat."
           : personalSync
-            ? "Team chat needs this organisation synced to your Atlas account."
+            ? "Team chat needs this organization synced to your Atlas account."
             : "Chat Sync is off. Turn it on in Settings → Behaviour to use team chat."}
       </p>
       {org && personalSync && (

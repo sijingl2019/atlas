@@ -35,7 +35,11 @@ pub async fn set_user_plugin_enabled(
 }
 
 pub async fn clear_user_plugin(atlas_agent_home: &Path, plugin_key: String) -> std::io::Result<()> {
-    apply_user_plugin_config_edits(atlas_agent_home, vec![PluginConfigEdit::Clear { plugin_key }]).await
+    apply_user_plugin_config_edits(
+        atlas_agent_home,
+        vec![PluginConfigEdit::Clear { plugin_key }],
+    )
+    .await
 }
 
 pub async fn apply_user_plugin_config_edits(
@@ -303,6 +307,7 @@ enabled = true
     }
 
     fn read_config(atlas_agent_home: &Path) -> toml::Value {
-        toml::from_str(&fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).unwrap()).unwrap()
+        toml::from_str(&fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).unwrap())
+            .unwrap()
     }
 }

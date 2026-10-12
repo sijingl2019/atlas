@@ -96,9 +96,10 @@ async fn responses_api_parent_and_subagent_requests_include_identity_headers_and
             .features
             .disable(Feature::EnableRequestCompression)
             .expect("test config should allow feature update");
-        config
-            .responses_api_metadata
-            .insert("atlas_engine_security_surface".to_string(), "sdk".to_string());
+        config.responses_api_metadata.insert(
+            "atlas_engine_security_surface".to_string(),
+            "sdk".to_string(),
+        );
     });
     let test = builder.build(&server).await?;
     submit_turn_with_timeout(&test, PARENT_PROMPT).await?;
@@ -140,7 +141,10 @@ async fn responses_api_parent_and_subagent_requests_include_identity_headers_and
             .header("x-atlas-engine-turn-metadata")
             .ok_or_else(|| anyhow!("parent request missing x-atlas-engine-turn-metadata"))?,
     )?;
-    assert_eq!(parent_turn_metadata["atlas_engine_security_surface"], json!("sdk"));
+    assert_eq!(
+        parent_turn_metadata["atlas_engine_security_surface"],
+        json!("sdk")
+    );
     let child_turn_metadata: serde_json::Value = serde_json::from_str(
         &child
             .header("x-atlas-engine-turn-metadata")
@@ -151,7 +155,10 @@ async fn responses_api_parent_and_subagent_requests_include_identity_headers_and
         child_turn_metadata["parent_thread_id"].as_str(),
         Some(parent_thread_id)
     );
-    assert_eq!(child_turn_metadata["atlas_engine_security_surface"], json!("sdk"));
+    assert_eq!(
+        child_turn_metadata["atlas_engine_security_surface"],
+        json!("sdk")
+    );
 
     Ok(())
 }

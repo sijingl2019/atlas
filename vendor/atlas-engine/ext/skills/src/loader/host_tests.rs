@@ -489,7 +489,9 @@ async fn recursive_plugin_root_preserves_owner_namespace_and_shared_asset_policy
         "skills/group/demo",
         "name: demo\ndescription: Demo skill",
     );
-    let nested_manifest = root.path().join("skills/group/.atlas-agent-plugin/plugin.json");
+    let nested_manifest = root
+        .path()
+        .join("skills/group/.atlas-agent-plugin/plugin.json");
     fs::create_dir_all(nested_manifest.parent().expect("nested manifest parent"))
         .expect("create nested plugin manifest directory");
     fs::write(nested_manifest, r#"{"name":"conflicting-plugin"}"#)

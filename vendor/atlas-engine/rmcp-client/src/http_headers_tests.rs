@@ -101,14 +101,14 @@ async fn nonzero_helper_exit_is_cached() {
 #[cfg(unix)]
 #[tokio::test]
 async fn connection_headers_are_cached_and_origin_bound() {
+    use atlas_engine_exec_server::RouteAwareHttpClient;
+    use atlas_engine_http_client::HttpClientFactory;
+    use atlas_engine_http_client::OutboundProxyPolicy;
     use axum::Router;
     use axum::http::StatusCode;
     use axum::response::Redirect;
     use axum::routing::get;
     use axum::routing::post;
-    use atlas_engine_exec_server::RouteAwareHttpClient;
-    use atlas_engine_http_client::HttpClientFactory;
-    use atlas_engine_http_client::OutboundProxyPolicy;
     use std::sync::Arc;
     use tempfile::tempdir;
     use tokio::net::TcpListener;

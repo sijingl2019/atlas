@@ -153,7 +153,8 @@ pub struct SandboxTransformRequest<'a> {
 pub struct SandboxDirectSpawnTransformRequest<'a> {
     pub transform: SandboxTransformRequest<'a>,
     pub workspace_roots: &'a [AbsolutePathBuf],
-    pub windows_sandbox_proxy_settings_mode: atlas_engine_windows_sandbox::WindowsSandboxProxySettingsMode,
+    pub windows_sandbox_proxy_settings_mode:
+        atlas_engine_windows_sandbox::WindowsSandboxProxySettingsMode,
 }
 
 // TODO(anp): Revisit this preparation type once this module's PathUri migration is complete.
@@ -474,7 +475,10 @@ impl SandboxManager {
         {
             let atlas_agent_home = atlas_engine_utils_home_dir::find_atlas_agent_home()
                 .map_err(|err| SandboxTransformError::WindowsSandboxPreparation(err.to_string()))?;
-            self.transform_for_direct_spawn_with_atlas_agent_home(request, atlas_agent_home.as_path())
+            self.transform_for_direct_spawn_with_atlas_agent_home(
+                request,
+                atlas_agent_home.as_path(),
+            )
         }
 
         #[cfg(not(target_os = "windows"))]
@@ -532,7 +536,8 @@ fn wrap_windows_sandbox_exec_request_for_direct_spawn(
         ));
     };
     let source = std::path::PathBuf::from(&program);
-    let helper = atlas_engine_windows_sandbox::resolve_exe_for_launch(source.as_path(), atlas_agent_home);
+    let helper =
+        atlas_engine_windows_sandbox::resolve_exe_for_launch(source.as_path(), atlas_agent_home);
     *program = helper.to_string_lossy().into_owned();
 
     let inner_command = std::mem::take(&mut request.command);

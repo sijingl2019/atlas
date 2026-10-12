@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { decideTerminalNotification, type TerminalCtx } from "./terminal-notifier-rules";
 import {
-  decideTerminalNotification,
-  type NotifierEnv,
-  type TerminalCtx,
-} from "./terminal-notifier-rules";
-import type { TerminalNotificationPrefs } from "@/features/settings/lib/app-settings";
+  AWAY_IDLE_MS,
+  computeAway,
+  type NotificationEnv,
+} from "@/features/notifications/lib/decide";
+import { DEFAULT_SETTINGS, type AppSettings } from "@/features/settings/lib/app-settings";
 import type { TerminalEvent } from "./block-parser";
 
 const ctx: TerminalCtx = {
@@ -14,25 +15,25 @@ const ctx: TerminalCtx = {
   projectName: "atlas",
   orgId: "org-1",
 };
-const prefs: TerminalNotificationPrefs = {
-  enabled: true,
-  minDurationMs: 10_000,
-  onFailure: true,
-  onAttention: true,
-  native: true,
-  sound: false,
+// The terminal's historic defaults: sound off (the tier defaults have it on).
+const prefs: AppSettings = {
+  ...DEFAULT_SETTINGS,
+  notifyNeedsYouSound: false,
+  notifyOutcomeSound: false,
 };
-const away: NotifierEnv = {
-  terminalVisible: false,
+const away: NotificationEnv = {
+  targetVisible: false,
   windowFocused: false,
-  interactedWithinMs: 999_999,
+  sinceInputMs: 999_999,
   projectActive: true,
+  away: true,
 };
-const looking: NotifierEnv = {
-  terminalVisible: true,
+const looking: NotificationEnv = {
+  targetVisible: true,
   windowFocused: true,
-  interactedWithinMs: 1_000,
+  sinceInputMs: 1_000,
   projectActive: true,
+  away: false,
 };
 
 const finished = (over: Partial<Extract<TerminalEvent, { type: "commandFinished" }>> = {}) =>
@@ -52,7 +53,7 @@ const finished = (over: Partial<Extract<TerminalEvent, { type: "commandFinished"
 describe("decideTerminalNotification", () => {
   it("is silent when disabled", () => {
     expect(
-      decideTerminalNotification(finished(), ctx, away, { ...prefs, enabled: false }),
+      decideTerminalNotification(finished(), ctx, away, { ...prefs, notificationsEnabled: false }),
     ).toBeNull();
   });
 
@@ -60,7 +61,14 @@ describe("decideTerminalNotification", () => {
     const d = decideTerminalNotification(finished(), ctx, away, prefs);
     expect(d?.kind).toBe("terminal-done");
     expect(d?.title).toBe("npm test finished in 12s");
-    expect(d?.channels).toEqual({ store: true, toast: true, native: true, sound: false });
+    expect(d?.channels).toEqual({
+      center: true,
+      toast: true,
+      native: true,
+      badge: true,
+      sound: false,
+    });
+    expect(d?.native).toEqual({ title: "Atlas: atlas", body: "npm test finished in 12s — atlas" });
   });
 
   it("stays quiet for a short successful command", () => {
@@ -77,7 +85,7 @@ describe("decideTerminalNotification", () => {
       prefs,
     );
     expect(d?.kind).toBe("terminal-failed");
-    expect(d?.channels.store).toBe(true);
+    expect(d?.channels.center).toBe(true);
     expect(d?.channels.toast).toBe(false);
     expect(d?.channels.native).toBe(false);
   });
@@ -117,8 +125,13 @@ describe("decideTerminalNotification", () => {
     };
     const d = decideTerminalNotification(e, ctx, away, prefs);
     expect(d?.kind).toBe("terminal-attention");
-    expect(d?.persistMs).toBe(15_000);
-    expect(decideTerminalNotification(e, ctx, away, { ...prefs, onAttention: false })).toBeNull();
+    expect(d?.toast.durationMs).toBe(15_000);
+    expect(
+      decideTerminalNotification(e, ctx, away, {
+        ...prefs,
+        notifyDisabledKinds: ["terminal-attention"],
+      }),
+    ).toBeNull();
   });
 
   it("chimes in-app for attention when the terminal is off screen and the window is focused", () => {
@@ -126,11 +139,40 @@ describe("decideTerminalNotification", () => {
     const d = decideTerminalNotification(
       e,
       ctx,
-      { ...looking, terminalVisible: false },
-      { ...prefs, sound: true },
+      { ...looking, targetVisible: false },
+      { ...prefs, notifyNeedsYouSound: true },
     );
     expect(d?.channels.sound).toBe(true);
     expect(d?.channels.native).toBe(false);
+  });
+
+  it("raises the OS banner when focused but idle for 2 minutes (away)", () => {
+    const idle: NotificationEnv = {
+      ...looking,
+      targetVisible: false,
+      sinceInputMs: AWAY_IDLE_MS,
+      away: computeAway(true, AWAY_IDLE_MS),
+    };
+    const d = decideTerminalNotification(finished(), ctx, idle, prefs);
+    expect(d?.channels.native).toBe(true);
+  });
+
+  it("an OS banner carries the system sound instead of the in-app chime", () => {
+    const d = decideTerminalNotification(finished({ exitCode: 1 }), ctx, away, {
+      ...prefs,
+      notifyOutcomeSound: true,
+    });
+    expect(d?.channels.native).toBe(true);
+    expect(d?.native.sound).toBe("Ping");
+  });
+
+  it("respects the failure toggle", () => {
+    expect(
+      decideTerminalNotification(finished({ exitCode: 1 }), ctx, away, {
+        ...prefs,
+        notifyDisabledKinds: ["terminal-failed"],
+      }),
+    ).toBeNull();
   });
 
   it("dedupe keys are stable per block and kind", () => {

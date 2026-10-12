@@ -154,10 +154,10 @@ export function OrgSwitcher() {
    */
   const orgAccess = (org: Organisation): { ok: true } | { ok: false; reason: string } => {
     if (!isOrgSynced(org, { personalSync })) return { ok: true };
-    if (!signedIn) return { ok: false, reason: "Sign in to open this synced organisation" };
+    if (!signedIn) return { ok: false, reason: "Sign in to open this synced organization" };
     // `isOrgSynced` already proved `remoteId` is set; `??` only narrows it for TS.
     if (myOrgIds && !myOrgIds.has(org.remoteId ?? "")) {
-      return { ok: false, reason: "This account isn't a member of this organisation" };
+      return { ok: false, reason: "This account isn't a member of this organization" };
     }
     return { ok: true };
   };
@@ -222,7 +222,7 @@ export function OrgSwitcher() {
       return;
     }
     if (!rename(editingId, name)) {
-      toast.error(`An organisation named “${name}” already exists`);
+      toast.error(`An organization named “${name}” already exists`);
       return;
     }
     setEditingId(null);
@@ -252,7 +252,7 @@ export function OrgSwitcher() {
           render={
             <button
               className="flex h-7 items-center gap-2 px-1.5 rounded-md outline-none text-sm font-medium text-[var(--foreground)] hover:bg-[var(--atlas-element-hover)] transition-colors cursor-pointer min-w-0"
-              title="Switch organisation"
+              title="Switch organization"
             >
               <OrgAvatar org={active} size={18} />
               <span className="text-left truncate">{active.name}</span>
@@ -304,14 +304,14 @@ export function OrgSwitcher() {
                     // bubble to the dismiss handler so it still closes the popup.
                     if (e.key !== "Escape") e.stopPropagation();
                   }}
-                  placeholder="Search organisations…"
-                  aria-label="Search organisations"
+                  placeholder="Search organizations…"
+                  aria-label="Search organizations"
                   className="min-w-0 flex-1 bg-transparent text-xs text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
                 />
                 {/* Manual re-sync — only meaningful with a credential to pull
                     with. Silent on failure: Rust keeps the last-known list. */}
                 {signedIn && personalSync && (
-                  <Hint label="Refresh organisations">
+                  <Hint label="Refresh organizations">
                     <button
                       disabled={refreshing}
                       onClick={async (e) => {
@@ -338,7 +338,7 @@ export function OrgSwitcher() {
               <div className="hide-scrollbar min-h-0 flex-1 overflow-y-auto pb-1">
                 {filteredOrgs.length === 0 && (
                   <div className="px-2.5 py-3 text-center text-xs text-[var(--atlas-text-disabled)]">
-                    No organisations match.
+                    No organizations match.
                   </div>
                 )}
                 {filteredOrgs.map((org) => {
@@ -398,7 +398,7 @@ export function OrgSwitcher() {
                           rename would silently revert. There is no org-update
                           route in the client to write it through with. */}
                       {access.ok && !isSyncedOrg(org) && (
-                        <Hint label="Rename organisation">
+                        <Hint label="Rename organization">
                           <button
                             onClick={(e) => {
                               e.preventDefault();
@@ -414,7 +414,7 @@ export function OrgSwitcher() {
                       {/* Delete — appears on hover; opens confirmation. Hidden when
                           this is the only org (can't delete the last one). */}
                       {access.ok && canDelete && (
-                        <Hint label="Delete organisation">
+                        <Hint label="Delete organization">
                           <button
                             onClick={(e) => {
                               e.preventDefault();
@@ -452,7 +452,7 @@ export function OrgSwitcher() {
                 className="mx-1 mt-1 flex h-control-md w-[calc(100%-8px)] shrink-0 items-center gap-2 rounded-md px-1.5 text-xs outline-none transition-colors hover:bg-[var(--atlas-element-hover)] hover:text-[var(--foreground)] cursor-pointer"
               >
                 <Plus size={12} className="shrink-0 text-[var(--muted-foreground)]" />
-                <span className="flex-1 text-left">Create organisation…</span>
+                <span className="flex-1 text-left">Create organization…</span>
               </DropdownMenu.Item>
 
               {/* Members live on the server, so this only means anything for a
@@ -492,26 +492,26 @@ export function OrgSwitcher() {
                 <DropdownMenu.Item
                   onClick={async () => {
                     setOpen(false);
-                    if (await copyText(copyableOrgId)) toast.success("Organisation ID copied");
-                    else toast.error("Could not copy the organisation ID");
+                    if (await copyText(copyableOrgId)) toast.success("Organization ID copied");
+                    else toast.error("Could not copy the organization ID");
                   }}
                   title={copyableOrgId}
                   className="mx-1 mb-1 flex h-control-md w-[calc(100%-8px)] shrink-0 items-center gap-2 rounded-md px-1.5 text-xs outline-none transition-colors hover:bg-[var(--atlas-element-hover)] hover:text-[var(--foreground)] cursor-pointer"
                 >
                   <Copy size={12} className="shrink-0 text-[var(--muted-foreground)]" />
-                  <span className="flex-1 text-left">Copy organisation ID</span>
+                  <span className="flex-1 text-left">Copy organization ID</span>
                 </DropdownMenu.Item>
               ) : (
                 <div
                   title={
                     personalSync
-                      ? "Turn on sync to give this organisation an ID"
+                      ? "Turn on sync to give this organization an ID"
                       : "Chat Sync is off — turn it on in Settings → Behaviour"
                   }
                   className="mx-1 mb-1 flex h-control-md w-[calc(100%-8px)] shrink-0 cursor-not-allowed items-center gap-2 rounded-md px-1.5 text-xs text-[var(--secondary-foreground)] opacity-40 select-none"
                 >
                   <Copy size={12} className="shrink-0" />
-                  <span className="flex-1 text-left">Copy organisation ID</span>
+                  <span className="flex-1 text-left">Copy organization ID</span>
                 </div>
               )}
 
@@ -541,7 +541,7 @@ export function OrgSwitcher() {
                 </div>
               ) : isSyncedOrg(active) ? (
                 <div
-                  title="This organisation is synced with your Atlas account"
+                  title="This organization is synced with your Atlas account"
                   className="mx-1 my-1 flex h-control-md w-[calc(100%-8px)] items-center gap-2 rounded-md px-1.5 text-xs text-[var(--secondary-foreground)] select-none"
                 >
                   <Cloud size={12} className="shrink-0 text-[var(--muted-foreground)]" />
@@ -566,8 +566,8 @@ export function OrgSwitcher() {
                   }}
                   title={
                     signedIn
-                      ? "Create this organisation in your Atlas account"
-                      : "Sign in to sync this organisation"
+                      ? "Create this organization in your Atlas account"
+                      : "Sign in to sync this organization"
                   }
                   className="mx-1 my-1 flex h-control-md w-[calc(100%-8px)] items-center gap-2 rounded-md px-1.5 text-xs text-[var(--secondary-foreground)] outline-none transition-colors hover:bg-[var(--atlas-element-hover)] hover:text-[var(--foreground)] cursor-pointer"
                 >
@@ -629,7 +629,7 @@ function DeleteOrgDialog({
             Delete “{org?.name}”?
           </Dialog.Title>
           <p className="mt-2 text-sm leading-relaxed text-[var(--secondary-foreground)]">
-            This permanently removes the organisation
+            This permanently removes the organization
             {projectCount > 0 && (
               <>
                 {" "}
@@ -665,7 +665,7 @@ function DeleteOrgDialog({
               className="px-3 h-8 rounded-md text-sm font-medium bg-error text-destructive-foreground hover:opacity-90 transition-opacity cursor-pointer inline-flex items-center gap-1.5 disabled:opacity-70 disabled:cursor-not-allowed"
             >
               {deleting && <Loader2 size={12} className="animate-spin" />}
-              {deleting ? "Deleting…" : "Delete organisation"}
+              {deleting ? "Deleting…" : "Delete organization"}
             </button>
           </div>
         </Dialog.Popup>

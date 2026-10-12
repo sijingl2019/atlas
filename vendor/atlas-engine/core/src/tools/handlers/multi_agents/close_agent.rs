@@ -68,7 +68,8 @@ async fn handle_close_agent(
     {
         Ok(mut status_rx) => status_rx.borrow_and_update().clone(),
         Err(err)
-            if known_agent && matches!(err.details(), AtlasEngineErrorDetails::ThreadNotFound(_)) =>
+            if known_agent
+                && matches!(err.details(), AtlasEngineErrorDetails::ThreadNotFound(_)) =>
         {
             session.services.agent_control.get_status(agent_id).await
         }

@@ -284,7 +284,10 @@ impl AtlasEngineResponsesMetadata {
             ),
             (SESSION_ID_KEY.to_string(), self.session_id.clone()),
             (THREAD_ID_KEY.to_string(), self.thread_id.clone()),
-            (X_ATLAS_AGENT_WINDOW_ID_HEADER.to_string(), self.window_id.clone()),
+            (
+                X_ATLAS_AGENT_WINDOW_ID_HEADER.to_string(),
+                self.window_id.clone(),
+            ),
         ]);
         if let Some(turn_id) = &self.turn_id {
             client_metadata.insert(TURN_ID_KEY.to_string(), turn_id.clone());
@@ -310,14 +313,21 @@ impl AtlasEngineResponsesMetadata {
         if self.has_turn_metadata()
             && let Some(turn_metadata_json) = self.turn_metadata_json()
         {
-            client_metadata.insert(X_ATLAS_AGENT_TURN_METADATA_HEADER.to_string(), turn_metadata_json);
+            client_metadata.insert(
+                X_ATLAS_AGENT_TURN_METADATA_HEADER.to_string(),
+                turn_metadata_json,
+            );
         }
         client_metadata
     }
 
     pub(crate) fn compatibility_headers(&self) -> ApiHeaderMap {
         let mut headers = ApiHeaderMap::new();
-        insert_header(&mut headers, X_ATLAS_AGENT_WINDOW_ID_HEADER, &self.window_id);
+        insert_header(
+            &mut headers,
+            X_ATLAS_AGENT_WINDOW_ID_HEADER,
+            &self.window_id,
+        );
         // Direct x-atlas-engine-turn-metadata is compatibility output. Keep the unbounded tool inventory
         // in client_metadata only so HTTP and WebSocket compatibility headers remain bounded.
         if self.has_turn_metadata()

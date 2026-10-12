@@ -155,7 +155,7 @@ export function CreateOrgDialog({
       await switchOrg(id); // land the user in the org they just made
     } catch (e) {
       // Rust hands back a user-facing string (duplicate handle, offline, …).
-      toast.error(typeof e === "string" ? e : "Couldn't create the organisation.");
+      toast.error(typeof e === "string" ? e : "Couldn't create the organization.");
     } finally {
       setSubmitting(false);
     }
@@ -199,7 +199,7 @@ export function CreateOrgDialog({
           <div className="px-4 pt-3.5 pb-4">
             <Dialog.Title className="flex items-center gap-2 text-base font-semibold tracking-[-0.01em] text-[var(--foreground)]">
               <Building2 size={13} className="text-[var(--muted-foreground)]" />
-              Create organisation
+              Create organization
             </Dialog.Title>
 
             <div className="mt-3.5 space-y-3">
@@ -280,8 +280,8 @@ export function CreateOrgDialog({
                           !isDisabled
                             ? undefined
                             : !personalSync
-                              ? "Turn on Chat Sync in Settings → Behaviour to create a cloud organisation"
-                              : "Sign in to create a cloud organisation"
+                              ? "Turn on Chat Sync in Settings → Behaviour to create a cloud organization"
+                              : "Sign in to create a cloud organization"
                         }
                         onClick={() => setMode(id)}
                         className={cn(
@@ -321,7 +321,7 @@ export function CreateOrgDialog({
                         disabled={isDisabled}
                         title={
                           !cloud
-                            ? "A local organisation isn't hosted anywhere"
+                            ? "A local organization isn't hosted anywhere"
                             : r.disabled
                               ? "Not available yet"
                               : undefined
@@ -369,7 +369,7 @@ export function CreateOrgDialog({
                 ) : (
                   <Building2 size={12} />
                 )}
-                Create organisation
+                Create organization
               </button>
             </div>
           </div>

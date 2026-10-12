@@ -131,10 +131,12 @@ fn provisioning_settings(
     let Some(network) = network.filter(|network| network.enabled()) else {
         return Ok(atlas_engine_windows_sandbox::WindowsSandboxProvisioningSettings::default());
     };
-    Ok(atlas_engine_windows_sandbox::WindowsSandboxProvisioningSettings {
-        proxy_ports: network.configured_proxy_ports()?,
-        allow_local_binding: network.allow_local_binding(),
-    })
+    Ok(
+        atlas_engine_windows_sandbox::WindowsSandboxProvisioningSettings {
+            proxy_ports: network.configured_proxy_ports()?,
+            allow_local_binding: network.allow_local_binding(),
+        },
+    )
 }
 
 #[cfg(target_os = "windows")]
@@ -380,9 +382,9 @@ fn emit_windows_sandbox_setup_failure_metrics(
             let mut message_tag: Option<String> = None;
             if let Some(failure) = atlas_engine_windows_sandbox::extract_setup_failure(_err) {
                 code_tag = Some(failure.code.as_str().to_string());
-                message_tag = Some(atlas_engine_windows_sandbox::sanitize_setup_metric_tag_value(
-                    &failure.message,
-                ));
+                message_tag = Some(
+                    atlas_engine_windows_sandbox::sanitize_setup_metric_tag_value(&failure.message),
+                );
             }
             if let Some(code) = code_tag.as_deref() {
                 failure_tags.push(("code", code));

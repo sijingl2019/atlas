@@ -92,7 +92,9 @@ async fn create_process_context(use_remote: bool) -> Result<ProcessContext> {
 #[cfg(unix)]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn remote_sandboxed_process_preserves_custom_arg0() -> Result<()> {
-    if let Some(warning) = atlas_engine_sandboxing::system_bwrap_warning(&PermissionProfile::read_only()) {
+    if let Some(warning) =
+        atlas_engine_sandboxing::system_bwrap_warning(&PermissionProfile::read_only())
+    {
         eprintln!("skipping bwrap test: {warning}");
         return Ok(());
     }
@@ -192,7 +194,9 @@ async fn assert_exec_process_starts_and_exits(use_remote: bool) -> Result<()> {
 #[cfg(target_os = "linux")]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn remote_process_keeps_sandbox_helper_visible_with_restricted_reads() -> Result<()> {
-    if let Some(warning) = atlas_engine_sandboxing::system_bwrap_warning(&PermissionProfile::read_only()) {
+    if let Some(warning) =
+        atlas_engine_sandboxing::system_bwrap_warning(&PermissionProfile::read_only())
+    {
         eprintln!("skipping bwrap test: {warning}");
         return Ok(());
     }
@@ -252,7 +256,9 @@ async fn remote_process_keeps_sandbox_helper_visible_with_restricted_reads() -> 
 #[cfg(target_os = "linux")]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn remote_tty_process_uses_configured_sandbox_helper_with_hostile_path() -> Result<()> {
-    if let Some(warning) = atlas_engine_sandboxing::system_bwrap_warning(&PermissionProfile::read_only()) {
+    if let Some(warning) =
+        atlas_engine_sandboxing::system_bwrap_warning(&PermissionProfile::read_only())
+    {
         eprintln!("skipping bwrap test: {warning}");
         return Ok(());
     }
@@ -324,7 +330,9 @@ async fn remote_tty_process_uses_configured_sandbox_helper_with_hostile_path() -
 #[cfg(unix)]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn remote_process_preserves_empty_workspace_roots() -> Result<()> {
-    if let Some(warning) = atlas_engine_sandboxing::system_bwrap_warning(&PermissionProfile::read_only()) {
+    if let Some(warning) =
+        atlas_engine_sandboxing::system_bwrap_warning(&PermissionProfile::read_only())
+    {
         eprintln!("skipping bwrap test: {warning}");
         return Ok(());
     }

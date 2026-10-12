@@ -1,8 +1,8 @@
 // Modified by Atlas from upstream OpenAI Codex (Apache-2.0). See CONTEXT.md.
+use atlas_engine_protocol::auth::PlanType;
 use base64::Engine;
 use chrono::DateTime;
 use chrono::Utc;
-use atlas_engine_protocol::auth::PlanType;
 use serde::Deserialize;
 use serde::Serialize;
 use serde::de::DeserializeOwned;

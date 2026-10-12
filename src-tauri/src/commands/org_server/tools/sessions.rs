@@ -54,20 +54,30 @@ fn parse_moment(text: &str, end_of_day: bool) -> Option<DateTime<Utc>> {
     if let Ok(at) = DateTime::parse_from_rfc3339(text) {
         return Some(at.with_timezone(&Utc));
     }
-    for format in ["%Y-%m-%dT%H:%M:%S%.f", "%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M:%S"] {
+    for format in [
+        "%Y-%m-%dT%H:%M:%S%.f",
+        "%Y-%m-%dT%H:%M",
+        "%Y-%m-%d %H:%M:%S",
+    ] {
         if let Ok(at) = NaiveDateTime::parse_from_str(text, format) {
             return Some(at.and_utc());
         }
     }
     let day = NaiveDate::parse_from_str(text, "%Y-%m-%d").ok()?;
     let start = day.and_hms_opt(0, 0, 0)?.and_utc();
-    Some(if end_of_day { start + Duration::days(1) - Duration::milliseconds(1) } else { start })
+    Some(if end_of_day {
+        start + Duration::days(1) - Duration::milliseconds(1)
+    } else {
+        start
+    })
 }
 
 /// A server timestamp, or `None` when it is missing or unreadable — which a
 /// date fold then lets through rather than drops, since the row is real.
 fn stamp(text: &str) -> Option<DateTime<Utc>> {
-    DateTime::parse_from_rfc3339(text).ok().map(|at| at.with_timezone(&Utc))
+    DateTime::parse_from_rfc3339(text)
+        .ok()
+        .map(|at| at.with_timezone(&Utc))
 }
 
 fn iso(at: DateTime<Utc>) -> String {
@@ -103,7 +113,8 @@ fn recorded_session_json(session: &RemoteSession) -> Value {
 /// and only the fields that apply to its kind — the server omits the rest,
 /// and so does this, because every empty field is a token the model pays for.
 fn entry_json(entry: &RemoteEntry) -> Value {
-    let mut out = json!({ "id": entry.id, "kind": entry.kind, "at": entry.at, "turn": entry.turn_seq });
+    let mut out =
+        json!({ "id": entry.id, "kind": entry.kind, "at": entry.at, "turn": entry.turn_seq });
     let mut put = |key: &str, value: Value| {
         out[key] = value;
     };
@@ -174,9 +185,9 @@ impl Window {
     pub(super) fn of(since: Option<&str>, until: Option<&str>) -> Result<Self, CallToolResult> {
         let read = |name: &str, text: Option<&str>, end_of_day: bool| match text {
             None => Ok(None),
-            Some(text) => parse_moment(text, end_of_day)
-                .map(Some)
-                .ok_or_else(|| tool_error(format!("{name} \"{text}\" is not an ISO date or datetime"))),
+            Some(text) => parse_moment(text, end_of_day).map(Some).ok_or_else(|| {
+                tool_error(format!("{name} \"{text}\" is not an ISO date or datetime"))
+            }),
         };
         let mut since = read("since", since, false)?;
         let until = read("until", until, true)?;
@@ -184,14 +195,19 @@ impl Window {
         if default {
             since = Some(Utc::now() - Duration::days(SESSIONS_DEFAULT_WINDOW_DAYS));
         }
-        Ok(Self { since, until, default })
+        Ok(Self {
+            since,
+            until,
+            default,
+        })
     }
 
     /// Whether a recorded session overlaps the window at its far end: it
     /// started at or before `until`. The near end (`since`) is the walk's —
     /// the first row last active before it ends the walk.
     fn holds(&self, session: &RemoteSession) -> bool {
-        self.until.is_none_or(|until| stamp(&session.started_at).is_none_or(|started| started <= until))
+        self.until
+            .is_none_or(|until| stamp(&session.started_at).is_none_or(|started| started <= until))
     }
 
     pub(super) fn json(&self) -> Value {
@@ -228,13 +244,16 @@ pub(super) struct Walked {
 
 /// The Workspace a board fold reads: the one the model named, in the grant's
 /// organisation, else the grant's own.
-pub(super) fn workspace_of<'a>(asked: Option<&'a str>, scope: &'a OrgScope) -> Result<&'a str, CallToolResult> {
+pub(super) fn workspace_of<'a>(
+    asked: Option<&'a str>,
+    scope: &'a OrgScope,
+) -> Result<&'a str, CallToolResult> {
     if let Some(asked) = asked {
         return checked_id("a Workspace", asked);
     }
     asked.or(scope.workspace_id.as_deref()).ok_or_else(|| {
         tool_error(
-            "this session's project is bound to the organisation but its Workspace id is not recorded yet; \
+            "this session's project is bound to the organization but its Workspace id is not recorded yet; \
              ask the user to reopen the project's cloud settings and start a new chat",
         )
     })
@@ -258,7 +277,11 @@ impl OrgTools {
     /// `workspace` reads another Workspace's board in the grant's
     /// organisation — never another organisation's: the board is asked in the
     /// grant's, and the server refuses a Workspace that is not in it.
-    pub(super) async fn sessions(&self, scope: &OrgScope, filters: SessionFilters<'_>) -> CallToolResult {
+    pub(super) async fn sessions(
+        &self,
+        scope: &OrgScope,
+        filters: SessionFilters<'_>,
+    ) -> CallToolResult {
         let workspace_id = match workspace_of(filters.workspace, scope) {
             Ok(id) => id,
             Err(answer) => return answer,
@@ -276,7 +299,9 @@ impl OrgTools {
         };
 
         let keep = |session: &RemoteSession| {
-            author.as_ref().is_none_or(|(id, _)| session.author_id.as_deref() == Some(id.as_str()))
+            author
+                .as_ref()
+                .is_none_or(|(id, _)| session.author_id.as_deref() == Some(id.as_str()))
                 && filters.live.is_none_or(|live| session.live == live)
         };
         let walk = BoardWalk {
@@ -316,14 +341,22 @@ impl OrgTools {
     /// A member a board fold is narrowed to, as `(user id, name)`: the caller
     /// for `"me"`, else the roster's one match — several come back as
     /// candidates to ask about, and the board is not read.
-    pub(super) async fn author_of(&self, scope: &OrgScope, name: &str) -> Result<(String, String), CallToolResult> {
+    pub(super) async fn author_of(
+        &self,
+        scope: &OrgScope,
+        name: &str,
+    ) -> Result<(String, String), CallToolResult> {
         if name.eq_ignore_ascii_case("me") {
             return match self.cloud.caller(&scope.org_id).await {
                 Ok(caller) => Ok((caller.user_id, caller.name)),
                 Err(e) => Err(tool_error(e.to_string())),
             };
         }
-        let roster = self.cloud.members(&scope.org_id).await.map_err(|e| tool_error(e.to_string()))?;
+        let roster = self
+            .cloud
+            .members(&scope.org_id)
+            .await
+            .map_err(|e| tool_error(e.to_string()))?;
         resolve_member(&roster, name).map(|member| (member.user_id, member.name))
     }
 
@@ -349,7 +382,11 @@ impl OrgTools {
         let mut oldest: Option<String> = None;
         let mut cursor: Option<String> = None;
         'pages: loop {
-            let query = BoardQuery { workspace_id: walk.workspace_id, q: walk.q, cursor: cursor.as_deref() };
+            let query = BoardQuery {
+                workspace_id: walk.workspace_id,
+                q: walk.q,
+                cursor: cursor.as_deref(),
+            };
             let page = self.cloud.board_page(org_id, query).await?;
             for note in page.notes {
                 if !walked.notes.contains(&note) {
@@ -370,7 +407,9 @@ impl OrgTools {
                     }
                 }
                 walked.scanned += 1;
-                oldest = Some(session.last_activity_at.clone()).filter(|s| !s.is_empty()).or(oldest);
+                oldest = Some(session.last_activity_at.clone())
+                    .filter(|s| !s.is_empty())
+                    .or(oldest);
                 if walk.window.holds(&session) && keep(&session) {
                     walked.kept.push(session);
                     if walk.limit == Some(walked.kept.len()) {
@@ -398,7 +437,9 @@ impl OrgTools {
             ));
         }
         if walked.truncated {
-            walked.notes.push(scan_cap_note(oldest.as_deref(), walk.narrow_with));
+            walked
+                .notes
+                .push(scan_cap_note(oldest.as_deref(), walk.narrow_with));
         }
         Ok(walked)
     }
@@ -460,8 +501,14 @@ impl OrgTools {
         row_id: &str,
         part: &str,
     ) -> CallToolResult {
-        let Some(part) = PAYLOAD_PARTS.iter().copied().find(|p| p.eq_ignore_ascii_case(part)) else {
-            return tool_error(format!("part \"{part}\" is not one of body, arguments or result"));
+        let Some(part) = PAYLOAD_PARTS
+            .iter()
+            .copied()
+            .find(|p| p.eq_ignore_ascii_case(part))
+        else {
+            return tool_error(format!(
+                "part \"{part}\" is not one of body, arguments or result"
+            ));
         };
         let target = match self.session_target(grant, scope, session).await {
             Ok(target) => target,

@@ -51,10 +51,10 @@ use crate::facts::AppUsedInput;
 use crate::facts::ArtifactOperation;
 use crate::facts::ArtifactOperationInput;
 use crate::facts::ArtifactOperationLifecycle;
-use crate::facts::CodeModeToolCallFact;
-use crate::facts::CodeModeToolCallStatus;
 use crate::facts::AtlasEngineCompactionEvent;
 use crate::facts::AtlasEngineErrKind;
+use crate::facts::CodeModeToolCallFact;
+use crate::facts::CodeModeToolCallStatus;
 use crate::facts::CompactionImplementation;
 use crate::facts::CompactionPhase;
 use crate::facts::CompactionReason;
@@ -100,10 +100,10 @@ use crate::reducer::normalize_path_for_skill_id;
 use crate::reducer::skill_id_for_local_skill;
 use atlas_engine_app_server_protocol::ApprovalsReviewer as AppServerApprovalsReviewer;
 use atlas_engine_app_server_protocol::AskForApproval as AppServerAskForApproval;
+use atlas_engine_app_server_protocol::AtlasEngineErrorInfo;
 use atlas_engine_app_server_protocol::ClientInfo;
 use atlas_engine_app_server_protocol::ClientRequest;
 use atlas_engine_app_server_protocol::ClientResponsePayload;
-use atlas_engine_app_server_protocol::AtlasEngineErrorInfo;
 use atlas_engine_app_server_protocol::CollabAgentTool;
 use atlas_engine_app_server_protocol::CollabAgentToolCallStatus;
 use atlas_engine_app_server_protocol::CommandAction;
@@ -983,9 +983,11 @@ fn sample_permissions_approval_request(request_id: i64) -> ServerRequest {
             cwd: test_path_buf("/tmp").abs(),
             reason: Some("need network".to_string()),
             permissions: RequestPermissionProfile {
-                network: Some(atlas_engine_app_server_protocol::AdditionalNetworkPermissions {
-                    enabled: Some(true),
-                }),
+                network: Some(
+                    atlas_engine_app_server_protocol::AdditionalNetworkPermissions {
+                        enabled: Some(true),
+                    },
+                ),
                 file_system: None,
             },
         },
@@ -2468,7 +2470,10 @@ async fn item_lifecycle_notifications_publish_command_execution_event() {
 
     let payload = serde_json::to_value(&events).expect("serialize events");
     assert_eq!(payload.as_array().expect("events array").len(), 1);
-    assert_eq!(payload[0]["event_type"], "atlas_engine_command_execution_event");
+    assert_eq!(
+        payload[0]["event_type"],
+        "atlas_engine_command_execution_event"
+    );
     assert_eq!(payload[0]["event_params"]["thread_id"], "thread-1");
     assert_eq!(payload[0]["event_params"]["session_id"], "session-thread-1");
     assert_eq!(payload[0]["event_params"]["turn_id"], "turn-1");
@@ -3500,7 +3505,10 @@ async fn subagent_tool_items_inherit_parent_connection_metadata() {
 
     let payload = serde_json::to_value(&events).expect("serialize events");
     assert_eq!(payload.as_array().expect("events array").len(), 2);
-    assert_eq!(payload[0]["event_type"], "atlas_engine_command_execution_event");
+    assert_eq!(
+        payload[0]["event_type"],
+        "atlas_engine_command_execution_event"
+    );
     assert_eq!(payload[0]["event_params"]["thread_id"], "thread-subagent");
     assert_eq!(payload[0]["event_params"]["session_id"], "session-thread-1");
     assert_eq!(payload[0]["event_params"]["thread_source"], "subagent");
@@ -3510,7 +3518,10 @@ async fn subagent_tool_items_inherit_parent_connection_metadata() {
         payload[0]["event_params"]["app_server_client"]["client_name"],
         "atlas-engine-tui"
     );
-    assert_eq!(payload[1]["event_type"], "atlas_engine_dynamic_tool_call_event");
+    assert_eq!(
+        payload[1]["event_type"],
+        "atlas_engine_dynamic_tool_call_event"
+    );
     assert_eq!(payload[1]["event_params"]["parent_thread_id"], "thread-1");
 }
 
@@ -3575,15 +3586,16 @@ fn plugin_management_event_serializes_expected_shape() {
 
 #[test]
 fn plugin_install_failed_event_serializes_expected_shape() {
-    let event = TrackEventRequest::PluginInstallFailed(AtlasEnginePluginInstallFailedEventRequest {
-        event_type: "atlas_engine_plugin_install_failed",
-        event_params: AtlasEnginePluginInstallFailedMetadata {
-            plugin: atlas_engine_plugin_metadata(sample_plugin_metadata()),
-            source: PluginInstallSource::Manual,
-            error_type: "store_io".to_string(),
-            sub_error_type: Some("failed_to_copy_plugin_file".to_string()),
-        },
-    });
+    let event =
+        TrackEventRequest::PluginInstallFailed(AtlasEnginePluginInstallFailedEventRequest {
+            event_type: "atlas_engine_plugin_install_failed",
+            event_params: AtlasEnginePluginInstallFailedMetadata {
+                plugin: atlas_engine_plugin_metadata(sample_plugin_metadata()),
+                source: PluginInstallSource::Manual,
+                error_type: "store_io".to_string(),
+                sub_error_type: Some("failed_to_copy_plugin_file".to_string()),
+            },
+        });
 
     let payload = serde_json::to_value(&event).expect("serialize plugin install failed event");
 
@@ -4495,7 +4507,10 @@ async fn accepted_turn_steer_emits_expected_event() {
 
     assert_eq!(out.len(), 1);
     let payload = serde_json::to_value(&out[0]).expect("serialize turn steer event");
-    assert_eq!(payload["event_type"], json!("atlas_engine_turn_steer_event"));
+    assert_eq!(
+        payload["event_type"],
+        json!("atlas_engine_turn_steer_event")
+    );
     assert_eq!(payload["event_params"]["thread_id"], json!("thread-2"));
     assert_eq!(
         payload["event_params"]["session_id"],
@@ -4538,7 +4553,10 @@ async fn rejected_turn_steer_uses_request_connection_metadata() {
     )
     .await;
 
-    assert_eq!(payload["event_type"], json!("atlas_engine_turn_steer_event"));
+    assert_eq!(
+        payload["event_type"],
+        json!("atlas_engine_turn_steer_event")
+    );
     assert_eq!(payload["event_params"]["thread_id"], json!("thread-2"));
     assert_eq!(payload["event_params"]["expected_turn_id"], json!("turn-2"));
     assert_eq!(payload["event_params"]["accepted_turn_id"], json!(null));
@@ -4917,7 +4935,10 @@ async fn turn_event_counts_completed_tool_items() {
             ("atlas_engine_file_change_event", "session-thread-2"),
             ("atlas_engine_mcp_tool_call_event", "session-thread-2"),
             ("atlas_engine_dynamic_tool_call_event", "session-thread-2"),
-            ("atlas_engine_collab_agent_tool_call_event", "session-thread-2"),
+            (
+                "atlas_engine_collab_agent_tool_call_event",
+                "session-thread-2"
+            ),
             ("atlas_engine_web_search_event", "session-thread-2"),
             ("atlas_engine_image_generation_event", "session-thread-2"),
         ]
@@ -5262,7 +5283,9 @@ async fn turn_lifecycle_emits_failed_turn_event() {
                 TurnAtlasEngineErrorFact::from_atlas_engine_err(
                     "thread-2".to_string(),
                     "turn-2".to_string(),
-                    &AtlasEngineErr::InvalidRequest("unknown turn environment id `env-2`".to_string()),
+                    &AtlasEngineErr::InvalidRequest(
+                        "unknown turn environment id `env-2`".to_string(),
+                    ),
                 ),
             ))),
             &mut out,
@@ -5350,7 +5373,10 @@ async fn rejected_turn_interrupt_does_not_tag_interrupted_turn_event() {
         json!(null)
     );
     assert_eq!(payload["event_params"]["turn_error"], json!(null));
-    assert_eq!(payload["event_params"]["atlas_engine_error_kind"], json!(null));
+    assert_eq!(
+        payload["event_params"]["atlas_engine_error_kind"],
+        json!(null)
+    );
 }
 
 #[tokio::test]

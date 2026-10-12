@@ -8,14 +8,6 @@ use app_test_support::ChatGptAuthFixture;
 use app_test_support::TestAppServer;
 use app_test_support::to_response;
 use app_test_support::write_chatgpt_auth;
-use axum::Json;
-use axum::Router;
-use axum::extract::State;
-use axum::http::HeaderMap;
-use axum::http::StatusCode;
-use axum::http::Uri;
-use axum::http::header::AUTHORIZATION;
-use axum::routing::get;
 use atlas_engine_app_server_protocol::ApprovalsReviewer;
 use atlas_engine_app_server_protocol::AskForApproval;
 use atlas_engine_app_server_protocol::ClientInfo;
@@ -44,6 +36,14 @@ use atlas_engine_config::types::AuthCredentialsStoreMode;
 use atlas_engine_mcp::MCP_TOOL_ATLAS_APPS_META_KEY;
 use atlas_engine_protocol::mcp::OPENAI_STANDARD_FORM_INPUT_EXTENSION_ID;
 use atlas_engine_protocol::mcp_approval_meta as approval_meta;
+use axum::Json;
+use axum::Router;
+use axum::extract::State;
+use axum::http::HeaderMap;
+use axum::http::StatusCode;
+use axum::http::Uri;
+use axum::http::header::AUTHORIZATION;
+use axum::routing::get;
 use core_test_support::assert_regex_match;
 use core_test_support::responses;
 use core_test_support::responses::ResponseMock;
@@ -312,7 +312,11 @@ async fn openai_form_capability_follows_the_turn_starting_connection() -> Result
     let (responses_server, response_mock, apps_server_url, apps_server_handle) =
         start_elicitation_services(ElicitationScenario::OpenAiForm).await?;
     let atlas_agent_home = TempDir::new()?;
-    write_config_toml(atlas_agent_home.path(), &responses_server.uri(), &apps_server_url)?;
+    write_config_toml(
+        atlas_agent_home.path(),
+        &responses_server.uri(),
+        &apps_server_url,
+    )?;
     write_chatgpt_auth(
         atlas_agent_home.path(),
         ChatGptAuthFixture::new("chatgpt-token")
@@ -638,7 +642,11 @@ impl ElicitationRoundTripFixture {
         let (responses_server, response_mock, apps_server_url, apps_server_handle) =
             start_elicitation_services(scenario).await?;
         let atlas_agent_home = TempDir::new()?;
-        write_config_toml(atlas_agent_home.path(), &responses_server.uri(), &apps_server_url)?;
+        write_config_toml(
+            atlas_agent_home.path(),
+            &responses_server.uri(),
+            &apps_server_url,
+        )?;
         let strict = if let ElicitationScenario::Strict(strict) = scenario {
             Some(strict)
         } else {
@@ -650,7 +658,10 @@ impl ElicitationRoundTripFixture {
             _ => "",
         };
         if !requirements.is_empty() {
-            std::fs::write(atlas_agent_home.path().join("requirements.toml"), requirements)?;
+            std::fs::write(
+                atlas_agent_home.path().join("requirements.toml"),
+                requirements,
+            )?;
         }
         write_chatgpt_auth(
             atlas_agent_home.path(),

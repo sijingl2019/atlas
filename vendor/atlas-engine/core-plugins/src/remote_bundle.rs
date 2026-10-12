@@ -955,7 +955,9 @@ mod tests {
         std::fs::create_dir_all(extraction_root.path().join(".atlas-agent-plugin"))
             .expect("create manifest dir");
         std::fs::write(
-            extraction_root.path().join(".atlas-agent-plugin/plugin.json"),
+            extraction_root
+                .path()
+                .join(".atlas-agent-plugin/plugin.json"),
             r#"{"name":"linear"}"#,
         )
         .expect("write manifest");
@@ -970,7 +972,8 @@ mod tests {
     fn find_extracted_plugin_root_rejects_nested_plugin_root() {
         let extraction_root = tempdir().expect("tempdir");
         let plugin_root = extraction_root.path().join("linear");
-        std::fs::create_dir_all(plugin_root.join(".atlas-agent-plugin")).expect("create manifest dir");
+        std::fs::create_dir_all(plugin_root.join(".atlas-agent-plugin"))
+            .expect("create manifest dir");
         std::fs::write(
             plugin_root.join(".atlas-agent-plugin/plugin.json"),
             r#"{"name":"linear"}"#,

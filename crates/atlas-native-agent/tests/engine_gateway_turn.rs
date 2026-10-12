@@ -19,11 +19,11 @@ use std::sync::Arc;
 use agent_client_protocol::schema::v1 as acp;
 use atlas_acp_thread::{AcpThreadEvent, AgentConnection, AgentId};
 use atlas_agent_servers::ThreadEventSink;
+use atlas_engine_login::auth::ExternalAuthFuture;
 use atlas_native_agent::engine::auth::{AtlasExternalAuth, AtlasTokenSource};
 use atlas_native_agent::engine::catalog_cache::{CatalogueFetcher, GatewayCatalogueFetcher};
 use atlas_native_agent::engine::config::{EngineHome, EngineProvider, EngineSettings};
 use atlas_native_agent::engine::connection::EngineConnection;
-use atlas_engine_login::auth::ExternalAuthFuture;
 use serde_json::Value;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -1691,10 +1691,9 @@ async fn prompt_too_large_compacts_and_retries_but_request_too_large_stops() {
         .await
         .expect("prompt_too_large should compact and retry once");
     assert_eq!(response.stop_reason, acp::StopReason::EndTurn);
-    assert!(
-        h.assistant_text()
-            .contains("recovered from gateway overflow")
-    );
+    assert!(h
+        .assistant_text()
+        .contains("recovered from gateway overflow"));
     let attempts = h
         .server
         .received_requests()

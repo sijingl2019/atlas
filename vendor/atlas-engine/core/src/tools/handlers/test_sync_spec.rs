@@ -51,7 +51,8 @@ pub fn create_test_sync_tool() -> ToolSpec {
 
     ToolSpec::Function(ResponsesApiTool {
         name: "test_sync_tool".to_string(),
-        description: "Internal synchronization helper used by Atlas Agent integration tests.".to_string(),
+        description: "Internal synchronization helper used by Atlas Agent integration tests."
+            .to_string(),
         strict: false,
         defer_loading: None,
         parameters: JsonSchema::object(properties, /*required*/ None, Some(false.into())),

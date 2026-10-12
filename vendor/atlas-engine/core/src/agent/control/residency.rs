@@ -96,9 +96,11 @@ impl V2Residency {
                 .try_unload_one_resident(manager, protected_thread_id)
                 .await
             {
-                return Err(AtlasEngineErr::new(AtlasEngineErrorDetails::AgentLimitReached {
-                    max_threads: capacity,
-                }));
+                return Err(AtlasEngineErr::new(
+                    AtlasEngineErrorDetails::AgentLimitReached {
+                        max_threads: capacity,
+                    },
+                ));
             }
         }
     }

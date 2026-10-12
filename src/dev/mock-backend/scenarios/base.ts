@@ -4,12 +4,11 @@
 // Each answer is typed with the same type the frontend's API wrapper uses, so
 // `bun run typecheck` flags a fake that no longer matches what Rust returns.
 
-import type { KeybindingsLoadResult } from "@/features/keybindings/lib/keybindings-api";
-import { DEFAULT_KEYBINDINGS_FILE } from "@/features/keybindings/lib/types";
 import type { UpdaterSnapshot } from "@/features/updater/lib/updater-api";
 import type { FileEntry } from "@/features/explorer/stores/explorer-store";
 import type { Theme, ThemeCatalogSummary } from "@/features/theme/lib/theme-api";
 import type { MockHandlers } from "../types";
+import { DEFAULT_APP_PROFILE, type AppProfile } from "@/lib/app-profile";
 import builtinThemesJson from "../fixtures/builtin-themes.json";
 import { agentHandlers } from "../fake-agent";
 import { subagentsHandlers } from "../fixtures/subagents";
@@ -29,7 +28,7 @@ import { skillsHandlers } from "../fixtures/skills";
 import { spacesHandlers } from "../fixtures/spaces";
 import { terminalHandlers } from "../fixtures/terminal";
 import { importedUserThemes, themeImportHandlers } from "../fixtures/theme-import";
-import { appState } from "../project";
+import { appState, MOCK_PROJECT } from "../project";
 
 const nothing = () => null;
 
@@ -105,6 +104,7 @@ export const baseHandlers: MockHandlers = {
 
   // ── boot ────────────────────────────────────────────────────────────────
   bootstrap_app_state: () => appState(),
+  app_profile: (): AppProfile => DEFAULT_APP_PROFILE,
   cli_take_initial_project_path: nothing,
   set_window_title: nothing,
   telemetry_config: () => ({
@@ -121,11 +121,6 @@ export const baseHandlers: MockHandlers = {
     version: null,
     currentVersion: "0.0.0-mock",
   }),
-  keybindings_load: (): KeybindingsLoadResult => ({
-    file: DEFAULT_KEYBINDINGS_FILE,
-    path: "~/.config/atlas/keybindings.json",
-    warnings: [],
-  }),
 
   // ── project open ──────────────────────────────────────────────────────
   save_app_state: nothing,
@@ -135,7 +130,12 @@ export const baseHandlers: MockHandlers = {
   save_editor_state: nothing,
   load_project_session: () => "{}",
   read_directory: ({ path }): FileEntry[] => listDir(path),
-  codebase_index_status: () => ({ indexed: false, fileCount: 0, summaryCount: 0, builtAtMs: 0 }),
+  // The demo project reads as indexed, so the composer pill shows "N indexed";
+  // the other projects keep the unbuilt "Index memory" label.
+  codebase_index_status: ({ projectPath }) =>
+    projectPath === MOCK_PROJECT.path
+      ? { indexed: true, fileCount: 1284, summaryCount: 312, builtAtMs: Date.now() - 42 * 60_000 }
+      : { indexed: false, fileCount: 0, summaryCount: 0, builtAtMs: 0 },
   log_interaction: nothing,
 
   // ── knowledge ───────────────────────────────────────────────────────────
@@ -176,6 +176,9 @@ export const baseHandlers: MockHandlers = {
   // ── fire-and-forget housekeeping ────────────────────────────────────────
   comms_ready: nothing,
   fileindex_close_project: nothing,
+  // Mirrored instructions: Rust writes AGENTS.md; nothing to fake in a browser.
+  instruction_sync_start: nothing,
+  instruction_sync_stop: nothing,
   recent_files_close_project: nothing,
   mention_cache_clear: nothing,
   mention_cache_set_knowledge: nothing,

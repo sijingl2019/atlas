@@ -7,7 +7,7 @@ import { DeltaChip } from "./delta-chip";
 
 const fmtRatio = (r: number) =>
   r >= 1 ? `${r.toFixed(1)}×` : `1:${Math.max(1, Math.round(1 / r))}`;
-const fmtCostFine = (n: number) => (n < 0.01 && n > 0 ? `$${n.toFixed(4)}` : fmtCost(n));
+const fmtCostFine = (n: number) => (n < 0.01 && n > 0 ? fmtCost(n, "USD", 4) : fmtCost(n));
 
 /**
  * The token-efficiency report: six ratios over the window with their period deltas, then the

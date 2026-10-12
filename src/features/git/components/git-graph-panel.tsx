@@ -11,7 +11,7 @@ import { useAppStore } from "@/features/app/stores/app-store";
 import { useGitStore } from "@/features/git/stores/git-store";
 import { useLayoutStore } from "@/features/layout/stores/layout-store";
 import { CommitRowView } from "./commit-node";
-import { ROW_HEIGHT, type BuiltGraph } from "../lib/git-graph";
+import { ROW_HEIGHT, commitCountLabel, type BuiltGraph } from "../lib/git-graph";
 
 const DEFAULT_LIMIT = 1000;
 
@@ -100,6 +100,7 @@ export function GitGraphPanel() {
     <GraphView
       path={path}
       rows={rows}
+      totalCommits={graphQuery.data?.totalCommits ?? rows.length}
       isLoading={graphQuery.isLoading && !graphQuery.data}
       compact={!fullscreen}
       selectedSha={selectedSha}
@@ -135,6 +136,7 @@ export function GitGraphPanel() {
 interface GraphViewProps {
   path: string;
   rows: BuiltGraph["rows"];
+  totalCommits: number;
   isLoading: boolean;
   compact: boolean;
   selectedSha: string | null;
@@ -150,6 +152,7 @@ interface GraphViewProps {
 function GraphView({
   path,
   rows,
+  totalCommits,
   isLoading,
   compact,
   selectedSha,
@@ -202,7 +205,7 @@ function GraphView({
         <div className="flex items-center gap-1.5">
           {rows.length > 0 && (
             <span className="text-2xs font-semibold text-muted-foreground uppercase tracking-wide">
-              {rows.length} commits
+              {commitCountLabel(rows.length, totalCommits)}
             </span>
           )}
         </div>

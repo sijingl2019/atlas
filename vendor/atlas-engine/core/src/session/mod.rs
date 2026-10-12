@@ -46,8 +46,6 @@ use crate::turn_metadata::TurnMetadataState;
 use crate::turn_timing::now_unix_timestamp_ms;
 use async_channel::Receiver;
 use async_channel::Sender;
-use chrono::Local;
-use chrono::Utc;
 use atlas_engine_analytics::AnalyticsEventsClient;
 use atlas_engine_analytics::ImagePreparationFact;
 use atlas_engine_analytics::ImagePreparationMetadata;
@@ -70,8 +68,8 @@ use atlas_engine_features::unstable_features_warning_event;
 use atlas_engine_history::RolloutItem;
 use atlas_engine_hooks::Hooks;
 use atlas_engine_hooks::HooksConfig;
-use atlas_engine_login::AuthManager;
 use atlas_engine_login::AtlasEngineAuth;
+use atlas_engine_login::AuthManager;
 use atlas_engine_login::auth_env_telemetry::collect_auth_env_telemetry;
 use atlas_engine_mcp::McpResourceClient;
 use atlas_engine_mcp::McpRuntime;
@@ -157,6 +155,8 @@ use atlas_engine_thread_store::ThreadPersistenceMetadata;
 use atlas_engine_thread_store::ThreadStore;
 use atlas_engine_utils_audio::prepare_response_items as prepare_audio_response_items;
 use atlas_engine_utils_path_uri::PathUri;
+use chrono::Local;
+use chrono::Utc;
 use futures::future::BoxFuture;
 use futures::future::Shared;
 use futures::prelude::*;
@@ -178,8 +178,8 @@ use tracing::instrument;
 use tracing::warn;
 use uuid::Uuid;
 
-use crate::client::ModelClient;
 use crate::atlas_engine_thread::ThreadConfigSnapshot;
+use crate::client::ModelClient;
 #[cfg(test)]
 use crate::compact::collect_user_messages;
 use crate::config::Config;
@@ -397,7 +397,8 @@ pub(crate) struct SessionSpawnArgs {
     pub(crate) plugins_manager: Arc<PluginsManager>,
     pub(crate) mcp_manager: Arc<McpManager>,
     pub(crate) code_mode_session_provider: Arc<dyn atlas_engine_code_mode::CodeModeSessionProvider>,
-    pub(crate) extensions: Arc<atlas_engine_extension_api::ExtensionRegistry<crate::config::Config>>,
+    pub(crate) extensions:
+        Arc<atlas_engine_extension_api::ExtensionRegistry<crate::config::Config>>,
     pub(crate) conversation_history: InitialHistory,
     pub(crate) requested_history_mode: Option<ThreadHistoryMode>,
     pub(crate) fork_persistence: ForkPersistence,
@@ -849,7 +850,9 @@ impl SessionIo {
             root_turn_id: None,
         })
         .await?;
-        reply_rx.await.unwrap_or(Err(AtlasEngineErr::InternalAgentDied))
+        reply_rx
+            .await
+            .unwrap_or(Err(AtlasEngineErr::InternalAgentDied))
     }
 
     pub(crate) async fn submit_recover_turn(
@@ -870,7 +873,9 @@ impl SessionIo {
             root_turn_id: None,
         })
         .await?;
-        reply_rx.await.unwrap_or(Err(AtlasEngineErr::InternalAgentDied))
+        reply_rx
+            .await
+            .unwrap_or(Err(AtlasEngineErr::InternalAgentDied))
     }
 
     pub(crate) async fn shutdown_and_wait(&self) -> AtlasEngineResult<()> {
@@ -1057,7 +1062,9 @@ impl Session {
         exec_policy: &atlas_engine_execpolicy::Policy,
         permission_profile: &PermissionProfile,
         network_policy_decider: Option<Arc<dyn atlas_engine_network_proxy::NetworkPolicyDecider>>,
-        blocked_request_observer: Option<Arc<dyn atlas_engine_network_proxy::BlockedRequestObserver>>,
+        blocked_request_observer: Option<
+            Arc<dyn atlas_engine_network_proxy::BlockedRequestObserver>,
+        >,
         managed_network_requirements_enabled: bool,
         audit_metadata: NetworkProxyAuditMetadata,
     ) -> anyhow::Result<(StartedNetworkProxy, SessionNetworkProxyRuntime)> {
@@ -1691,7 +1698,9 @@ impl Session {
             .clone()
     }
 
-    pub(crate) async fn user_instructions(&self) -> Option<atlas_engine_extension_api::UserInstructions> {
+    pub(crate) async fn user_instructions(
+        &self,
+    ) -> Option<atlas_engine_extension_api::UserInstructions> {
         self.services.agents_md_manager.user_instructions()
     }
 
@@ -1870,7 +1879,11 @@ impl Session {
     }
 
     /// Record a terminal AtlasEngineErr before the app-server completion notification is reduced.
-    pub(crate) fn track_turn_atlas_engine_error(&self, turn_context: &TurnContext, error: &AtlasEngineErr) {
+    pub(crate) fn track_turn_atlas_engine_error(
+        &self,
+        turn_context: &TurnContext,
+        error: &AtlasEngineErr,
+    ) {
         self.services
             .analytics_events_client
             .track_turn_atlas_engine_error(TurnAtlasEngineErrorFact::from_atlas_engine_err(
@@ -2106,7 +2119,9 @@ impl Session {
     /// Delivers an event without creating a local rollout for a thread that has not materialized.
     pub(crate) async fn send_event_raw_without_materializing_rollout(&self, event: Event) {
         let persist = match self.current_rollout_path().await {
-            Ok(Some(path)) => atlas_engine_rollout::existing_rollout_path(&path).await.is_some(),
+            Ok(Some(path)) => atlas_engine_rollout::existing_rollout_path(&path)
+                .await
+                .is_some(),
             Ok(None) => true,
             Err(err) => {
                 warn!("failed to check whether thread persistence is materialized: {err}");
@@ -3145,7 +3160,8 @@ impl Session {
             )
             .or_cancel(cancellation_token)
             .await?;
-        let extension_data = atlas_engine_extension_api::ExtensionData::new(turn_context.sub_id.clone());
+        let extension_data =
+            atlas_engine_extension_api::ExtensionData::new(turn_context.sub_id.clone());
         extension_data.insert(selected_capability_roots.clone());
         if let Some(discovery) = &executor_capability_discovery {
             extension_data.insert(discovery.as_ref().clone());
@@ -3351,7 +3367,9 @@ impl Session {
         }
         {
             let mut state = self.state.lock().await;
-            state.queue_pending_session_start_source(atlas_engine_hooks::SessionStartSource::Compact);
+            state.queue_pending_session_start_source(
+                atlas_engine_hooks::SessionStartSource::Compact,
+            );
         }
     }
 

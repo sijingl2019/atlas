@@ -387,11 +387,15 @@ fn write_curated_marketplace(
 }
 
 pub(crate) fn write_curated_plugin_sha_with(atlas_agent_home: &Path, sha: &str) {
-    write_file(&atlas_agent_home.join(".tmp/plugins.sha"), &format!("{sha}\n"));
+    write_file(
+        &atlas_agent_home.join(".tmp/plugins.sha"),
+        &format!("{sha}\n"),
+    );
 }
 
 pub(crate) async fn load_plugins_config(atlas_agent_home: &Path, cwd: &Path) -> PluginsConfigInput {
-    let atlas_agent_home = AbsolutePathBuf::try_from(atlas_agent_home).expect("atlas-agent home should be absolute");
+    let atlas_agent_home =
+        AbsolutePathBuf::try_from(atlas_agent_home).expect("atlas-agent home should be absolute");
     let cwd = AbsolutePathBuf::try_from(cwd).expect("cwd should be absolute");
     let config_layer_stack = load_config_layers_state(
         LOCAL_FS.as_ref(),

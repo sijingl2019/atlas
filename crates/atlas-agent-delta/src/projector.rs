@@ -75,7 +75,7 @@ pub fn elicitation_wire(elicitation: &atlas_acp_thread::Elicitation) -> Elicitat
     }
 }
 
-/// Projects every attached thread's events onto the frozen wire.
+/// Projects every attached thread's events onto the session-delta wire.
 ///
 /// One projector serves every session: it hands out the per-session event sink
 /// that `ConnectOptions` wants, and each attached thread gets a task that
@@ -1145,7 +1145,10 @@ impl SessionProjection {
     fn usage_deltas(&self) -> Vec<SessionDelta> {
         let thread = lock_thread(&self.thread);
         let usage = thread.token_usage().cloned();
-        let cost = thread.cost().map(|cost| cost.amount).unwrap_or(0.0);
+        let (cost, currency) = thread
+            .cost()
+            .map(|cost| (cost.amount, Some(cost.currency.to_string())))
+            .unwrap_or((0.0, None));
         drop(thread);
 
         let Some(usage) = usage else {
@@ -1170,6 +1173,7 @@ impl SessionProjection {
                     cache_read_tokens: usage.cache_read_tokens,
                     reasoning_tokens: usage.reasoning_tokens,
                     cost,
+                    currency: currency.clone(),
                 },
             });
         }
@@ -1179,6 +1183,7 @@ impl SessionProjection {
                 used: usage.used_tokens,
                 size: usage.max_tokens,
                 cost,
+                currency,
             });
         }
         deltas

@@ -90,7 +90,8 @@ pub async fn cloud_config_bundle_loader_for_storage(
     enable_atlas_engine_api_key_env: bool,
 ) -> std::io::Result<CloudConfigBundleLoader> {
     let auth_manager =
-        AuthManager::shared_from_auth_config(auth_config.clone(), enable_atlas_engine_api_key_env).await?;
+        AuthManager::shared_from_auth_config(auth_config.clone(), enable_atlas_engine_api_key_env)
+            .await?;
     Ok(cloud_config_bundle_loader_from_auth_config(
         auth_config,
         auth_manager,

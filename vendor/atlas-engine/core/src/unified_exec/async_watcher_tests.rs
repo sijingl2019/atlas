@@ -34,17 +34,18 @@ async fn streaming_output_harness() -> anyhow::Result<StreamingOutputHarness> {
     let (writer_tx, _writer_rx) = tokio::sync::mpsc::channel::<Vec<u8>>(1);
     let (stdout_tx, stdout_rx) = tokio::sync::broadcast::channel::<Vec<u8>>(8);
     let (exit_tx, exit_rx) = tokio::sync::oneshot::channel::<i32>();
-    let spawned = atlas_engine_utils_pty::spawn_from_driver(atlas_engine_utils_pty::ProcessDriver {
-        writer_tx,
-        stdout_rx,
-        stderr_rx: None,
-        exit_rx,
-        terminator: None,
-        writer_handle: None,
-        resizer: None,
-        #[cfg(windows)]
-        tty: false,
-    });
+    let spawned =
+        atlas_engine_utils_pty::spawn_from_driver(atlas_engine_utils_pty::ProcessDriver {
+            writer_tx,
+            stdout_rx,
+            stderr_rx: None,
+            exit_rx,
+            terminator: None,
+            writer_handle: None,
+            resizer: None,
+            #[cfg(windows)]
+            tty: false,
+        });
     let process = Arc::new(
         UnifiedExecProcess::from_spawned(spawned, SandboxType::None, Box::new(NoopSpawnLifecycle))
             .await?,

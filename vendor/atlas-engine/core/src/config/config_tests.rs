@@ -4945,7 +4945,8 @@ fn filter_plugin_mcp_servers_by_matchers_enforces_name_and_invocation() {
 #[tokio::test]
 async fn rebuild_preserving_session_layers_refreshes_requirements() -> std::io::Result<()> {
     let atlas_agent_home = TempDir::new()?;
-    let user_file = AbsolutePathBuf::resolve_path_against_base(CONFIG_TOML_FILE, atlas_agent_home.path());
+    let user_file =
+        AbsolutePathBuf::resolve_path_against_base(CONFIG_TOML_FILE, atlas_agent_home.path());
     let project_dot_atlas_engine =
         AbsolutePathBuf::resolve_path_against_base("project/.atlas-agent", atlas_agent_home.path());
     let mcp_requirements = BTreeMap::from([
@@ -5176,7 +5177,8 @@ async fn rebuild_preserving_session_layers_refreshes_plugin_derived_mcp_config()
 }"#,
     )?;
 
-    let user_file = AbsolutePathBuf::resolve_path_against_base(CONFIG_TOML_FILE, atlas_agent_home.path());
+    let user_file =
+        AbsolutePathBuf::resolve_path_against_base(CONFIG_TOML_FILE, atlas_agent_home.path());
     let refreshed_layer_stack = ConfigLayerStack::new(
         vec![ConfigLayerEntry::new(
             ConfigLayerSource::User {
@@ -6182,12 +6184,14 @@ async fn managed_config_overrides_oauth_store_mode() -> anyhow::Result<()> {
         &atlas_engine_config::NoopThreadConfigLoader,
     )
     .await?;
-    let cfg =
-        deserialize_config_toml_with_base(config_layer_stack.effective_config(), atlas_agent_home.path())
-            .map_err(|e| {
-                tracing::error!("Failed to deserialize overridden config: {e}");
-                e
-            })?;
+    let cfg = deserialize_config_toml_with_base(
+        config_layer_stack.effective_config(),
+        atlas_agent_home.path(),
+    )
+    .map_err(|e| {
+        tracing::error!("Failed to deserialize overridden config: {e}");
+        e
+    })?;
     assert_eq!(
         cfg.mcp_oauth_credentials_store,
         Some(OAuthCredentialsStoreMode::Keyring),
@@ -6319,12 +6323,14 @@ async fn managed_config_wins_over_cli_overrides() -> anyhow::Result<()> {
     )
     .await?;
 
-    let cfg =
-        deserialize_config_toml_with_base(config_layer_stack.effective_config(), atlas_agent_home.path())
-            .map_err(|e| {
-                tracing::error!("Failed to deserialize overridden config: {e}");
-                e
-            })?;
+    let cfg = deserialize_config_toml_with_base(
+        config_layer_stack.effective_config(),
+        atlas_agent_home.path(),
+    )
+    .map_err(|e| {
+        tracing::error!("Failed to deserialize overridden config: {e}");
+        e
+    })?;
 
     assert_eq!(cfg.model.as_deref(), Some("managed_config"));
     Ok(())
@@ -6553,7 +6559,10 @@ async fn to_mcp_config_flows_mcp_2026_feature_from_config() -> std::io::Result<(
     let plugins_manager = plugins_manager_for_config(&config, /*auth_mode*/ None);
 
     let mcp_config = config.to_mcp_config(&plugins_manager).await;
-    assert_eq!(mcp_config.protocol_mode, atlas_engine_mcp::McpProtocolMode::Legacy);
+    assert_eq!(
+        mcp_config.protocol_mode,
+        atlas_engine_mcp::McpProtocolMode::Legacy
+    );
 
     let _ = config.features.enable(Feature::Mcp20260728);
     let mcp_config = config.to_mcp_config(&plugins_manager).await;
@@ -7491,7 +7500,8 @@ async fn set_model_updates_defaults() -> anyhow::Result<()> {
         .apply()
         .await?;
 
-    let serialized = tokio::fs::read_to_string(atlas_agent_home.path().join(CONFIG_TOML_FILE)).await?;
+    let serialized =
+        tokio::fs::read_to_string(atlas_agent_home.path().join(CONFIG_TOML_FILE)).await?;
     let parsed: ConfigToml = toml::from_str(&serialized)?;
 
     assert_eq!(parsed.model.as_deref(), Some("gpt-5.4"));
@@ -7643,7 +7653,8 @@ async fn loads_compact_prompt_from_file() -> std::io::Result<()> {
     };
 
     let config =
-        Config::load_from_base_config_with_overrides(cfg, overrides, atlas_agent_home.abs()).await?;
+        Config::load_from_base_config_with_overrides(cfg, overrides, atlas_agent_home.abs())
+            .await?;
 
     assert_eq!(
         config.compact_prompt.as_deref(),
@@ -7831,7 +7842,10 @@ async fn load_config_ignores_empty_requirements_guardian_policy_config() -> std:
 #[tokio::test]
 async fn load_config_rejects_missing_agent_role_config_file() -> std::io::Result<()> {
     let atlas_agent_home = TempDir::new()?;
-    let missing_path = atlas_agent_home.path().join("agents").join("researcher.toml");
+    let missing_path = atlas_agent_home
+        .path()
+        .join("agents")
+        .join("researcher.toml");
     let cfg = ConfigToml {
         agents: Some(AgentsToml {
             enabled: None,
@@ -7871,7 +7885,10 @@ async fn load_config_rejects_missing_agent_role_config_file() -> std::io::Result
 #[tokio::test]
 async fn agent_role_relative_config_file_resolves_against_config_toml() -> std::io::Result<()> {
     let atlas_agent_home = TempDir::new()?;
-    let role_config_path = atlas_agent_home.path().join("agents").join("researcher.toml");
+    let role_config_path = atlas_agent_home
+        .path()
+        .join("agents")
+        .join("researcher.toml");
     tokio::fs::create_dir_all(
         role_config_path
             .parent()
@@ -7920,7 +7937,10 @@ nickname_candidates = ["Hypatia", "Noether"]
 #[tokio::test]
 async fn agent_role_relative_config_file_resolves_from_config_layer() -> std::io::Result<()> {
     let atlas_agent_home = TempDir::new()?;
-    let role_config_path = atlas_agent_home.path().join("agents").join("researcher.toml");
+    let role_config_path = atlas_agent_home
+        .path()
+        .join("agents")
+        .join("researcher.toml");
     tokio::fs::create_dir_all(
         role_config_path
             .parent()
@@ -7978,7 +7998,10 @@ config_file = "./agents/researcher.toml"
 #[tokio::test]
 async fn agent_role_file_metadata_overrides_config_toml_metadata() -> std::io::Result<()> {
     let atlas_agent_home = TempDir::new()?;
-    let role_config_path = atlas_agent_home.path().join("agents").join("researcher.toml");
+    let role_config_path = atlas_agent_home
+        .path()
+        .join("agents")
+        .join("researcher.toml");
     tokio::fs::create_dir_all(
         role_config_path
             .parent()
@@ -8098,7 +8121,10 @@ model = "gpt-5.2"
 async fn legacy_agent_role_config_file_allows_missing_developer_instructions() -> std::io::Result<()>
 {
     let atlas_agent_home = TempDir::new()?;
-    let role_config_path = atlas_agent_home.path().join("agents").join("researcher.toml");
+    let role_config_path = atlas_agent_home
+        .path()
+        .join("agents")
+        .join("researcher.toml");
     tokio::fs::create_dir_all(
         role_config_path
             .parent()
@@ -8149,7 +8175,10 @@ config_file = "./agents/researcher.toml"
 async fn agent_role_without_description_after_merge_is_dropped_with_warning() -> std::io::Result<()>
 {
     let atlas_agent_home = TempDir::new()?;
-    let role_config_path = atlas_agent_home.path().join("agents").join("researcher.toml");
+    let role_config_path = atlas_agent_home
+        .path()
+        .join("agents")
+        .join("researcher.toml");
     tokio::fs::create_dir_all(
         role_config_path
             .parent()
@@ -8266,7 +8295,10 @@ developer_instructions = "Review carefully"
 #[tokio::test]
 async fn agent_role_file_name_takes_precedence_over_config_key() -> std::io::Result<()> {
     let atlas_agent_home = TempDir::new()?;
-    let role_config_path = atlas_agent_home.path().join("agents").join("researcher.toml");
+    let role_config_path = atlas_agent_home
+        .path()
+        .join("agents")
+        .join("researcher.toml");
     tokio::fs::create_dir_all(
         role_config_path
             .parent()
@@ -8311,7 +8343,10 @@ config_file = "./agents/researcher.toml"
 #[tokio::test]
 async fn loads_legacy_split_agent_roles_from_config_toml() -> std::io::Result<()> {
     let atlas_agent_home = TempDir::new()?;
-    let researcher_path = atlas_agent_home.path().join("agents").join("researcher.toml");
+    let researcher_path = atlas_agent_home
+        .path()
+        .join("agents")
+        .join("researcher.toml");
     let reviewer_path = atlas_agent_home.path().join("agents").join("reviewer.toml");
     tokio::fs::create_dir_all(
         researcher_path
@@ -10871,7 +10906,8 @@ smart_approvals = true
     assert!(config.features.enabled(Feature::GuardianApproval));
     assert_eq!(config.approvals_reviewer, ApprovalsReviewer::User);
 
-    let serialized = tokio::fs::read_to_string(atlas_agent_home.path().join(CONFIG_TOML_FILE)).await?;
+    let serialized =
+        tokio::fs::read_to_string(atlas_agent_home.path().join(CONFIG_TOML_FILE)).await?;
     assert!(serialized.contains("smart_approvals = true"));
     assert!(!serialized.contains("guardian_approval"));
     assert!(!serialized.contains("approvals_reviewer"));
@@ -12245,7 +12281,8 @@ sandbox_private_desktop = false
 #[tokio::test]
 async fn absent_allow_login_shell_does_not_report_an_override() -> std::io::Result<()> {
     let atlas_agent_home = TempDir::new()?;
-    let config = load_with_enterprise_requirement(&atlas_agent_home, "allow_login_shell = false").await?;
+    let config =
+        load_with_enterprise_requirement(&atlas_agent_home, "allow_login_shell = false").await?;
 
     assert!(!config.permissions.allow_login_shell);
     assert!(

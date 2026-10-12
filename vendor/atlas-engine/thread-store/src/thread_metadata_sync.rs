@@ -2,9 +2,6 @@
 use std::time::Duration;
 use std::time::Instant;
 
-use chrono::DateTime;
-use chrono::NaiveDateTime;
-use chrono::Utc;
 use atlas_engine_git_utils::collect_git_info;
 use atlas_engine_git_utils::get_git_repo_root;
 use atlas_engine_protocol::ThreadId;
@@ -18,6 +15,9 @@ use atlas_engine_protocol::protocol::strip_user_message_prefix;
 use atlas_engine_protocol::protocol::user_message_preview;
 use atlas_engine_rollout::RolloutItem;
 use atlas_engine_state::ThreadMetadata;
+use chrono::DateTime;
+use chrono::NaiveDateTime;
+use chrono::Utc;
 
 use crate::CreateThreadParams;
 use crate::GitInfoPatch;

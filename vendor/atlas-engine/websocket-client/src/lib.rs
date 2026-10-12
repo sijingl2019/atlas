@@ -57,7 +57,10 @@ impl WebSocketConnector {
     pub fn new(
         http_client_factory: &HttpClientFactory,
     ) -> Result<Self, BuildCustomCaTransportError> {
-        Self::new_with_tls_mode(http_client_factory, WebSocketTlsMode::ExplicitAtlasEngineTls)
+        Self::new_with_tls_mode(
+            http_client_factory,
+            WebSocketTlsMode::ExplicitAtlasEngineTls,
+        )
     }
 
     /// Creates a connector with explicit Atlas Agent TLS or the transport's existing TLS defaults.

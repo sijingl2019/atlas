@@ -63,7 +63,11 @@ impl UiBridge {
     }
 
     pub fn with_timeout(emit: UiEmitter, timeout: Duration) -> Self {
-        Self { pending: Mutex::new(HashMap::new()), emit, timeout }
+        Self {
+            pending: Mutex::new(HashMap::new()),
+            emit,
+            timeout,
+        }
     }
 
     /// Send `request` to the window and wait for its answer.
@@ -82,7 +86,10 @@ impl UiBridge {
             Ok(Err(_)) => Err("Atlas dropped the request".to_string()),
             Err(_) => {
                 self.pending.lock().remove(&id);
-                Err(format!("Atlas did not answer within {} s", self.timeout.as_secs_f32()))
+                Err(format!(
+                    "Atlas did not answer within {} s",
+                    self.timeout.as_secs_f32()
+                ))
             }
         }
     }
@@ -94,8 +101,12 @@ impl UiBridge {
     /// window tools), so a refusal reads the same from either.
     pub async fn perform(&self, request: UiRequest) -> Result<Value, String> {
         match self.request(request).await {
-            Ok(reply) if reply.ok => Ok(reply.result.unwrap_or_else(|| Value::Object(Default::default()))),
-            Ok(reply) => Err(reply.error.unwrap_or_else(|| "the Atlas window refused the action".to_string())),
+            Ok(reply) if reply.ok => Ok(reply
+                .result
+                .unwrap_or_else(|| Value::Object(Default::default()))),
+            Ok(reply) => Err(reply
+                .error
+                .unwrap_or_else(|| "the Atlas window refused the action".to_string())),
             Err(e) => Err(e),
         }
     }

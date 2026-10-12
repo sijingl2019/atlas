@@ -11,7 +11,8 @@ use crate::error::{self, GitErrorPayload};
 use std::collections::HashSet;
 use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
+use std::time::{Duration, Instant};
 
 /// Which pipe a streamed line arrived on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -57,6 +58,7 @@ pub struct GitCommand {
     success_exit_codes: HashSet<i32>,
     stdin: Option<Vec<u8>>,
     read_only: bool,
+    timeout: Option<Duration>,
 }
 
 impl GitCommand {
@@ -68,6 +70,7 @@ impl GitCommand {
             success_exit_codes: HashSet::from([0]),
             stdin: None,
             read_only: false,
+            timeout: None,
         }
     }
 
@@ -79,6 +82,7 @@ impl GitCommand {
             success_exit_codes: HashSet::from([0]),
             stdin: None,
             read_only: false,
+            timeout: None,
         }
     }
 
@@ -106,6 +110,15 @@ impl GitCommand {
     /// `apply`, path lists for `update-index --stdin`).
     pub fn stdin(mut self, bytes: Vec<u8>) -> Self {
         self.stdin = Some(bytes);
+        self
+    }
+
+    /// Kill git if it hasn't exited after `limit` ([`run`](Self::run) only).
+    /// For unattended network ops: a remote that never answers otherwise
+    /// holds the calling thread for as long as TCP takes to give up, which
+    /// can be minutes. Expiry is a `NetworkError`.
+    pub fn timeout(mut self, limit: Duration) -> Self {
+        self.timeout = Some(limit);
         self
     }
 
@@ -168,9 +181,15 @@ impl GitCommand {
             })
         });
 
-        let out = child
-            .wait_with_output()
-            .map_err(|e| GitErrorPayload::internal(format!("{display}: {e}")))?;
+        let out = match self.timeout {
+            None => child.wait_with_output(),
+            Some(limit) => match wait_with_deadline(child, limit) {
+                Ok(Some(out)) => Ok(out),
+                Ok(None) => return Err(timed_out(&display, limit)),
+                Err(e) => Err(e),
+            },
+        }
+        .map_err(|e| GitErrorPayload::internal(format!("{display}: {e}")))?;
         if let Some(t) = stdin_thread {
             let _ = t.join();
         }
@@ -262,6 +281,59 @@ impl GitCommand {
     }
 }
 
+/// `wait_with_output` with a deadline: `Ok(None)` once `limit` passes, after
+/// killing the child. Pipes drain on their own threads so a chatty child
+/// can't block on a full pipe while we poll. On expiry those threads are
+/// left to finish by themselves rather than joined — a helper git spawned
+/// (`ssh`, `git-remote-https`) can hold the pipes open briefly after git
+/// itself dies, and it exits once it sees its parent gone.
+fn wait_with_deadline(
+    mut child: Child,
+    limit: Duration,
+) -> std::io::Result<Option<std::process::Output>> {
+    use std::io::Read;
+    fn drain(pipe: Option<impl Read + Send + 'static>) -> std::thread::JoinHandle<Vec<u8>> {
+        std::thread::spawn(move || {
+            let mut buf = Vec::new();
+            if let Some(mut p) = pipe {
+                let _ = p.read_to_end(&mut buf);
+            }
+            buf
+        })
+    }
+    let out = drain(child.stdout.take());
+    let err = drain(child.stderr.take());
+    let deadline = Instant::now() + limit;
+    loop {
+        if let Some(status) = child.try_wait()? {
+            return Ok(Some(std::process::Output {
+                status,
+                stdout: out.join().unwrap_or_default(),
+                stderr: err.join().unwrap_or_default(),
+            }));
+        }
+        if Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Ok(None);
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+}
+
+fn timed_out(display: &str, limit: Duration) -> GitErrorPayload {
+    let message = format!("{display} timed out after {}s", limit.as_secs());
+    GitErrorPayload {
+        code: error::GitErrorCode::NetworkError,
+        raw_stderr: message.clone(),
+        message,
+        command: display.to_string(),
+        exit_code: None,
+        files: Vec::new(),
+        hint: None,
+    }
+}
+
 fn spawn_error(display: &str, e: &std::io::Error) -> GitErrorPayload {
     if e.kind() == std::io::ErrorKind::NotFound {
         GitErrorPayload::internal("git was not found on this system. Install git and try again.")
@@ -312,6 +384,31 @@ mod tests {
             .unwrap_err();
         assert_eq!(err.code, crate::GitErrorCode::UnknownRef);
         assert!(!err.raw_stderr.is_empty());
+    }
+
+    #[test]
+    fn timeout_kills_and_returns_promptly() {
+        let repo = temp_repo();
+        // A shell alias whose grandchild outlives the killed git and holds the
+        // pipes open — the case where joining the readers would hang.
+        let started = Instant::now();
+        let err = GitCommand::new(repo.path(), &["-c", "alias.slow=!sleep 10", "slow"])
+            .timeout(Duration::from_millis(300))
+            .run()
+            .unwrap_err();
+        assert_eq!(err.code, crate::GitErrorCode::NetworkError);
+        assert!(
+            started.elapsed() < Duration::from_secs(5),
+            "took {:?}",
+            started.elapsed()
+        );
+
+        // Within the limit, a timed run behaves exactly like an untimed one.
+        let out = GitCommand::new(repo.path(), &["status", "--porcelain"])
+            .timeout(Duration::from_secs(30))
+            .run()
+            .unwrap();
+        assert_eq!(out.exit_code, 0);
     }
 
     #[test]

@@ -36,7 +36,11 @@ impl TraceReducer {
             );
         }
         self.thread_mut(&started.thread_id)?;
-        let Some(turn) = self.rollout.atlas_engine_turns.get(&started.atlas_engine_turn_id) else {
+        let Some(turn) = self
+            .rollout
+            .atlas_engine_turns
+            .get(&started.atlas_engine_turn_id)
+        else {
             bail!(
                 "compaction request {} referenced unknown atlas-agent turn {}",
                 started.compaction_request_id,

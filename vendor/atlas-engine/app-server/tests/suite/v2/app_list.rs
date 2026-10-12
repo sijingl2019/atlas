@@ -12,14 +12,6 @@ use app_test_support::ChatGptIdTokenClaims;
 use app_test_support::TestAppServer;
 use app_test_support::encode_id_token;
 use app_test_support::write_chatgpt_auth;
-use axum::Json;
-use axum::Router;
-use axum::extract::State;
-use axum::http::HeaderMap;
-use axum::http::StatusCode;
-use axum::http::Uri;
-use axum::http::header::AUTHORIZATION;
-use axum::routing::get;
 use atlas_engine_app_server_protocol::AppBranding;
 use atlas_engine_app_server_protocol::AppInfo;
 use atlas_engine_app_server_protocol::AppListUpdatedNotification;
@@ -38,6 +30,14 @@ use atlas_engine_login::AuthDotJson;
 use atlas_engine_login::AuthKeyringBackendKind;
 use atlas_engine_login::save_auth;
 use atlas_engine_protocol::auth::AuthMode;
+use axum::Json;
+use axum::Router;
+use axum::extract::State;
+use axum::http::HeaderMap;
+use axum::http::StatusCode;
+use axum::http::Uri;
+use axum::http::header::AUTHORIZATION;
+use axum::routing::get;
 use pretty_assertions::assert_eq;
 use rmcp::handler::server::ServerHandler;
 use rmcp::model::JsonObject;
@@ -1771,7 +1771,10 @@ pub(super) fn connector_tool(connector_id: &str, connector_name: &str) -> Result
     Ok(tool)
 }
 
-fn write_connectors_config(atlas_agent_home: &std::path::Path, base_url: &str) -> std::io::Result<()> {
+fn write_connectors_config(
+    atlas_agent_home: &std::path::Path,
+    base_url: &str,
+) -> std::io::Result<()> {
     let config_toml = atlas_agent_home.join("config.toml");
     std::fs::write(
         config_toml,
@@ -1787,7 +1790,10 @@ connectors = true
     )
 }
 
-fn write_connectors_and_plugins_config(atlas_agent_home: &Path, base_url: &str) -> std::io::Result<()> {
+fn write_connectors_and_plugins_config(
+    atlas_agent_home: &Path,
+    base_url: &str,
+) -> std::io::Result<()> {
     let config_toml = atlas_agent_home.join("config.toml");
     std::fs::write(
         config_toml,
@@ -1807,7 +1813,11 @@ enabled = true
     )
 }
 
-fn write_plugin_app_fixture(atlas_agent_home: &Path, plugin_name: &str, app_id: &str) -> Result<()> {
+fn write_plugin_app_fixture(
+    atlas_agent_home: &Path,
+    plugin_name: &str,
+    app_id: &str,
+) -> Result<()> {
     let plugin_root = atlas_agent_home
         .join("plugins/cache")
         .join("test")

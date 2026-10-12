@@ -414,7 +414,10 @@ async fn call_structured_tool(
         .expect("structured content")
         .clone();
 
-    wait_for_event(&fixture.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&fixture.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
     Ok(structured_content)
 }
 
@@ -701,7 +704,10 @@ async fn stdio_server_round_trip() -> anyhow::Result<()> {
         .expect("env snapshot inserted");
     assert_eq!(env_value, expected_env_value);
 
-    wait_for_event(&fixture.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&fixture.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let search_request = search_mock.single_request().body_json();
     let search_description = search_request
@@ -1054,9 +1060,12 @@ async fn apps_enabled_turn_skips_pending_optional_mcp_without_cached_tools() -> 
             .is_none_or(|name| !name.starts_with("mcp__pending_optional"))
     }));
 
-    tokio::time::timeout(Duration::from_secs(2), fixture.atlas_engine.shutdown_and_wait())
-        .await
-        .context("shutdown should cancel pending optional MCP startup")??;
+    tokio::time::timeout(
+        Duration::from_secs(2),
+        fixture.atlas_engine.shutdown_and_wait(),
+    )
+    .await
+    .context("shutdown should cancel pending optional MCP startup")??;
     Ok(())
 }
 
@@ -1094,9 +1103,12 @@ async fn shutdown_cancels_startup_prewarm_waiting_for_mcp_startup() -> anyhow::R
         tokio::time::timeout(Duration::from_secs(5), pending_mcp_listener.accept())
             .await
             .context("startup prewarm should start the MCP connection")??;
-    tokio::time::timeout(Duration::from_secs(2), fixture.atlas_engine.shutdown_and_wait())
-        .await
-        .context("shutdown should not wait for startup prewarm MCP startup")??;
+    tokio::time::timeout(
+        Duration::from_secs(2),
+        fixture.atlas_engine.shutdown_and_wait(),
+    )
+    .await
+    .context("shutdown should not wait for startup prewarm MCP startup")??;
     tokio::time::sleep(Duration::from_millis(100)).await;
     assert!(
         server.connections().is_empty(),
@@ -1588,7 +1600,10 @@ async fn stdio_mcp_parallel_tool_calls_default_false_runs_serially() -> anyhow::
         "default MCP tool calls should run serially; saw events: {call_events:?}"
     );
 
-    wait_for_event(&fixture.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&fixture.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let request = final_mock.single_request();
     for call_id in [first_call_id, second_call_id] {
@@ -1691,7 +1706,10 @@ async fn stdio_mcp_read_only_tool_calls_run_concurrently_without_server_opt_in()
         ))
         .await?;
 
-    wait_for_event(&fixture.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&fixture.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let request = final_mock.single_request();
     for call_id in [first_call_id, second_call_id] {
@@ -1784,7 +1802,10 @@ async fn stdio_mcp_parallel_tool_calls_opt_in_runs_concurrently() -> anyhow::Res
         ))
         .await?;
 
-    wait_for_event(&fixture.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&fixture.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let request = final_mock.single_request();
     for call_id in [first_call_id, second_call_id] {
@@ -1863,7 +1884,10 @@ async fn stdio_encrypted_content_responses_round_trip() -> anyhow::Result<()> {
             "call the rmcp encrypted output tool",
         ))
         .await?;
-    wait_for_event(&fixture.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&fixture.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let output_item = final_mock.single_request().function_call_output(call_id);
     let output = output_item["output"]
@@ -2014,7 +2038,10 @@ async fn stdio_image_responses_round_trip() -> anyhow::Result<()> {
     assert_eq!(entry.get("mimeType"), Some(&json!("image/png")));
     assert_eq!(entry.get("data"), Some(&json!(base64_only)));
 
-    wait_for_event(&fixture.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&fixture.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let output_item = final_mock.single_request().function_call_output(call_id);
     assert_eq!(output_item["type"], "function_call_output");
@@ -2119,7 +2146,10 @@ async fn stdio_image_responses_resize_large_image() -> anyhow::Result<()> {
             "call the rmcp image_scenario tool",
         ))
         .await?;
-    wait_for_event(&fixture.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&fixture.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let output_item = final_mock.single_request().function_call_output(call_id);
     assert_eq!(output_item["call_id"], call_id);
@@ -2208,7 +2238,10 @@ async fn stdio_image_responses_preserve_original_detail_metadata() -> anyhow::Re
         ))
         .await?;
 
-    wait_for_event(&fixture.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&fixture.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let output_item = final_mock.single_request().function_call_output(call_id);
     let output = output_item["output"]
@@ -2377,7 +2410,10 @@ async fn stdio_image_responses_are_sanitized_for_text_only_model() -> anyhow::Re
         matches!(ev, EventMsg::McpToolCallEnd(_))
     })
     .await;
-    wait_for_event(&fixture.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&fixture.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let output_item = final_mock.single_request().function_call_output(call_id);
     let output_text = output_item
@@ -2513,7 +2549,10 @@ async fn stdio_server_propagates_whitelisted_env_vars() -> anyhow::Result<()> {
         .expect("env snapshot inserted");
     assert_eq!(env_value, expected_env_value);
 
-    wait_for_event(&fixture.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&fixture.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     server.verify().await;
 
@@ -2611,7 +2650,10 @@ async fn stdio_server_propagates_explicit_local_env_var_source() -> anyhow::Resu
         .expect("structured content");
     assert_eq!(structured["env"], expected_env_value);
 
-    wait_for_event(&fixture.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&fixture.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
     server.verify().await;
     Ok(())
 }
@@ -2707,7 +2749,10 @@ async fn remote_stdio_env_var_source_does_not_copy_local_env() -> anyhow::Result
         .expect("structured content");
     assert_eq!(structured["env"], Value::Null);
 
-    wait_for_event(&fixture.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&fixture.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
     server.verify().await;
     Ok(())
 }
@@ -2943,7 +2988,10 @@ async fn streamable_http_tool_call_round_trip(with_headers_helper: bool) -> anyh
     assert_eq!(env_value, expected_env_value);
     // Phase 7: verify the scripted model calls were consumed and clean up the
     // placement-aware MCP server.
-    wait_for_event(&fixture.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&fixture.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     server.verify().await;
 
@@ -3229,7 +3277,8 @@ async fn streamable_http_with_oauth_round_trip_impl() -> anyhow::Result<()> {
     // Phase 3: seed an isolated ATLAS_AGENT_HOME with fallback OAuth tokens for this
     // server so the test does not share credentials with other suite cases.
     let temp_home = Arc::new(tempdir()?);
-    let _atlas_agent_home_guard = EnvVarGuard::set("ATLAS_AGENT_HOME", temp_home.path().as_os_str());
+    let _atlas_agent_home_guard =
+        EnvVarGuard::set("ATLAS_AGENT_HOME", temp_home.path().as_os_str());
     let unset_authorization_env_var = format!(
         "ATLAS_AGENT_TEST_UNSET_MCP_OAUTH_AUTHORIZATION_{}",
         std::process::id()
@@ -3437,7 +3486,10 @@ async fn streamable_http_with_oauth_round_trip_impl() -> anyhow::Result<()> {
         OAuthCredentialsStoreMode::File,
         atlas_engine_config::types::AuthKeyringBackendKind::default(),
     )?);
-    fixture.atlas_engine.refresh_runtime_config(refreshed_config).await;
+    fixture
+        .atlas_engine
+        .refresh_runtime_config(refreshed_config)
+        .await;
     let logged_out_startup = tokio::time::timeout(
         Duration::from_secs(5),
         wait_for_event(&fixture.atlas_engine, |event| {
@@ -3533,7 +3585,10 @@ async fn streamable_http_with_oauth_round_trip_impl() -> anyhow::Result<()> {
 
     // Phase 9: verify the scripted model calls were consumed and clean up the
     // placement-aware MCP server.
-    wait_for_event(&fixture.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&fixture.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let request = response_mock.single_request().body_json();
     assert!(

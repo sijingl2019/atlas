@@ -1525,7 +1525,8 @@ mod tests {
         .expect("state db should initialize");
         let thread_id =
             ThreadId::from_string("00000000-0000-0000-0000-000000000123").expect("valid thread id");
-        let mut metadata = test_thread_metadata(&atlas_agent_home, thread_id, atlas_agent_home.clone());
+        let mut metadata =
+            test_thread_metadata(&atlas_agent_home, thread_id, atlas_agent_home.clone());
 
         runtime
             .upsert_thread_with_creation_memory_mode(&metadata, Some("disabled"))
@@ -1634,7 +1635,8 @@ mod tests {
             ),
             (oldest_unpinned, 1_700_000_000, None),
         ] {
-            let mut metadata = test_thread_metadata(&atlas_agent_home, thread_id, atlas_agent_home.clone());
+            let mut metadata =
+                test_thread_metadata(&atlas_agent_home, thread_id, atlas_agent_home.clone());
             metadata.recency_at = DateTime::<Utc>::from_timestamp(recency_at, 0).unwrap();
             metadata.section = section.map(|id| crate::ThreadSection {
                 id: id.to_string(),
@@ -1766,7 +1768,8 @@ mod tests {
         let last = ThreadId::from_string("00000000-0000-0000-0000-000000000063").unwrap();
 
         for (thread_id, position) in [(first, 1_000_000), (tied, 1_000_000), (last, 2_000_000)] {
-            let mut metadata = test_thread_metadata(&atlas_agent_home, thread_id, atlas_agent_home.clone());
+            let mut metadata =
+                test_thread_metadata(&atlas_agent_home, thread_id, atlas_agent_home.clone());
             metadata.section = Some(crate::ThreadSection {
                 id: CUSTOM_THREAD_SECTION_ID.to_string(),
                 name: "Custom section".to_string(),
@@ -2007,7 +2010,8 @@ mod tests {
             (newer_id, newer_updated_at),
             (middle_id, newer_updated_at),
         ] {
-            let mut metadata = test_thread_metadata(&atlas_agent_home, thread_id, atlas_agent_home.clone());
+            let mut metadata =
+                test_thread_metadata(&atlas_agent_home, thread_id, atlas_agent_home.clone());
             metadata.updated_at = updated_at;
             metadata.first_user_message = Some("hello".to_string());
             runtime
@@ -2299,7 +2303,8 @@ mod tests {
             (second_child_id, 1_700_000_200),
             (grandchild_id, 1_700_000_300),
         ] {
-            let mut metadata = test_thread_metadata(&atlas_agent_home, thread_id, atlas_agent_home.clone());
+            let mut metadata =
+                test_thread_metadata(&atlas_agent_home, thread_id, atlas_agent_home.clone());
             metadata.created_at =
                 DateTime::<Utc>::from_timestamp(created_at, 0).expect("valid timestamp");
             metadata.updated_at = metadata.created_at;
@@ -2565,7 +2570,8 @@ mod tests {
         .expect("state db should initialize");
         let thread_id =
             ThreadId::from_string("00000000-0000-0000-0000-000000000457").expect("valid thread id");
-        let mut metadata = test_thread_metadata(&atlas_agent_home, thread_id, atlas_agent_home.clone());
+        let mut metadata =
+            test_thread_metadata(&atlas_agent_home, thread_id, atlas_agent_home.clone());
         metadata.git_branch = Some("sqlite-branch".to_string());
 
         runtime
@@ -2645,7 +2651,8 @@ mod tests {
         .expect("state db should initialize");
         let thread_id =
             ThreadId::from_string("00000000-0000-0000-0000-000000000458").expect("valid thread id");
-        let mut metadata = test_thread_metadata(&atlas_agent_home, thread_id, atlas_agent_home.clone());
+        let mut metadata =
+            test_thread_metadata(&atlas_agent_home, thread_id, atlas_agent_home.clone());
         metadata.git_sha = Some("sqlite-sha".to_string());
         metadata.git_branch = Some("sqlite-branch".to_string());
         metadata.git_origin_url = Some("git@example.com:openai/atlas-agent.git".to_string());
@@ -2689,7 +2696,8 @@ mod tests {
         .expect("state db should initialize");
         let thread_id =
             ThreadId::from_string("00000000-0000-0000-0000-000000000459").expect("valid thread id");
-        let mut metadata = test_thread_metadata(&atlas_agent_home, thread_id, atlas_agent_home.clone());
+        let mut metadata =
+            test_thread_metadata(&atlas_agent_home, thread_id, atlas_agent_home.clone());
         metadata.first_user_message = None;
         metadata.preview = Some("migrated goal preview".to_string());
 
@@ -2725,7 +2733,8 @@ mod tests {
         .expect("state db should initialize");
         let thread_id =
             ThreadId::from_string("00000000-0000-0000-0000-000000000460").expect("valid thread id");
-        let mut metadata = test_thread_metadata(&atlas_agent_home, thread_id, atlas_agent_home.clone());
+        let mut metadata =
+            test_thread_metadata(&atlas_agent_home, thread_id, atlas_agent_home.clone());
         metadata.first_user_message = None;
         metadata.preview = None;
 
@@ -2835,7 +2844,8 @@ mod tests {
         let thread_id =
             ThreadId::from_string("00000000-0000-0000-0000-000000000791").expect("valid thread id");
 
-        let mut existing = test_thread_metadata(&atlas_agent_home, thread_id, atlas_agent_home.clone());
+        let mut existing =
+            test_thread_metadata(&atlas_agent_home, thread_id, atlas_agent_home.clone());
         existing.tokens_used = 123;
         existing.first_user_message = Some("newer preview".to_string());
         existing.preview = Some("newer preview".to_string());
@@ -2845,7 +2855,8 @@ mod tests {
             .await
             .expect("initial upsert should succeed");
 
-        let mut fallback = test_thread_metadata(&atlas_agent_home, thread_id, atlas_agent_home.clone());
+        let mut fallback =
+            test_thread_metadata(&atlas_agent_home, thread_id, atlas_agent_home.clone());
         fallback.tokens_used = 0;
         fallback.first_user_message = None;
         fallback.preview = None;
@@ -2885,7 +2896,8 @@ mod tests {
         .expect("state db should initialize");
         let thread_id =
             ThreadId::from_string("00000000-0000-0000-0000-000000000790").expect("valid thread id");
-        let mut metadata = test_thread_metadata(&atlas_agent_home, thread_id, atlas_agent_home.clone());
+        let mut metadata =
+            test_thread_metadata(&atlas_agent_home, thread_id, atlas_agent_home.clone());
         metadata.git_sha = Some("abc123".to_string());
         metadata.git_branch = Some("feature/branch".to_string());
         metadata.git_origin_url = Some("git@example.com:openai/atlas-agent.git".to_string());
@@ -2922,7 +2934,8 @@ mod tests {
         .expect("state db should initialize");
         let thread_id =
             ThreadId::from_string("00000000-0000-0000-0000-000000000791").expect("valid thread id");
-        let mut metadata = test_thread_metadata(&atlas_agent_home, thread_id, atlas_agent_home.clone());
+        let mut metadata =
+            test_thread_metadata(&atlas_agent_home, thread_id, atlas_agent_home.clone());
         metadata.title = "original title".to_string();
         metadata.first_user_message = Some("first-user-message".to_string());
         metadata.preview = None;
@@ -2964,7 +2977,8 @@ mod tests {
         .expect("state db should initialize");
         let thread_id =
             ThreadId::from_string("00000000-0000-0000-0000-000000000792").expect("valid thread id");
-        let mut metadata = test_thread_metadata(&atlas_agent_home, thread_id, atlas_agent_home.clone());
+        let mut metadata =
+            test_thread_metadata(&atlas_agent_home, thread_id, atlas_agent_home.clone());
         let original_recency_at = metadata.recency_at;
         runtime
             .upsert_thread(&metadata)
@@ -3034,7 +3048,8 @@ mod tests {
             DateTime::<Utc>::from_timestamp_millis(1_700_002_000_456).expect("timestamp");
 
         for thread_id in [first_id, second_id, third_id] {
-            let mut metadata = test_thread_metadata(&atlas_agent_home, thread_id, atlas_agent_home.clone());
+            let mut metadata =
+                test_thread_metadata(&atlas_agent_home, thread_id, atlas_agent_home.clone());
             metadata.recency_at = recency_at;
             runtime
                 .upsert_thread(&metadata)
@@ -3162,7 +3177,8 @@ mod tests {
         let mut first = test_thread_metadata(&atlas_agent_home, first_id, atlas_agent_home.clone());
         first.updated_at = updated_at;
         first.recency_at = updated_at;
-        let mut second = test_thread_metadata(&atlas_agent_home, second_id, atlas_agent_home.clone());
+        let mut second =
+            test_thread_metadata(&atlas_agent_home, second_id, atlas_agent_home.clone());
         second.updated_at = updated_at;
         second.recency_at = updated_at;
 

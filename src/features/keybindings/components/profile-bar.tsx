@@ -3,6 +3,8 @@ import { Menu as DropdownMenu } from "@base-ui/react/menu";
 import {
   Check,
   ChevronDown,
+  ClipboardCopy,
+  ClipboardPaste,
   Copy,
   FileJson,
   Lock,
@@ -11,10 +13,16 @@ import {
   RotateCcw,
   Trash2,
 } from "lucide-react";
+import { toast } from "sonner";
+import { copyText } from "@/lib/clipboard";
 import { cn } from "@/lib/utils";
 import { Hint } from "@/ui/tooltip";
 import { openKeybindingsFile } from "../lib/keybindings-api";
+import { PRESET_BY_ID, PRESETS } from "../lib/presets";
+import { exportProfile } from "../lib/profile-transfer";
 import { useKeybindingsStore } from "../stores/keybindings-store";
+import { ImportProfileDialog } from "./import-profile-dialog";
+import { PresetIcon } from "./preset-icon";
 
 // Same recipe as the account menu so every Atlas dropdown reads alike.
 const CONTENT_CLASS =
@@ -53,7 +61,10 @@ export function ProfileBar() {
     renameProfile,
     deleteProfile,
     resetProfile,
+    createProfileFromPreset,
+    setProfilePreset,
   } = useKeybindingsStore.use.actions();
+  const [importing, setImporting] = useState(false);
   const active = file.profiles.find((p) => p.id === file.activeProfileId) ?? file.profiles[0]!;
   const locked = !!active.builtIn;
   const overrideCount = Object.keys(active.bindings).length;
@@ -188,10 +199,31 @@ export function ProfileBar() {
                   </span>
                   <span className="flex-1 truncate">Duplicate “{active.name}”…</span>
                 </DropdownMenu.Item>
+                <DropdownMenu.Separator className="my-1 h-px bg-[var(--border)]" />
+                <div className="px-3 pb-0.5 pt-1 text-2xs text-muted-foreground">
+                  New from an editor's keys
+                </div>
+                {PRESETS.map((preset) => (
+                  <DropdownMenu.Item
+                    key={preset.id}
+                    onClick={() => createProfileFromPreset(preset.id)}
+                    className={ITEM_CLASS}
+                  >
+                    <PresetIcon id={preset.id} className="size-3 shrink-0" />
+                    <span className="flex-1 truncate">{preset.label}</span>
+                  </DropdownMenu.Item>
+                ))}
               </DropdownMenu.Popup>
             </DropdownMenu.Positioner>
           </DropdownMenu.Portal>
         </DropdownMenu.Root>
+      )}
+
+      {!locked && (
+        <PresetPicker
+          value={active.basedOn ?? null}
+          onChange={(presetId) => setProfilePreset(active.id, presetId)}
+        />
       )}
 
       {!locked && overrideCount > 0 && (
@@ -233,11 +265,76 @@ export function ProfileBar() {
           <Trash2 size={12} />
         </IconButton>
         <span className="mx-1 h-3.5 w-px bg-border" />
+        <IconButton
+          label={`Copy “${active.name}” as JSON`}
+          onClick={() =>
+            void copyText(exportProfile(active)).then((ok) =>
+              ok ? toast.success("Profile copied") : toast.error("Could not copy the profile"),
+            )
+          }
+        >
+          <ClipboardCopy size={12} />
+        </IconButton>
+        <IconButton label="Import a profile…" onClick={() => setImporting(true)}>
+          <ClipboardPaste size={12} />
+        </IconButton>
         <IconButton label="Open keybindings.json" onClick={() => void openKeybindingsFile()}>
           <FileJson size={12} />
         </IconButton>
       </div>
+      <ImportProfileDialog open={importing} onOpenChange={setImporting} />
     </div>
+  );
+}
+
+/** "Keys from: VS Code ▾" — the preset layered under the active profile. */
+function PresetPicker({
+  value,
+  onChange,
+}: {
+  value: string | null;
+  onChange: (presetId: (typeof PRESETS)[number]["id"] | null) => void;
+}) {
+  const current = value ? (PRESET_BY_ID.get(value)?.label ?? value) : "Atlas";
+  return (
+    <DropdownMenu.Root>
+      <Hint label="Which editor's keys this profile starts from">
+        <DropdownMenu.Trigger
+          render={
+            <button
+              type="button"
+              className={cn(
+                "flex h-6 items-center gap-1.5 rounded-md px-2 text-xs",
+                "text-secondary-foreground hover:bg-element-hover hover:text-foreground",
+                "transition-colors cursor-pointer",
+              )}
+            >
+              <span className="text-muted-foreground">Keys from</span>
+              <span className="max-w-[120px] truncate">{current}</span>
+              <ChevronDown size={11} className="text-muted-foreground" />
+            </button>
+          }
+        />
+      </Hint>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Positioner className="z-popover" align="start" sideOffset={4}>
+          <DropdownMenu.Popup className={CONTENT_CLASS}>
+            {[{ id: null, label: "Atlas" } as const, ...PRESETS].map((p) => (
+              <DropdownMenu.Item
+                key={p.id ?? "atlas"}
+                onClick={() => onChange(p.id)}
+                className={ITEM_CLASS}
+              >
+                <span className="flex w-3 justify-center">
+                  {p.id === value && <Check size={11} />}
+                </span>
+                <span className="flex-1 truncate">{p.label}</span>
+              </DropdownMenu.Item>
+            ))}
+          </DropdownMenu.Popup>
+        </DropdownMenu.Positioner>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
   );
 }
 

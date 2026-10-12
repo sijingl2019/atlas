@@ -102,7 +102,10 @@ async fn app_server_default_analytics_enabled_with_flag() -> Result<()> {
     Ok(())
 }
 
-pub(crate) async fn mount_analytics_capture(server: &MockServer, atlas_agent_home: &Path) -> Result<()> {
+pub(crate) async fn mount_analytics_capture(
+    server: &MockServer,
+    atlas_agent_home: &Path,
+) -> Result<()> {
     Mock::given(method("POST"))
         .and(path("/atlas-agent/analytics-events/events"))
         .respond_with(ResponseTemplate::new(200))
@@ -132,7 +135,8 @@ pub(crate) async fn wait_for_analytics_payload(
                 continue;
             };
             if let Some(request) = requests.iter().find(|request| {
-                request.method == "POST" && request.url.path() == "/atlas-agent/analytics-events/events"
+                request.method == "POST"
+                    && request.url.path() == "/atlas-agent/analytics-events/events"
             }) {
                 break request.body.clone();
             }
@@ -489,7 +493,8 @@ enabled = true
         .await
         .unwrap_or_default()
     {
-        if request.method != "POST" || request.url.path() != "/atlas-agent/analytics-events/events" {
+        if request.method != "POST" || request.url.path() != "/atlas-agent/analytics-events/events"
+        {
             continue;
         }
         let payload: Value = serde_json::from_slice(&request.body)?;

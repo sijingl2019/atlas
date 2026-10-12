@@ -637,7 +637,9 @@ async fn multi_agent_v2_resume_refreshes_changed_wait_guidance(
         ],
     )
     .await;
-    let resumed = test_atlas_engine().resume(&server, home, rollout_path).await?;
+    let resumed = test_atlas_engine()
+        .resume(&server, home, rollout_path)
+        .await?;
 
     resumed
         .submit_turn("first turn with updated wait-agent availability")

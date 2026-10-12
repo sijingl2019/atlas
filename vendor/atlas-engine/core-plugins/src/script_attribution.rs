@@ -63,7 +63,10 @@ pub struct TrustedPluginRoots {
 }
 
 impl TrustedPluginRoots {
-    pub fn from_plugin_load_outcome(loaded_plugins: &PluginLoadOutcome, atlas_agent_home: &Path) -> Self {
+    pub fn from_plugin_load_outcome(
+        loaded_plugins: &PluginLoadOutcome,
+        atlas_agent_home: &Path,
+    ) -> Self {
         let primary_runtime_marketplace_root = primary_runtime_marketplace_root();
         let Ok(store) = PluginStore::try_new(atlas_agent_home.to_path_buf()) else {
             return Self::default();

@@ -100,7 +100,8 @@ fn write_sample_plugin_manifest_and_config_at_root(
     plugin_root: std::path::PathBuf,
     plugin_config_name: &str,
 ) -> std::path::PathBuf {
-    std::fs::create_dir_all(plugin_root.join(".atlas-agent-plugin")).expect("create plugin manifest dir");
+    std::fs::create_dir_all(plugin_root.join(".atlas-agent-plugin"))
+        .expect("create plugin manifest dir");
     std::fs::write(
         plugin_root.join(".atlas-agent-plugin/plugin.json"),
         format!(
@@ -421,10 +422,12 @@ async fn persisted_remote_plugin_command_attribution_flows_through_turn_context(
         turn_permission_fields(PermissionProfile::read_only(), cwd.as_path());
     atlas_engine
         .start_or_steer_turn(
-            TurnInputRequest::user_input(vec![atlas_engine_protocol::user_input::UserInput::Text {
-                text: "run the remote plugin script".into(),
-                text_elements: Vec::new(),
-            }])
+            TurnInputRequest::user_input(vec![
+                atlas_engine_protocol::user_input::UserInput::Text {
+                    text: "run the remote plugin script".into(),
+                    text_elements: Vec::new(),
+                },
+            ])
             .with_thread_settings(ThreadSettingsOverrides {
                 environments: Some(local_selections(cwd)),
                 approval_policy: Some(AskForApproval::Never),
@@ -458,7 +461,10 @@ async fn persisted_remote_plugin_command_attribution_flows_through_turn_context(
         "sandboxed plugin command failed: {}",
         end.aggregated_output
     );
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     for (plugin_id, script_path) in [
         (begin.plugin_id.as_deref(), begin.script_path.as_deref()),
@@ -468,7 +474,8 @@ async fn persisted_remote_plugin_command_attribution_flows_through_turn_context(
         assert_eq!(script_path, Some("scripts/run.sh"));
     }
 
-    let measurement = wait_for_analytics_event(&server, "atlas_engine_plugin_measurement_event").await;
+    let measurement =
+        wait_for_analytics_event(&server, "atlas_engine_plugin_measurement_event").await;
     assert_eq!(
         serde_json::json!({
             "plugin_id": measurement["event_params"]["plugin_id"],
@@ -497,7 +504,8 @@ async fn agent_plugin_skills_use_shared_catalog_and_direct_child_discovery() -> 
     )
     .await;
     let atlas_agent_home = Arc::new(TempDir::new()?);
-    let skill_path = dunce::canonicalize(write_agent_plugin_skill_plugin(atlas_agent_home.as_ref()))?;
+    let skill_path =
+        dunce::canonicalize(write_agent_plugin_skill_plugin(atlas_agent_home.as_ref()))?;
     let mut builder = test_atlas_engine()
         .with_home(Arc::clone(&atlas_agent_home))
         .with_extensions(skills_extensions());
@@ -1033,9 +1041,16 @@ enabled = true
                 plugins_manager.set_auth_mode(Some(AuthMode::BedrockApiKey));
             }
             TargetAuth::NoAtlasEngineAuth => {
-                test_atlas_engine.thread_manager.auth_manager().logout().await?;
+                test_atlas_engine
+                    .thread_manager
+                    .auth_manager()
+                    .logout()
+                    .await?;
                 assert_eq!(
-                    test_atlas_engine.thread_manager.auth_manager().get_api_auth_mode(),
+                    test_atlas_engine
+                        .thread_manager
+                        .auth_manager()
+                        .get_api_auth_mode(),
                     None
                 );
                 plugins_manager.set_auth_mode(/*auth_mode*/ None);
@@ -1097,9 +1112,12 @@ async fn explicit_plugin_mentions_use_apps_for_chatgpt_dual_surface_plugins(
         format!("{config}\n[apps.calendar]\nenabled = {app_enabled}\n"),
     )?;
 
-    let test_atlas_engine =
-        build_apps_enabled_plugin_test_atlas_engine(&server, atlas_agent_home, apps_server.chatgpt_base_url)
-            .await?;
+    let test_atlas_engine = build_apps_enabled_plugin_test_atlas_engine(
+        &server,
+        atlas_agent_home,
+        apps_server.chatgpt_base_url,
+    )
+    .await?;
     let atlas_engine = Arc::clone(&test_atlas_engine.atlas_engine);
     wait_for_mcp_server(&atlas_engine, ATLAS_APPS_MCP_SERVER_NAME).await?;
 
@@ -1184,9 +1202,12 @@ async fn explicit_plugin_mentions_keep_non_conflicting_mcp_for_chatgpt_auth() ->
     write_plugin_mcp_plugin(atlas_agent_home.as_ref(), &rmcp_test_server_bin);
     write_plugin_app_plugin_with_name(atlas_agent_home.as_ref(), "sample_app");
 
-    let test_atlas_engine =
-        build_apps_enabled_plugin_test_atlas_engine(&server, atlas_agent_home, apps_server.chatgpt_base_url)
-            .await?;
+    let test_atlas_engine = build_apps_enabled_plugin_test_atlas_engine(
+        &server,
+        atlas_agent_home,
+        apps_server.chatgpt_base_url,
+    )
+    .await?;
     let atlas_engine = Arc::clone(&test_atlas_engine.atlas_engine);
     wait_for_mcp_server(&atlas_engine, "sample").await?;
 
@@ -1255,7 +1276,8 @@ async fn explicitly_requested_mcp_waits_for_startup(request: ExplicitMcpRequest)
     let skill_path = dunce::canonicalize(write_plugin_skill_plugin(atlas_agent_home.as_ref()))?;
     write_plugin_mcp_plugin(atlas_agent_home.as_ref(), &rmcp_test_server_bin);
     write_plugin_app_plugin(atlas_agent_home.as_ref());
-    let initialize_barrier = block_plugin_mcp_startup(atlas_agent_home.as_ref(), &rmcp_test_server_bin);
+    let initialize_barrier =
+        block_plugin_mcp_startup(atlas_agent_home.as_ref(), &rmcp_test_server_bin);
 
     let mut builder = test_atlas_engine()
         .with_home(atlas_agent_home)
@@ -1359,7 +1381,8 @@ async fn explicit_plugin_mentions_track_plugin_used_analytics() -> Result<()> {
 
     let atlas_agent_home = Arc::new(TempDir::new()?);
     write_plugin_skill_plugin(atlas_agent_home.as_ref());
-    let test_atlas_engine = build_analytics_plugin_test_atlas_engine(&server, atlas_agent_home).await?;
+    let test_atlas_engine =
+        build_analytics_plugin_test_atlas_engine(&server, atlas_agent_home).await?;
     let atlas_engine = Arc::clone(&test_atlas_engine.atlas_engine);
 
     atlas_engine
@@ -1408,9 +1431,11 @@ async fn explicit_plugin_skill_invocation_tracks_remote_plugin_id() -> Result<()
     .await;
 
     let atlas_agent_home = Arc::new(TempDir::new()?);
-    let skill_path = dunce::canonicalize(write_remote_plugin_skill_plugin(atlas_agent_home.as_ref()))?;
+    let skill_path =
+        dunce::canonicalize(write_remote_plugin_skill_plugin(atlas_agent_home.as_ref()))?;
     persist_sample_remote_plugin_id(atlas_agent_home.as_ref());
-    let test_atlas_engine = build_analytics_plugin_test_atlas_engine(&server, atlas_agent_home).await?;
+    let test_atlas_engine =
+        build_analytics_plugin_test_atlas_engine(&server, atlas_agent_home).await?;
     let atlas_engine = Arc::clone(&test_atlas_engine.atlas_engine);
 
     atlas_engine
@@ -1489,7 +1514,8 @@ async fn implicit_plugin_skill_invocation_tracks_remote_plugin_id(
         ],
     )
     .await;
-    let test_atlas_engine = build_analytics_plugin_test_atlas_engine(&server, atlas_agent_home).await?;
+    let test_atlas_engine =
+        build_analytics_plugin_test_atlas_engine(&server, atlas_agent_home).await?;
     let atlas_engine = Arc::clone(&test_atlas_engine.atlas_engine);
 
     atlas_engine

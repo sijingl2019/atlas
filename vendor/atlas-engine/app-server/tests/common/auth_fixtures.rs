@@ -3,10 +3,6 @@ use std::path::Path;
 
 use anyhow::Context;
 use anyhow::Result;
-use base64::Engine;
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-use chrono::DateTime;
-use chrono::Utc;
 use atlas_engine_config::types::AuthCredentialsStoreMode;
 use atlas_engine_login::AuthDotJson;
 use atlas_engine_login::AuthKeyringBackendKind;
@@ -14,6 +10,10 @@ use atlas_engine_login::save_auth;
 use atlas_engine_login::token_data::TokenData;
 use atlas_engine_login::token_data::parse_chatgpt_jwt_claims;
 use atlas_engine_protocol::auth::AuthMode;
+use base64::Engine;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use chrono::DateTime;
+use chrono::Utc;
 use serde_json::json;
 
 /// Builder for writing a fake ChatGPT auth.json in tests.

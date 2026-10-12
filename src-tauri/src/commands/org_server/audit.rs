@@ -43,7 +43,11 @@ pub struct OrgActionRecord {
 }
 
 impl OrgActionRecord {
-    pub(super) fn of(grant: &Grant, request: &CallToolRequestParams, answer: &CallToolResult) -> Self {
+    pub(super) fn of(
+        grant: &Grant,
+        request: &CallToolRequestParams,
+        answer: &CallToolResult,
+    ) -> Self {
         Self {
             session_id: grant.session_id.clone(),
             agent: grant.agent.clone(),

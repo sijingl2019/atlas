@@ -136,8 +136,19 @@ describe("deriveSessionUsage", () => {
   });
 
   it("an agent-reported cost wins over the estimate and is not labelled estimated", () => {
-    const v = deriveSessionUsage({ ...base, input: 10, output: 10, price, agentCost: 0.42 });
-    expect(v.cost).toMatchObject({ total: 0.42, estimated: false });
+    const agentCost = { amount: 0.42, currency: "USD" };
+    const v = deriveSessionUsage({ ...base, input: 10, output: 10, price, agentCost });
+    expect(v.cost).toMatchObject({ total: 0.42, currency: "USD", estimated: false });
+  });
+
+  it("an agent's cost keeps the currency it was reported in; an estimate is USD", () => {
+    const agentCost = { amount: 0.42, currency: "EUR" };
+    const reported = deriveSessionUsage({ ...base, agentCost });
+    expect(reported.cost).toMatchObject({ total: 0.42, currency: "EUR" });
+    expect(reported.headline).toMatchObject({ kind: "cost", amount: 0.42, currency: "EUR" });
+
+    const estimated = deriveSessionUsage({ ...base, input: 1_000_000, price });
+    expect(estimated.cost).toMatchObject({ currency: "USD", estimated: true });
   });
 
   it("reasoning is a row of its own but is never priced on its own", () => {

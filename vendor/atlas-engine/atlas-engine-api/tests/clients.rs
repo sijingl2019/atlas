@@ -5,7 +5,6 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use anyhow::Result;
-use bytes::Bytes;
 use atlas_engine_api::ApiError;
 use atlas_engine_api::AuthError;
 use atlas_engine_api::AuthProvider;
@@ -25,6 +24,7 @@ use atlas_engine_protocol::models::ContentItem;
 use atlas_engine_protocol::models::ResponseItem;
 use atlas_engine_protocol::protocol::SessionSource;
 use atlas_engine_protocol::protocol::SubAgentSource;
+use bytes::Bytes;
 use http::HeaderMap;
 use http::HeaderValue;
 use http::StatusCode;
@@ -156,7 +156,11 @@ fn provider(name: &str) -> Provider {
 #[derive(Debug, Default)]
 struct FlakyTransportState {
     attempts: i64,
-    requests: Vec<(RequestBody, HeaderMap, atlas_engine_client::RequestCompression)>,
+    requests: Vec<(
+        RequestBody,
+        HeaderMap,
+        atlas_engine_client::RequestCompression,
+    )>,
 }
 
 #[derive(Clone)]
@@ -184,7 +188,13 @@ impl FlakyTransport {
             .attempts
     }
 
-    fn requests(&self) -> Vec<(RequestBody, HeaderMap, atlas_engine_client::RequestCompression)> {
+    fn requests(
+        &self,
+    ) -> Vec<(
+        RequestBody,
+        HeaderMap,
+        atlas_engine_client::RequestCompression,
+    )> {
         self.state
             .lock()
             .expect("flaky transport state mutex should not be poisoned")

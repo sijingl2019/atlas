@@ -18,7 +18,9 @@ pub fn find_atlas_agent_home() -> std::io::Result<AbsolutePathBuf> {
     find_atlas_agent_home_from_env(atlas_agent_home_env.as_deref())
 }
 
-fn find_atlas_agent_home_from_env(atlas_agent_home_env: Option<&str>) -> std::io::Result<AbsolutePathBuf> {
+fn find_atlas_agent_home_from_env(
+    atlas_agent_home_env: Option<&str>,
+) -> std::io::Result<AbsolutePathBuf> {
     // Honor the `ATLAS_AGENT_HOME` environment variable when it is set to allow users
     // (and tests) to override the default location.
     match atlas_agent_home_env {
@@ -81,7 +83,8 @@ mod tests {
             .to_str()
             .expect("missing atlas-agent home path should be valid utf-8");
 
-        let err = find_atlas_agent_home_from_env(Some(missing_str)).expect_err("missing ATLAS_AGENT_HOME");
+        let err = find_atlas_agent_home_from_env(Some(missing_str))
+            .expect_err("missing ATLAS_AGENT_HOME");
         assert_eq!(err.kind(), ErrorKind::NotFound);
         assert!(
             err.to_string().contains("ATLAS_AGENT_HOME"),
@@ -98,7 +101,8 @@ mod tests {
             .to_str()
             .expect("file atlas-agent home path should be valid utf-8");
 
-        let err = find_atlas_agent_home_from_env(Some(file_str)).expect_err("file ATLAS_AGENT_HOME");
+        let err =
+            find_atlas_agent_home_from_env(Some(file_str)).expect_err("file ATLAS_AGENT_HOME");
         assert_eq!(err.kind(), ErrorKind::InvalidInput);
         assert!(
             err.to_string().contains("not a directory"),
@@ -114,7 +118,8 @@ mod tests {
             .to_str()
             .expect("temp atlas-agent home path should be valid utf-8");
 
-        let resolved = find_atlas_agent_home_from_env(Some(temp_str)).expect("valid ATLAS_AGENT_HOME");
+        let resolved =
+            find_atlas_agent_home_from_env(Some(temp_str)).expect("valid ATLAS_AGENT_HOME");
         let expected = temp_home
             .path()
             .canonicalize()
@@ -125,8 +130,8 @@ mod tests {
 
     #[test]
     fn find_atlas_agent_home_without_env_uses_default_home_dir() {
-        let resolved =
-            find_atlas_agent_home_from_env(/*atlas_agent_home_env*/ None).expect("default ATLAS_AGENT_HOME");
+        let resolved = find_atlas_agent_home_from_env(/*atlas_agent_home_env*/ None)
+            .expect("default ATLAS_AGENT_HOME");
         let mut expected = home_dir().expect("home dir");
         expected.push(".atlas-agent");
         let expected = AbsolutePathBuf::from_absolute_path(expected).expect("absolute home");

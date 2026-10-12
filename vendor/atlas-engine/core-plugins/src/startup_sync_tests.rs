@@ -214,16 +214,25 @@ async fn ordinary_clone_rejects_tracked_embedded_bare_repository() {
         "startup Git must reject the repository before executing its helper"
     );
 
-    let apply_error = atlas_engine_git_utils::apply_git_patch(&atlas_engine_git_utils::ApplyGitRequest {
-        cwd: nested.clone(),
-        diff: String::new(),
-        revert: false,
-        preflight: true,
-    })
-    .expect_err("patch root discovery should reject the tracked embedded repository");
+    let apply_error =
+        atlas_engine_git_utils::apply_git_patch(&atlas_engine_git_utils::ApplyGitRequest {
+            cwd: nested.clone(),
+            diff: String::new(),
+            revert: false,
+            preflight: true,
+        })
+        .expect_err("patch root discovery should reject the tracked embedded repository");
     assert!(apply_error.to_string().contains("not a git repository"));
-    assert!(atlas_engine_git_utils::collect_git_info(&nested).await.is_none());
-    assert!(atlas_engine_git_utils::git_diff_to_remote(&nested).await.is_none());
+    assert!(
+        atlas_engine_git_utils::collect_git_info(&nested)
+            .await
+            .is_none()
+    );
+    assert!(
+        atlas_engine_git_utils::git_diff_to_remote(&nested)
+            .await
+            .is_none()
+    );
     assert!(
         !marker.exists(),
         "Rust-owned Git inspection must not execute the tracked helper"
@@ -1315,7 +1324,10 @@ fn curated_repo_backup_archive_zip_bytes(sha: &str) -> Vec<u8> {
         )
         .expect("write marketplace");
     writer
-        .start_file("plugins/plugins/gmail/.atlas-agent-plugin/plugin.json", options)
+        .start_file(
+            "plugins/plugins/gmail/.atlas-agent-plugin/plugin.json",
+            options,
+        )
         .expect("start plugin manifest entry");
     writer
         .write_all(br#"{"name":"gmail"}"#)

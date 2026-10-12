@@ -155,8 +155,9 @@ fn otel_export_routing_policy_routes_user_prompt_log_and_trace_events() {
 
     let logs = log_exporter.get_emitted_logs().expect("log export");
     assert!(
-        logs.iter()
-            .all(|log| { log.record.target().map(Cow::as_ref) == Some("atlas_engine_otel.log_only") })
+        logs.iter().all(|log| {
+            log.record.target().map(Cow::as_ref) == Some("atlas_engine_otel.log_only")
+        })
     );
 
     let prompt_log = find_log_by_event_name(&logs, "atlas_agent.user_prompt");
@@ -265,8 +266,9 @@ fn otel_export_routing_policy_routes_tool_result_log_and_trace_events() {
 
     let logs = log_exporter.get_emitted_logs().expect("log export");
     assert!(
-        logs.iter()
-            .all(|log| { log.record.target().map(Cow::as_ref) == Some("atlas_engine_otel.log_only") })
+        logs.iter().all(|log| {
+            log.record.target().map(Cow::as_ref) == Some("atlas_engine_otel.log_only")
+        })
     );
 
     let tool_log = find_log_by_event_name(&logs, "atlas_agent.tool_result");
@@ -419,7 +421,8 @@ fn otel_export_routing_policy_routes_auth_recovery_log_and_trace_events() {
     let span_events = &spans[0].events.events;
     assert_eq!(span_events.len(), 1);
 
-    let recovery_trace_event = find_span_event_by_name_attr(span_events, "atlas_agent.auth_recovery");
+    let recovery_trace_event =
+        find_span_event_by_name_attr(span_events, "atlas_agent.auth_recovery");
     let recovery_trace_attrs = span_event_attributes(recovery_trace_event);
     assert_eq!(
         recovery_trace_attrs.get("auth.mode").map(String::as_str),

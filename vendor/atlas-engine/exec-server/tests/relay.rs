@@ -17,8 +17,6 @@ use std::time::Duration;
 
 use anyhow::Context;
 use anyhow::Result;
-use base64::Engine as _;
-use base64::engine::general_purpose::STANDARD;
 use atlas_engine_api::AuthProvider;
 use atlas_engine_exec_server::EnvironmentConnectionState;
 use atlas_engine_exec_server::EnvironmentManager;
@@ -43,6 +41,8 @@ use atlas_engine_http_client::cache_system_proxy_route_for_test;
 use atlas_engine_protocol::capabilities::CapabilityRootLocation;
 use atlas_engine_protocol::capabilities::SelectedCapabilityRoot;
 use atlas_engine_utils_path_uri::PathUri;
+use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD;
 use futures::SinkExt;
 use futures::StreamExt;
 use futures::future::BoxFuture;
@@ -191,8 +191,10 @@ async fn pending_noise_environment_connects_and_reconnects_after_ready_report() 
         .mount(&registry)
         .await;
 
-    let (atlas_engine_exe, atlas_engine_linux_sandbox_exe) = common::current_test_binary_helper_paths()?;
-    let runtime_paths = ExecServerRuntimePaths::new(atlas_engine_exe, atlas_engine_linux_sandbox_exe)?;
+    let (atlas_engine_exe, atlas_engine_linux_sandbox_exe) =
+        common::current_test_binary_helper_paths()?;
+    let runtime_paths =
+        ExecServerRuntimePaths::new(atlas_engine_exe, atlas_engine_linux_sandbox_exe)?;
     let http_client_factory = HttpClientFactory::new(OutboundProxyPolicy::RespectSystemProxy);
     let config = RemoteEnvironmentConfig::new(
         registry.uri(),
@@ -359,8 +361,10 @@ async fn remote_environment_routes_encrypted_exec_server_rpc() -> Result<()> {
         .mount(&registry)
         .await;
 
-    let (atlas_engine_exe, atlas_engine_linux_sandbox_exe) = common::current_test_binary_helper_paths()?;
-    let runtime_paths = ExecServerRuntimePaths::new(atlas_engine_exe, atlas_engine_linux_sandbox_exe)?;
+    let (atlas_engine_exe, atlas_engine_linux_sandbox_exe) =
+        common::current_test_binary_helper_paths()?;
+    let runtime_paths =
+        ExecServerRuntimePaths::new(atlas_engine_exe, atlas_engine_linux_sandbox_exe)?;
     let config = RemoteEnvironmentConfig::new(
         registry.uri(),
         ENVIRONMENT_ID.to_string(),

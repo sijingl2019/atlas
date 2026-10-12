@@ -112,7 +112,11 @@ impl HostSkillsRequest<'_> {
 
 impl HostSkillsService {
     pub fn new(atlas_agent_home: AbsolutePathBuf, bundled_skills_enabled: bool) -> Self {
-        Self::new_with_restriction_product(atlas_agent_home, bundled_skills_enabled, Some(Product::AtlasEngine))
+        Self::new_with_restriction_product(
+            atlas_agent_home,
+            bundled_skills_enabled,
+            Some(Product::AtlasEngine),
+        )
     }
 
     pub fn new_with_restriction_product(

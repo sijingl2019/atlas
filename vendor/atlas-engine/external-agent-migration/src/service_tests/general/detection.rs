@@ -274,8 +274,11 @@ async fn detect_repo_still_reports_non_plugin_items_when_home_config_is_invalid(
     )
     .expect("create repo skills");
     fs::create_dir_all(&atlas_agent_home).expect("create atlas-agent home");
-    fs::write(atlas_agent_home.join("config.toml"), "this is not valid = [toml")
-        .expect("write invalid atlas-agent config");
+    fs::write(
+        atlas_agent_home.join("config.toml"),
+        "this is not valid = [toml",
+    )
+    .expect("write invalid atlas-agent config");
     fs::write(
         repo_root.join(EXTERNAL_AGENT_DIR).join("settings.json"),
         r#"{"env":{"FOO":"bar"}}"#,
@@ -597,7 +600,8 @@ async fn import_repo_migrates_mcp_hooks_commands_and_subagents() {
     .await;
 
     let config: TomlValue = toml::from_str(
-        &fs::read_to_string(repo_root.join(".atlas-agent").join("config.toml")).expect("read config"),
+        &fs::read_to_string(repo_root.join(".atlas-agent").join("config.toml"))
+            .expect("read config"),
     )
     .expect("parse config");
     let expected_config: TomlValue = toml::from_str(

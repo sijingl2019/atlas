@@ -34,7 +34,8 @@ pub const DOCTOR_REPORT_ATTACHMENT_FILENAME: &str = "atlas-engine-doctor-report.
 /// Filename used for the raw Atlas Agent Apps MCP tools cache feedback attachment.
 pub const ATLAS_APPS_TOOLS_CACHE_ATTACHMENT_FILENAME: &str = "atlas-engine-apps-tools-cache.json";
 /// Filename used for the raw connector directory cache feedback attachment.
-pub const ATLAS_AGENT_APP_DIRECTORY_CACHE_ATTACHMENT_FILENAME: &str = "atlas-engine-app-directory-cache.json";
+pub const ATLAS_AGENT_APP_DIRECTORY_CACHE_ATTACHMENT_FILENAME: &str =
+    "atlas-engine-app-directory-cache.json";
 /// Filename used for the Windows sandbox log feedback attachment.
 pub const WINDOWS_SANDBOX_LOG_ATTACHMENT_FILENAME: &str = "windows-sandbox.log";
 const DEFAULT_MAX_BYTES: usize = 4 * 1024 * 1024; // 4 MiB
@@ -221,8 +222,14 @@ impl AtlasEngineFeedback {
                     // target before re-emitting them as `log`; tungstenite TRACE
                     // includes full websocket frames and authenticated handshakes.
                     .with_target("tungstenite", LevelFilter::DEBUG)
-                    .with_target("atlas_engine_api::responses_websocket_timing", LevelFilter::OFF)
-                    .with_target("atlas_engine_core::post_sampling_token_estimate", LevelFilter::OFF),
+                    .with_target(
+                        "atlas_engine_api::responses_websocket_timing",
+                        LevelFilter::OFF,
+                    )
+                    .with_target(
+                        "atlas_engine_core::post_sampling_token_estimate",
+                        LevelFilter::OFF,
+                    ),
             )
     }
 

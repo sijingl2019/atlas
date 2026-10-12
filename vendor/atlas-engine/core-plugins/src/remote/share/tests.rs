@@ -542,7 +542,11 @@ async fn list_remote_plugin_shares_fetches_created_workspace_plugins() {
     let atlas_agent_home = TempDir::new().unwrap();
     let local_plugin_path =
         AbsolutePathBuf::try_from(atlas_agent_home.path().join("local-plugin")).unwrap();
-    write_plugin_share_local_path_mapping(atlas_agent_home.path(), "plugins_123", &local_plugin_path);
+    write_plugin_share_local_path_mapping(
+        atlas_agent_home.path(),
+        "plugins_123",
+        &local_plugin_path,
+    );
     let server = MockServer::start().await;
     let config = test_config(&server);
     let auth = test_auth();
@@ -734,7 +738,11 @@ async fn delete_remote_plugin_share_deletes_workspace_plugin() {
     let atlas_agent_home = TempDir::new().unwrap();
     let local_plugin_path =
         AbsolutePathBuf::try_from(atlas_agent_home.path().join("local-plugin")).unwrap();
-    write_plugin_share_local_path_mapping(atlas_agent_home.path(), "plugins_123", &local_plugin_path);
+    write_plugin_share_local_path_mapping(
+        atlas_agent_home.path(),
+        "plugins_123",
+        &local_plugin_path,
+    );
     let server = MockServer::start().await;
     let config = test_config(&server);
     let auth = test_auth();

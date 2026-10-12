@@ -57,7 +57,8 @@ pub fn zsh_fork_runtime(test_name: &str) -> Result<Option<ZshForkRuntime>> {
         );
         return Ok(None);
     }
-    let Ok(main_execve_wrapper_exe) = atlas_engine_utils_cargo_bin::cargo_bin("atlas-engine-execve-wrapper")
+    let Ok(main_execve_wrapper_exe) =
+        atlas_engine_utils_cargo_bin::cargo_bin("atlas-engine-execve-wrapper")
     else {
         eprintln!("skipping {test_name}: unable to resolve `atlas-engine-execve-wrapper` binary");
         return Ok(None);

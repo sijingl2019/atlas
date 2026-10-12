@@ -1,8 +1,6 @@
 // Modified by Atlas from upstream OpenAI Codex (Apache-2.0). See CONTEXT.md.
 use anyhow::Context;
 use anyhow::Result;
-use base64::Engine;
-use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use atlas_engine_api::AuthProvider;
 use atlas_engine_config::types::ApprovalsReviewer;
 use atlas_engine_core::AtlasEngineThreadSettingsOverrides;
@@ -73,6 +71,8 @@ use atlas_engine_protocol::request_user_input::RequestUserInputResponse;
 use atlas_engine_protocol::user_input::UserInput;
 use atlas_engine_utils_absolute_path::AbsolutePathBuf;
 use atlas_engine_utils_path_uri::PathUri;
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use core_test_support::PathBufExt;
 use core_test_support::PathExt;
 use core_test_support::TestTargetOs;
@@ -208,10 +208,11 @@ async fn submit_turn_with_approval_and_environments(
     environments: Vec<TurnEnvironmentSelection>,
     approval_policy: AskForApproval,
 ) -> Result<()> {
-    let turn_environment_selections = atlas_engine_protocol::protocol::TurnEnvironmentSelections::new(
-        test.config.cwd.clone(),
-        environments,
-    );
+    let turn_environment_selections =
+        atlas_engine_protocol::protocol::TurnEnvironmentSelections::new(
+            test.config.cwd.clone(),
+            environments,
+        );
     test.atlas_engine
         .start_or_steer_turn(
             TurnInputRequest::user_input(vec![UserInput::Text {
@@ -1074,7 +1075,9 @@ async fn shared_executor_keeps_ready_capability_roots_scoped_to_each_attachment(
     .await?;
 
     assert_eq!(
-        test.atlas_engine.inspect_selected_capability_roots().ready_roots,
+        test.atlas_engine
+            .inspect_selected_capability_roots()
+            .ready_roots,
         vec![root("first-root")]
     );
     assert_eq!(
@@ -1854,7 +1857,10 @@ async fn deferred_executor_loads_agents_md_when_environment_becomes_ready() -> R
     assert_eq!(environment_instructions_occurrences(&requests[0]), 1);
     assert_eq!(environment_instructions_occurrences(&requests[1]), 1);
     assert_eq!(environment_instructions_occurrences(&requests[2]), 1);
-    assert_eq!(test.atlas_engine.instruction_sources().await, vec![agents_path]);
+    assert_eq!(
+        test.atlas_engine.instruction_sources().await,
+        vec![agents_path]
+    );
 
     Ok(())
 }
@@ -2974,7 +2980,10 @@ async fn remote_test_env_sandboxed_read_allows_readable_root() -> Result<()> {
     let test_env = test_env().await?;
     let file_system = test_env.environment().get_filesystem();
 
-    let allowed_dir = PathBuf::from(format!("/tmp/atlas-engine-remote-readable-{}", std::process::id()));
+    let allowed_dir = PathBuf::from(format!(
+        "/tmp/atlas-engine-remote-readable-{}",
+        std::process::id()
+    ));
     let file_path = allowed_dir.join("note.txt");
     let allowed_dir_uri = PathUri::from_host_native_path(&allowed_dir)?;
     let file_path_uri = PathUri::from_host_native_path(&file_path)?;
@@ -3022,7 +3031,10 @@ async fn remote_test_env_sandboxed_read_rejects_symlink_parent_dotdot_escape() -
     let test_env = test_env().await?;
     let file_system = test_env.environment().get_filesystem();
 
-    let root = PathBuf::from(format!("/tmp/atlas-engine-remote-dotdot-{}", std::process::id()));
+    let root = PathBuf::from(format!(
+        "/tmp/atlas-engine-remote-dotdot-{}",
+        std::process::id()
+    ));
     let allowed_dir = root.join("allowed");
     let outside_dir = root.join("outside");
     let secret_path = root.join("secret.txt");

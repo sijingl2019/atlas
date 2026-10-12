@@ -99,8 +99,10 @@ async fn selected_environment_emits_connection_lifecycle_notifications() -> Resu
 
     let environment = TurnEnvironmentParams {
         environment_id: "remote-a".to_string(),
-        cwd: atlas_engine_utils_absolute_path::AbsolutePathBuf::try_from(atlas_agent_home.path().to_path_buf())?
-            .into(),
+        cwd: atlas_engine_utils_absolute_path::AbsolutePathBuf::try_from(
+            atlas_agent_home.path().to_path_buf(),
+        )?
+        .into(),
         runtime_workspace_roots: None,
     };
     let request_id = app_server

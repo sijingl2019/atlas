@@ -410,7 +410,10 @@ async fn remote_models_long_model_slug_is_sent_with_custom_reasoning() -> Result
         }]))
         .await?;
 
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let request = response_mock.single_request();
     let body = request.body_json();
@@ -628,7 +631,10 @@ async fn remote_models_remote_model_uses_unified_exec() -> Result<()> {
 
     assert_eq!(begin_event.source, ExecCommandSource::UnifiedExecStartup);
 
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     Ok(())
 }
@@ -862,7 +868,10 @@ async fn remote_models_apply_legacy_instructions() -> Result<()> {
         )
         .await?;
 
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     core_test_support::submit_thread_settings(
         &atlas_engine,
@@ -892,7 +901,10 @@ async fn remote_models_apply_legacy_instructions() -> Result<()> {
         )
         .await?;
 
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let base_model_info = models_manager
         .get_model_info("gpt-5.2", &config.to_models_manager_config())

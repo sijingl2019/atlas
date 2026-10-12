@@ -136,9 +136,13 @@ async fn thread_archive_requires_materialized_rollout() -> Result<()> {
         rollout_path.display()
     );
     assert!(
-        find_thread_path_by_id_str(atlas_agent_home.path(), &thread.id, /*state_db_ctx*/ None)
-            .await?
-            .is_none(),
+        find_thread_path_by_id_str(
+            atlas_agent_home.path(),
+            &thread.id,
+            /*state_db_ctx*/ None
+        )
+        .await?
+        .is_none(),
         "thread id should not be discoverable before rollout materialization"
     );
 
@@ -189,10 +193,13 @@ async fn thread_archive_requires_materialized_rollout() -> Result<()> {
         rollout_path.display()
     );
 
-    let discovered_path =
-        find_thread_path_by_id_str(atlas_agent_home.path(), &thread.id, /*state_db_ctx*/ None)
-            .await?
-            .expect("expected rollout path for thread id to exist after materialization");
+    let discovered_path = find_thread_path_by_id_str(
+        atlas_agent_home.path(),
+        &thread.id,
+        /*state_db_ctx*/ None,
+    )
+    .await?
+    .expect("expected rollout path for thread id to exist after materialization");
     assert_paths_match_on_disk(&discovered_path, &rollout_path)?;
 
     let _: ThreadArchiveResponse = mcp
@@ -398,10 +405,13 @@ async fn thread_archive_succeeds_when_descendant_archive_fails() -> Result<()> {
         )
         .await?;
 
-    let child_rollout_path =
-        find_thread_path_by_id_str(atlas_agent_home.path(), &child_id, /*state_db_ctx*/ None)
-            .await?
-            .expect("child rollout path");
+    let child_rollout_path = find_thread_path_by_id_str(
+        atlas_agent_home.path(),
+        &child_id,
+        /*state_db_ctx*/ None,
+    )
+    .await?
+    .expect("child rollout path");
     let archived_child_path = atlas_agent_home
         .path()
         .join(ARCHIVED_SESSIONS_SUBDIR)
@@ -615,9 +625,13 @@ async fn thread_archive_succeeds_when_spawned_descendant_is_missing() -> Result<
     assert_eq!(archived_notification.thread_id, parent_id);
 
     assert!(
-        find_thread_path_by_id_str(atlas_agent_home.path(), &parent_id, /*state_db_ctx*/ None)
-            .await?
-            .is_none(),
+        find_thread_path_by_id_str(
+            atlas_agent_home.path(),
+            &parent_id,
+            /*state_db_ctx*/ None
+        )
+        .await?
+        .is_none(),
         "parent should be archived even when a descendant is missing"
     );
     assert!(

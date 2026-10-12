@@ -7,8 +7,8 @@ use crate::elicitation::ElicitationRequestRouter;
 use crate::elicitation::ElicitationReviewRequest;
 use crate::elicitation::ElicitationReviewer;
 use crate::elicitation::elicitation_is_rejected_by_policy;
-use crate::rmcp_client::AsyncManagedClient;
 use crate::rmcp_client::ATLAS_APPS_RECONNECT_INITIAL_BACKOFF;
+use crate::rmcp_client::AsyncManagedClient;
 use crate::rmcp_client::AtlasAppsStartupReconnect;
 use crate::rmcp_client::ManagedClient;
 use crate::rmcp_client::ManagedClientFuture;
@@ -36,8 +36,8 @@ use atlas_engine_connectors::ConnectorRuntimeContextKey;
 use atlas_engine_connectors::ConnectorRuntimeFetchSource;
 use atlas_engine_connectors::ConnectorRuntimeManager;
 use atlas_engine_exec_server_test_support::environment_manager_without_environments;
-use atlas_engine_login::AuthHeaders;
 use atlas_engine_login::AtlasEngineAuth;
+use atlas_engine_login::AuthHeaders;
 use atlas_engine_protocol::ToolName;
 use atlas_engine_protocol::approvals::ElicitationRequest;
 use atlas_engine_protocol::mcp::ClientMcpExtensions;
@@ -895,7 +895,8 @@ async fn disabled_permissions_surface_requested_user_input_without_metadata() {
 }
 
 #[tokio::test]
-async fn disabled_permissions_surface_requested_user_input_with_non_atlas_engine_approval_metadata() {
+async fn disabled_permissions_surface_requested_user_input_with_non_atlas_engine_approval_metadata()
+{
     assert_disabled_permissions_surface_requested_user_input(elicitation_meta(serde_json::json!({
         "origin": "https://example.com",
         "persist": "always",
@@ -1886,7 +1887,8 @@ async fn hard_refresh_keeps_binding_override_local_when_shared_cache_loses_race(
         Some("shared-account".to_string()),
         Some("shared-user".to_string()),
     );
-    let cache_context_a = shared_cache.context(atlas_agent_home.path().to_path_buf(), cache_key.clone());
+    let cache_context_a =
+        shared_cache.context(atlas_agent_home.path().to_path_buf(), cache_key.clone());
     let cache_context_b = shared_cache.context(atlas_agent_home.path().to_path_buf(), cache_key);
     let list_started = Arc::new(Notify::new());
     let release_list = Arc::new(Notify::new());
@@ -2578,7 +2580,9 @@ async fn capture_binding_resolves_concurrently_and_rechecks_cached_clients() {
     .await
     .expect("both uncached servers should start before either is released");
 
-    release_apps.send(()).expect("release Atlas Agent Apps startup");
+    release_apps
+        .send(())
+        .expect("release Atlas Agent Apps startup");
     assert!(startup.await.expect("Atlas Agent Apps startup task"));
     release_first.send(()).expect("release first server");
     release_second.send(()).expect("release second server");
@@ -3424,7 +3428,9 @@ async fn executor_owned_chatgpt_mcp_accepts_only_safe_explicit_authorization() -
         assert!(
             chatgpt_auth_provider_for_server(
                 remote_server,
-                Some(atlas_engine_model_provider::auth_provider_from_auth(&hosted_auth)),
+                Some(atlas_engine_model_provider::auth_provider_from_auth(
+                    &hosted_auth
+                )),
             )
             .is_none(),
             "{case}: executor-owned servers must never receive hosted actor credentials"
@@ -4288,7 +4294,10 @@ async fn reconciliation_retries_non_oauth_authentication_failures() {
 #[test]
 fn connection_identity_uses_effective_authorization_headers() {
     let runtime_context = reusable_server_runtime_context();
-    let missing_env_var = format!("ATLAS_AGENT_TEST_UNSET_MCP_AUTHORIZATION_{}", std::process::id());
+    let missing_env_var = format!(
+        "ATLAS_AGENT_TEST_UNSET_MCP_AUTHORIZATION_{}",
+        std::process::id()
+    );
     assert!(std::env::var_os(&missing_env_var).is_none());
 
     for (static_header, environment_header, has_authorization) in [

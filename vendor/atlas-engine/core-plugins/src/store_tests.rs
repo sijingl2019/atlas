@@ -69,7 +69,11 @@ fn install_copies_plugin_into_default_marketplace() {
             installed_path: AbsolutePathBuf::try_from(installed_path.clone()).unwrap(),
         }
     );
-    assert!(installed_path.join(".atlas-agent-plugin/plugin.json").is_file());
+    assert!(
+        installed_path
+            .join(".atlas-agent-plugin/plugin.json")
+            .is_file()
+    );
     assert!(installed_path.join("skills/SKILL.md").is_file());
 }
 
@@ -110,7 +114,11 @@ fn install_accepts_manifest_mcp_server_objects() {
             installed_path: AbsolutePathBuf::try_from(installed_path.clone()).unwrap(),
         }
     );
-    assert!(installed_path.join(".atlas-agent-plugin/plugin.json").is_file());
+    assert!(
+        installed_path
+            .join(".atlas-agent-plugin/plugin.json")
+            .is_file()
+    );
 }
 
 #[test]
@@ -212,7 +220,11 @@ fn install_with_version_uses_requested_cache_version() {
             installed_path: AbsolutePathBuf::try_from(installed_path.clone()).unwrap(),
         }
     );
-    assert!(installed_path.join(".atlas-agent-plugin/plugin.json").is_file());
+    assert!(
+        installed_path
+            .join(".atlas-agent-plugin/plugin.json")
+            .is_file()
+    );
 }
 
 #[test]
@@ -238,7 +250,9 @@ fn remote_plugin_install_metadata_follows_installed_cache_lifecycle() {
     let metadata_path = store.remote_plugin_install_metadata_path(&plugin_id);
     assert_eq!(
         metadata_path.as_path().file_name(),
-        Some(std::ffi::OsStr::new(".atlas-agent-remote-plugin-install.json"))
+        Some(std::ffi::OsStr::new(
+            ".atlas-agent-remote-plugin-install.json"
+        ))
     );
     assert_eq!(
         serde_json::from_str::<serde_json::Value>(
@@ -350,7 +364,11 @@ fn install_prefers_on_disk_manifest_version_over_fallback() {
             installed_path: AbsolutePathBuf::try_from(installed_path.clone()).unwrap(),
         }
     );
-    assert!(installed_path.join(".atlas-agent-plugin/plugin.json").is_file());
+    assert!(
+        installed_path
+            .join(".atlas-agent-plugin/plugin.json")
+            .is_file()
+    );
 }
 
 #[test]

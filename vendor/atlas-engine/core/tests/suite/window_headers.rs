@@ -108,24 +108,34 @@ async fn submit_user_turn(atlas_engine: &Arc<AtlasEngineThread>, text: &str) -> 
             text_elements: Vec::new(),
         }]))
         .await?;
-    wait_for_event(atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
     Ok(())
 }
 
 async fn submit_compact_turn(atlas_engine: &Arc<AtlasEngineThread>) -> Result<()> {
     atlas_engine.submit(Op::Compact).await?;
-    let warning_event = wait_for_event(atlas_engine, |event| matches!(event, EventMsg::Warning(_))).await;
+    let warning_event =
+        wait_for_event(atlas_engine, |event| matches!(event, EventMsg::Warning(_))).await;
     let EventMsg::Warning(WarningEvent { message }) = warning_event else {
         panic!("expected warning event after compact");
     };
     assert_eq!(message, COMPACT_WARNING_MESSAGE);
-    wait_for_event(atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
     Ok(())
 }
 
 async fn shutdown_thread(atlas_engine: &Arc<AtlasEngineThread>) -> Result<()> {
     atlas_engine.submit(Op::Shutdown).await?;
-    wait_for_event(atlas_engine, |event| matches!(event, EventMsg::ShutdownComplete)).await;
+    wait_for_event(atlas_engine, |event| {
+        matches!(event, EventMsg::ShutdownComplete)
+    })
+    .await;
     Ok(())
 }
 

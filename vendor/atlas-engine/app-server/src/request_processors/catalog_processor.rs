@@ -45,14 +45,16 @@ fn skills_to_info(
                         tools: dependencies
                             .tools
                             .into_iter()
-                            .map(|tool| atlas_engine_app_server_protocol::SkillToolDependency {
-                                r#type: tool.r#type,
-                                value: tool.value,
-                                description: tool.description,
-                                transport: tool.transport,
-                                command: tool.command,
-                                url: tool.url,
-                            })
+                            .map(
+                                |tool| atlas_engine_app_server_protocol::SkillToolDependency {
+                                    r#type: tool.r#type,
+                                    value: tool.value,
+                                    description: tool.description,
+                                    transport: tool.transport,
+                                    command: tool.command,
+                                    url: tool.url,
+                                },
+                            )
                             .collect(),
                     }
                 }),
@@ -516,16 +518,17 @@ impl CatalogRequestProcessor {
             skills_service.clear_cache();
         }
         // Plugin configuration is user-scoped; workspace skill rules are applied below.
-        let (effective_skill_roots, plugin_skill_snapshots) = if workspace_atlas_engine_plugins_enabled {
-            let plugins_input = config.plugins_config_input();
-            let plugins = plugins_manager.plugins_for_config(&plugins_input).await;
-            (
-                plugins.effective_plugin_skill_roots(),
-                plugins_manager.plugin_skill_snapshots_for_config(&plugins_input),
-            )
-        } else {
-            (Vec::new(), None)
-        };
+        let (effective_skill_roots, plugin_skill_snapshots) =
+            if workspace_atlas_engine_plugins_enabled {
+                let plugins_input = config.plugins_config_input();
+                let plugins = plugins_manager.plugins_for_config(&plugins_input).await;
+                (
+                    plugins.effective_plugin_skill_roots(),
+                    plugins_manager.plugin_skill_snapshots_for_config(&plugins_input),
+                )
+            } else {
+                (Vec::new(), None)
+            };
         let fs = self
             .thread_manager
             .environment_manager()
@@ -548,10 +551,12 @@ impl CatalogRequestProcessor {
                                 atlas_engine_app_server_protocol::SkillsListEntry {
                                     cwd,
                                     skills: Vec::new(),
-                                    errors: vec![atlas_engine_app_server_protocol::SkillErrorInfo {
-                                        path: error_path,
-                                        message,
-                                    }],
+                                    errors: vec![
+                                        atlas_engine_app_server_protocol::SkillErrorInfo {
+                                            path: error_path,
+                                            message,
+                                        },
+                                    ],
                                 },
                             );
                         }

@@ -13,7 +13,8 @@ fn rate_limit_reset_contract_uses_expected_paths_and_payloads() {
         "https://example.test/api/codex/usage"
     );
     assert_eq!(
-        test_client("https://example.test", PathStyle::AtlasEngineApi).rate_limit_reset_credits_url(),
+        test_client("https://example.test", PathStyle::AtlasEngineApi)
+            .rate_limit_reset_credits_url(),
         "https://example.test/api/codex/rate-limit-reset-credits"
     );
     assert_eq!(

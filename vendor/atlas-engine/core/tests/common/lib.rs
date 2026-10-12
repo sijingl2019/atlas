@@ -232,7 +232,8 @@ allow_local_binding = true
 fn default_test_overrides() -> ConfigOverrides {
     ConfigOverrides {
         atlas_engine_linux_sandbox_exe: Some(
-            find_atlas_engine_linux_sandbox_exe().expect("should find binary for atlas-engine-linux-sandbox"),
+            find_atlas_engine_linux_sandbox_exe()
+                .expect("should find binary for atlas-engine-linux-sandbox"),
         ),
         ..ConfigOverrides::default()
     }
@@ -272,7 +273,10 @@ where
 }
 
 /// Waits for a configured MCP server to finish startup and requires it to be ready.
-pub async fn wait_for_mcp_server(atlas_engine: &AtlasEngineThread, server_name: &str) -> anyhow::Result<()> {
+pub async fn wait_for_mcp_server(
+    atlas_engine: &AtlasEngineThread,
+    server_name: &str,
+) -> anyhow::Result<()> {
     use atlas_engine_protocol::protocol::EventMsg;
 
     // Wait for the startup summary regardless of outcome, then interpret the
@@ -313,7 +317,9 @@ pub async fn submit_thread_settings(
     use tokio::time::Duration;
     use tokio::time::timeout;
 
-    let submission_id = atlas_engine.submit(Op::ThreadSettings { thread_settings }).await?;
+    let submission_id = atlas_engine
+        .submit(Op::ThreadSettings { thread_settings })
+        .await?;
     loop {
         let ev = timeout(Duration::from_secs(10), atlas_engine.next_event())
             .await
@@ -349,10 +355,13 @@ where
     use tokio::time::timeout;
     loop {
         // Allow a bit more time to accommodate async startup work (e.g. config IO, tool discovery)
-        let ev = timeout(wait_time.max(Duration::from_secs(10)), atlas_engine.next_event())
-            .await
-            .expect("timeout waiting for event")
-            .expect("stream ended unexpectedly");
+        let ev = timeout(
+            wait_time.max(Duration::from_secs(10)),
+            atlas_engine.next_event(),
+        )
+        .await
+        .expect("timeout waiting for event")
+        .expect("stream ended unexpectedly");
         if predicate(&ev.msg) {
             return ev.msg;
         }
@@ -368,7 +377,8 @@ pub fn sandbox_network_env_var() -> &'static str {
 }
 
 pub fn format_with_current_shell(command: &str) -> Vec<String> {
-    atlas_engine_core::shell::default_user_shell().derive_exec_args(command, /*use_login_shell*/ true)
+    atlas_engine_core::shell::default_user_shell()
+        .derive_exec_args(command, /*use_login_shell*/ true)
 }
 
 pub fn format_with_current_shell_display(command: &str) -> String {
@@ -388,7 +398,8 @@ pub fn format_with_current_shell_display_non_login(command: &str) -> String {
 }
 
 pub fn stdio_server_bin() -> Result<String, CargoBinError> {
-    atlas_engine_utils_cargo_bin::cargo_bin("test_stdio_server").map(|p| p.to_string_lossy().to_string())
+    atlas_engine_utils_cargo_bin::cargo_bin("test_stdio_server")
+        .map(|p| p.to_string_lossy().to_string())
 }
 
 pub mod fs_wait {
@@ -679,7 +690,9 @@ macro_rules! atlas_engine_linux_sandbox_exe_or_skip {
             match $crate::find_atlas_engine_linux_sandbox_exe() {
                 Ok(path) => Some(path),
                 Err(err) => {
-                    eprintln!("atlas-engine-linux-sandbox binary not available, skipping test: {err}");
+                    eprintln!(
+                        "atlas-engine-linux-sandbox binary not available, skipping test: {err}"
+                    );
                     return;
                 }
             }
@@ -695,7 +708,9 @@ macro_rules! atlas_engine_linux_sandbox_exe_or_skip {
             match $crate::find_atlas_engine_linux_sandbox_exe() {
                 Ok(path) => Some(path),
                 Err(err) => {
-                    eprintln!("atlas-engine-linux-sandbox binary not available, skipping test: {err}");
+                    eprintln!(
+                        "atlas-engine-linux-sandbox binary not available, skipping test: {err}"
+                    );
                     return $return_value;
                 }
             }

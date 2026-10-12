@@ -827,11 +827,9 @@ pub(crate) fn configured_marketplace_plugins(
                 plugin.policy.installation != MarketplacePluginInstallPolicy::NotAvailable
             })
             .filter(|plugin| {
-                plugin
-                    .policy
-                    .products
-                    .as_deref()
-                    .is_none_or(|products| Product::AtlasEngine.matches_product_restriction(products))
+                plugin.policy.products.as_deref().is_none_or(|products| {
+                    Product::AtlasEngine.matches_product_restriction(products)
+                })
             })
             .map(|plugin| plugin.name)
             .collect::<HashSet<_>>();

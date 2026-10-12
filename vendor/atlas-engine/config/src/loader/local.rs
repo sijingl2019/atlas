@@ -94,7 +94,8 @@ pub async fn load_local_config_layers(
     atlas_agent_home: &Path,
     cwd: &AbsolutePathBuf,
 ) -> io::Result<LocalConfigLayers> {
-    load_local_config_layers_with_overrides(fs, atlas_agent_home, cwd, &LoaderOverrides::default()).await
+    load_local_config_layers_with_overrides(fs, atlas_agent_home, cwd, &LoaderOverrides::default())
+        .await
 }
 
 pub(super) async fn load_local_config_layers_with_overrides(
@@ -160,9 +161,13 @@ pub(super) async fn load_local_config_layers_with_overrides(
     ];
     append_project_layers(fs, &mut config_layers, project_layers.layers).await?;
 
-    let requirements =
-        local_requirements_layers(fs, atlas_agent_home.as_path(), overrides, loaded_managed.clone())
-            .await?;
+    let requirements = local_requirements_layers(
+        fs,
+        atlas_agent_home.as_path(),
+        overrides,
+        loaded_managed.clone(),
+    )
+    .await?;
     append_legacy_config_layers(&mut config_layers, loaded_managed, &atlas_agent_home)?;
 
     Ok(LocalConfigLayers {

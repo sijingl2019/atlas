@@ -5,8 +5,6 @@ use anyhow::bail;
 use app_test_support::DISABLE_PLUGIN_STARTUP_TASKS_ARG;
 use app_test_support::create_mock_responses_server_sequence_unchecked;
 use app_test_support::to_response;
-use base64::Engine;
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use atlas_engine_app_server_protocol::ClientInfo;
 use atlas_engine_app_server_protocol::ConfigWarningNotification;
 use atlas_engine_app_server_protocol::InitializeParams;
@@ -22,6 +20,8 @@ use atlas_engine_app_server_protocol::ThreadStartParams;
 use atlas_engine_app_server_protocol::ThreadStartResponse;
 use atlas_engine_core::config::set_project_trust_level;
 use atlas_engine_protocol::config_types::TrustLevel;
+use base64::Engine;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use futures::SinkExt;
 use futures::StreamExt;
 use hmac::Hmac;
@@ -279,7 +279,8 @@ async fn websocket_transport_rejects_missing_and_invalid_capability_tokens() -> 
     ];
 
     let (mut process, bind_addr) =
-        spawn_websocket_server_with_args(atlas_agent_home.path(), "ws://0.0.0.0:0", &auth_args).await?;
+        spawn_websocket_server_with_args(atlas_agent_home.path(), "ws://0.0.0.0:0", &auth_args)
+            .await?;
 
     assert_websocket_connect_rejected(bind_addr, /*bearer_token*/ None).await?;
     assert_websocket_connect_rejected(bind_addr, Some("wrong-token")).await?;
@@ -318,7 +319,8 @@ async fn websocket_transport_verifies_signed_short_lived_bearer_tokens() -> Resu
     ];
 
     let (mut process, bind_addr) =
-        spawn_websocket_server_with_args(atlas_agent_home.path(), "ws://127.0.0.1:0", &auth_args).await?;
+        spawn_websocket_server_with_args(atlas_agent_home.path(), "ws://127.0.0.1:0", &auth_args)
+            .await?;
     let expired_token = signed_bearer_token(
         shared_secret.as_bytes(),
         json!({
@@ -431,9 +433,12 @@ async fn websocket_transport_rejects_unauthenticated_non_loopback_startup() -> R
     let atlas_agent_home = TempDir::new()?;
     create_config_toml(atlas_agent_home.path(), &server.uri(), "never")?;
 
-    let output =
-        run_websocket_server_to_completion_with_args(atlas_agent_home.path(), "ws://0.0.0.0:0", &[])
-            .await?;
+    let output = run_websocket_server_to_completion_with_args(
+        atlas_agent_home.path(),
+        "ws://0.0.0.0:0",
+        &[],
+    )
+    .await?;
     assert!(
         !output.status.success(),
         "unauthenticated non-loopback listener should fail websocket server startup"

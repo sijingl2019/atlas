@@ -1,7 +1,7 @@
 // Modified by Atlas from upstream OpenAI Codex (Apache-2.0). See CONTEXT.md.
-use base64::Engine;
 use atlas_engine_api::ApiError;
 use atlas_engine_api::TransportError;
+use base64::Engine;
 
 const REQUEST_ID_HEADER: &str = "x-request-id";
 const OAI_REQUEST_ID_HEADER: &str = "x-oai-request-id";

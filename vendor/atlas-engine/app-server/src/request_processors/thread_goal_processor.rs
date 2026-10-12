@@ -159,7 +159,11 @@ impl ThreadGoalRequestProcessor {
 
         let persist_result = match self.thread_manager.get_thread(thread_id).await {
             Ok(thread) => match thread.rollout_path() {
-                Some(path) if atlas_engine_rollout::existing_rollout_path(&path).await.is_none() => {
+                Some(path)
+                    if atlas_engine_rollout::existing_rollout_path(&path)
+                        .await
+                        .is_none() =>
+                {
                     // Goal-first threads need their settings captured when the goal creates the
                     // rollout. Once materialized, normal settings updates own this event.
                     let persisted_settings = thread
@@ -450,7 +454,9 @@ pub(super) fn api_thread_goal_from_state(goal: atlas_engine_state::ThreadGoal) -
     }
 }
 
-fn api_thread_goal_status_from_state(status: atlas_engine_state::ThreadGoalStatus) -> ThreadGoalStatus {
+fn api_thread_goal_status_from_state(
+    status: atlas_engine_state::ThreadGoalStatus,
+) -> ThreadGoalStatus {
     match status {
         atlas_engine_state::ThreadGoalStatus::Active => ThreadGoalStatus::Active,
         atlas_engine_state::ThreadGoalStatus::Paused => ThreadGoalStatus::Paused,

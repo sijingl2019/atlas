@@ -5,7 +5,6 @@ use crate::cache::ModelsCacheEntry;
 use crate::collaboration_mode_presets::builtin_collaboration_mode_presets;
 use crate::config::ModelsManagerConfig;
 use crate::model_info;
-use chrono::Utc;
 use atlas_engine_http_client::HttpClientFactory;
 use atlas_engine_login::AuthManager;
 use atlas_engine_protocol::auth::AuthMode;
@@ -15,6 +14,7 @@ use atlas_engine_protocol::openai_models::ModelInfo;
 use atlas_engine_protocol::openai_models::ModelPreset;
 use atlas_engine_protocol::openai_models::ModelVisibility;
 use atlas_engine_protocol::openai_models::ModelsResponse;
+use chrono::Utc;
 use std::fmt;
 use std::future::Future;
 use std::path::PathBuf;
@@ -436,7 +436,8 @@ impl OpenAiModelsManager {
     }
 
     async fn should_refresh_models(&self) -> bool {
-        self.endpoint_client.uses_atlas_engine_backend().await || self.endpoint_client.has_command_auth()
+        self.endpoint_client.uses_atlas_engine_backend().await
+            || self.endpoint_client.has_command_auth()
     }
 
     async fn get_etag(&self) -> Option<String> {
@@ -480,8 +481,10 @@ impl OpenAiModelsManager {
         let Some(cache) = self.cache.as_ref() else {
             return false;
         };
-        let _timer =
-            atlas_engine_otel::start_global_timer("atlas_agent.remote_models.load_cache.duration_ms", &[]);
+        let _timer = atlas_engine_otel::start_global_timer(
+            "atlas_agent.remote_models.load_cache.duration_ms",
+            &[],
+        );
         let client_version = crate::client_version_to_whole();
         info!(client_version, "models cache: evaluating cache eligibility");
         // TODO(celia-oai): Include provider identity in cache eligibility so switching

@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { isWindows } from "@/lib/platform";
 import { AtlasIcon } from "@/components/atlas-icon";
 import { useUpdaterStore } from "../stores/updater-store";
-import { updater } from "../lib/updater-api";
+import { restartToUpdate } from "../lib/restart-to-update";
 
 /**
  * "Restart to update" prompt — a macOS-updater-style centered card shown only
@@ -17,18 +17,14 @@ export function UpdateAvailableModal() {
   const version = useUpdaterStore.use.version();
   const error = useUpdaterStore.use.error();
   const modalOpen = useUpdaterStore.use.modalOpen();
-  const { beginApply, dismissModal, setError } = useUpdaterStore.use.actions();
+  const { dismissModal } = useUpdaterStore.use.actions();
 
   const applying = phase === "applying";
   const isError = phase === "error";
   // Only the staged-ready, applying, and error phases have a modal.
   const open = modalOpen && (phase === "ready" || applying || isError);
 
-  const restartNow = () => {
-    beginApply();
-    // On success the app restarts; failures arrive via the error listener.
-    void updater.apply().catch((e) => setError(String(e)));
-  };
+  const restartNow = restartToUpdate;
 
   return (
     <Dialog.Root

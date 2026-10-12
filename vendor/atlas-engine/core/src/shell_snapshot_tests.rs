@@ -133,7 +133,10 @@ fn bash_snapshot_filters_invalid_exports() -> Result<()> {
         .env("BASH_ENV", "/dev/null")
         .env("VALID_NAME", "ok")
         .env("PWD", "/tmp/stale")
-        .env("NEXTEST_BIN_EXE_atlas-engine-write-config-schema", "/path/to/bin")
+        .env(
+            "NEXTEST_BIN_EXE_atlas-engine-write-config-schema",
+            "/path/to/bin",
+        )
         .env("BAD-NAME", "broken")
         .output()?;
 

@@ -435,7 +435,9 @@ fn assert_pre_sampling_switch_compaction_requests(
     );
 }
 
-async fn assert_compaction_uses_turn_lifecycle_id(atlas_engine: &std::sync::Arc<atlas_engine_core::AtlasEngineThread>) {
+async fn assert_compaction_uses_turn_lifecycle_id(
+    atlas_engine: &std::sync::Arc<atlas_engine_core::AtlasEngineThread>,
+) {
     let mut turn_started_id = None;
     let mut turn_completed_id = None;
     let mut compact_started_id = None;
@@ -543,7 +545,8 @@ async fn summarize_context_three_requests_and_instructions() {
 
     // 2) Summarize – second hit should include the summarization prompt.
     atlas_engine.submit(Op::Compact).await.unwrap();
-    let warning_event = wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::Warning(_))).await;
+    let warning_event =
+        wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::Warning(_))).await;
     let EventMsg::Warning(WarningEvent { message }) = warning_event else {
         panic!("expected warning event after compact");
     };
@@ -724,7 +727,10 @@ async fn manual_pre_compact_block_decision_does_not_block_compaction() {
         .expect("submit first user turn");
     wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
 
-    atlas_engine.submit(Op::Compact).await.expect("trigger compact");
+    atlas_engine
+        .submit(Op::Compact)
+        .await
+        .expect("trigger compact");
 
     let completed = wait_for_event_match(&atlas_engine, |ev| match ev {
         EventMsg::HookCompleted(completed)
@@ -746,7 +752,11 @@ async fn manual_pre_compact_block_decision_does_not_block_compaction() {
         "unsupported PreCompact block output should not prevent the compact request"
     );
 
-    let hook_inputs = read_hook_inputs(&test.atlas_agent_home_path().join("pre_compact_block_log.jsonl"));
+    let hook_inputs = read_hook_inputs(
+        &test
+            .atlas_agent_home_path()
+            .join("pre_compact_block_log.jsonl"),
+    );
     assert_eq!(hook_inputs.len(), 1);
     let input = &hook_inputs[0];
     assert_eq!(input["hook_event_name"], "PreCompact");
@@ -791,7 +801,10 @@ async fn compact_hooks_respect_matchers_and_post_runs_after_compaction() {
         .expect("submit first user turn");
     wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
 
-    atlas_engine.submit(Op::Compact).await.expect("trigger compact");
+    atlas_engine
+        .submit(Op::Compact)
+        .await
+        .expect("trigger compact");
     wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::Warning(_))).await;
     wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
 
@@ -804,8 +817,11 @@ async fn compact_hooks_respect_matchers_and_post_runs_after_compaction() {
         "auto matcher should not run for manual compaction"
     );
 
-    let hook_inputs =
-        read_hook_inputs(&test.atlas_agent_home_path().join("post_compact_manual_log.jsonl"));
+    let hook_inputs = read_hook_inputs(
+        &test
+            .atlas_agent_home_path()
+            .join("post_compact_manual_log.jsonl"),
+    );
     assert_eq!(hook_inputs.len(), 1);
     let input = &hook_inputs[0];
     assert_eq!(input["hook_event_name"], "PostCompact");
@@ -855,8 +871,12 @@ async fn manual_compact_uses_custom_prompt() {
         .expect("submit first user turn");
     wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
 
-    atlas_engine.submit(Op::Compact).await.expect("trigger compact");
-    let warning_event = wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::Warning(_))).await;
+    atlas_engine
+        .submit(Op::Compact)
+        .await
+        .expect("trigger compact");
+    let warning_event =
+        wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::Warning(_))).await;
     let EventMsg::Warning(WarningEvent { message }) = warning_event else {
         panic!("expected warning event after compact");
     };
@@ -994,7 +1014,10 @@ async fn manual_compact_emits_context_compaction_items() {
         }]))
         .await
         .unwrap();
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     atlas_engine.submit(Op::Compact).await.unwrap();
 
@@ -2076,7 +2099,10 @@ async fn pre_sampling_compact_runs_on_switch_to_smaller_context_model() {
             config.model_provider = model_provider;
             set_test_compact_prompt(config);
         });
-    let test = builder.build(&server).await.expect("build test atlas-agent");
+    let test = builder
+        .build(&server)
+        .await
+        .expect("build test atlas-agent");
 
     test.atlas_engine
         .start_or_steer_turn(disabled_permission_user_turn(
@@ -2178,7 +2204,10 @@ async fn pre_sampling_compact_runs_when_comp_hash_changes() {
             config.model_provider = model_provider;
             set_test_compact_prompt(config);
         });
-    let test = builder.build(&server).await.expect("build test atlas-agent");
+    let test = builder
+        .build(&server)
+        .await
+        .expect("build test atlas-agent");
 
     test.atlas_engine
         .start_or_steer_turn(disabled_permission_user_turn(
@@ -2558,7 +2587,10 @@ async fn pre_sampling_compact_falls_back_after_previous_model_invalid_request_on
             set_test_compact_prompt(config);
             let _ = config.features.enable(Feature::RemoteCompactionV2);
         });
-    let test = builder.build(&server).await.expect("build test atlas-agent");
+    let test = builder
+        .build(&server)
+        .await
+        .expect("build test atlas-agent");
 
     test.atlas_engine
         .start_or_steer_turn(disabled_permission_user_turn(
@@ -2663,7 +2695,10 @@ async fn pre_sampling_legacy_remote_compact_falls_back_after_previous_model_inva
             set_test_compact_prompt(config);
             let _ = config.features.disable(Feature::RemoteCompactionV2);
         });
-    let test = builder.build(&server).await.expect("build test atlas-agent");
+    let test = builder
+        .build(&server)
+        .await
+        .expect("build test atlas-agent");
 
     test.atlas_engine
         .start_or_steer_turn(disabled_permission_user_turn(
@@ -2753,7 +2788,10 @@ async fn pre_sampling_compact_keeps_unknown_previous_model_for_api_key_auth_and_
             config.model_catalog = Some(model_catalog);
             set_test_compact_prompt(config);
         });
-    let test = builder.build(&server).await.expect("build test atlas-agent");
+    let test = builder
+        .build(&server)
+        .await
+        .expect("build test atlas-agent");
 
     test.atlas_engine
         .start_or_steer_turn(disabled_permission_user_turn(
@@ -2843,7 +2881,10 @@ async fn pre_sampling_compact_skips_when_either_comp_hash_is_missing() {
             config.model_provider = model_provider;
             set_test_compact_prompt(config);
         });
-    let test = builder.build(&server).await.expect("build test atlas-agent");
+    let test = builder
+        .build(&server)
+        .await
+        .expect("build test atlas-agent");
 
     test.atlas_engine
         .start_or_steer_turn(disabled_permission_user_turn(
@@ -2952,7 +2993,10 @@ async fn body_after_prefix_model_switch_budget_compacts_with_next_model() {
             config.model_auto_compact_token_limit_scope =
                 AutoCompactTokenLimitScope::BodyAfterPrefix;
         });
-    let test = builder.build(&server).await.expect("build test atlas-agent");
+    let test = builder
+        .build(&server)
+        .await
+        .expect("build test atlas-agent");
 
     test.atlas_engine
         .start_or_steer_turn(disabled_permission_user_turn(
@@ -3548,7 +3592,8 @@ async fn manual_compact_retries_after_context_window_error() {
     wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
 
     atlas_engine.submit(Op::Compact).await.unwrap();
-    let warning_event = wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::Warning(_))).await;
+    let warning_event =
+        wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::Warning(_))).await;
     let EventMsg::Warning(WarningEvent { message }) = warning_event else {
         panic!("expected warning event after compact retry");
     };
@@ -3645,7 +3690,10 @@ async fn manual_compact_non_context_failure_retries_then_emits_task_error() {
         .expect("submit user input");
     wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
 
-    atlas_engine.submit(Op::Compact).await.expect("trigger compact");
+    atlas_engine
+        .submit(Op::Compact)
+        .await
+        .expect("trigger compact");
 
     let reconnect_message = wait_for_event_match(&atlas_engine, |event| match event {
         EventMsg::StreamError(stream_error) => Some(stream_error.message.clone()),
@@ -4058,7 +4106,10 @@ async fn snapshot_request_shape_mid_turn_continuation_compaction() {
         .await
         .unwrap();
 
-    wait_for_event(&atlas_engine, |msg| matches!(msg, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&atlas_engine, |msg| {
+        matches!(msg, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     // Assert first request captured expected user message that triggers function call.
     let first_request = first_turn_mock.single_request().input();
@@ -4149,7 +4200,10 @@ async fn auto_compact_clamps_config_limit_to_context_window() {
     let atlas_engine = builder.build(&server).await.unwrap();
 
     atlas_engine.submit_turn("OVER_LIMIT_TURN").await.unwrap();
-    atlas_engine.submit_turn("FOLLOW_UP_AFTER_CLAMP").await.unwrap();
+    atlas_engine
+        .submit_turn("FOLLOW_UP_AFTER_CLAMP")
+        .await
+        .unwrap();
 
     assert!(
         first_turn_mock.single_request().input().iter().any(|item| {
@@ -4936,7 +4990,10 @@ async fn snapshot_request_shape_manual_compact_without_previous_user_messages() 
         .expect("build atlas-agent")
         .atlas_engine;
 
-    atlas_engine.submit(Op::Compact).await.expect("run /compact");
+    atlas_engine
+        .submit(Op::Compact)
+        .await
+        .expect("run /compact");
     wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
 
     atlas_engine

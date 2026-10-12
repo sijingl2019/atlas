@@ -65,7 +65,9 @@ pub(crate) fn raw_assistant_output_text_from_item(item: &ResponseItem) -> Option
         let combined = content
             .iter()
             .filter_map(|ci| match ci {
-                atlas_engine_protocol::models::ContentItem::OutputText { text } => Some(text.as_str()),
+                atlas_engine_protocol::models::ContentItem::OutputText { text } => {
+                    Some(text.as_str())
+                }
                 _ => None,
             })
             .collect::<String>();
@@ -256,7 +258,9 @@ pub(crate) async fn finalize_non_tool_response_item(
                     .content
                     .iter()
                     .map(|entry| match entry {
-                        atlas_engine_protocol::items::AgentMessageContent::Text { text } => text.as_str(),
+                        atlas_engine_protocol::items::AgentMessageContent::Text { text } => {
+                            text.as_str()
+                        }
                     })
                     .collect::<String>();
                 let last_agent_message = if combined.trim().is_empty() {

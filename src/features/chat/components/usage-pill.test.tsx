@@ -16,6 +16,7 @@ vi.mock("@tauri-apps/api/event", () => ({
 
 import { useChatStore } from "../stores/chat-store";
 import { useModelPricingStore } from "@/features/settings/stores/model-pricing-store";
+import { fmtCost } from "@/features/monitor/lib/usage-format";
 import { UsagePill } from "./usage-pill";
 
 const TAB = "tab-1";
@@ -25,6 +26,10 @@ function patch(over: Record<string, unknown>) {
     sessions: { ...s.sessions, [TAB]: { ...s.sessions[TAB], ...over } },
   }));
 }
+
+// `getByText` collapses whitespace in the DOM, so the expectation must too:
+// de-DE and fr-FR put a no-break space between the amount and its symbol.
+const money = (...args: Parameters<typeof fmtCost>) => fmtCost(...args).replace(/\s+/g, " ");
 
 const sections = () =>
   Array.from(document.querySelectorAll("[data-section]")).map((el) =>
@@ -84,9 +89,19 @@ describe("UsagePill", () => {
     fireEvent.click(screen.getByRole("button"));
     expect(sections()).toEqual(["context", "tokens", "cost"]);
     // The total and the Input row both read $15.00 — output is zero here.
-    expect(screen.getAllByText("$15.00").length).toBeGreaterThan(0);
+    // Through `fmtCost`, so the expectation is laid out in the same locale
+    // as the screen: `$15.00` in en-US, `$15,00` in tr-TR (issue 333).
+    expect(screen.getAllByText(money(15)).length).toBeGreaterThan(0);
     expect(screen.getByText("est.")).toBeTruthy();
     expect(screen.queryByText("Output")).toBeNull();
+  });
+
+  it("shows an agent-reported cost in the currency the agent named", () => {
+    render(<UsagePill tabId={TAB} />);
+    act(() => patch({ contextUsage: { used: 10_000, size: 200_000, cost: 2.5, currency: "EUR" } }));
+    fireEvent.click(screen.getByRole("button"));
+    expect(screen.getAllByText(money(2.5, "EUR")).length).toBeGreaterThan(0);
+    expect(screen.queryByText(money(2.5))).toBeNull();
   });
 
   it("asks capture for the record only while open, and shows what it knows", async () => {

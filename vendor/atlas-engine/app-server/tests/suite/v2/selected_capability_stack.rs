@@ -228,7 +228,8 @@ async fn selected_capability_stack_tracks_environment_availability_and_resume() 
             .is_some_and(|text| text.contains(NO_SELECTED_SKILLS_MESSAGE))
     );
 
-    exec_server = spawn_exec_server(fixture.atlas_agent_home.path(), &fixture.exec_server_url).await?;
+    exec_server =
+        spawn_exec_server(fixture.atlas_agent_home.path(), &fixture.exec_server_url).await?;
     add_environment(&mut app_server, &fixture.exec_server_url).await?;
     wait_for_selected_mcp_server(&mut app_server, &thread_id).await?;
 

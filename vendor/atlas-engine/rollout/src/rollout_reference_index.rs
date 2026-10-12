@@ -37,7 +37,8 @@ struct IndexedRollout {
 impl RolloutReferenceIndex {
     /// Scans active and archived local rollout metadata without a deadline.
     pub async fn scan(atlas_agent_home: &Path) -> io::Result<Self> {
-        let Some(index) = Self::scan_with_deadline(atlas_agent_home, ScanDeadline::Unlimited).await?
+        let Some(index) =
+            Self::scan_with_deadline(atlas_agent_home, ScanDeadline::Unlimited).await?
         else {
             return Err(io::Error::other(
                 "unlimited rollout reference scan exceeded a deadline",

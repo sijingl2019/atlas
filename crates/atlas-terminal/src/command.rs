@@ -227,10 +227,10 @@ impl CommandTerminal {
         }
 
         let child = pair.slave.spawn_command(cmd)?;
-        // The slave must be dropped once the child holds it, or the master read
-        // never sees EOF and `wait_for_exit` hangs forever after the command
-        // finishes.
-        drop(pair.slave);
+        // Our copy of the slave must close, or the master read never sees EOF
+        // and `wait_for_exit` hangs forever after the command finishes — but
+        // only once the command has exited, not now. See the function.
+        release_slave_after_exit(pair.slave, child.process_id());
 
         let mut reader = pair.master.try_clone_reader()?;
         let inner = Arc::new(Inner {
@@ -258,6 +258,11 @@ impl CommandTerminal {
                     }
                 }
             }
+            // Close the master before reaping. If the loop ended on a read
+            // error rather than EOF, the child may still be in its exit,
+            // blocked until its tty output is read; with the master closed
+            // that wait ends, and the reap below cannot deadlock against it.
+            drop(reader);
             // EOF — reap the child so the exit status is real rather than
             // inferred from the pipe closing.
             let status = reader_child.lock().ok().and_then(|mut c| c.wait().ok());
@@ -315,6 +320,11 @@ impl CommandTerminal {
     /// checks `exit_status` terminates rather than parking forever.
     ///
     /// See [`Self::wait_for_exit`] for why `enable()` and not a bare `await`.
+    ///
+    /// Interest is registered at the FIRST POLL, not when this is called, and
+    /// an append with nobody registered wakes nobody. A watcher therefore polls
+    /// the future once, then reads the buffer, then awaits it; reading first
+    /// leaves a gap in which output lands and is never reported.
     pub async fn output_changed(&self) {
         let notified = self.inner.output_notify.notified();
         tokio::pin!(notified);
@@ -361,6 +371,52 @@ impl CommandTerminal {
         }
         Ok(())
     }
+}
+
+/// Close the parent's copy of the PTY slave once the command has exited, not
+/// straight after spawning it.
+///
+/// Dropping it at once makes the command's own exit the slave's LAST close, and
+/// on macOS that close can discard output still queued for the master: a
+/// command that writes and exits at once (`echo hi`) has its `write` succeed
+/// and exits 0, and the reader gets EOF having read nothing. It takes
+/// concurrent PTY spawns to trigger — a parallel test run, or an agent running
+/// two commands — and never happens alone, where the exiting session leader
+/// blocks until its tty has been read. Holding a copy until the command is
+/// gone means its close is never the last one, so its output stays queued
+/// until the reader takes it, and EOF arrives when this copy closes.
+///
+/// `WNOWAIT` leaves the child unreaped: the reader thread still reaps it after
+/// EOF and reports the real status. Descendants that keep the slave open still
+/// hold EOF off, as before.
+#[cfg(unix)]
+fn release_slave_after_exit(slave: Box<dyn portable_pty::SlavePty + Send>, pid: Option<u32>) {
+    let Some(pid) = pid else {
+        drop(slave);
+        return;
+    };
+    std::thread::spawn(move || {
+        loop {
+            // SAFETY: an all-zero `siginfo_t` is a valid out-parameter, and
+            // `waitid` writes nothing else.
+            let mut info: libc::siginfo_t = unsafe { std::mem::zeroed() };
+            let rc =
+                unsafe { libc::waitid(libc::P_PID, pid, &mut info, libc::WEXITED | libc::WNOWAIT) };
+            // Anything but an interrupted wait means the child is gone: exited
+            // (`rc == 0`), or already reaped by `kill`'s grace loop (`ECHILD`).
+            if rc == 0 || std::io::Error::last_os_error().kind() != std::io::ErrorKind::Interrupted
+            {
+                break;
+            }
+        }
+        drop(slave);
+    });
+}
+
+/// Windows' ConPTY has no slave fd for an exiting child to close last.
+#[cfg(not(unix))]
+fn release_slave_after_exit(slave: Box<dyn portable_pty::SlavePty + Send>, _pid: Option<u32>) {
+    drop(slave);
 }
 
 fn exit_from(status: Option<ExitStatus>) -> CommandExit {
@@ -474,6 +530,8 @@ impl CommandTerminals {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::future::Future;
+    use std::task::Poll;
 
     fn run(command: &str, args: &[&str]) -> CommandTerminal {
         let args: Vec<String> = args.iter().map(|s| (*s).to_string()).collect();
@@ -655,10 +713,21 @@ mod tests {
         let term = run("/bin/sh", &["-c", "echo first; sleep 30"]);
         let woke = tokio::time::timeout(std::time::Duration::from_secs(10), async {
             loop {
-                term.output_changed().await;
+                // Register, then read, then park — the order a real watcher
+                // (`follow_terminal_output`) uses. Awaiting first and reading
+                // after lost the `echo` whenever it landed before the first
+                // poll: `notify_waiters` keeps no permit, and the command then
+                // runs quiet for 30s.
+                let changed = term.output_changed();
+                tokio::pin!(changed);
+                let exited =
+                    std::future::poll_fn(|cx| Poll::Ready(changed.as_mut().poll(cx).is_ready()))
+                        .await;
                 if term.output().0.contains("first") {
                     return;
                 }
+                assert!(!exited, "the command exited before printing");
+                changed.await;
             }
         })
         .await;

@@ -1,3 +1,4 @@
+// Modified by Atlas from upstream OpenAI Codex (Apache-2.0). See CONTEXT.md.
 use std::sync::Mutex;
 use std::sync::Once;
 use std::sync::atomic::AtomicU64;
@@ -32,7 +33,7 @@ impl Gauge {
     pub fn decrement(&self) {
         let _ = self
             .value
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+            .try_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
                 Some(value.saturating_sub(1))
             });
     }

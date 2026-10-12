@@ -263,6 +263,22 @@ pub(crate) fn git_log_compute(
     Ok(entries)
 }
 
+/// How many commits `git_log_compute` would walk with no limit — the same
+/// scope (`HEAD`, or every ref with `all`). `None` on any failure (empty
+/// repo, unborn HEAD); callers fall back to the rows they loaded.
+pub(crate) fn git_commit_count(path: &str, all: bool) -> Option<usize> {
+    let scope = if all { "--all" } else { "HEAD" };
+    let output = git_read()
+        .args(["rev-list", "--count", scope])
+        .current_dir(path)
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    String::from_utf8_lossy(&output.stdout).trim().parse().ok()
+}
+
 #[tauri::command]
 pub async fn git_log(
     path: String,

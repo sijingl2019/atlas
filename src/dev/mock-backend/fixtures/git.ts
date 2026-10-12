@@ -22,10 +22,12 @@
 
 import { emit } from "@tauri-apps/api/event";
 import type { BlameLine } from "@/features/git/lib/git-blame-api";
+import type { RepoPullRequests } from "@/features/git/lib/git-pr-api";
 import type { CommitFile, DiffLineStatus, FileDiff } from "@/features/git/lib/git-diff-api";
 import type { GitErrorCode, GitErrorPayload } from "@/features/git/lib/git-errors";
 import type { BuiltGraph, CommitRow, LaneSegment } from "@/features/git/lib/git-graph";
 import type {
+  AutoFetchStatus,
   BranchInfo,
   CommitDetail,
   GitBranch,
@@ -441,7 +443,7 @@ const COMMITS: FakeCommit[] = [
   {
     sha: "c0ffee11223344556677889900aabbccddeeff01",
     message: "fix(pdf): keep highlight rects on rotate",
-    author: "Priya Raman",
+    author: "Priya Raghunathan",
     email: "priya@acme.dev",
     date: "2026-09-16T11:48:00Z",
     parents: ["1b2c3d4e5f60718293a4b5c6d7e8f9012345678a"],
@@ -463,7 +465,7 @@ const COMMITS: FakeCommit[] = [
   {
     sha: "2c3d4e5f60718293a4b5c6d7e8f9012345678abc",
     message: "chore: drop the legacy token reader",
-    author: "Sam Okafor",
+    author: "Sam Oyelaran",
     email: "sam@acme.dev",
     date: "2026-09-14T10:15:00Z",
     parents: ["3d4e5f60718293a4b5c6d7e8f9012345678abcde"],
@@ -489,7 +491,7 @@ const COMMITS: FakeCommit[] = [
   {
     sha: "4e5f60718293a4b5c6d7e8f9012345678abcdef0",
     message: "build: move to Vite 6",
-    author: "Priya Raman",
+    author: "Priya Raghunathan",
     email: "priya@acme.dev",
     date: "2026-09-09T09:41:00Z",
     parents: ["5f60718293a4b5c6d7e8f9012345678abcdef012"],
@@ -503,7 +505,7 @@ const COMMITS: FakeCommit[] = [
   {
     sha: "5f60718293a4b5c6d7e8f9012345678abcdef012",
     message: "docs: rewrite the README layout table",
-    author: "Sam Okafor",
+    author: "Sam Oyelaran",
     email: "sam@acme.dev",
     date: "2026-09-05T15:20:00Z",
     parents: [],
@@ -517,8 +519,9 @@ const shortSha = (sha: string) => sha.slice(0, 7);
 
 /**
  * A commit's diff. Files that are also dirty in the working tree reuse that
- * change (one fixture, two surfaces); the rest get a synthetic "this commit
- * introduced the first line" diff so no commit opens empty.
+ * change (one fixture, two surfaces); the rest get a synthetic hunk — a block
+ * from the middle of the file that this commit "added" — so no commit opens
+ * empty and none reads as a one-line stub in screenshots.
  */
 function commitDiff(commit: FakeCommit): string {
   return commit.files
@@ -527,9 +530,19 @@ function commitDiff(commit: FakeCommit): string {
       if (change && !change.binary) return unifiedDiff(change.before(), change.after(), file.path);
       if (file.status === "D") return unifiedDiff(LEGACY_AUTH_TS, "", file.path);
       const text = fileText(file.path);
-      return unifiedDiff(text.split("\n").slice(1).join("\n"), text, file.path);
+      return unifiedDiff(withoutMiddleBlock(text), text, file.path);
     })
     .join("");
+}
+
+/** `text` minus up to eight lines from its middle: the "before" of a commit
+ *  that added them. Short files lose their last line instead. */
+function withoutMiddleBlock(text: string): string {
+  const lines = text.split("\n");
+  if (lines.length < 6) return lines.slice(0, -1).join("\n");
+  const size = Math.min(8, Math.max(2, Math.floor(lines.length / 5)));
+  const start = Math.floor((lines.length - size) / 2);
+  return [...lines.slice(0, start), ...lines.slice(start + size)].join("\n");
 }
 
 function graph(): BuiltGraph {
@@ -566,7 +579,7 @@ function graph(): BuiltGraph {
       segments,
     };
   });
-  return { rows, laneCount };
+  return { rows, laneCount, totalCommits: rows.length };
 }
 
 /** Per-line blame for the editor's inline annotation. */
@@ -810,7 +823,7 @@ function materialiseTip(branch: BranchInfo, lane: number): FakeCommit {
   const tip: FakeCommit = {
     sha: newSha(),
     message: branch.subject,
-    author: "Priya Raman",
+    author: "Priya Raghunathan",
     email: "priya@acme.dev",
     date: branch.date,
     parents: [HEAD().sha],
@@ -998,6 +1011,7 @@ const FETCH_STEPS: OpStep[] = [
 export interface GitResponses {
   git_watch_start: Unread;
   git_watch_stop: Unread;
+  git_autofetch_set_active: AutoFetchStatus | null;
   git_workspace_summary: GitSummary;
   git_snapshot: GitSnapshotWire;
   git_status_fresh: RawGitStatus;
@@ -1023,6 +1037,7 @@ export interface GitResponses {
   git_diff_file: string;
   git_diff_all: string;
   git_blame_file: BlameLine[];
+  git_repo_pull_requests: RepoPullRequests;
   git_stage: Unread;
   git_unstage: Unread;
   // `runHunkOp` in `changes-view.tsx` picks the command name at run time.
@@ -1063,6 +1078,12 @@ export const gitHandlers: TypedHandlers<GitResponses> = {
   // Fired on every project close. Nothing reads the result, but leaving it
   // unmocked puts a warning on the badge for an action that did work.
   git_watch_stop: () => null,
+  // As if the project was auto-fetched a few minutes ago, so the Fetch
+  // button's hint has something to say in `bun run dev`.
+  git_autofetch_set_active: ({ projectPath }): AutoFetchStatus | null =>
+    projectPath
+      ? { project: String(projectPath), lastFetchedAt: Date.now() - 3 * 60_000, lastError: null }
+      : null,
 
   // ── status ──────────────────────────────────────────────────────────────
   git_workspace_summary: ({ path }): GitSummary => {
@@ -1186,7 +1207,7 @@ export const gitHandlers: TypedHandlers<GitResponses> = {
   capture_commit_sessions: ({ commitSha }): CommitSession[] => {
     const commit = COMMITS.find((candidate) => candidate.sha.startsWith(String(commitSha)));
     if (!commit || COMMITS.indexOf(commit) > 1) return [];
-    return [
+    const sessions: CommitSession[] = [
       {
         sessionId: `sess-${shortSha(commit.sha)}`,
         title: commit.message.split("\n")[0],
@@ -1195,6 +1216,18 @@ export const gitHandlers: TypedHandlers<GitResponses> = {
         files: commit.files.map((file) => file.path),
       },
     ];
+    // The newest commit had two contributors, so "Produced by N sessions"
+    // has a plural state to render.
+    if (COMMITS.indexOf(commit) === 0) {
+      sessions.push({
+        sessionId: `sess-${shortSha(commit.sha)}-b`,
+        title: "Keep the retry helper honest about ApiError",
+        messageCount: 9,
+        toolCallCount: 17,
+        files: commit.files.slice(0, 1).map((file) => file.path),
+      });
+    }
+    return sessions;
   },
   git_commit_changed_files: ({ sha }): CommitFile[] =>
     COMMITS.find((commit) => commit.sha.startsWith(String(sha)))?.files ?? [],
@@ -1218,6 +1251,8 @@ export const gitHandlers: TypedHandlers<GitResponses> = {
       .map((change) => unifiedDiff(change.before(), change.after(), change.path))
       .join(""),
   git_blame_file: ({ file }): BlameLine[] => blame(String(file)),
+  // The default repository has no GitHub remote, so `gh` has nothing to say.
+  git_repo_pull_requests: (): RepoPullRequests => ({ kind: "failed" }),
 
   // ── index ───────────────────────────────────────────────────────────────
   git_stage: ({ files }): null => {
@@ -1388,7 +1423,7 @@ export const gitHandlers: TypedHandlers<GitResponses> = {
         // and the remote ref sits on it with ours.
         const pulled = addCommit({
           message: "fix(admin): guard the seat-limit banner on an empty plan",
-          author: "Sam Okafor",
+          author: "Sam Oyelaran",
           email: "sam@acme.dev",
           files: [{ path: "src/main.tsx", status: "M" }],
         });
@@ -1401,7 +1436,7 @@ export const gitHandlers: TypedHandlers<GitResponses> = {
       const remoteTip: FakeCommit = {
         sha: newSha(),
         message: "fix(admin): guard the seat-limit banner on an empty plan",
-        author: "Sam Okafor",
+        author: "Sam Oyelaran",
         email: "sam@acme.dev",
         date: new Date().toISOString(),
         parents: [upstream.sha],
@@ -1427,8 +1462,15 @@ export const gitHandlers: TypedHandlers<GitResponses> = {
    * re-opening the merge dialog — which fetches on every open — can't inflate
    * the behind count forever.
    */
-  git_fetch: ({ opId }) =>
+  git_fetch: ({ path, opId }) =>
     runOp("fetch", opId, FETCH_STEPS, (): string => {
+      // Rust reports a successful manual fetch to the auto-fetch hint too.
+      const status: AutoFetchStatus = {
+        project: String(path),
+        lastFetchedAt: Date.now(),
+        lastError: null,
+      };
+      void emit("atlas:git-autofetch", status);
       const now = new Date().toISOString();
       for (const branch of BRANCHES) if (branch.isRemote) branch.date = now;
       const branch = currentBranch();

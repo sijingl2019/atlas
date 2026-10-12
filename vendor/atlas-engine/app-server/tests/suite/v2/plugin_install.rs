@@ -13,15 +13,6 @@ use app_test_support::DEFAULT_CLIENT_NAME;
 use app_test_support::TestAppServer;
 use app_test_support::start_analytics_events_server;
 use app_test_support::write_chatgpt_auth;
-use axum::Json;
-use axum::Router;
-use axum::extract::State;
-use axum::http::HeaderMap;
-use axum::http::StatusCode;
-use axum::http::Uri;
-use axum::http::header::AUTHORIZATION;
-use axum::routing::get;
-use axum::routing::post;
 use atlas_engine_app_server_protocol::AppInfo;
 use atlas_engine_app_server_protocol::AppSummary;
 use atlas_engine_app_server_protocol::AppsListParams;
@@ -35,6 +26,15 @@ use atlas_engine_app_server_protocol::PluginInstallResponse;
 use atlas_engine_app_server_protocol::RequestId;
 use atlas_engine_config::types::AuthCredentialsStoreMode;
 use atlas_engine_utils_absolute_path::AbsolutePathBuf;
+use axum::Json;
+use axum::Router;
+use axum::extract::State;
+use axum::http::HeaderMap;
+use axum::http::StatusCode;
+use axum::http::Uri;
+use axum::http::header::AUTHORIZATION;
+use axum::routing::get;
+use axum::routing::post;
 use core_test_support::stdio_server_bin;
 use flate2::Compression;
 use flate2::write::GzEncoder;
@@ -282,7 +282,11 @@ async fn plugin_install_writes_remote_plugin_to_cloud_and_cache() -> Result<()> 
         /*expected_count*/ 1,
     )
     .await?;
-    assert!(installed_path.join(".atlas-agent-plugin/plugin.json").is_file());
+    assert!(
+        installed_path
+            .join(".atlas-agent-plugin/plugin.json")
+            .is_file()
+    );
     let installed_plugin_manifest: serde_json::Value = serde_json::from_str(
         &std::fs::read_to_string(installed_path.join(".atlas-agent-plugin/plugin.json"))?,
     )?;
@@ -527,7 +531,10 @@ async fn plugin_install_rejects_invalid_remote_release_version() -> Result<()> {
 #[tokio::test]
 async fn plugin_install_rejects_invalid_remote_plugin_name() -> Result<()> {
     let atlas_agent_home = TempDir::new()?;
-    write_remote_plugin_catalog_config(atlas_agent_home.path(), "https://example.invalid/backend-api/")?;
+    write_remote_plugin_catalog_config(
+        atlas_agent_home.path(),
+        "https://example.invalid/backend-api/",
+    )?;
     let mut mcp = TestAppServer::builder()
         .with_atlas_agent_home(atlas_agent_home.path())
         .build_initialized_with_timeout(DEFAULT_TIMEOUT)
@@ -2567,7 +2574,10 @@ fn connector_tool(connector_id: &str, connector_name: &str) -> Result<Tool> {
     Ok(tool)
 }
 
-fn write_connectors_config(atlas_agent_home: &std::path::Path, base_url: &str) -> std::io::Result<()> {
+fn write_connectors_config(
+    atlas_agent_home: &std::path::Path,
+    base_url: &str,
+) -> std::io::Result<()> {
     std::fs::write(
         atlas_agent_home.join("config.toml"),
         format!(
@@ -2598,7 +2608,10 @@ plugins = true
     )
 }
 
-fn write_analytics_config(atlas_agent_home: &std::path::Path, base_url: &str) -> std::io::Result<()> {
+fn write_analytics_config(
+    atlas_agent_home: &std::path::Path,
+    base_url: &str,
+) -> std::io::Result<()> {
     std::fs::write(
         atlas_agent_home.join("config.toml"),
         format!("chatgpt_base_url = \"{base_url}\"\n"),
@@ -2663,8 +2676,14 @@ plugins = true
     )
 }
 
-fn configure_remote_plugin_test(atlas_agent_home: &std::path::Path, server: &MockServer) -> Result<()> {
-    write_remote_plugin_catalog_config(atlas_agent_home, &format!("{}/backend-api/", server.uri()))?;
+fn configure_remote_plugin_test(
+    atlas_agent_home: &std::path::Path,
+    server: &MockServer,
+) -> Result<()> {
+    write_remote_plugin_catalog_config(
+        atlas_agent_home,
+        &format!("{}/backend-api/", server.uri()),
+    )?;
     write_chatgpt_auth(
         atlas_agent_home,
         ChatGptAuthFixture::new("chatgpt-token")

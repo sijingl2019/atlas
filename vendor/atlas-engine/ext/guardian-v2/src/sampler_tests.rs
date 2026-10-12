@@ -3,8 +3,8 @@ use anyhow::Result;
 use atlas_engine_http_client::HttpClientFactory;
 use atlas_engine_http_client::OutboundProxyPolicy;
 use atlas_engine_login::AgentIdentityAuthPolicy;
-use atlas_engine_login::AuthManager;
 use atlas_engine_login::AtlasEngineAuth;
+use atlas_engine_login::AuthManager;
 use atlas_engine_model_provider::create_model_provider;
 use atlas_engine_model_provider_info::ModelProviderInfo;
 use atlas_engine_protocol::ResponseItemId;
@@ -57,9 +57,9 @@ fn sampler_config(base_url: String) -> LunaSamplerConfig {
     LunaSamplerConfig {
         provider: create_model_provider(
             ModelProviderInfo::create_openai_provider(Some(base_url)),
-            Some(AuthManager::from_auth_for_testing(AtlasEngineAuth::from_api_key(
-                "test-api-key",
-            ))),
+            Some(AuthManager::from_auth_for_testing(
+                AtlasEngineAuth::from_api_key("test-api-key"),
+            )),
         ),
         http_client_factory: HttpClientFactory::new(OutboundProxyPolicy::ReqwestDefault),
         agent_identity_policy: AgentIdentityAuthPolicy::JwtOnly,
@@ -112,9 +112,9 @@ async fn preconnected_sampler_reuses_authenticated_websocket_for_structured_requ
     let base_url = proxy_websocket_servers(&[&idle_server, &server]).await?;
     let provider = create_model_provider(
         ModelProviderInfo::create_openai_provider(Some(base_url)),
-        Some(AuthManager::from_auth_for_testing(AtlasEngineAuth::from_api_key(
-            "test-api-key",
-        ))),
+        Some(AuthManager::from_auth_for_testing(
+            AtlasEngineAuth::from_api_key("test-api-key"),
+        )),
     );
 
     let sampler = LunaSampler::connect(LunaSamplerConfig {
@@ -321,9 +321,9 @@ async fn sampler_returns_complete_json_before_terminal_response_events() -> Resu
     let base_url = proxy_websocket_servers(&[&idle_server, &server]).await?;
     let provider = create_model_provider(
         ModelProviderInfo::create_openai_provider(Some(base_url)),
-        Some(AuthManager::from_auth_for_testing(AtlasEngineAuth::from_api_key(
-            "test-api-key",
-        ))),
+        Some(AuthManager::from_auth_for_testing(
+            AtlasEngineAuth::from_api_key("test-api-key"),
+        )),
     );
     let sampler = LunaSampler::connect(LunaSamplerConfig {
         provider,

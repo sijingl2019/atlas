@@ -1,0 +1,5 @@
+# The whole Vitest suite, src/ included, which pre-commit leaves out to stay
+# fast. Colocated tests failing on push were ~40 red CI frontend jobs that a
+# ten-second local run would have caught. The full CI check is
+# `bun run ci:local`.
+bun run test

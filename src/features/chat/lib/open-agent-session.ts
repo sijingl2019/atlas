@@ -15,8 +15,8 @@ import {
 } from "@/types/agent";
 import { invalidateLoad } from "./load-tokens";
 import { defaultAgentForNewSession } from "./default-agent";
-import { resumeSessionFast } from "./resume-session";
-import { applyModeOnResume } from "./resume-mode";
+import { ResumeError, resumeSessionFast } from "./resume-session";
+import { applyModeOnResume, holdUnrestoredMode } from "./resume-mode";
 import type { ThreadRow } from "./history-api";
 import { comparablePath } from "@/features/projects/lib/sidebar-sessions";
 
@@ -212,6 +212,9 @@ export async function resumeIntoTab(
     return { ok: true };
   } catch (err) {
     setTranscriptLoading(targetTabId, false);
+    // The session is open but its mode was never applied: hold sends until a
+    // pick, before the gate below opens.
+    if (err instanceof ResumeError && err.stage === "snapshot") holdUnrestoredMode(targetTabId);
     setResumePending(targetTabId, false);
     // `errInfo`: the spawn/load commands in this path reject with a structured
     // `{message, kind}` that would render as "[object Object]".
@@ -236,9 +239,9 @@ export async function resumeIntoTab(
  * it instead (multiple chat tabs already coexist — `openAgentSession` spawns one
  * whenever the active chat is running). Only an IDLE chat is reset in place.
  *
- * `agent` binds the fresh session to a specific agent — the busy branch of the
- * ⌥/ cycle and the composer's agent switcher route here so switching agents
- * mid-turn spawns a new chat instead of killing the live one.
+ * `agent` binds the fresh session to a specific agent. Switching agents does
+ * not come through here: it always opens a new tab once the chat has a
+ * conversation (`openAgentChatInNewTab`), so it never resets one.
  */
 export function openNewAgentChat(agent?: SwitchableAgent): void {
   // This is a public entry point that WILL get wired as an event handler again
@@ -248,8 +251,8 @@ export function openNewAgentChat(agent?: SwitchableAgent): void {
   if (typeof agent !== "string") agent = undefined;
   const layout = useLayoutStore.getState();
   const chat = useChatStore.getState();
-  const { addTab, setActiveTab } = layout.actions;
-  const { clearSession, createSession, switchChatAgent } = chat.actions;
+  const { setActiveTab } = layout.actions;
+  const { clearSession, switchChatAgent } = chat.actions;
 
   const focus = (id: string) =>
     window.dispatchEvent(new CustomEvent("atlas:chat-focus", { detail: { tabId: id } }));
@@ -285,7 +288,22 @@ export function openNewAgentChat(agent?: SwitchableAgent): void {
   }
 
   // No chat tab open, or the current chat is mid-turn → fresh tab.
-  const id = `chat-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  openAgentChatInNewTab(agent);
+}
+
+/**
+ * Open a fresh agent chat in a NEW tab, never touching any existing chat.
+ *
+ * Switching agents on a chat that already has a conversation routes here, so
+ * the conversation stays on screen beside the new agent instead of being
+ * cleared out of its tab (a session is paired to one agent for its lifetime,
+ * so the new agent needs a session of its own either way).
+ */
+export function openAgentChatInNewTab(agent?: SwitchableAgent): void {
+  if (typeof agent !== "string") agent = undefined;
+  const { addTab, setActiveTab } = useLayoutStore.getState().actions;
+  const { createSession, switchChatAgent } = useChatStore.getState().actions;
+  const id = freshTabId();
   addTab({
     id,
     type: "chat",
@@ -297,5 +315,5 @@ export function openNewAgentChat(agent?: SwitchableAgent): void {
   createSession(id);
   if (agent) switchChatAgent(id, agent);
   setActiveTab(id);
-  focus(id);
+  window.dispatchEvent(new CustomEvent("atlas:chat-focus", { detail: { tabId: id } }));
 }

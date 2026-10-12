@@ -9,24 +9,52 @@ import { mockComment } from "../fixtures/artifacts";
 import { text, thinking, tool, tools, user, t } from "../fixtures/chat";
 import { setSeedTranscript } from "../fake-agent";
 
-const transcript = [user("hello world", t(0)), text("Hey! 👋 How can I help you today?", t(1))];
+const transcript = [
+  user("Why does the admin table refetch every time I switch windows?", t(0)),
+  text(
+    "It's the window `focus` listener in `main.tsx`, not the query: it invalidates every query on focus. Scoping it to the usage page stops the admin table refetching.",
+    t(1),
+  ),
+];
 const SESSION = "as-mock-chat";
 const PROMPT_ROW = "am-prompt-1";
 const RESPONSE_ROW = "am-response-1";
 const CHECKPOINT_ROW = "cp-1";
 
 const comments = [
-  mockComment({ id: "cc_1", sessionId: SESSION, anchorId: PROMPT_ROW, body: "hello" }),
-  mockComment({ id: "cc_2", sessionId: SESSION, anchorId: PROMPT_ROW, body: "again" }),
-  mockComment({ id: "cc_3", sessionId: SESSION, anchorId: RESPONSE_ROW, body: "nice" }),
-  mockComment({ id: "cc_4", sessionId: SESSION, anchorId: RESPONSE_ROW, body: "is it?" }),
+  mockComment({
+    id: "cc_1",
+    sessionId: SESSION,
+    anchorId: PROMPT_ROW,
+    body: "Worth checking whether the billing table has the same problem.",
+    authorId: "usr_sam",
+  }),
+  mockComment({
+    id: "cc_2",
+    sessionId: SESSION,
+    anchorId: PROMPT_ROW,
+    body: "Same question came up in #atlas-desktop yesterday.",
+  }),
+  mockComment({
+    id: "cc_3",
+    sessionId: SESSION,
+    anchorId: RESPONSE_ROW,
+    body: "Confirmed — dropping the listener stops the refetch.",
+    authorId: "usr_tobi",
+  }),
+  mockComment({
+    id: "cc_4",
+    sessionId: SESSION,
+    anchorId: RESPONSE_ROW,
+    body: "Should the usage page keep refetch-on-focus?",
+  }),
   mockComment({
     id: "cc_5",
     sessionId: SESSION,
     anchorId: RESPONSE_ROW,
     parentId: "cc_4",
-    body: "yes",
-    authorId: "user_bob",
+    body: "Yes, those numbers need to be fresh.",
+    authorId: "usr_sam",
   }),
 ];
 
@@ -95,6 +123,14 @@ export const chatCommentsOrphan = commentScenario(
   ],
 );
 
+const MANY_BODIES = [
+  "Does this cover the usage page too?",
+  "Tested on staging, the refetch is gone.",
+  "Can we get a regression test for this?",
+  "Nice catch.",
+  "Linked this from the retro notes.",
+];
+
 /** Sixty comments on the response from four people, a guest among them:
  *  the pill caps at "9+" with at most three faces; the popover scrolls. */
 export const chatCommentsMany = commentScenario(
@@ -106,8 +142,8 @@ export const chatCommentsMany = commentScenario(
         id: `cm_${i}`,
         sessionId: SESSION,
         anchorId: RESPONSE_ROW,
-        body: `comment ${i + 1}`,
-        authorId: i % 4 === 3 ? null : ["user_ada", "user_bob", "user_cy"][i % 4],
+        body: MANY_BODIES[i % MANY_BODIES.length],
+        authorId: i % 4 === 3 ? null : ["usr_priya", "usr_sam", "usr_tobi"][i % 4],
         guestName: i % 4 === 3 ? "Guest Reviewer" : null,
         parentId: i > 0 && i % 5 === 0 ? "cm_0" : null,
       } as Partial<Comment> & { id: string }),
@@ -139,7 +175,7 @@ export const chatCommentsRepliesOnly = commentScenario(
       anchorId: PROMPT_ROW,
       parentId: "cr_1",
       body: "reply two",
-      authorId: "user_bob",
+      authorId: "usr_sam",
     }),
   ],
 );
@@ -217,7 +253,7 @@ export const chatCommentsTools: Scenario = {
             anchorId: "tc-3",
             parentId: "ct_1",
             body: "Fixed by the rethrow below.",
-            authorId: "user_bob",
+            authorId: "usr_sam",
           }),
         ],
         [RESPONSE_ROW]: [

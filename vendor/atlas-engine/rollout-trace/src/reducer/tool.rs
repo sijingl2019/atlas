@@ -386,11 +386,17 @@ impl TraceReducer {
             .get(atlas_engine_turn_id)
             .map(|turn| turn.thread_id.clone())
             .with_context(|| {
-                format!("tool call start referenced unknown Atlas Agent turn {atlas_engine_turn_id}")
+                format!(
+                    "tool call start referenced unknown Atlas Agent turn {atlas_engine_turn_id}"
+                )
             })
     }
 
-    fn validate_tool_turn(&self, thread_id: &str, atlas_engine_turn_id: Option<&str>) -> Result<()> {
+    fn validate_tool_turn(
+        &self,
+        thread_id: &str,
+        atlas_engine_turn_id: Option<&str>,
+    ) -> Result<()> {
         if !self.rollout.threads.contains_key(thread_id) {
             bail!("tool call start referenced unknown thread {thread_id}");
         }

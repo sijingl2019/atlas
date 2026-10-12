@@ -113,7 +113,10 @@ enabled = true
     Ok(())
 }
 
-fn write_project_hook_config(dot_atlas_agent_folder: &std::path::Path, command: &str) -> Result<()> {
+fn write_project_hook_config(
+    dot_atlas_agent_folder: &std::path::Path,
+    command: &str,
+) -> Result<()> {
     std::fs::create_dir_all(dot_atlas_agent_folder)?;
     std::fs::write(
         dot_atlas_agent_folder.join("config.toml"),
@@ -406,7 +409,11 @@ command = "echo project hook"
 timeout = 5
 "#,
     )?;
-    set_project_trust_level(atlas_agent_home.path(), workspace.path(), TrustLevel::Trusted)?;
+    set_project_trust_level(
+        atlas_agent_home.path(),
+        workspace.path(),
+        TrustLevel::Trusted,
+    )?;
 
     let mut mcp = TestAppServer::builder()
         .with_atlas_agent_home(atlas_agent_home.path())
@@ -643,7 +650,9 @@ async fn config_batch_write_updates_hook_trust_for_loaded_session() -> Result<()
     let server = create_mock_responses_server_sequence_unchecked(responses).await;
     let atlas_agent_home = TempDir::new()?;
     let hook_script_path = atlas_agent_home.path().join("user_prompt_submit_hook.py");
-    let hook_log_path = atlas_agent_home.path().join("user_prompt_submit_hook_log.jsonl");
+    let hook_log_path = atlas_agent_home
+        .path()
+        .join("user_prompt_submit_hook_log.jsonl");
     std::fs::write(
         &hook_script_path,
         format!(
@@ -846,7 +855,9 @@ async fn config_batch_write_disables_hook_for_loaded_session() -> Result<()> {
     let server = create_mock_responses_server_sequence_unchecked(responses).await;
     let atlas_agent_home = TempDir::new()?;
     let hook_script_path = atlas_agent_home.path().join("user_prompt_submit_hook.py");
-    let hook_log_path = atlas_agent_home.path().join("user_prompt_submit_hook_log.jsonl");
+    let hook_log_path = atlas_agent_home
+        .path()
+        .join("user_prompt_submit_hook_log.jsonl");
     std::fs::write(
         &hook_script_path,
         format!(

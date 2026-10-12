@@ -31,7 +31,10 @@ impl ExternalAuthBridge {
         }
     }
 
-    async fn refresh(&self, context: ExternalAuthRefreshContext) -> std::io::Result<AtlasEngineAuth> {
+    async fn refresh(
+        &self,
+        context: ExternalAuthRefreshContext,
+    ) -> std::io::Result<AtlasEngineAuth> {
         let reason = match context.reason {
             ExternalAuthRefreshReason::Unauthorized => ChatgptAuthTokensRefreshReason::Unauthorized,
         };
@@ -90,7 +93,10 @@ impl ExternalAuth for ExternalAuthBridge {
         })
     }
 
-    fn refresh(&self, context: ExternalAuthRefreshContext) -> ExternalAuthFuture<'_, AtlasEngineAuth> {
+    fn refresh(
+        &self,
+        context: ExternalAuthRefreshContext,
+    ) -> ExternalAuthFuture<'_, AtlasEngineAuth> {
         Box::pin(ExternalAuthBridge::refresh(self, context))
     }
 }

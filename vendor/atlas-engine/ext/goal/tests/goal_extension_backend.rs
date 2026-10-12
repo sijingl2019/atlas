@@ -463,7 +463,10 @@ async fn budget_limited_goal_keeps_accruing_until_turn_stop() -> anyhow::Result<
         .await?
         .ok_or_else(|| anyhow::anyhow!("goal should exist"))?;
     assert_eq!(35, goal.tokens_used);
-    assert_eq!(atlas_engine_state::ThreadGoalStatus::BudgetLimited, goal.status);
+    assert_eq!(
+        atlas_engine_state::ThreadGoalStatus::BudgetLimited,
+        goal.status
+    );
 
     assert_eq!(
         vec![
@@ -540,7 +543,10 @@ async fn budget_limited_goal_keeps_accounting_after_later_tool_finish() -> anyho
         .await?
         .ok_or_else(|| anyhow::anyhow!("goal should exist"))?;
     assert_eq!(35, goal.tokens_used);
-    assert_eq!(atlas_engine_state::ThreadGoalStatus::BudgetLimited, goal.status);
+    assert_eq!(
+        atlas_engine_state::ThreadGoalStatus::BudgetLimited,
+        goal.status
+    );
     Ok(())
 }
 
@@ -582,7 +588,10 @@ async fn turn_error_usage_limit_accounts_progress_and_clears_accounting() -> any
         .await?
         .ok_or_else(|| anyhow::anyhow!("goal should exist"))?;
     assert_eq!(23, goal.tokens_used);
-    assert_eq!(atlas_engine_state::ThreadGoalStatus::UsageLimited, goal.status);
+    assert_eq!(
+        atlas_engine_state::ThreadGoalStatus::UsageLimited,
+        goal.status
+    );
     assert_eq!(
         vec![
             CapturedGoalEvent {
@@ -622,7 +631,10 @@ async fn turn_error_usage_limit_accounts_progress_and_clears_accounting() -> any
         .await?
         .ok_or_else(|| anyhow::anyhow!("goal should exist"))?;
     assert_eq!(23, goal.tokens_used);
-    assert_eq!(atlas_engine_state::ThreadGoalStatus::UsageLimited, goal.status);
+    assert_eq!(
+        atlas_engine_state::ThreadGoalStatus::UsageLimited,
+        goal.status
+    );
     Ok(())
 }
 
@@ -714,7 +726,10 @@ async fn usage_limit_budget_limited_goal_accounts_remaining_progress() -> anyhow
         .await?
         .ok_or_else(|| anyhow::anyhow!("goal should exist"))?;
     assert_eq!(35, goal.tokens_used);
-    assert_eq!(atlas_engine_state::ThreadGoalStatus::UsageLimited, goal.status);
+    assert_eq!(
+        atlas_engine_state::ThreadGoalStatus::UsageLimited,
+        goal.status
+    );
     assert_eq!(
         vec![
             CapturedGoalEvent {

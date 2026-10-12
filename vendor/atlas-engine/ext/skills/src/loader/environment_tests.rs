@@ -52,7 +52,8 @@ policy:
 
     let root_uri = PathUri::from_host_native_path(root.path()).expect("root URI");
     let outcome =
-        load_environment_skills_from_root(LOCAL_FS.as_ref(), &root_uri, Some(Product::AtlasEngine)).await;
+        load_environment_skills_from_root(LOCAL_FS.as_ref(), &root_uri, Some(Product::AtlasEngine))
+            .await;
 
     assert_eq!(
         outcome.skills,

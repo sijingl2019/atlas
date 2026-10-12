@@ -186,7 +186,9 @@ fn hunk_source_path(hunk: &Hunk) -> &Path {
     }
 }
 
-fn format_update_chunks_for_progress(chunks: &[atlas_engine_apply_patch::UpdateFileChunk]) -> String {
+fn format_update_chunks_for_progress(
+    chunks: &[atlas_engine_apply_patch::UpdateFileChunk],
+) -> String {
     let mut unified_diff = String::new();
     for chunk in chunks {
         match &chunk.change_context {

@@ -199,9 +199,9 @@ impl AgentControl {
                 // unique without adding a submission receipt back to Core.
                 Ok(Uuid::now_v7().to_string())
             }
-            Ok(TurnInputSubmission::NotSubmitted { reason }) => Err(AtlasEngineErr::InvalidRequest(
-                format!("turn input was not submitted: {reason:?}"),
-            )),
+            Ok(TurnInputSubmission::NotSubmitted { reason }) => Err(
+                AtlasEngineErr::InvalidRequest(format!("turn input was not submitted: {reason:?}")),
+            ),
             Err(err) => Err(err),
         };
         self.handle_thread_request_result(agent_id, &state, result)
@@ -354,7 +354,10 @@ impl AgentControl {
         self.state.agent_metadata_for_thread(agent_id)
     }
 
-    pub(crate) fn ensure_agent_known(&self, agent_id: ThreadId) -> AtlasEngineResult<AgentMetadata> {
+    pub(crate) fn ensure_agent_known(
+        &self,
+        agent_id: ThreadId,
+    ) -> AtlasEngineResult<AgentMetadata> {
         self.state
             .agent_metadata_for_thread(agent_id)
             .ok_or_else(|| AtlasEngineErr::ThreadNotFound(agent_id))
@@ -659,9 +662,9 @@ impl AgentControl {
     }
 
     fn upgrade(&self) -> AtlasEngineResult<Arc<ThreadManagerState>> {
-        self.manager
-            .upgrade()
-            .ok_or_else(|| AtlasEngineErr::UnsupportedOperation("thread manager dropped".to_string()))
+        self.manager.upgrade().ok_or_else(|| {
+            AtlasEngineErr::UnsupportedOperation("thread manager dropped".to_string())
+        })
     }
 
     async fn inherited_environments_for_source(

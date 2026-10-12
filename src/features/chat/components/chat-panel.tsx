@@ -1,4 +1,8 @@
 import { lazy, Suspense, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  clearAgentQuestion,
+  notifyAgentSignInRequired,
+} from "@/features/notifications/lib/agent-notifier";
 import { copyText } from "@/lib/clipboard";
 import { matchesAction } from "@/features/keybindings/lib/use-scoped-hotkeys";
 import { useChatStore } from "../stores/chat-store";
@@ -9,7 +13,8 @@ import { stripInjectedContext } from "../lib/atlas-context";
 import { agents, ensureAgent, resetAgent } from "../lib/agents-api";
 import { isDeadlineError, withDeadline } from "../lib/with-deadline";
 import { drainEdge } from "../lib/drain-gate";
-import { cycleChatAgent } from "../lib/switch-agent";
+import { isSendHeldElsewhere, useSendHeldForTerminal } from "../stores/live-elsewhere-store";
+import { CHAT_STOP_EVENT, cycleChatAgent, isSwitchPending } from "../lib/switch-agent";
 import { loadCachedAcpModes } from "../lib/acp-modes-cache";
 import { configOptionPushes, loadConfigOptionPrefs } from "../lib/config-option-prefs";
 import type { ImageAttachment, SessionKey } from "@/types/agents";
@@ -117,6 +122,7 @@ import { SubagentApprovals } from "@/features/subagents/components/subagent-appr
 import { PermissionModal } from "./permission-modal";
 import { ChatCommentsController } from "./chat-comments-controller";
 import { useCommentCount } from "../stores/chat-comments-store";
+import { grantLocksComposer, useNoAiGrant } from "../stores/ai-grant-store";
 import { SessionElicitation } from "./session-elicitation";
 
 // Both panels are modal-style and never visible on first paint. Lazy so
@@ -140,6 +146,7 @@ const ChatSearchPalette = lazy(() =>
 // messages.
 const Transcript = lazy(() => import("./transcript").then((m) => ({ default: m.Transcript })));
 import type { TranscriptHandle } from "./transcript";
+import { requestModelPicker } from "../lib/model-picker-events";
 // Diffs + tool output live here rather than inline in the thread — see the
 // module header for why that's a perf decision as much as a UX one.
 const DetailPanel = lazy(() => import("./detail-panel").then((m) => ({ default: m.DetailPanel })));
@@ -158,7 +165,7 @@ import { logEvent } from "@/features/log/lib/log";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/features/app/stores/app-store";
 import { loadCachedAcpModels } from "../lib/acp-models-cache";
-import { resolveEffectiveMode } from "../lib/resume-mode";
+import { resolveEffectiveMode, applyModeOnResume, holdUnrestoredMode } from "../lib/resume-mode";
 
 interface ChatPanelProps {
   tabId: string;
@@ -167,13 +174,26 @@ interface ChatPanelProps {
 // Once-per-app-session guard for the background Codex pre-warm (below).
 let acpPrewarmStarted = false;
 
+// Rebinds in flight, per tab. Restart and Send both call the rebind, and a
+// queued message drains the moment the tab is bound; a second caller that
+// arrives while one is running joins it instead of respawning again.
+const rebindsInFlight = new Map<string, Promise<boolean>>();
+
 /** Rebind a session whose agent process died: respawn the plugin (its spawn
  *  cache was reset on disconnect) and RESUME the same session id where the
  *  transcript kind supports it (Claude JSONL, the native engine's own) — falling
  *  back to a fresh session if the resume fails. Never runs unprompted: only
  *  the next Send or the explicit Restart affordance calls this (no silent
  *  auto-restart loops). */
-async function rebindDisconnectedSession(tabId: string): Promise<boolean> {
+function rebindDisconnectedSession(tabId: string): Promise<boolean> {
+  const running = rebindsInFlight.get(tabId);
+  if (running) return running;
+  const rebind = respawnAndRebind(tabId).finally(() => rebindsInFlight.delete(tabId));
+  rebindsInFlight.set(tabId, rebind);
+  return rebind;
+}
+
+async function respawnAndRebind(tabId: string): Promise<boolean> {
   const cs = useChatStore.getState();
   const sess = cs.sessions[tabId];
   if (!sess) return false;
@@ -199,6 +219,24 @@ async function rebindDisconnectedSession(tabId: string): Promise<boolean> {
     } else {
       key = (await agents.newSession(agent.agent_id, cwd)).key;
     }
+    // The respawned agent starts on its OWN default, and a bind does not
+    // reset `acpModeExplicit`/`acpCurrentMode` — so without this the pill kept
+    // showing the user's pick while the agent enforced its default. That is the
+    // half of issue 289's second bug `resume-mode.ts` exists to prevent, on
+    // the one resume path that was left out of it. Awaited BEFORE
+    // `setAcpBinding`, as the session/new path does: binding is what flushes a
+    // queued send (a tab that never bound goes from no `acpSessionId` to one),
+    // so the first turn after a restart cannot run under a mode the user never
+    // picked. Snapshot failure is not a rebind failure: the session exists, so
+    // warn and leave the agent on its own default.
+    try {
+      await applyModeOnResume(tabId, key, await agents.snapshotMeta(key));
+    } catch (err) {
+      console.warn("mode restore after agent restart failed:", err);
+      holdUnrestoredMode(tabId);
+    }
+    // Bind and clear the flag in the same tick, so a send the bind releases
+    // never sees the tab still disconnected.
     const actions = useChatStore.getState().actions;
     // The key's agent, not the spawned one: an adapter that holds one session
     // per process opens each session on a connection of its own.
@@ -695,6 +733,8 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
                 // every subsequent bind failure for this tab+agent.
                 onDismissed: () => reportedBindFailures.delete(key),
               });
+              // The dialog is up; if the user is away it is also a banner.
+              notifyAgentSignInRequired(tabId, at);
             } else if (action === "silent") {
               // The composer is already showing why (`AiGrantBar`, and "No
               // models" in the picker). A toast would be a third copy of a
@@ -859,6 +899,22 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
   // any agent seen before; one that has not been opened this session fills its
   // picker when it is.
 
+  // ⌘⇧M → open (or close) this composer's model picker. Same capture-phase,
+  // focus-inside-this-panel gate as the mode chord below.
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!matchesAction(e, "chat.toggleModelPicker")) return;
+      const root = rootRef.current;
+      const active = document.activeElement as HTMLElement | null;
+      if (!root || !active || !root.contains(active)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      requestModelPicker(tabId);
+    };
+    window.addEventListener("keydown", handler, true);
+    return () => window.removeEventListener("keydown", handler, true);
+  }, [tabId]);
+
   // Shift+Tab → cycle the agent permission mode. Registered on the window in
   // capture phase so the browser's default focus traversal never steals it.
   useEffect(() => {
@@ -936,6 +992,16 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
   const prevStatusRef = useRef<string | null>(null);
   const prevAcpRef = useRef<string | undefined>(undefined);
   const prevResumingRef = useRef(false);
+  // A session another process is writing (ADR-0001 amendment, Rule 7) closes
+  // the drain gate like a pending resume does; "Send anyway" or the other
+  // process going quiet is its falling edge. The composer feeds the live set.
+  const heldElsewhere = useSendHeldForTerminal(session?.acpSessionId);
+  const prevHeldElsewhereRef = useRef(false);
+  // The no-AI-grant hold on the queue (`drain-gate.ts`): what the composer
+  // lock would be with no turn running.
+  const noAiGrant = useNoAiGrant();
+  const grantHold = grantLocksComposer(noAiGrant, session?.agentType ?? "", false);
+  const prevGrantHoldRef = useRef(grantHold);
   const handleSendRef = useRef<
     | ((
         content: string,
@@ -1020,9 +1086,15 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
     // A resumed session is bound optimistically, so `acpSessionId` appears long
     // before the backend can accept a prompt. Track the resume flag separately —
     // its falling edge is the real "sendable now" signal for that path.
-    const curResuming = !!session?.resumePending;
+    // A mode a resume could not restore holds the gate the same way, until the
+    // user picks one (`resume-mode.ts`).
+    const curResuming = !!session?.resumePending || !!session?.unrestoredModeId;
     const prevResuming = prevResumingRef.current;
     prevResumingRef.current = curResuming;
+    const prevHeldElsewhere = prevHeldElsewhereRef.current;
+    prevHeldElsewhereRef.current = heldElsewhere;
+    const prevGrantHold = prevGrantHoldRef.current;
+    prevGrantHoldRef.current = grantHold;
     // The gate lives in `drain-gate.ts` with its own test: a queue drains
     // only into a BOUND session. The bind-failure branch above parks the held
     // message back in the queue and drops the status to idle, and reading
@@ -1036,6 +1108,10 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
       curAcp,
       prevResuming,
       curResuming,
+      prevHeldElsewhere,
+      curHeldElsewhere: heldElsewhere,
+      prevGrantHold,
+      curGrantHold: grantHold,
     });
     if (justBound || justResumed) {
       // The first message held while the session was starting goes out
@@ -1053,7 +1129,9 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
         return;
       }
     }
-    if (drainQueue) {
+    // A switch waiting on `/remember` holds the queue: what was typed during
+    // the save is for the agent the tab switches to (`switch-agent.ts`).
+    if (drainQueue && !isSwitchPending(tabId)) {
       const next = useChatStore.getState().actions.shiftQueue(tabId);
       if (next && handleSendRef.current) {
         // Defer one microtask so the React commit completes first.
@@ -1066,7 +1144,15 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
     }
     // Next-step chips are extracted from the agent's own `<next_steps>` block in
     // the chat-store `turn_finished` reducer — nothing to do here.
-  }, [session?.status, session?.acpSessionId, session?.resumePending, tabId]);
+  }, [
+    session?.status,
+    session?.acpSessionId,
+    session?.resumePending,
+    session?.unrestoredModeId,
+    heldElsewhere,
+    grantHold,
+    tabId,
+  ]);
 
   // Suggestion chips (and other adaptive affordances) send as the next message.
   // This is a GLOBAL window event and every mounted ChatPanel hears it, so only
@@ -1075,14 +1161,28 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
   // the prior behaviour.
   useEffect(() => {
     const handler = (e: Event) => {
-      const detail = (e as CustomEvent<{ text?: string; tabId?: string }>).detail;
+      const detail = (
+        e as CustomEvent<{ text?: string; tabId?: string; attachments?: ImageAttachment[] }>
+      ).detail;
       if (detail?.tabId != null && detail.tabId !== tabId) return;
       if (detail?.text && handleSendRef.current) {
-        handleSendRef.current(detail.text, []);
+        handleSendRef.current(detail.text, [], detail.attachments);
       }
     };
     window.addEventListener("atlas:chat-send", handler);
     return () => window.removeEventListener("atlas:chat-send", handler);
+  }, [tabId]);
+
+  // Stop this tab's turn from outside the composer — an agent switch that
+  // waited on `/remember` and now switches in place (`switch-agent.ts`). Only
+  // ever addressed to one tab.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      if ((e as CustomEvent<{ tabId?: string }>).detail?.tabId !== tabId) return;
+      handleStopRef.current?.();
+    };
+    window.addEventListener(CHAT_STOP_EVENT, handler);
+    return () => window.removeEventListener(CHAT_STOP_EVENT, handler);
   }, [tabId]);
 
   // No session yet. Normally a single frame (the effect above creates it on
@@ -1228,6 +1328,42 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
         return;
       }
       bound = useChatStore.getState().sessions[tabId];
+    }
+    // Fail closed on a mode a resume could not restore: queue, and the drain
+    // effect sends it once the user has picked a mode. The composer already
+    // refuses; this catches every other sender (chips, handoffs).
+    if (bound?.unrestoredModeId) {
+      useChatStore.getState().actions.enqueueMessage(tabId, actualContent);
+      return;
+    }
+    // Fail closed on a session another process is still writing (ADR-0001
+    // amendment, Rule 7): sending would fork its transcript. This is the choke
+    // point every sender passes — the composer (which already refuses), chips
+    // and `atlas:chat-send` (another agent's `ui_chat` send, agent-switch
+    // handoffs), the queue drain, the permission modal. Nothing is dropped:
+    // the message queues (a held first message stays held, already recorded),
+    // and the drain gate releases it on "Send anyway" or once the session
+    // stops being live.
+    if (isSendHeldElsewhere(bound?.acpSessionId)) {
+      const cs = useChatStore.getState();
+      if (opts?.recorded) {
+        cs.actions.setPendingSend(tabId, { content: actualContent, mentions, attachments });
+        // Not "Starting…": nothing is starting until the user says so.
+        updateSessionStatus(tabId, "idle");
+      } else {
+        cs.actions.enqueueMessage(tabId, actualContent);
+      }
+      return;
+    }
+    // The same for the no-AI-grant hold: the composer is locked, but a
+    // next-step chip or a handoff is not the composer. Park it with the rest
+    // of the held queue rather than send it to a gateway that will refuse it;
+    // the hold's release drains it (`drain-gate.ts`). Not mid-turn — an answer
+    // to the running turn's own question belongs to the turn already admitted,
+    // and a message held for the bind (`recorded`) already has its bubble.
+    if (grantHold && !opts?.recorded && !isBusyAgentStatus(bound?.status)) {
+      useChatStore.getState().actions.enqueueMessage(tabId, actualContent);
+      return;
     }
     // `resumePending` is the resume-path equivalent of "not bound yet": the
     // transcript has painted from disk but the agent spawn + ACP `session/load`
@@ -1455,7 +1591,10 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
             <SessionElicitation
               key={pendingElicitation.requestId}
               pending={pendingElicitation}
-              onClose={() => clearElicitation(tabId)}
+              onClose={() => {
+                clearAgentQuestion(tabId, pendingElicitation.requestId);
+                clearElicitation(tabId);
+              }}
             />
           )}
           {/* Bottom fade lives in the transcript; the centered floating
@@ -1491,7 +1630,8 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
       )}
 
       {/* Cloud comments: the resolver runs for the pane's lifetime (it is what
-          decides whether the header button exists); the panel only on demand. */}
+          decides whether the header button exists); the panel only on demand,
+          as a docked flex column that narrows the conversation beside it. */}
       <ChatCommentsController tabId={tabId} />
       {commentsPanelOpen && (
         <Suspense fallback={null}>

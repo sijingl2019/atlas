@@ -1,9 +1,9 @@
 // Modified by Atlas from upstream OpenAI Codex (Apache-2.0). See CONTEXT.md.
 use std::io;
 
+use atlas_engine_exec_server_protocol::JSONRPCErrorError;
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
-use atlas_engine_exec_server_protocol::JSONRPCErrorError;
 
 use crate::CapabilityRootsDiscoverParams;
 use crate::CapabilityRootsDiscoverResponse;

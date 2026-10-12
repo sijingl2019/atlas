@@ -45,7 +45,7 @@ interface FlatRow {
 
 /** Tab types whose `data.filePath` points at a file on disk — these must be
  *  re-pointed/closed when that file is renamed or deleted. */
-const FILE_TAB_TYPES = new Set(["editor", "media", "svg", "pdf", "unsupported"]);
+const FILE_TAB_TYPES = new Set(["editor", "media", "svg", "pdf", "notebook", "unsupported"]);
 
 /** Shared empty map for the no-repo case, so that branch returns a stable
  *  reference instead of allocating a new one on every memo recompute. */

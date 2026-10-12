@@ -417,7 +417,11 @@ fn plugin_root() -> (tempfile::TempDir, AbsolutePathBuf) {
 }
 
 fn write_manifest(plugin_root: &AbsolutePathBuf, manifest: &str) {
-    fs::write(plugin_root.join(".atlas-agent-plugin/plugin.json"), manifest).expect("write manifest");
+    fs::write(
+        plugin_root.join(".atlas-agent-plugin/plugin.json"),
+        manifest,
+    )
+    .expect("write manifest");
 }
 
 fn write_hook_file(plugin_root: &AbsolutePathBuf, relative_path: &str, event: &str, command: &str) {

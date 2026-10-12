@@ -217,7 +217,8 @@ async fn explicit_remote_control_startup_fails_when_disabled_by_requirements() -
     let socket_path = atlas_agent_home.path().join("app-server.sock");
     let transport =
         AppServerTransport::from_listen_url(&format!("unix://{}", socket_path.display()))?;
-    let _atlas_agent_home_guard = EnvVarGuard::set("ATLAS_AGENT_HOME", atlas_agent_home.path().as_os_str());
+    let _atlas_agent_home_guard =
+        EnvVarGuard::set("ATLAS_AGENT_HOME", atlas_agent_home.path().as_os_str());
 
     let result = timeout(
         STARTUP_TIMEOUT,
@@ -1207,7 +1208,9 @@ struct HttpRequest {
     reader: BufReader<TcpStream>,
 }
 
-async fn configured_remote_control_listener(atlas_agent_home: &std::path::Path) -> Result<TcpListener> {
+async fn configured_remote_control_listener(
+    atlas_agent_home: &std::path::Path,
+) -> Result<TcpListener> {
     let listener = TcpListener::bind("127.0.0.1:0").await?;
     let remote_control_url = format!("http://{}/backend-api/", listener.local_addr()?);
     MockResponsesConfig::new(&remote_control_url)

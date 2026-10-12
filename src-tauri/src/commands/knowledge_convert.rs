@@ -37,7 +37,7 @@ fn convert_cached(project: &str, source: &Path) -> Result<String, String> {
         .as_nanos();
     let fingerprint = format!("{CONVERTER_VERSION}:{}:{modified}", metadata.len());
     let key = format!("{:x}", Sha256::digest(source.to_string_lossy().as_bytes()));
-    let cache_dir = Path::new(project).join(".atlas/cache/knowledge-markdown");
+    let cache_dir = atlas_profile::dir_in(Path::new(project)).join("cache/knowledge-markdown");
     let cache_path = cache_dir.join(format!("{key}.json"));
     if let Ok(raw) = fs::read(&cache_path) {
         if let Ok(cached) = serde_json::from_slice::<CachedConversion>(&raw) {

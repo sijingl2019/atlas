@@ -8,11 +8,11 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use agent_client_protocol::schema::v1 as acp;
-use chrono::TimeZone;
 use atlas_acp_thread::thread::AcpThreadEvent;
 use atlas_thread_metadata::{
     PathList, ThreadFilter, ThreadMetadataStore, ThreadRecorder, ThreadSnapshot,
 };
+use chrono::TimeZone;
 
 fn store(dir: &tempfile::TempDir) -> ThreadMetadataStore {
     ThreadMetadataStore::open(dir.path().join("threads.db")).expect("store opens")
@@ -35,12 +35,19 @@ fn a_new_chat_appears_in_history_as_a_draft_and_gains_its_session_id_on_the_firs
 
     // The tab mounts: the agent hands back a session, the thread connects.
     // Nothing has been typed, so no thread event has fired yet.
-    recorder.record_connected(&"atlas-agent".into(), &session, snapshot(true, None, &["/tmp/atlas"]));
+    recorder.record_connected(
+        &"atlas-agent".into(),
+        &session,
+        snapshot(true, None, &["/tmp/atlas"]),
+    );
     store.flush().unwrap();
 
     let rows = store.threads();
     assert_eq!(rows.len(), 1, "the chat is in history immediately");
-    assert!(rows[0].is_draft(), "and it is a draft until something is sent");
+    assert!(
+        rows[0].is_draft(),
+        "and it is a draft until something is sent"
+    );
 
     // First send: the thread has an entry, so the session id is worth keeping.
     let thread_id = rows[0].thread_id;
@@ -233,9 +240,15 @@ fn every_agent_is_recorded_the_same_way() {
     let store = store(&dir);
     let recorder = ThreadRecorder::new(store.clone());
 
-    for (n, agent) in ["atlas-agent", "claude-code", "codex", "kilo", "some-new-agent"]
-        .into_iter()
-        .enumerate()
+    for (n, agent) in [
+        "atlas-agent",
+        "claude-code",
+        "codex",
+        "kilo",
+        "some-new-agent",
+    ]
+    .into_iter()
+    .enumerate()
     {
         recorder.record(
             &agent.into(),
@@ -246,7 +259,11 @@ fn every_agent_is_recorded_the_same_way() {
     }
     store.flush().unwrap();
 
-    assert_eq!(store.threads().len(), 5, "one row each, no agent singled out");
+    assert_eq!(
+        store.threads().len(),
+        5,
+        "one row each, no agent singled out"
+    );
 }
 
 #[test]
@@ -255,7 +272,11 @@ fn a_chat_nobody_typed_into_leaves_nothing_behind() {
     let store = store(&dir);
     let recorder = ThreadRecorder::new(store.clone());
     let session = acp::SessionId::new("ses-1");
-    recorder.record_connected(&"atlas-agent".into(), &session, snapshot(true, None, &["/tmp/atlas"]));
+    recorder.record_connected(
+        &"atlas-agent".into(),
+        &session,
+        snapshot(true, None, &["/tmp/atlas"]),
+    );
     store.flush().unwrap();
     assert_eq!(store.threads().len(), 1, "it is visible while it is open");
 
@@ -272,7 +293,11 @@ fn a_chat_that_was_used_survives_its_tab_closing() {
     let store = store(&dir);
     let recorder = ThreadRecorder::new(store.clone());
     let session = acp::SessionId::new("ses-1");
-    recorder.record_connected(&"atlas-agent".into(), &session, snapshot(true, None, &["/tmp/atlas"]));
+    recorder.record_connected(
+        &"atlas-agent".into(),
+        &session,
+        snapshot(true, None, &["/tmp/atlas"]),
+    );
     recorder.record(
         &"atlas-agent".into(),
         &session,
@@ -341,7 +366,11 @@ fn everything_that_can_change_a_row_writes_one() {
             snapshot(false, None, &["/tmp/atlas"]),
         );
         store.flush().unwrap();
-        assert_eq!(store.threads().len(), 1, "{event:?} should have written a row");
+        assert_eq!(
+            store.threads().len(),
+            1,
+            "{event:?} should have written a row"
+        );
     }
 }
 
@@ -413,4 +442,26 @@ fn a_session_resumed_without_its_history_is_not_mistaken_for_a_draft() {
     today.forget(&session);
     store.flush().unwrap();
     assert_eq!(store.threads().len(), 1, "the history row survives");
+}
+
+#[test]
+fn a_noted_branch_lands_on_the_sessions_row_and_an_unbound_session_is_ignored() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = store(&dir);
+    let recorder = ThreadRecorder::new(store.clone());
+    let session = acp::SessionId::new("ses-1");
+
+    // Not bound yet: nothing to write to, and nothing is minted for it.
+    recorder.note_branch(&session, "main".into());
+    assert!(store.threads().is_empty());
+
+    recorder.record_connected(
+        &"atlas-agent".into(),
+        &session,
+        snapshot(false, None, &["/tmp/atlas"]),
+    );
+    recorder.note_branch(&session, "discount-codes".into());
+    store.flush().unwrap();
+
+    assert_eq!(store.threads()[0].branch.as_deref(), Some("discount-codes"));
 }

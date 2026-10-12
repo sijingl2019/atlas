@@ -123,7 +123,10 @@ impl NodeRuntime {
     /// Callers that will go on to run npm call this first, so the user sees
     /// "Downloading Node.js…" during the one step that can take minutes rather
     /// than a bare "Starting …". When Node is already present nothing is sent.
-    pub async fn ensure_installed(&self, loading_status: Option<&LoadingStatus>) -> Result<PathBuf> {
+    pub async fn ensure_installed(
+        &self,
+        loading_status: Option<&LoadingStatus>,
+    ) -> Result<PathBuf> {
         self.install_if_needed(loading_status).await
     }
 
@@ -139,14 +142,18 @@ impl NodeRuntime {
     ) -> Result<Output> {
         let node_dir = self.install_if_needed(None).await?;
 
-        let mut output = self.npm_attempt(&node_dir, directory, subcommand, args).await;
+        let mut output = self
+            .npm_attempt(&node_dir, directory, subcommand, args)
+            .await;
         // Retry spawn/IO failures only. A timeout already waited ten minutes;
         // doing it again would double the hang the deadline exists to end.
         if output
             .as_ref()
             .is_err_and(|error| !error.is::<NpmTimedOut>())
         {
-            output = self.npm_attempt(&node_dir, directory, subcommand, args).await;
+            output = self
+                .npm_attempt(&node_dir, directory, subcommand, args)
+                .await;
         }
         let output = output.with_context(|| format!("launching npm {subcommand}"))?;
 
@@ -178,13 +185,18 @@ impl NodeRuntime {
         );
 
         let mut command = atlas_process::async_command(&node_binary);
-        command.args(npm_command_args(&npm_file, node_dir, directory, subcommand, args));
+        command.args(npm_command_args(
+            &npm_file, node_dir, directory, subcommand, args,
+        ));
         command.envs(npm_command_env(&node_binary));
         for key in inherited_npm_config_keys(std::env::vars_os().map(|(key, _)| key)) {
             command.env_remove(key);
         }
         if let Some(directory) = directory {
-            command.current_dir(directory);
+            // Node reports a verbatim working directory back verbatim as
+            // `process.cwd()`, and npm resolves any path-like spec against it
+            // (`npm error Invalid file: URL, must comply with RFC 8089`).
+            command.current_dir(plain_process_path(directory));
         }
         // Dropping the future on timeout must take the npm process with it,
         // or the next attempt races an orphan over the same `node_modules`.
@@ -427,7 +439,8 @@ const NPM_FETCH_ARGS: &[&str] = &[
 
 /// Ported from `build_npm_command_args` (`node_runtime.rs:1124-1158`). Every
 /// path is pinned at the managed install so npm never reads the user's npmrc or
-/// writes their global cache.
+/// writes their global cache, and every path goes out in its plain spelling
+/// ([`plain_process_path`]) whatever the caller resolved it to.
 fn npm_command_args(
     npm_file: &Path,
     node_dir: &Path,
@@ -435,22 +448,18 @@ fn npm_command_args(
     subcommand: &str,
     args: &[&str],
 ) -> Vec<String> {
-    let mut command_args = vec![npm_file.to_string_lossy().into_owned()];
+    let arg = |path: &Path| plain_process_path(path).to_string_lossy().into_owned();
+    let mut command_args = vec![arg(npm_file)];
     if let Some(prefix_dir) = prefix_dir {
         command_args.push("--prefix".into());
-        command_args.push(prefix_dir.to_string_lossy().into_owned());
+        command_args.push(arg(prefix_dir));
     }
     command_args.push(subcommand.to_string());
-    command_args.push(format!("--cache={}", node_dir.join("cache").display()));
+    command_args.push(format!("--cache={}", arg(&node_dir.join("cache"))));
     command_args.push("--userconfig".into());
-    command_args.push(node_dir.join("blank_user_npmrc").to_string_lossy().into_owned());
+    command_args.push(arg(&node_dir.join("blank_user_npmrc")));
     command_args.push("--globalconfig".into());
-    command_args.push(
-        node_dir
-            .join("blank_global_npmrc")
-            .to_string_lossy()
-            .into_owned(),
-    );
+    command_args.push(arg(&node_dir.join("blank_global_npmrc")));
     command_args.extend(NPM_FETCH_ARGS.iter().map(std::string::ToString::to_string));
     command_args.extend(args.iter().map(std::string::ToString::to_string));
     command_args
@@ -484,17 +493,54 @@ pub fn npm_command_env(node_binary: &Path) -> HashMap<String, String> {
 }
 
 fn path_with_node_binary_prepended(node_binary: &Path) -> Option<String> {
-    let node_bin_dir = node_binary.parent()?;
+    // Plain for the same reason as npm's arguments: whatever runs `node` off
+    // this `PATH` (npm's lifecycle scripts, the agent's own children) hands
+    // the directory on to Node.
+    let node_bin_dir = plain_process_path(node_binary.parent()?);
     let existing = std::env::var_os("PATH");
     let joined = match &existing {
         Some(existing) => std::env::join_paths(
-            std::iter::once(node_bin_dir.to_path_buf())
-                .chain(std::env::split_paths(existing)),
+            std::iter::once(node_bin_dir).chain(std::env::split_paths(existing)),
         )
         .ok()?,
-        None => node_bin_dir.as_os_str().to_owned(),
+        None => node_bin_dir.into_os_string(),
     };
     Some(joined.to_string_lossy().into_owned())
+}
+
+/// The plain spelling of `path`, safe to hand to npm or Node.
+///
+/// `canonicalize` on Windows returns the `\\?\`-verbatim spelling, and neither
+/// child process this crate runs on a path can digest it: npm's Arborist
+/// recurses to a stack overflow when it is the `--prefix` (`RangeError:
+/// Maximum call stack size exceeded at resolve`), and Node fails with `EISDIR:
+/// lstat 'C:'` when it is the script argument — both reproduced in #277, where
+/// a clean-install Codex ACP agent could not start at all. Stripping the
+/// prefix keeps the symlink resolution `canonicalize` did (the path still
+/// points at the same directory); only the spelling changes.
+///
+/// Only the two spellings that have a plain equivalent are stripped:
+/// `\\?\C:\...` (drive) and `\\?\UNC\server\share` (→ `\\server\share`).
+/// Device paths (`\\?\Volume{...}`) have no plain spelling and are returned
+/// unchanged, as is anything that does not carry the prefix. Not gated on
+/// `cfg!(windows)`: POSIX `canonicalize` never produces the prefix, and an
+/// unconditional strip keeps this testable on the Linux CI runners — the same
+/// call the app makes on Windows.
+pub(crate) fn plain_process_path(path: &Path) -> PathBuf {
+    let text = path.to_string_lossy();
+    let Some(rest) = text.strip_prefix(r"\\?\") else {
+        return path.to_path_buf();
+    };
+    if let Some(share) = rest.strip_prefix(r"UNC\") {
+        return PathBuf::from(format!(r"\\{share}"));
+    }
+    // `C:\...`: a drive letter, a colon, and a separator. The separator matters
+    // — bare `C:` means "the current directory on C", a different location.
+    let bytes = rest.as_bytes();
+    if bytes.len() >= 3 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':' && bytes[2] == b'\\' {
+        return PathBuf::from(rest);
+    }
+    path.to_path_buf()
 }
 
 /// The executable an npm package declares, resolved out of its `package.json`.
@@ -632,7 +678,6 @@ pub async fn installed_package_version(node_modules_dir: &Path, name: &str) -> O
     Some(package_json.version.unwrap_or_default())
 }
 
-
 /// The SHA-256 nodejs.org publishes for `file_name`.
 ///
 /// Required, not best-effort — which is the opposite of how the agent registry
@@ -714,10 +759,7 @@ mod tests {
 
         // A well-formed listing that names the right file — with the digest of
         // something else entirely.
-        let listing = format!(
-            "{}  {file_name}\n",
-            "1".repeat(64),
-        );
+        let listing = format!("{}  {file_name}\n", "1".repeat(64),);
 
         let mut routes = HashMap::new();
         routes.insert(
@@ -826,34 +868,127 @@ mod tests {
     #[test]
     fn npm_args_pin_config_and_bound_fetches() {
         let node_dir = Path::new("/opt/atlas/node/node-v24");
+        let prefix = Path::new("/opt/atlas/npx/codex");
         let npm = node_dir.join("bin/npm");
         let args = npm_command_args(
             &npm,
             node_dir,
-            Some(Path::new("/opt/atlas/npx/codex")),
+            Some(prefix),
             "install",
             &["codex-acp@0.0.0 - 1.0.0", "--save-exact"],
         );
 
+        // The pinned paths are spelled with `join`, as the code builds them,
+        // so the separator is the host's: on Windows `cache` is joined with
+        // `\` onto a `/`-spelled base.
         let joined = args.join(" ");
-        assert!(joined.starts_with(&format!(
-            "{} --prefix /opt/atlas/npx/codex install --cache=/opt/atlas/node/node-v24/cache \
-             --userconfig /opt/atlas/node/node-v24/blank_user_npmrc \
-             --globalconfig /opt/atlas/node/node-v24/blank_global_npmrc ",
-            npm.display()
-        )), "got {joined}");
-        assert!(joined.contains(
-            "--no-audit --no-fund --fetch-timeout 300000 --fetch-retries 2 \
+        assert!(
+            joined.starts_with(&format!(
+                "{} --prefix {} install --cache={} --userconfig {} --globalconfig {} ",
+                npm.display(),
+                prefix.display(),
+                node_dir.join("cache").display(),
+                node_dir.join("blank_user_npmrc").display(),
+                node_dir.join("blank_global_npmrc").display(),
+            )),
+            "got {joined}"
+        );
+        assert!(
+            joined.contains(
+                "--no-audit --no-fund --fetch-timeout 300000 --fetch-retries 2 \
              --fetch-retry-mintimeout 2000 --fetch-retry-maxtimeout 10000"
-        ), "got {joined}");
+            ),
+            "got {joined}"
+        );
         // The caller's own args come last.
-        assert_eq!(&args[args.len() - 2..], ["codex-acp@0.0.0 - 1.0.0", "--save-exact"]);
+        assert_eq!(
+            &args[args.len() - 2..],
+            ["codex-acp@0.0.0 - 1.0.0", "--save-exact"]
+        );
+    }
+
+    /// The boundary half of #277: whatever spelling a caller resolved its
+    /// paths to, none reaches npm's command line verbatim.
+    #[test]
+    fn npm_args_never_carry_a_verbatim_path() {
+        let node_dir = Path::new(r"\\?\C:\atlas\node\node-v24");
+        let npm = node_dir.join("npm-cli.js");
+        let args = npm_command_args(
+            &npm,
+            node_dir,
+            Some(Path::new(r"\\?\C:\atlas\npx\codex-acp")),
+            "install",
+            &["codex-acp@0.0.0 - 1.0.0"],
+        );
+
+        assert!(
+            args.iter().all(|arg| !arg.contains(r"\\?\")),
+            "a verbatim path reached npm: {args:?}"
+        );
+        assert_eq!(args[1..3], ["--prefix", r"C:\atlas\npx\codex-acp"]);
+        assert!(
+            args.iter()
+                .any(|arg| arg.starts_with(r"--cache=C:\atlas\node\node-v24")),
+            "got {args:?}"
+        );
+    }
+
+    #[test]
+    fn plain_process_path_drops_windows_verbatim_prefixes() {
+        // A disk path canonicalized on Windows comes back `\\?\C:\...`; npm's
+        // Arborist recurses to a stack overflow on it as `--prefix`, and Node
+        // fails `lstat 'C:'` when it is the script argument (#277).
+        assert_eq!(
+            plain_process_path(Path::new(
+                r"\\?\C:\Users\u\AppData\Roaming\dev.atlas.ide\external-agents\registry\npx\codex-acp"
+            )),
+            PathBuf::from(
+                r"C:\Users\u\AppData\Roaming\dev.atlas.ide\external-agents\registry\npx\codex-acp"
+            )
+        );
+        // The UNC spelling must come back as `\\server\share`, not
+        // `UNC\server\share`.
+        assert_eq!(
+            plain_process_path(Path::new(r"\\?\UNC\server\share\agent")),
+            PathBuf::from(r"\\server\share\agent")
+        );
+    }
+
+    #[test]
+    fn plain_process_path_keeps_every_plain_spelling_untouched() {
+        for plain in [
+            r"C:\Users\u\AppData\Roaming\dev.atlas.ide",
+            r"\\server\share\agent",
+            "/home/u/.local/share/dev.atlas.ide/npx/codex-acp",
+            // The marker only counts at the very front: a POSIX path with a
+            // literal backslash component stays exactly as it is.
+            r"/tmp/\\?\inside",
+            // A device path has no plain spelling; keep the verbatim one.
+            r"\\?\Volume{12345678-1234-1234-1234-123456789abc}\agent",
+            // A bare drive is "the current directory on C", not its root.
+            r"\\?\C:",
+            // Nothing after the prefix to hand back.
+            r"\\?\",
+        ] {
+            assert_eq!(
+                plain_process_path(Path::new(plain)),
+                PathBuf::from(plain),
+                "changed {plain:?}"
+            );
+        }
     }
 
     #[test]
     fn inherited_npm_config_and_node_env_are_stripped_case_insensitively() {
-        let keys = ["npm_config_omit", "NPM_CONFIG_ARCH", "NODE_ENV", "HOME", "PATH", "node_env"]
-            .map(std::ffi::OsString::from);
+        let keys = [
+            "npm_config_omit",
+            "NPM_CONFIG_ARCH",
+            "NODE_ENV",
+            "HOME",
+            "PATH",
+            "node_env",
+        ]
+        .map(std::ffi::OsString::from);
         let stripped = inherited_npm_config_keys(keys);
         assert_eq!(
             stripped,

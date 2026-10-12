@@ -465,7 +465,12 @@ async fn local_layers_keep_raw_paths_order_and_legacy_requirements() {
     let dot_atlas_engine = project.join(".atlas-agent");
     let system_dir = tmp.path().join("system");
     let managed_dir = tmp.path().join("managed");
-    for dir in [&atlas_agent_home, &dot_atlas_engine, &system_dir, &managed_dir] {
+    for dir in [
+        &atlas_agent_home,
+        &dot_atlas_engine,
+        &system_dir,
+        &managed_dir,
+    ] {
         std::fs::create_dir_all(dir).expect("create fixture directory");
     }
     std::fs::write(project.join(".project-root"), "").expect("write project marker");

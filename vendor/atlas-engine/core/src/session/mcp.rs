@@ -786,7 +786,8 @@ async fn review_guardian_mcp_elicitation(
             /*retry_reason*/ None,
             crate::guardian::GuardianReviewOptions {
                 plugin_attribution_override: None,
-                approval_request_source: atlas_engine_analytics::GuardianApprovalRequestSource::MainTurn,
+                approval_request_source:
+                    atlas_engine_analytics::GuardianApprovalRequestSource::MainTurn,
                 external_cancel: Some(cancellation_token),
             },
         )

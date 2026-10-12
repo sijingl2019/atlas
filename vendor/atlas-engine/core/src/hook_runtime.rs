@@ -899,7 +899,9 @@ mod tests {
             messages
                 .iter()
                 .map(|message| match message {
-                    atlas_engine_protocol::models::ResponseItem::Message { role, content, .. } => {
+                    atlas_engine_protocol::models::ResponseItem::Message {
+                        role, content, ..
+                    } => {
                         let text = content
                             .iter()
                             .map(|item| match item {

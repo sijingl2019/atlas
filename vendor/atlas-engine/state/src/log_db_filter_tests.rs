@@ -9,8 +9,10 @@ use super::*;
 
 #[tokio::test]
 async fn sqlite_sink_filters_noisy_targets_without_dropping_useful_diagnostics() {
-    let atlas_agent_home =
-        std::env::temp_dir().join(format!("atlas-engine-state-log-db-filter-{}", Uuid::new_v4()));
+    let atlas_agent_home = std::env::temp_dir().join(format!(
+        "atlas-engine-state-log-db-filter-{}",
+        Uuid::new_v4()
+    ));
     let _cleanup = scopeguard::guard(atlas_agent_home.clone(), |atlas_agent_home| {
         let _ = std::fs::remove_dir_all(atlas_agent_home);
     });

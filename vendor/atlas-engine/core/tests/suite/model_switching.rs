@@ -52,7 +52,11 @@ use pretty_assertions::assert_eq;
 use test_case::test_case;
 use wiremock::MockServer;
 
-fn read_only_user_turn(test: &TestAtlasEngine, items: Vec<UserInput>, model: String) -> TurnInputRequest {
+fn read_only_user_turn(
+    test: &TestAtlasEngine,
+    items: Vec<UserInput>,
+    model: String,
+) -> TurnInputRequest {
     let (sandbox_policy, permission_profile) =
         turn_permission_fields(PermissionProfile::read_only(), test.cwd_path());
     TurnInputRequest::user_input(items).with_thread_settings(ThreadSettingsOverrides {
@@ -157,12 +161,14 @@ async fn first_turn_model_change_appends_model_instructions_developer_message(
     let server = MockServer::start().await;
     let resp_mock = mount_sse_once(&server, sse_completed("resp-1")).await;
 
-    let mut builder = test_atlas_engine().with_model("gpt-5.2").with_config(|config| {
-        config
-            .features
-            .enable(Feature::Personality)
-            .expect("test config should allow feature update");
-    });
+    let mut builder = test_atlas_engine()
+        .with_model("gpt-5.2")
+        .with_config(|config| {
+            config
+                .features
+                .enable(Feature::Personality)
+                .expect("test config should allow feature update");
+        });
     let test = builder.build_with_auto_env(&server).await?;
     let next_model = "gpt-5.4";
 
@@ -375,7 +381,10 @@ async fn model_change_appends_model_instructions_developer_message() -> Result<(
             test.session_configured.model.clone(),
         ))
         .await?;
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     core_test_support::submit_thread_settings(
         &test.atlas_engine,
@@ -396,7 +405,10 @@ async fn model_change_appends_model_instructions_developer_message() -> Result<(
             next_model.to_string(),
         ))
         .await?;
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let requests = resp_mock.requests();
     assert_eq!(requests.len(), 2, "expected two model requests");
@@ -451,12 +463,14 @@ async fn model_and_personality_change_only_appends_model_instructions() -> Resul
     )
     .await;
 
-    let mut builder = test_atlas_engine().with_model("gpt-5.4").with_config(|config| {
-        config
-            .features
-            .enable(Feature::Personality)
-            .expect("test config should allow feature update");
-    });
+    let mut builder = test_atlas_engine()
+        .with_model("gpt-5.4")
+        .with_config(|config| {
+            config
+                .features
+                .enable(Feature::Personality)
+                .expect("test config should allow feature update");
+        });
     let test = builder.build(&server).await?;
     let next_model = "exp-atlas-engine-personality";
 
@@ -470,7 +484,10 @@ async fn model_and_personality_change_only_appends_model_instructions() -> Resul
             test.session_configured.model.clone(),
         ))
         .await?;
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     core_test_support::submit_thread_settings(
         &test.atlas_engine,
@@ -492,7 +509,10 @@ async fn model_and_personality_change_only_appends_model_instructions() -> Resul
             next_model.to_string(),
         ))
         .await?;
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let requests = resp_mock.requests();
     assert_eq!(requests.len(), 2, "expected two model requests");
@@ -806,7 +826,10 @@ async fn model_change_from_multimodal_to_text_strips_prior_media_content() -> Re
             multimodal_model_slug.to_string(),
         ))
         .await?;
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     test.atlas_engine
         .start_or_steer_turn(read_only_user_turn(
@@ -818,7 +841,10 @@ async fn model_change_from_multimodal_to_text_strips_prior_media_content() -> Re
             text_model_slug.to_string(),
         ))
         .await?;
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let requests = responses.requests();
     assert_eq!(requests.len(), 2, "expected two model requests");
@@ -915,7 +941,10 @@ async fn generated_image_is_replayed_for_image_capable_models() -> Result<()> {
             image_model_slug.to_string(),
         ))
         .await?;
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     test.atlas_engine
         .start_or_steer_turn(read_only_user_turn(
@@ -927,7 +956,10 @@ async fn generated_image_is_replayed_for_image_capable_models() -> Result<()> {
             image_model_slug.to_string(),
         ))
         .await?;
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let requests = responses.requests();
     assert_eq!(requests.len(), 2, "expected two model requests");
@@ -1012,7 +1044,10 @@ async fn model_change_from_generated_image_to_text_preserves_prior_generated_ima
             image_model_slug.to_string(),
         ))
         .await?;
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     test.atlas_engine
         .start_or_steer_turn(read_only_user_turn(
@@ -1024,7 +1059,10 @@ async fn model_change_from_generated_image_to_text_preserves_prior_generated_ima
             text_model_slug.to_string(),
         ))
         .await?;
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let requests = responses.requests();
     assert_eq!(requests.len(), 2, "expected two model requests");
@@ -1111,7 +1149,10 @@ async fn thread_rollback_after_generated_image_drops_entire_image_turn_history()
             image_model_slug.to_string(),
         ))
         .await?;
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     test.atlas_engine
         .submit(Op::ThreadRollback { num_turns: 1 })
@@ -1131,7 +1172,10 @@ async fn thread_rollback_after_generated_image_drops_entire_image_turn_history()
             image_model_slug.to_string(),
         ))
         .await?;
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let requests = responses.requests();
     assert_eq!(requests.len(), 2, "expected two model requests");
@@ -1308,7 +1352,10 @@ async fn model_switch_to_smaller_model_updates_token_context_window() -> Result<
             .and_then(|info| info.model_context_window),
         Some(large_effective_window)
     );
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     core_test_support::submit_thread_settings(
         &test.atlas_engine,
@@ -1366,7 +1413,10 @@ async fn model_switch_to_smaller_model_updates_token_context_window() -> Result<
         .and_then(|info| info.model_context_window);
     assert_eq!(smaller_window, Some(smaller_effective_window));
     assert_ne!(smaller_window, Some(large_effective_window));
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     Ok(())
 }

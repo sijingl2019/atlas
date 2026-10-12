@@ -91,7 +91,10 @@ async fn openai_model_header_mismatch_emits_warning_event() -> Result<()> {
     assert_eq!(reroute.to_model, SERVER_MODEL);
     assert_eq!(reroute.reason, ModelRerouteReason::HighRiskCyberActivity);
 
-    let warning = wait_for_event(&test.atlas_engine, |event| matches!(event, EventMsg::Warning(_))).await;
+    let warning = wait_for_event(&test.atlas_engine, |event| {
+        matches!(event, EventMsg::Warning(_))
+    })
+    .await;
     let EventMsg::Warning(warning) = warning else {
         panic!("expected warning event");
     };
@@ -128,12 +131,18 @@ async fn cyber_policy_response_emits_typed_error_without_retry() -> Result<()> {
         .start_or_steer_turn(disabled_text_turn(&test, "trigger cyber policy error"))
         .await?;
 
-    let error = wait_for_event(&test.atlas_engine, |event| matches!(event, EventMsg::Error(_))).await;
+    let error = wait_for_event(&test.atlas_engine, |event| {
+        matches!(event, EventMsg::Error(_))
+    })
+    .await;
     let EventMsg::Error(error) = error else {
         panic!("expected error event");
     };
     assert_eq!(error.message, CYBER_POLICY_MESSAGE);
-    assert_eq!(error.atlas_engine_error_info, Some(AtlasEngineErrorInfo::CyberPolicy));
+    assert_eq!(
+        error.atlas_engine_error_info,
+        Some(AtlasEngineErrorInfo::CyberPolicy)
+    );
 
     mock.single_request();
 

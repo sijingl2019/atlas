@@ -38,11 +38,16 @@ members = [
   "crates/atlas-embed",
   "crates/atlas-git",
   "crates/atlas-gitdiff",
+  "crates/atlas-grepindex",
   "crates/atlas-icon-theme",
+  "crates/atlas-instruction-sync",
   "crates/atlas-memory",
   "crates/atlas-native-agent",
   "crates/atlas-process",
+  "crates/atlas-profile",
   "crates/atlas-redact",
+  "crates/atlas-retrieval",
+  "crates/atlas-search",
   "crates/atlas-terminal",
   "crates/atlas-theme",
   "crates/atlas-thread-metadata",
@@ -360,6 +365,7 @@ aws-types = "1"
 axum = { version = "0.8", default-features = false }
 base64 = "0.22.1"
 bitflags = "2.13.1"
+blake3 = "1.8"
 bm25 = "2.3.2"
 bytes = "1.10.1"
 chardetng = "0.1.17"
@@ -397,6 +403,10 @@ gethostname = "1.1.0"
 gix = { version = "0.83.0", default-features = false, features = ["sha1"] }
 glob = "0.3"
 globset = "0.4"
+grep-matcher = "0.1.9"
+grep-regex = "0.1.14"
+grep-searcher = "0.1.17"
+half = "2"
 hmac = "0.12.1"
 http = "1.3.1"
 httpdate = "1.0.3"
@@ -431,6 +441,8 @@ mime_guess = "2.0.5"
 multimap = "0.10.0"
 notify = "8.2.0"
 nucleo = { git = "https://github.com/helix-editor/nucleo.git", rev = "4253de9faabb4e5c6d81d946a5e35a90f87347ee" }
+# crates.io `nucleo-matcher` (what src-tauri links), not the git `nucleo`'s copy.
+nucleo-matcher = "0.3"
 once_cell = "1.20.2"
 openssl-sys = "*"
 opentelemetry = "0.31.0"
@@ -444,9 +456,11 @@ pathdiff = "0.2"
 portable-pty = "0.9.0"
 predicates = "3"
 pretty_assertions = "1.4.1"
+proptest = "1.11"
 pulldown-cmark = { version = "0.10", default-features = false }
 quick-xml = "0.41.0"
 rand = "0.9"
+rayon = "1.12"
 ratatui = { version = "0.30.2", default-features = false, features = [
     "crossterm",
     "layout-cache",
@@ -458,6 +472,7 @@ rcgen = { version = "0.14.7", default-features = false, features = [
     "pem",
 ] }
 regex = "1.12.3"
+regex-syntax = "0.8"
 regex-lite = "0.1.8"
 # `default-features = false`: reqwest's default set is `default-tls` + the
 # three below. `default-tls` is native-tls (Security.framework on macOS), which
@@ -643,6 +658,13 @@ unnecessary_lazy_evaluations = "deny"
 unnecessary_sort_by = "deny"
 unnecessary_to_owned = "deny"
 
+# An allow, not a deny. `#[async_trait]` marks every method it generates
+# `#[must_use]` while returning a boxed `Future`, already must-use, and from
+# clippy 1.99 this lint flags each expansion: atlas-memory's traits and the
+# tonic-generated service traits in atlas-engine-code-mode-protocol, none of
+# it code anyone wrote. A hand-written redundant `#[must_use]` is harmless.
+double_must_use = "allow"
+
 # cargo-shear cannot see the platform-specific openssl-sys usage, so we
 # silence the false positive here instead of deleting a real dependency.
 
@@ -784,7 +806,11 @@ opt-level = 1
 opt-level = 1
 [profile.dev.package.atlas-gitdiff]
 opt-level = 1
+[profile.dev.package.atlas-grepindex]
+opt-level = 1
 [profile.dev.package.atlas-icon-theme]
+opt-level = 1
+[profile.dev.package.atlas-instruction-sync]
 opt-level = 1
 [profile.dev.package.atlas-memory]
 opt-level = 1
@@ -792,7 +818,13 @@ opt-level = 1
 opt-level = 1
 [profile.dev.package.atlas-process]
 opt-level = 1
+[profile.dev.package.atlas-profile]
+opt-level = 1
 [profile.dev.package.atlas-redact]
+opt-level = 1
+[profile.dev.package.atlas-retrieval]
+opt-level = 1
+[profile.dev.package.atlas-search]
 opt-level = 1
 [profile.dev.package.atlas-terminal]
 opt-level = 1

@@ -2,6 +2,7 @@ import { useEffect, useRef, type RefObject } from "react";
 import type { ActionId } from "./actions";
 import { matchesCombo } from "./combo";
 import { useKeybindingsStore } from "../stores/keybindings-store";
+import { useLayoutStore } from "@/features/layout/stores/layout-store";
 
 /**
  * Does this keydown match any live chord for `id` in the active profile?
@@ -24,6 +25,13 @@ export interface ScopedHotkeysOptions {
   /** Only fire while focus is inside this element (and it is displayed). */
   rootRef?: RefObject<HTMLElement | null>;
   requireFocusWithin?: boolean;
+  /** Only fire while this tab is the active tab of the focused split column.
+   *  Prefer it to `requireFocusWithin` for anything that lives in a tab:
+   *  clicking a non-focusable element in a pane moves PANE focus without
+   *  moving DOM focus, so an activeElement check leaves the keyboard with the
+   *  pane the user just left — and a persistent tab that is mounted but
+   *  hidden would otherwise keep answering its chords. */
+  tabId?: string;
   /** Capture phase (default) pre-empts the global dispatcher — the terminal
    *  and hint-nav rely on this. Bubble keeps the historical ordering for
    *  handlers that never needed to shadow a global. */
@@ -45,7 +53,8 @@ export function useScopedHotkeys(options: ScopedHotkeysOptions) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const { rootRef, requireFocusWithin, handlers } = ref.current;
+      const { rootRef, requireFocusWithin, tabId, handlers } = ref.current;
+      if (tabId !== undefined && useLayoutStore.getState().activeTabId !== tabId) return;
       if (requireFocusWithin) {
         const root = rootRef?.current;
         if (!root || root.offsetParent == null || !root.contains(document.activeElement)) return;

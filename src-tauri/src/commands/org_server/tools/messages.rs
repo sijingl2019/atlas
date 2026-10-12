@@ -1,7 +1,10 @@
 //! Chat messages: the outward `org_send`, and the **Session Reference** a
 //! message can carry.
 
-use atlas_comms::wire::{SessionReference, ConversationKind, ReferencedSession, CHAT_ARTIFACT_REF_TITLE_MAX, CHAT_BODY_MAX_BYTES};
+use atlas_comms::wire::{
+    ConversationKind, ReferencedSession, SessionReference, CHAT_ARTIFACT_REF_TITLE_MAX,
+    CHAT_BODY_MAX_BYTES,
+};
 use chrono::DateTime;
 use rmcp::model::{CallToolResult, JsonObject};
 use serde_json::{json, Value};
@@ -11,8 +14,8 @@ use super::super::resolve::{self, Resolution};
 use super::super::OrgScope;
 use super::mentions::named_mentions;
 use super::{
-    ambiguous, conversation_json, member_json, roster_name, string_in, strings_in, tool_error, tool_json, NamedSession,
-    OrgTools,
+    ambiguous, conversation_json, member_json, roster_name, string_in, strings_in, tool_error,
+    tool_json, NamedSession, OrgTools,
 };
 use crate::commands::memory_server::Grant;
 
@@ -66,7 +69,11 @@ pub(super) enum MessageReference {
     Attached(ReferencedSession),
     /// The Workspace is not one a message may reference: no card, and the
     /// recorded session's timeline link is appended to the body.
-    Linked { session_id: String, title: Option<String>, link: String },
+    Linked {
+        session_id: String,
+        title: Option<String>,
+        link: String,
+    },
 }
 
 impl MessageReference {
@@ -74,9 +81,13 @@ impl MessageReference {
     fn name(&self) -> String {
         let (id, title) = match self {
             Self::Attached(r) => (&r.session_id, &r.session_title),
-            Self::Linked { session_id, title, .. } => (session_id, title),
+            Self::Linked {
+                session_id, title, ..
+            } => (session_id, title),
         };
-        title.clone().unwrap_or_else(|| format!("recorded session {id}"))
+        title
+            .clone()
+            .unwrap_or_else(|| format!("recorded session {id}"))
     }
 
     /// The body as it goes out: as written for a reference card; with the
@@ -115,12 +126,16 @@ impl MessageReference {
                 "session_id": r.session_id,
                 "title": r.session_title,
             }),
-            Self::Linked { session_id, title, link } => json!({
+            Self::Linked {
+                session_id,
+                title,
+                link,
+            } => json!({
                 "attached": false,
                 "session_id": session_id,
                 "title": title,
                 "link": link,
-                "note": "The recorded session's Workspace is not visible to the whole organisation, so chat would \
+                "note": "The recorded session's Workspace is not visible to the whole organization, so chat would \
                          refuse a Session Reference to it; the message was sent without one, with the recorded \
                          session's timeline link appended to the body instead. Tell the user.",
             }),
@@ -159,7 +174,11 @@ pub(super) enum Recipient {
 /// Who a DM or group DM is with, by name where the roster has one, leaving
 /// out the caller when they are known; by id where the roster cannot name
 /// someone.
-fn others(conversation: &OrgConversation, caller: Option<&str>, roster: Option<&[Member]>) -> Vec<String> {
+fn others(
+    conversation: &OrgConversation,
+    caller: Option<&str>,
+    roster: Option<&[Member]>,
+) -> Vec<String> {
     conversation
         .member_ids
         .iter()
@@ -192,11 +211,18 @@ impl OrgTools {
         scope: &OrgScope,
         to: &str,
     ) -> Result<(Recipient, Option<Vec<Member>>), CallToolResult> {
-        let conversations = self.cloud.conversations(&scope.org_id).await.map_err(|e| tool_error(e.to_string()))?;
+        let conversations = self
+            .cloud
+            .conversations(&scope.org_id)
+            .await
+            .map_err(|e| tool_error(e.to_string()))?;
         match resolve::conversation(&conversations, to) {
             Resolution::One(conversation) => {
                 if !conversation.caller_is_member {
-                    let named = conversation.name.as_deref().map_or_else(|| conversation.id.clone(), |n| format!("#{n}"));
+                    let named = conversation
+                        .name
+                        .as_deref()
+                        .map_or_else(|| conversation.id.clone(), |n| format!("#{n}"));
                     return Err(tool_error(format!(
                         "you are not a member of {named}, so you cannot post in it; ask the user to join it first. \
                          Nothing was sent."
@@ -207,10 +233,17 @@ impl OrgTools {
             Resolution::Many(found) => Err(ambiguous(
                 to,
                 "conversations",
-                found.into_iter().map(|c| conversation_json(c, None)).collect(),
+                found
+                    .into_iter()
+                    .map(|c| conversation_json(c, None))
+                    .collect(),
             )),
             Resolution::None => {
-                let roster = self.cloud.members(&scope.org_id).await.map_err(|e| tool_error(e.to_string()))?;
+                let roster = self
+                    .cloud
+                    .members(&scope.org_id)
+                    .await
+                    .map_err(|e| tool_error(e.to_string()))?;
                 let member = match resolve::member(&roster, to) {
                     Resolution::One(member) => member.clone(),
                     Resolution::Many(found) => {
@@ -229,7 +262,11 @@ impl OrgTools {
                 let dms: Vec<&OrgConversation> = conversations
                     .iter()
                     .filter(|c| c.kind == ConversationKind::Dm)
-                    .filter(|c| c.member_ids.as_ref().is_some_and(|ids| ids.contains(&member.user_id)))
+                    .filter(|c| {
+                        c.member_ids
+                            .as_ref()
+                            .is_some_and(|ids| ids.contains(&member.user_id))
+                    })
                     .collect();
                 let recipient = match dms.as_slice() {
                     [dm] => Recipient::Conversation((*dm).clone()),
@@ -257,7 +294,12 @@ impl OrgTools {
     /// appended link) — so a refused send creates no DM either. The body goes
     /// out exactly as the card showed it: never truncated, never split, nothing
     /// added but the link the card showed.
-    pub(super) async fn send(&self, grant: &Grant, scope: &OrgScope, args: &SendArgs<'_>) -> CallToolResult {
+    pub(super) async fn send(
+        &self,
+        grant: &Grant,
+        scope: &OrgScope,
+        args: &SendArgs<'_>,
+    ) -> CallToolResult {
         let Some(to) = args.to else {
             return tool_error(
                 "say where to send it: `to` is a conversation's id or channel name, or a member's id, name or email",
@@ -271,19 +313,28 @@ impl OrgTools {
             Err(answer) => return answer,
         };
         let mut roster = roster;
-        let body = match self.post_body(&scope.org_id, body, &args.mentions, &mut roster).await {
+        let body = match self
+            .post_body(&scope.org_id, body, &args.mentions, &mut roster)
+            .await
+        {
             Ok(body) => body,
             Err(answer) => return answer,
         };
         let reference = match args.session {
-            Some(session) => match self.session_reference(grant, scope, (Some(session), args.workspace)).await {
+            Some(session) => match self
+                .session_reference(grant, scope, (Some(session), args.workspace))
+                .await
+            {
                 Ok(reference) => Some(reference),
                 Err(answer) => return answer,
             },
             None => None,
         };
         let body = reference.as_ref().map_or(body.clone(), |r| r.body(&body));
-        let artifact_refs = reference.as_ref().map(MessageReference::refs).unwrap_or_default();
+        let artifact_refs = reference
+            .as_ref()
+            .map(MessageReference::refs)
+            .unwrap_or_default();
         // Chat's cap is UTF-8 bytes (the contract's `CHAT_BODY_MAX_BYTES`),
         // counted on the body as it will be posted.
         if body.len() > CHAT_BODY_MAX_BYTES {
@@ -295,10 +346,12 @@ impl OrgTools {
         }
         let (conversation, created_dm) = match recipient {
             Recipient::Conversation(conversation) => (conversation, false),
-            Recipient::NewDm(member) => match self.cloud.dm_with(&scope.org_id, &member.user_id).await {
-                Ok(opened) => opened,
-                Err(e) => return tool_error(e.to_string()),
-            },
+            Recipient::NewDm(member) => {
+                match self.cloud.dm_with(&scope.org_id, &member.user_id).await {
+                    Ok(opened) => opened,
+                    Err(e) => return tool_error(e.to_string()),
+                }
+            }
         };
         let message = NewMessage {
             org_id: &scope.org_id,
@@ -356,21 +409,39 @@ impl OrgTools {
             cursor: None,
             limit: Some(1),
         };
-        let summary = self.cloud.timeline(query).await.map_err(|e| tool_error(e.to_string()))?.summary;
+        let summary = self
+            .cloud
+            .timeline(query)
+            .await
+            .map_err(|e| tool_error(e.to_string()))?
+            .summary;
         let title = reference_title(summary.title.as_deref().or(target.title.as_deref()));
-        let referenceable =
-            self.cloud.referenceable_workspaces(&scope.org_id).await.map_err(|e| tool_error(e.to_string()))?;
+        let referenceable = self
+            .cloud
+            .referenceable_workspaces(&scope.org_id)
+            .await
+            .map_err(|e| tool_error(e.to_string()))?;
         if !referenceable.contains(&target.workspace_id) {
-            let link = atlas_artifacts::session_web_url(&scope.org_id, &target.workspace_id, &target.id);
-            return Ok(MessageReference::Linked { session_id: target.id, title, link });
+            let link =
+                atlas_artifacts::session_web_url(&scope.org_id, &target.workspace_id, &target.id);
+            return Ok(MessageReference::Linked {
+                session_id: target.id,
+                title,
+                link,
+            });
         }
         let count = |n: i64| u64::try_from(n).unwrap_or(0);
         Ok(MessageReference::Attached(ReferencedSession {
             workspace_ref_id: target.workspace_id,
             session_id: target.id,
             session_title: title,
-            agent: summary.agent.filter(|a| !a.is_empty()).map(|a| a.chars().take(64).collect()),
-            started_at: DateTime::parse_from_rfc3339(&summary.started_at).ok().map(|at| at.timestamp_millis()),
+            agent: summary
+                .agent
+                .filter(|a| !a.is_empty())
+                .map(|a| a.chars().take(64).collect()),
+            started_at: DateTime::parse_from_rfc3339(&summary.started_at)
+                .ok()
+                .map(|at| at.timestamp_millis()),
             messages: count(summary.message_count),
             tool_calls: count(summary.tool_call_count),
             checkpoints: count(summary.checkpoint_count),
@@ -392,7 +463,10 @@ impl OrgTools {
             ),
             Recipient::Conversation(c) => match c.kind {
                 ConversationKind::Channel => {
-                    let name = c.name.as_deref().map_or_else(|| c.id.clone(), |n| format!("#{n}"));
+                    let name = c
+                        .name
+                        .as_deref()
+                        .map_or_else(|| c.id.clone(), |n| format!("#{n}"));
                     (format!("Send to {name}"), format!("Everyone in {name}"))
                 }
                 ConversationKind::Dm => {
@@ -401,7 +475,10 @@ impl OrgTools {
                 }
                 ConversationKind::GroupDm => {
                     let who = listed(&others(c, caller, roster));
-                    (format!("Message the group with {who}"), format!("Everyone in your group DM with {who}"))
+                    (
+                        format!("Message the group with {who}"),
+                        format!("Everyone in your group DM with {who}"),
+                    )
                 }
             },
         }

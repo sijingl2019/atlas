@@ -215,7 +215,8 @@ impl std::fmt::Debug for LocalThreadStore {
 impl LocalThreadStore {
     /// Create a local store using an already initialized state DB handle.
     pub fn new(config: LocalThreadStoreConfig, state_db: Option<StateDbHandle>) -> Self {
-        let writer_lock_coordinator = Arc::new(WriterLockCoordinator::new(&config.atlas_agent_home));
+        let writer_lock_coordinator =
+            Arc::new(WriterLockCoordinator::new(&config.atlas_agent_home));
         Self {
             config,
             live_recorders: Arc::new(Mutex::new(HashMap::new())),

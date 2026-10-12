@@ -1008,7 +1008,7 @@ function share(value: number, total: number): string {
  * rather than "very cheap".
  */
 function costLabel(cost: number): string {
-  return cost >= 0.01 ? fmtCost(cost) : "<$0.01";
+  return cost >= 0.01 ? fmtCost(cost) : `<${fmtCost(0.01)}`;
 }
 
 function Chip({ children }: { children: ReactNode }) {

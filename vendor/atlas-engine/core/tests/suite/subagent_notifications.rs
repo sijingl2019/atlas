@@ -153,7 +153,12 @@ fn role_block(description: &str, role_name: &str) -> Option<String> {
     Some(block.join("\n"))
 }
 
-fn write_home_skill(atlas_agent_home: &Path, dir: &str, name: &str, description: &str) -> Result<()> {
+fn write_home_skill(
+    atlas_agent_home: &Path,
+    dir: &str,
+    name: &str,
+    description: &str,
+) -> Result<()> {
     let skill_dir = atlas_agent_home.join("skills").join(dir);
     fs::create_dir_all(&skill_dir)?;
     let contents = format!("---\nname: {name}\ndescription: {description}\n---\n\n# Body\n");
@@ -850,7 +855,8 @@ async fn subagent_stop_replaces_stop_and_skips_internal_subagents() -> Result<()
         read_hook_log(test.atlas_agent_home_path(), "subagent_stop_hook_log.jsonl")?;
     assert_eq!(subagent_stop_inputs_after_internal, subagent_stop_inputs);
 
-    let stop_inputs_after_internal = read_hook_log(test.atlas_agent_home_path(), "stop_hook_log.jsonl")?;
+    let stop_inputs_after_internal =
+        read_hook_log(test.atlas_agent_home_path(), "stop_hook_log.jsonl")?;
     assert_eq!(stop_inputs_after_internal.len(), stop_input_count);
 
     Ok(())
@@ -1648,16 +1654,18 @@ async fn multi_agent_v2_spawn_sends_agent_message_to_child(
     } else {
         "koffing"
     };
-    let mut builder = test_atlas_engine().with_model(parent_model).with_config(|config| {
-        config
-            .features
-            .enable(Feature::Collab)
-            .expect("test config should allow feature update");
-        config
-            .features
-            .enable(Feature::MultiAgentV2)
-            .expect("test config should allow feature update");
-    });
+    let mut builder = test_atlas_engine()
+        .with_model(parent_model)
+        .with_config(|config| {
+            config
+                .features
+                .enable(Feature::Collab)
+                .expect("test config should allow feature update");
+            config
+                .features
+                .enable(Feature::MultiAgentV2)
+                .expect("test config should allow feature update");
+        });
     let test = builder.build(&server).await?;
     let root_thread_id = test.session_configured.thread_id;
 

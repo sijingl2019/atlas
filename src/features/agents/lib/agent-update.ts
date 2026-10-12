@@ -10,6 +10,7 @@
 // a phase means to a person.
 
 import { toast } from "sonner";
+import { notifyAgentUpdateFailed } from "@/features/notifications/lib/app-warning-notifier";
 import { acpRegistry } from "./agent-registry-api";
 import {
   hydrateAgentRegistry,
@@ -37,7 +38,7 @@ export async function updateAgent(pluginId: string, name: string, version: strin
       id: `agent-update:${pluginId}:${version}`,
     });
   } catch (e) {
-    toast.error(`Couldn't update ${name}: ${String(e)}`);
+    notifyAgentUpdateFailed({ pluginId, name, version, error: String(e) });
   } finally {
     setAgentUpdatePhase(pluginId, null);
   }

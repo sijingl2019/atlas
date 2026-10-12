@@ -49,8 +49,11 @@ pub const CONFIG_FILE_NAME: &str = "config.toml";
 
 /// Directory under `~/.config` (or `$XDG_CONFIG_HOME`) holding
 /// [`CONFIG_FILE_NAME`]. Named for the product, not the bundle id: a path a
-/// user types should read `atlas`, not `dev.atlas.ide`.
-pub const CONFIG_DIR_NAME: &str = "atlas";
+/// user types should read `atlas`, not `dev.atlas.ide`. `atlas-dev` under the
+/// dev profile, so a source build never edits the released app's settings.
+pub fn config_dir_name() -> &'static str {
+    atlas_profile::config_dir_name()
+}
 
 /// How many times [`ConfigManager::apply_patch`] rebuilds its patch when an
 /// external write lands inside the merge-then-swap window. Three is enough to
@@ -240,6 +243,29 @@ impl Default for TerminalShell {
     }
 }
 
+/// What picking another agent does to a chat that already has a conversation.
+/// A session is paired to one agent, so every option starts a new session; they
+/// differ in what happens to the one on screen. An empty chat always just
+/// switches in place, and a running one always gets a new tab.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum AgentSwitchBehavior {
+    /// Keep the conversation and open the new agent in a new tab.
+    NewTab,
+    /// Switch in the same tab and attach the conversation to the composer as a
+    /// past-session mention, so the new agent receives it with the next message.
+    Handoff,
+    /// Switch in the same tab and start over; the conversation stays in history.
+    /// The default, and how switching always worked before this setting existed.
+    Reset,
+}
+
+impl Default for AgentSwitchBehavior {
+    fn default() -> Self {
+        Self::Reset
+    }
+}
+
 /// User-facing toggles surfaced in Settings → General. Moved out of
 /// `state.json`'s `AppState.settings` (issue #64) into its own validated,
 /// human-editable `config.toml`.
@@ -250,10 +276,12 @@ impl Default for TerminalShell {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
-    /// On project open, ensure `.atlas/` is listed in the project's
-    /// `.gitignore` (creating the file if needed). No-op on non-git
-    /// projects. Default ON because Atlas writes caches / state into
-    /// `.atlas/` that don't belong in version control.
+    /// On project open, keep Atlas's directory out of the project's version
+    /// control: `.atlas/` is listed in the project's `.gitignore` (creating
+    /// the file if needed), while the dev profile lists its `.atlas-dev/` in
+    /// `.git/info/exclude` instead (see `commands::fs::ensure_atlas_gitignore`).
+    /// No-op on non-git projects. Default ON because Atlas writes caches /
+    /// state there that don't belong in version control.
     #[serde(default = "default_true")]
     pub auto_add_atlas_gitignore: bool,
     /// Record Atlas-internal events (sign-in, agent start/finish,
@@ -297,6 +325,11 @@ pub struct AppSettings {
     /// consumer via the shared provider. See `crate::commands::models`.
     #[serde(default = "default_embedding_model")]
     pub embedding_model_id: String,
+    /// On-device embedding model for semantic code search (the code index's
+    /// vectors), by catalog id. Separate from `embedding_model_id`: memory
+    /// never resolves to a code model. See `crate::commands::models`.
+    #[serde(default = "default_code_embedding_model")]
+    pub code_embedding_model_id: String,
     /// One theme covers Atlas chrome, editor, terminal, diffs and syntax.
     #[serde(default = "default_theme")]
     pub theme: String,
@@ -326,10 +359,27 @@ pub struct AppSettings {
     /// `<next_steps>` block; "off" disables it.
     #[serde(default)]
     pub adaptive_suggestions: AdaptiveSuggestions,
+    /// What switching agents does to a chat with a conversation in it.
+    #[serde(default)]
+    pub agent_switch_behavior: AgentSwitchBehavior,
+    /// Before switching agents on a chat with a conversation, send the agent
+    /// being left `/remember` (when it advertises that command) and wait for
+    /// it. Off by default: it costs the user a turn.
+    #[serde(default)]
+    pub remember_before_switch: bool,
     /// Inline Git blame in the code editor. Default ON; when off the editor
     /// doesn't even load the extension (no blame IPC).
     #[serde(default = "default_true")]
     pub git_blame_inline: bool,
+    /// Background `git fetch` of the open project — on activation, on window
+    /// focus, and every few minutes — so ahead/behind reflects the remote.
+    /// Default ON. See `crate::commands::git_autofetch`.
+    #[serde(default = "default_true")]
+    pub git_auto_fetch: bool,
+    /// Keep the computer awake while an Atlas agent is actively running.
+    /// Default OFF. See `crate::keep_awake`.
+    #[serde(default)]
+    pub keep_awake_while_running: bool,
     /// Auto-update master switch. See `crate::commands::updater`.
     #[serde(default = "default_true")]
     pub auto_update: bool,
@@ -340,6 +390,13 @@ pub struct AppSettings {
     /// see `commands::atlas_config::apply_curated_plugin_sync_gate`.
     #[serde(default)]
     pub curated_plugin_sync: bool,
+    /// Mirror the active project's convention files (`CLAUDE.md`,
+    /// `.claude/rules/`) into a marked block of its `AGENTS.md`, kept current
+    /// as they change, for any agent that reads `AGENTS.md`. Off by default:
+    /// it writes into the user's repository. Switching it off takes the block
+    /// back out. See `commands::instruction_sync`.
+    #[serde(default)]
+    pub instruction_sync: bool,
     /// A version the user chose to "Ignore" in the update prompt. `None` =
     /// nothing ignored. Absent from the TOML file rather than written as a
     /// sentinel empty string — TOML has no native null, and an absent key is
@@ -375,10 +432,15 @@ pub struct AppSettings {
     /// Default ON.
     #[serde(default = "default_true")]
     pub agent_org_access: bool,
-    /// Terminal notifications master switch. A command that fails, runs
-    /// longer than `terminal_notify_min_duration_ms`, or asks for input raises
-    /// an in-app notification, a toast when its terminal is off screen and a
-    /// native notification when Atlas is not the front app.
+    /// Let agents search code through the code tool server (ADR-0015):
+    /// `grep` and `find_files` over the session's directory. Off: sessions
+    /// are not offered the server and every call in a running one is
+    /// refused. Default ON.
+    #[serde(default = "default_true")]
+    pub agent_code_tools: bool,
+    /// "Command finished": a successful command longer than
+    /// `terminal_notify_min_duration_ms` notifies. (Once the terminal master
+    /// switch; `notifications_enabled` is the master now.)
     #[serde(default = "default_true")]
     pub terminal_notifications: bool,
     /// A successful command shorter than this never notifies (milliseconds).
@@ -390,10 +452,11 @@ pub struct AppSettings {
     /// Notify when a command wants input (password prompt, bell, OSC 9/777).
     #[serde(default = "default_true")]
     pub terminal_notify_on_attention: bool,
-    /// Also raise a macOS notification when the window is not focused.
+    /// Legacy terminal OS-banner switch; folded into the `notify_*_native`
+    /// tier keys once (`notificationsMigrated`), unused afterwards.
     #[serde(default = "default_true")]
     pub terminal_notify_native: bool,
-    /// Play a short chime with the notification.
+    /// Legacy terminal sound switch — migrated like the one above.
     #[serde(default)]
     pub terminal_notify_sound: bool,
     /// Windows terminal shell (`powershell` | `cmd`).
@@ -410,6 +473,51 @@ pub struct AppSettings {
     /// `normal`, `bold`, or `100`–`900`.
     #[serde(default = "default_terminal_font_weight")]
     pub terminal_font_weight: String,
+    /// Notifications master switch: off silences every kind except sign-in problems.
+    #[serde(default = "default_true")]
+    pub notifications_enabled: bool,
+    /// OS banner for "needs you" notifications (permission, question, sign-in, terminal input).
+    #[serde(default = "default_true")]
+    pub notify_needs_you_native: bool,
+    /// Sound for "needs you" notifications.
+    #[serde(default = "default_true")]
+    pub notify_needs_you_sound: bool,
+    /// OS banner for outcome notifications (a turn or command finished or failed).
+    #[serde(default = "default_true")]
+    pub notify_outcome_native: bool,
+    /// Sound for outcome notifications.
+    #[serde(default = "default_true")]
+    pub notify_outcome_sound: bool,
+    /// OS banner for warnings (context nearly full, rate limit, retrying, agent stopped).
+    #[serde(default)]
+    pub notify_warning_native: bool,
+    /// Sound for warnings.
+    #[serde(default)]
+    pub notify_warning_sound: bool,
+    /// OS banner for team notifications (Chat DMs and @mentions).
+    #[serde(default = "default_true")]
+    pub notify_team_native: bool,
+    /// Sound for team notifications.
+    #[serde(default = "default_true")]
+    pub notify_team_sound: bool,
+    /// Show Allow once / Deny on permission banners.
+    #[serde(default = "default_true")]
+    pub notify_permission_actions: bool,
+    /// Set once the legacy terminal and agent notification choices have been folded into the keys above. Not user-facing.
+    #[serde(default)]
+    pub notifications_migrated: bool,
+    /// Notification kinds the user switched off in Settings (kind ids from the frontend catalog). Unknown ids are ignored; a kind that cannot be silenced ignores its entry.
+    #[serde(default)]
+    pub notify_disabled_kinds: Vec<String>,
+    /// Set once the per-kind switches that predate `notifyDisabledKinds` have been folded into it. Not user-facing.
+    #[serde(default)]
+    pub notify_kinds_migrated: bool,
+    /// An agent turn that finished faster than this stays quiet (milliseconds); 0 = off.
+    #[serde(default)]
+    pub notify_agent_min_duration_ms: u32,
+    /// Models starred in the composer's model picker, as `agentType:modelId`. Unknown entries are ignored.
+    #[serde(default)]
+    pub favorite_models: Vec<String>,
 }
 
 fn default_true() -> bool {
@@ -460,6 +568,10 @@ const TERMINAL_FONT_WEIGHTS: &[&str] = &[
     "normal", "bold", "100", "200", "300", "400", "500", "600", "700", "800", "900",
 ];
 
+pub fn default_code_embedding_model() -> String {
+    "granite-embedding-small-r2".to_string()
+}
+
 pub fn default_ui_scale() -> f32 {
     1.0
 }
@@ -479,6 +591,7 @@ impl Default for AppSettings {
             link_telemetry_to_account: true,
             personal_sync: false,
             embedding_model_id: default_embedding_model(),
+            code_embedding_model_id: default_code_embedding_model(),
             theme: default_theme(),
             theme_mode: ThemeMode::default(),
             theme_overrides: ThemeOverride::default(),
@@ -487,15 +600,21 @@ impl Default for AppSettings {
             legacy_code_editor_theme: None,
             legacy_atlas_theme: None,
             adaptive_suggestions: AdaptiveSuggestions::default(),
+            agent_switch_behavior: AgentSwitchBehavior::default(),
+            remember_before_switch: false,
             git_blame_inline: true,
+            git_auto_fetch: true,
+            keep_awake_while_running: false,
             auto_update: true,
             curated_plugin_sync: false,
+            instruction_sync: false,
             updater_ignored_version: None,
             enter_to_send: true,
             graph_default_3d: false,
             default_agent: default_agent_id(),
             agent_ui_navigation: true,
             agent_org_access: true,
+            agent_code_tools: true,
             terminal_notifications: true,
             terminal_notify_min_duration_ms: default_terminal_notify_min_duration_ms(),
             terminal_notify_on_failure: true,
@@ -507,6 +626,21 @@ impl Default for AppSettings {
             terminal_font_size: default_terminal_font_size(),
             terminal_line_height: default_terminal_line_height(),
             terminal_font_weight: default_terminal_font_weight(),
+            notifications_enabled: true,
+            notify_needs_you_native: true,
+            notify_needs_you_sound: true,
+            notify_outcome_native: true,
+            notify_outcome_sound: true,
+            notify_warning_native: false,
+            notify_warning_sound: false,
+            notify_team_native: true,
+            notify_team_sound: true,
+            notify_permission_actions: true,
+            notifications_migrated: false,
+            notify_disabled_kinds: Vec::new(),
+            notify_kinds_migrated: false,
+            notify_agent_min_duration_ms: 0,
+            favorite_models: Vec::new(),
         }
     }
 }
@@ -549,8 +683,10 @@ const SCHEMA_VERSION_DOC: &str = "
 const SETTINGS_DOCS: &[(&str, &str)] = &[
     (
         "autoAddAtlasGitignore",
-        "# Add `.atlas/` to each opened git project's .gitignore, creating the\n\
-         # file if needed. No-op on non-git projects. (default: true)",
+        "# Keep Atlas's directory in each opened git project out of version\n\
+         # control: `.atlas/` goes into the project's .gitignore (created if\n\
+         # needed); a dev build's `.atlas-dev/` goes into .git/info/exclude.\n\
+         # No-op on non-git projects. (default: true)",
     ),
     (
         "enableAtlasLogs",
@@ -594,6 +730,12 @@ const SETTINGS_DOCS: &[(&str, &str)] = &[
          # (default: \"bge-small-zh-v1.5\")",
     ),
     (
+        "codeEmbeddingModelId",
+        "# On-device embedding model for semantic code search, named by its\n\
+         # directory. Normally managed for you by the Local Model Manager.\n\
+         # Must not be empty. (default: \"granite-embedding-small-r2\")",
+    ),
+    (
         "theme",
         "# Theme id for the whole app: chrome, editor, terminal, diffs and syntax.\n\
          # Unknown ids fall back to \"atlas\" with a warning. (default: \"atlas\")",
@@ -611,7 +753,7 @@ const SETTINGS_DOCS: &[(&str, &str)] = &[
     ),
     (
         "iconTheme",
-        "# File and folder icons, on their own track from the colour theme.\n\
+        "# File and folder icons, on their own track from the color theme.\n\
          # \"minimal\" keeps Atlas's own lucide icons; anything else names a VS\n\
          # Code icon theme, bundled or installed from Open VSX.\n\
          # (default: \"material-icon-theme\")",
@@ -628,9 +770,35 @@ const SETTINGS_DOCS: &[(&str, &str)] = &[
          # Exactly \"agent\" or \"off\", nothing else. (default: \"agent\")",
     ),
     (
+        "agentSwitchBehavior",
+        "# What picking another agent does to a chat that has a conversation:\n\
+         # \"new-tab\" keeps it and opens the new agent in a new tab, \"handoff\"\n\
+         # switches in place and attaches it to the next message, \"reset\"\n\
+         # switches in place and starts over. (default: \"reset\")",
+    ),
+    (
+        "rememberBeforeSwitch",
+        "# Before switching agents on a chat with a conversation, send the agent\n\
+         # being left /remember (when it offers that command) and wait for it\n\
+         # to save what it learned to shared memory. Costs one turn per switch.\n\
+         # (default: false)",
+    ),
+    (
         "gitBlameInline",
         "# Inline git blame — a dim author/age/summary annotation trailing the\n\
          # active line in the editor. (default: true)",
+    ),
+    (
+        "gitAutoFetch",
+        "# Quietly `git fetch` the open project when it opens, when Atlas\n\
+         # regains focus, and every few minutes, so the Pull badge shows what\n\
+         # the remote has. Never pulls or touches your files. (default: true)",
+    ),
+    (
+        "keepAwakeWhileRunning",
+        "# Keep the computer awake while an Atlas agent is actively running.\n\
+         # Prevents idle system sleep; display can still turn off. No effect on\n\
+         # Windows. (default: false)",
     ),
     (
         "autoUpdate",
@@ -639,9 +807,16 @@ const SETTINGS_DOCS: &[(&str, &str)] = &[
     ),
     (
         "curatedPluginSync",
-        "# Let the Atlas Agent's engine fetch OpenAI's curated plugin catalogue\n\
-         # (github.com/openai/plugins) when it starts — a network request at\n\
-         # every launch. Applies the next time the agent starts. (default: false)",
+        "# Let Atlas Agent download the latest curated plugin catalog when it\n\
+         # starts — a network request at every launch. Applies the next time the\n\
+         # agent starts. (default: false)",
+    ),
+    (
+        "instructionSync",
+        "# Mirror CLAUDE.md and .claude/rules/ into a marked block of the active\n\
+         # project's AGENTS.md, kept current as they change, for any agent that\n\
+         # reads AGENTS.md. Writes into the repository; text outside the block\n\
+         # is never changed. Off: the block is taken back out. (default: false)",
     ),
     (
         "updaterIgnoredVersion",
@@ -680,18 +855,25 @@ const SETTINGS_DOCS: &[(&str, &str)] = &[
     ),
     (
         "agentOrgAccess",
-        "# Let Atlas Agent act in your organisation, as you: read the recorded\n\
-         # sessions, comments, members and conversations of the organisation a\n\
+        "# Let Atlas Agent act in your organization, as you: read the recorded\n\
+         # sessions, comments, members and conversations of the organization a\n\
          # cloud-bound Project belongs to. Anything that reaches another person\n\
-         # asks you first. Off: its organisation tools are withdrawn and every\n\
+         # asks you first. Off: its organization tools are withdrawn and every\n\
          # call is refused. (default: true)",
     ),
     (
+        "agentCodeTools",
+        "# Let agents search this project's code through Atlas: grep for text\n\
+         # and find files by name, in-process, respecting .gitignore and never\n\
+         # reading secret files such as .env. Off: the code tools are withdrawn\n\
+         # and every call is refused; agents use their own shell instead.\n\
+         # (default: true)",
+    ),
+    (
         "terminalNotifications",
-        "# Terminal notifications: a command that fails, runs longer than\n\
-         # terminalNotifyMinDurationMs, or asks for input raises an in-app\n\
-         # notification, a toast when its terminal is off screen and a macOS\n\
-         # notification when Atlas is in the background. (default: true)",
+        "# Notify when a command succeeds after running longer than\n\
+         # terminalNotifyMinDurationMs. (The master switch for all notifications\n\
+         # is notificationsEnabled.) (default: true)",
     ),
     (
         "terminalNotifyMinDurationMs",
@@ -741,6 +923,81 @@ const SETTINGS_DOCS: &[(&str, &str)] = &[
         "terminalFontWeight",
         "# Terminal font weight: \"normal\", \"bold\", or \"100\"–\"900\".\n\
          # (default: \"normal\")",
+    ),
+    (
+        "notificationsEnabled",
+        "# Notifications master switch. Off silences every notification except\n\
+         # sign-in problems, which always show. (default: true)",
+    ),
+    (
+        "notifyNeedsYouNative",
+        "# OS banner for notifications that need you — a permission request, a\n\
+         # question, a terminal asking for input. Shown only when you are away.\n\
+         # (default: true)",
+    ),
+    (
+        "notifyNeedsYouSound",
+        "# Sound for notifications that need you. (default: true)",
+    ),
+    (
+        "notifyOutcomeNative",
+        "# OS banner when an agent turn or terminal command finishes or fails.\n\
+         # Shown only when you are away. (default: true)",
+    ),
+    (
+        "notifyOutcomeSound",
+        "# Sound for finished / failed notifications. (default: true)",
+    ),
+    (
+        "notifyWarningNative",
+        "# OS banner for warnings — context nearly full, rate limited, retrying,\n\
+         # agent stopped. (default: false)",
+    ),
+    (
+        "notifyWarningSound",
+        "# Sound for warnings. (default: false)",
+    ),
+    (
+        "notifyTeamNative",
+        "# OS banner for Chat direct messages and @mentions. Shown only when you\n\
+         # are away. (default: true)",
+    ),
+    (
+        "notifyTeamSound",
+        "# Sound for Chat notifications. (default: true)",
+    ),
+    (
+        "notifyPermissionActions",
+        "# Show Allow once / Deny buttons on permission banners. Off: the banner\n\
+         # only opens the session. (default: true)",
+    ),
+    (
+        "notificationsMigrated",
+        "# Set once Atlas has folded your earlier terminal and agent notification\n\
+         # choices into the keys above. Leave it alone. (default: false)",
+    ),
+    (
+        "notifyDisabledKinds",
+        "# Notification kinds you switched off in Settings > Notifications, by id,\n\
+         # e.g. [\"terminal-done\", \"git-behind\"]. Unknown ids are ignored; a kind\n\
+         # that must always show (sign-in lost) cannot be silenced. (default: [])",
+    ),
+    (
+        "notifyKindsMigrated",
+        "# Set once Atlas has folded your earlier per-kind notification switches\n\
+         # into notifyDisabledKinds. Leave it alone. (default: false)",
+    ),
+    (
+        "notifyAgentMinDurationMs",
+        "# An agent turn that finished faster than this many milliseconds stays\n\
+         # quiet; failures and requests for you are never held back. 0 turns it\n\
+         # off. Must be between 0 and 3600000. (default: 0)",
+    ),
+    (
+        "favoriteModels",
+        "# Models you starred in the composer's model picker, as\n\
+         # \"agentType:modelId\", e.g. [\"claude-code:opus\"]. Starred models open\n\
+         # the picker on Favorites. Unknown entries are ignored. (default: [])",
     ),
 ];
 
@@ -811,9 +1068,24 @@ pub fn validate(settings: &AppSettings) -> Result<(), ValidationIssue> {
             ),
         });
     }
+    if settings.notify_agent_min_duration_ms > MAX_TERMINAL_NOTIFY_MS {
+        return Err(ValidationIssue {
+            key: "notifyAgentMinDurationMs",
+            message: format!(
+                "must be between 0 and {MAX_TERMINAL_NOTIFY_MS}, got {}",
+                settings.notify_agent_min_duration_ms
+            ),
+        });
+    }
     if settings.embedding_model_id.trim().is_empty() {
         return Err(ValidationIssue {
             key: "embeddingModelId",
+            message: "must not be empty".to_string(),
+        });
+    }
+    if settings.code_embedding_model_id.trim().is_empty() {
+        return Err(ValidationIssue {
+            key: "codeEmbeddingModelId",
             message: "must not be empty".to_string(),
         });
     }
@@ -1038,15 +1310,21 @@ pub struct SettingsPatch {
     pub link_telemetry_to_account: Option<bool>,
     pub personal_sync: Option<bool>,
     pub embedding_model_id: Option<String>,
+    pub code_embedding_model_id: Option<String>,
     pub theme: Option<String>,
     pub theme_mode: Option<ThemeMode>,
     pub theme_overrides: Option<ThemeOverride>,
     pub icon_theme: Option<String>,
     pub app_icon: Option<String>,
     pub adaptive_suggestions: Option<AdaptiveSuggestions>,
+    pub agent_switch_behavior: Option<AgentSwitchBehavior>,
+    pub remember_before_switch: Option<bool>,
     pub git_blame_inline: Option<bool>,
+    pub git_auto_fetch: Option<bool>,
+    pub keep_awake_while_running: Option<bool>,
     pub auto_update: Option<bool>,
     pub curated_plugin_sync: Option<bool>,
+    pub instruction_sync: Option<bool>,
     #[serde(default, deserialize_with = "deserialize_double_option")]
     pub updater_ignored_version: Option<Option<String>>,
     pub enter_to_send: Option<bool>,
@@ -1054,6 +1332,7 @@ pub struct SettingsPatch {
     pub default_agent: Option<String>,
     pub agent_ui_navigation: Option<bool>,
     pub agent_org_access: Option<bool>,
+    pub agent_code_tools: Option<bool>,
     pub terminal_notifications: Option<bool>,
     pub terminal_notify_min_duration_ms: Option<u32>,
     pub terminal_notify_on_failure: Option<bool>,
@@ -1065,6 +1344,21 @@ pub struct SettingsPatch {
     pub terminal_font_size: Option<u32>,
     pub terminal_line_height: Option<f32>,
     pub terminal_font_weight: Option<String>,
+    pub notifications_enabled: Option<bool>,
+    pub notify_needs_you_native: Option<bool>,
+    pub notify_needs_you_sound: Option<bool>,
+    pub notify_outcome_native: Option<bool>,
+    pub notify_outcome_sound: Option<bool>,
+    pub notify_warning_native: Option<bool>,
+    pub notify_warning_sound: Option<bool>,
+    pub notify_team_native: Option<bool>,
+    pub notify_team_sound: Option<bool>,
+    pub notify_permission_actions: Option<bool>,
+    pub notifications_migrated: Option<bool>,
+    pub notify_disabled_kinds: Option<Vec<String>>,
+    pub notify_kinds_migrated: Option<bool>,
+    pub notify_agent_min_duration_ms: Option<u32>,
+    pub favorite_models: Option<Vec<String>>,
 }
 
 impl SettingsPatch {
@@ -1093,6 +1387,9 @@ impl SettingsPatch {
         if let Some(v) = &self.embedding_model_id {
             settings.embedding_model_id = v.clone();
         }
+        if let Some(v) = &self.code_embedding_model_id {
+            settings.code_embedding_model_id = v.clone();
+        }
         if let Some(v) = &self.theme {
             settings.theme = v.clone();
         }
@@ -1111,14 +1408,29 @@ impl SettingsPatch {
         if let Some(v) = self.adaptive_suggestions {
             settings.adaptive_suggestions = v;
         }
+        if let Some(v) = self.agent_switch_behavior {
+            settings.agent_switch_behavior = v;
+        }
+        if let Some(v) = self.remember_before_switch {
+            settings.remember_before_switch = v;
+        }
         if let Some(v) = self.git_blame_inline {
             settings.git_blame_inline = v;
+        }
+        if let Some(v) = self.git_auto_fetch {
+            settings.git_auto_fetch = v;
+        }
+        if let Some(v) = self.keep_awake_while_running {
+            settings.keep_awake_while_running = v;
         }
         if let Some(v) = self.auto_update {
             settings.auto_update = v;
         }
         if let Some(v) = self.curated_plugin_sync {
             settings.curated_plugin_sync = v;
+        }
+        if let Some(v) = self.instruction_sync {
+            settings.instruction_sync = v;
         }
         if let Some(v) = &self.updater_ignored_version {
             settings.updater_ignored_version = v.clone();
@@ -1137,6 +1449,9 @@ impl SettingsPatch {
         }
         if let Some(v) = self.agent_org_access {
             settings.agent_org_access = v;
+        }
+        if let Some(v) = self.agent_code_tools {
+            settings.agent_code_tools = v;
         }
         if let Some(v) = self.terminal_notifications {
             settings.terminal_notifications = v;
@@ -1171,6 +1486,51 @@ impl SettingsPatch {
         if let Some(v) = &self.terminal_font_weight {
             settings.terminal_font_weight = v.clone();
         }
+        if let Some(v) = self.notifications_enabled {
+            settings.notifications_enabled = v;
+        }
+        if let Some(v) = self.notify_needs_you_native {
+            settings.notify_needs_you_native = v;
+        }
+        if let Some(v) = self.notify_needs_you_sound {
+            settings.notify_needs_you_sound = v;
+        }
+        if let Some(v) = self.notify_outcome_native {
+            settings.notify_outcome_native = v;
+        }
+        if let Some(v) = self.notify_outcome_sound {
+            settings.notify_outcome_sound = v;
+        }
+        if let Some(v) = self.notify_warning_native {
+            settings.notify_warning_native = v;
+        }
+        if let Some(v) = self.notify_warning_sound {
+            settings.notify_warning_sound = v;
+        }
+        if let Some(v) = self.notify_team_native {
+            settings.notify_team_native = v;
+        }
+        if let Some(v) = self.notify_team_sound {
+            settings.notify_team_sound = v;
+        }
+        if let Some(v) = self.notify_permission_actions {
+            settings.notify_permission_actions = v;
+        }
+        if let Some(v) = self.notifications_migrated {
+            settings.notifications_migrated = v;
+        }
+        if let Some(v) = &self.notify_disabled_kinds {
+            settings.notify_disabled_kinds = v.clone();
+        }
+        if let Some(v) = self.notify_kinds_migrated {
+            settings.notify_kinds_migrated = v;
+        }
+        if let Some(v) = &self.favorite_models {
+            settings.favorite_models = v.clone();
+        }
+        if let Some(v) = self.notify_agent_min_duration_ms {
+            settings.notify_agent_min_duration_ms = v;
+        }
     }
 
     /// Mutate only the touched keys of `doc["settings"]` — everything else
@@ -1198,8 +1558,12 @@ impl SettingsPatch {
         set_bool!(link_telemetry_to_account, "linkTelemetryToAccount");
         set_bool!(personal_sync, "personalSync");
         set_bool!(git_blame_inline, "gitBlameInline");
+        set_bool!(git_auto_fetch, "gitAutoFetch");
+        set_bool!(keep_awake_while_running, "keepAwakeWhileRunning");
         set_bool!(auto_update, "autoUpdate");
         set_bool!(curated_plugin_sync, "curatedPluginSync");
+        set_bool!(instruction_sync, "instructionSync");
+        set_bool!(remember_before_switch, "rememberBeforeSwitch");
         set_bool!(enter_to_send, "enterToSend");
         set_bool!(graph_default_3d, "graphDefault3d");
         if let Some(v) = &self.default_agent {
@@ -1207,11 +1571,41 @@ impl SettingsPatch {
         }
         set_bool!(agent_ui_navigation, "agentUiNavigation");
         set_bool!(agent_org_access, "agentOrgAccess");
+        set_bool!(agent_code_tools, "agentCodeTools");
         set_bool!(terminal_notifications, "terminalNotifications");
         set_bool!(terminal_notify_on_failure, "terminalNotifyOnFailure");
         set_bool!(terminal_notify_on_attention, "terminalNotifyOnAttention");
         set_bool!(terminal_notify_native, "terminalNotifyNative");
         set_bool!(terminal_notify_sound, "terminalNotifySound");
+        set_bool!(notifications_enabled, "notificationsEnabled");
+        set_bool!(notify_needs_you_native, "notifyNeedsYouNative");
+        set_bool!(notify_needs_you_sound, "notifyNeedsYouSound");
+        set_bool!(notify_outcome_native, "notifyOutcomeNative");
+        set_bool!(notify_outcome_sound, "notifyOutcomeSound");
+        set_bool!(notify_warning_native, "notifyWarningNative");
+        set_bool!(notify_warning_sound, "notifyWarningSound");
+        set_bool!(notify_team_native, "notifyTeamNative");
+        set_bool!(notify_team_sound, "notifyTeamSound");
+        set_bool!(notify_permission_actions, "notifyPermissionActions");
+        set_bool!(notifications_migrated, "notificationsMigrated");
+        set_bool!(notify_kinds_migrated, "notifyKindsMigrated");
+        if let Some(v) = &self.notify_disabled_kinds {
+            let mut arr = toml_edit::Array::new();
+            for kind in v {
+                arr.push(kind.as_str());
+            }
+            table["notifyDisabledKinds"] = toml_edit::value(arr);
+        }
+        if let Some(v) = self.notify_agent_min_duration_ms {
+            table["notifyAgentMinDurationMs"] = toml_edit::value(i64::from(v));
+        }
+        if let Some(v) = &self.favorite_models {
+            let mut arr = toml_edit::Array::new();
+            for model in v {
+                arr.push(model.as_str());
+            }
+            table["favoriteModels"] = toml_edit::value(arr);
+        }
         if let Some(v) = self.terminal_notify_min_duration_ms {
             table["terminalNotifyMinDurationMs"] = toml_edit::value(i64::from(v));
         }
@@ -1221,6 +1615,9 @@ impl SettingsPatch {
         }
         if let Some(v) = &self.embedding_model_id {
             table["embeddingModelId"] = toml_edit::value(v.as_str());
+        }
+        if let Some(v) = &self.code_embedding_model_id {
+            table["codeEmbeddingModelId"] = toml_edit::value(v.as_str());
         }
         if let Some(v) = &self.theme {
             table["theme"] = toml_edit::value(v.as_str());
@@ -1266,6 +1663,14 @@ impl SettingsPatch {
         }
         if let Some(v) = &self.terminal_font_weight {
             table["terminalFontWeight"] = toml_edit::value(v.as_str());
+        }
+        if let Some(v) = self.agent_switch_behavior {
+            let s = match v {
+                AgentSwitchBehavior::NewTab => "new-tab",
+                AgentSwitchBehavior::Handoff => "handoff",
+                AgentSwitchBehavior::Reset => "reset",
+            };
+            table["agentSwitchBehavior"] = toml_edit::value(s);
         }
         if let Some(inner) = &self.updater_ignored_version {
             match inner {
@@ -1320,6 +1725,8 @@ pub fn settings_from_legacy_json(raw: Option<&serde_json::Value>) -> AppSettings
     take_bool!(link_telemetry_to_account, "linkTelemetryToAccount");
     take_bool!(personal_sync, "personalSync");
     take_bool!(git_blame_inline, "gitBlameInline");
+    take_bool!(git_auto_fetch, "gitAutoFetch");
+    take_bool!(keep_awake_while_running, "keepAwakeWhileRunning");
     take_bool!(auto_update, "autoUpdate");
     take_bool!(curated_plugin_sync, "curatedPluginSync");
     take_bool!(enter_to_send, "enterToSend");
@@ -1939,7 +2346,8 @@ fn write_atomic(path: &Path, contents: &str) -> std::io::Result<()> {
 }
 
 /// `~/.config/atlas/` — deliberately NOT Tauri's `app_config_dir()`, which on
-/// macOS is `~/Library/Application Support/dev.atlas.ide/`.
+/// macOS is `~/Library/Application Support/dev.atlas.ide/`. (`~/.config/
+/// atlas-dev/` under the dev profile — see `atlas-profile`.)
 ///
 /// `config.toml` is meant to be opened, read and hand-edited, by a person or
 /// by an agent; a path they can type is part of that, and a bundle id buried
@@ -1980,10 +2388,10 @@ pub(crate) fn config_root() -> Option<PathBuf> {
 fn config_root_from(xdg: Option<&Path>, home: Option<&Path>) -> Option<PathBuf> {
     if let Some(xdg) = xdg {
         if xdg.is_absolute() {
-            return Some(xdg.join(CONFIG_DIR_NAME));
+            return Some(xdg.join(config_dir_name()));
         }
     }
-    home.map(|home| home.join(".config").join(CONFIG_DIR_NAME))
+    home.map(|home| home.join(".config").join(config_dir_name()))
 }
 
 /// Thread-safe handle registered as Tauri managed state, mirroring
@@ -2221,10 +2629,18 @@ mod tests {
     fn agent_ui_navigation_is_on_by_default_and_read_from_the_file() {
         assert!(AppSettings::default().agent_ui_navigation);
         let (_dir, path) = tmp_config_path();
-        let mgr = ConfigManager::from_raw(path, "schemaVersion = 1\n\n[settings]\nenterToSend = false\n").unwrap();
+        let mgr = ConfigManager::from_raw(
+            path,
+            "schemaVersion = 1\n\n[settings]\nenterToSend = false\n",
+        )
+        .unwrap();
         assert!(mgr.effective().agent_ui_navigation);
         let (_dir, path) = tmp_config_path();
-        let mgr = ConfigManager::from_raw(path, "schemaVersion = 1\n\n[settings]\nagentUiNavigation = false\n").unwrap();
+        let mgr = ConfigManager::from_raw(
+            path,
+            "schemaVersion = 1\n\n[settings]\nagentUiNavigation = false\n",
+        )
+        .unwrap();
         assert!(!mgr.effective().agent_ui_navigation);
     }
 
@@ -2234,11 +2650,40 @@ mod tests {
     fn agent_org_access_is_on_by_default_and_read_from_the_file() {
         assert!(AppSettings::default().agent_org_access);
         let (_dir, path) = tmp_config_path();
-        let mgr = ConfigManager::from_raw(path, "schemaVersion = 1\n\n[settings]\nenterToSend = false\n").unwrap();
+        let mgr = ConfigManager::from_raw(
+            path,
+            "schemaVersion = 1\n\n[settings]\nenterToSend = false\n",
+        )
+        .unwrap();
         assert!(mgr.effective().agent_org_access);
         let (_dir, path) = tmp_config_path();
-        let mgr = ConfigManager::from_raw(path, "schemaVersion = 1\n\n[settings]\nagentOrgAccess = false\n").unwrap();
+        let mgr = ConfigManager::from_raw(
+            path,
+            "schemaVersion = 1\n\n[settings]\nagentOrgAccess = false\n",
+        )
+        .unwrap();
         assert!(!mgr.effective().agent_org_access);
+    }
+
+    /// ADR-0015: on unless the user switched it off, and a file that predates
+    /// the key reads as on.
+    #[test]
+    fn agent_code_tools_is_on_by_default_and_read_from_the_file() {
+        assert!(AppSettings::default().agent_code_tools);
+        let (_dir, path) = tmp_config_path();
+        let mgr = ConfigManager::from_raw(
+            path,
+            "schemaVersion = 1\n\n[settings]\nenterToSend = false\n",
+        )
+        .unwrap();
+        assert!(mgr.effective().agent_code_tools);
+        let (_dir, path) = tmp_config_path();
+        let mgr = ConfigManager::from_raw(
+            path,
+            "schemaVersion = 1\n\n[settings]\nagentCodeTools = false\n",
+        )
+        .unwrap();
+        assert!(!mgr.effective().agent_code_tools);
     }
 
     #[test]
@@ -2603,6 +3048,7 @@ someFutureKey = \"left alone\"
             share_telemetry: Some(!defaults.share_telemetry),
             link_telemetry_to_account: Some(!defaults.link_telemetry_to_account),
             embedding_model_id: Some("another-model".to_string()),
+            code_embedding_model_id: Some("another-code-model".to_string()),
             theme: Some("dracula".to_string()),
             theme_mode: Some(ThemeMode::Light),
             theme_overrides: Some(ThemeOverride {
@@ -2616,13 +3062,19 @@ someFutureKey = \"left alone\"
             icon_theme: Some(atlas_icon_theme::MINIMAL_ICON_THEME_ID.to_string()),
             app_icon: Some("light".to_string()),
             adaptive_suggestions: Some(AdaptiveSuggestions::Off),
+            agent_switch_behavior: Some(AgentSwitchBehavior::Handoff),
+            remember_before_switch: Some(!defaults.remember_before_switch),
             git_blame_inline: Some(!defaults.git_blame_inline),
+            git_auto_fetch: Some(!defaults.git_auto_fetch),
+            keep_awake_while_running: Some(!defaults.keep_awake_while_running),
             auto_update: Some(!defaults.auto_update),
             curated_plugin_sync: Some(!defaults.curated_plugin_sync),
+            instruction_sync: Some(!defaults.instruction_sync),
             updater_ignored_version: Some(Some("9.9.9".to_string())),
             enter_to_send: Some(!defaults.enter_to_send),
             agent_ui_navigation: Some(!defaults.agent_ui_navigation),
             agent_org_access: Some(!defaults.agent_org_access),
+            agent_code_tools: Some(!defaults.agent_code_tools),
             terminal_notifications: Some(!defaults.terminal_notifications),
             terminal_notify_min_duration_ms: Some(defaults.terminal_notify_min_duration_ms + 1),
             terminal_notify_on_failure: Some(!defaults.terminal_notify_on_failure),
@@ -2637,6 +3089,24 @@ someFutureKey = \"left alone\"
             terminal_font_size: Some(defaults.terminal_font_size + 1),
             terminal_line_height: Some(2.0),
             terminal_font_weight: Some("bold".to_string()),
+            notifications_enabled: Some(!defaults.notifications_enabled),
+            notify_needs_you_native: Some(!defaults.notify_needs_you_native),
+            notify_needs_you_sound: Some(!defaults.notify_needs_you_sound),
+            notify_outcome_native: Some(!defaults.notify_outcome_native),
+            notify_outcome_sound: Some(!defaults.notify_outcome_sound),
+            notify_warning_native: Some(!defaults.notify_warning_native),
+            notify_warning_sound: Some(!defaults.notify_warning_sound),
+            notify_team_native: Some(!defaults.notify_team_native),
+            notify_team_sound: Some(!defaults.notify_team_sound),
+            notify_permission_actions: Some(!defaults.notify_permission_actions),
+            notifications_migrated: Some(!defaults.notifications_migrated),
+            notify_disabled_kinds: Some(vec![
+                "terminal-done".to_string(),
+                "git-behind".to_string(),
+            ]),
+            notify_kinds_migrated: Some(!defaults.notify_kinds_migrated),
+            notify_agent_min_duration_ms: Some(defaults.notify_agent_min_duration_ms + 1),
+            favorite_models: Some(vec!["claude-code:opus".to_string()]),
         };
         let mut expected = defaults.clone();
         patch.apply_to(&mut expected);
@@ -3096,6 +3566,21 @@ red = "#ee0000"
 
         assert_eq!(fs::read_to_string(&path).unwrap(), "schemaVersion = 1\n");
         assert!(temp_files_beside(&path).is_empty());
+    }
+
+    /// A comment line that misses its `\n\` continuation keeps the source's
+    /// indentation, so the generated `config.toml` shows it pushed right of the
+    /// rest. Valid TOML, so nothing else notices.
+    #[test]
+    fn every_settings_docs_line_starts_with_a_hash() {
+        for (key, comment) in SETTINGS_DOCS {
+            for line in comment.lines() {
+                assert!(
+                    line.starts_with('#'),
+                    "`{key}` has a comment line not starting with `#`: {line:?}"
+                );
+            }
+        }
     }
 
     /// The generated file is the schema documentation now — the skill points

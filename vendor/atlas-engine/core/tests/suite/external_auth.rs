@@ -1,6 +1,6 @@
 // Modified by Atlas from upstream OpenAI Codex (Apache-2.0). See CONTEXT.md.
-use atlas_engine_login::AuthHeaders;
 use atlas_engine_login::AtlasEngineAuth;
+use atlas_engine_login::AuthHeaders;
 use atlas_engine_login::ExternalAuth;
 use atlas_engine_login::ExternalAuthFuture;
 use atlas_engine_login::ExternalAuthRefreshContext;
@@ -42,7 +42,10 @@ impl ExternalAuth for ScriptedExternalAuth {
         Box::pin(async move { auth })
     }
 
-    fn refresh(&self, context: ExternalAuthRefreshContext) -> ExternalAuthFuture<'_, AtlasEngineAuth> {
+    fn refresh(
+        &self,
+        context: ExternalAuthRefreshContext,
+    ) -> ExternalAuthFuture<'_, AtlasEngineAuth> {
         let auth = if context.previous_account_id.as_deref() != Some(CHATGPT_ACCOUNT_ID) {
             Err(std::io::Error::other(
                 "external auth refresh changed the ChatGPT workspace",
@@ -61,7 +64,11 @@ impl ExternalAuth for ScriptedExternalAuth {
 }
 
 fn external_chatgpt_auth(access_token: &str) -> std::io::Result<AtlasEngineAuth> {
-    AtlasEngineAuth::from_external_chatgpt_tokens(access_token, CHATGPT_ACCOUNT_ID, Some("enterprise"))
+    AtlasEngineAuth::from_external_chatgpt_tokens(
+        access_token,
+        CHATGPT_ACCOUNT_ID,
+        Some("enterprise"),
+    )
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -77,7 +84,8 @@ async fn header_auth_is_attached_to_responses_requests() -> anyhow::Result<()> {
     let mut headers = HeaderMap::new();
     headers.insert(AUTHORIZATION, HeaderValue::from_static("Bearer external"));
     headers.insert("x-external-auth", HeaderValue::from_static("enabled"));
-    let mut builder = test_atlas_engine().with_auth(AtlasEngineAuth::Headers(AuthHeaders::new(headers)));
+    let mut builder =
+        test_atlas_engine().with_auth(AtlasEngineAuth::Headers(AuthHeaders::new(headers)));
     let test = builder.build_with_auto_env(&server).await?;
 
     test.submit_turn("hello").await?;

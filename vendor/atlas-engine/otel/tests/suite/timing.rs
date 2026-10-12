@@ -38,7 +38,11 @@ fn record_duration_records_histogram() -> Result<()> {
 fn record_duration_keeps_whole_millisecond_behavior() -> Result<()> {
     let (metrics, exporter) = build_metrics_with_defaults(&[])?;
 
-    metrics.record_duration("atlas_agent.request_latency", Duration::from_micros(15_999), &[])?;
+    metrics.record_duration(
+        "atlas_agent.request_latency",
+        Duration::from_micros(15_999),
+        &[],
+    )?;
     metrics.shutdown()?;
 
     let resource_metrics = latest_metrics(&exporter);
@@ -93,8 +97,9 @@ fn record_duration_seconds_uses_fractional_seconds_and_scaled_buckets() -> Resul
     );
     assert!((sum - 384.1).abs() < f64::EPSILON * 512.0);
     assert_eq!(count, 10);
-    let metric = crate::harness::find_metric(&resource_metrics, "atlas_agent.request_duration_seconds")
-        .expect("atlas-agent.request_duration_seconds metric should exist");
+    let metric =
+        crate::harness::find_metric(&resource_metrics, "atlas_agent.request_duration_seconds")
+            .expect("atlas-agent.request_duration_seconds metric should exist");
     assert_eq!(metric.unit(), "s");
     assert_eq!(
         metric.description(),

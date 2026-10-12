@@ -719,10 +719,11 @@ fn create_seatbelt_args_allowlists_explicit_unix_socket_paths_without_proxy() {
         ),
         "policy should allow outbound AF_UNIX traffic for explicit socket paths:\n{policy}"
     );
-    let expected_socket_root = normalize_path_for_sandbox(Path::new("/tmp/atlas-engine-browser-use"))
-        .expect("socket root should normalize")
-        .to_string_lossy()
-        .into_owned();
+    let expected_socket_root =
+        normalize_path_for_sandbox(Path::new("/tmp/atlas-engine-browser-use"))
+            .expect("socket root should normalize")
+            .to_string_lossy()
+            .into_owned();
     assert!(
         args.iter()
             .any(|arg| arg == &format!("-DUNIX_SOCKET_PATH_0={expected_socket_root}")),

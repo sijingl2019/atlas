@@ -61,8 +61,14 @@ async fn local_mcp_startup_and_refresh_use_configured_http_client() -> Result<()
             .env(PROXY_TEST_SUBPROCESS_ENV_VAR, "1")
             .env("HTTP_PROXY", proxy.uri())
             .env("http_proxy", proxy.uri())
-            .env("NO_PROXY", atlas_engine_network_proxy::DEFAULT_NO_PROXY_VALUE)
-            .env("no_proxy", atlas_engine_network_proxy::DEFAULT_NO_PROXY_VALUE);
+            .env(
+                "NO_PROXY",
+                atlas_engine_network_proxy::DEFAULT_NO_PROXY_VALUE,
+            )
+            .env(
+                "no_proxy",
+                atlas_engine_network_proxy::DEFAULT_NO_PROXY_VALUE,
+            );
 
         let output = command.output().await?;
         let requests = proxy
@@ -165,7 +171,10 @@ async fn local_mcp_startup_and_refresh_use_configured_http_client() -> Result<()
         .mcp_servers
         .set(servers)
         .expect("test MCP servers should accept the refreshed configuration");
-    fixture.atlas_engine.refresh_runtime_config(refreshed_config).await;
+    fixture
+        .atlas_engine
+        .refresh_runtime_config(refreshed_config)
+        .await;
     let result = fixture
         .atlas_engine
         .call_mcp_tool(
@@ -241,8 +250,14 @@ async fn skill_mcp_dependency_oauth_uses_configured_http_client() -> Result<()> 
             )
             .env("HTTP_PROXY", proxy.uri())
             .env("http_proxy", proxy.uri())
-            .env("NO_PROXY", atlas_engine_network_proxy::DEFAULT_NO_PROXY_VALUE)
-            .env("no_proxy", atlas_engine_network_proxy::DEFAULT_NO_PROXY_VALUE);
+            .env(
+                "NO_PROXY",
+                atlas_engine_network_proxy::DEFAULT_NO_PROXY_VALUE,
+            )
+            .env(
+                "no_proxy",
+                atlas_engine_network_proxy::DEFAULT_NO_PROXY_VALUE,
+            );
 
         let output = command.output().await?;
         let requests = proxy
@@ -370,7 +385,8 @@ async fn skill_mcp_dependency_oauth_uses_configured_http_client() -> Result<()> 
     })
     .await;
 
-    let servers = atlas_engine_config::load_global_mcp_servers(&fixture.config.atlas_agent_home).await?;
+    let servers =
+        atlas_engine_config::load_global_mcp_servers(&fixture.config.atlas_agent_home).await?;
     assert_eq!(
         servers
             .get(SERVER_NAME)

@@ -180,7 +180,8 @@ impl DriverHarness {
                         cell_id: CellId::new("1".to_string()).into(),
                         runtime_tool_call_id: "tool-1".to_string(),
                         tool_name: ToolName::plain("slow").into(),
-                        tool_kind: atlas_engine_code_mode_protocol::CodeModeToolKind::Function.into(),
+                        tool_kind: atlas_engine_code_mode_protocol::CodeModeToolKind::Function
+                            .into(),
                         input: None,
                     },
                 },
@@ -513,7 +514,8 @@ async fn deferred_delegates_follow_cell_readiness_and_cancellation() {
         ClientToHost::DelegateResponse {
             id: second_delegate_id,
             result: WireResult::Ok {
-                value: atlas_engine_code_mode_protocol::host::DelegateResponse::NotificationDelivered,
+                value:
+                    atlas_engine_code_mode_protocol::host::DelegateResponse::NotificationDelivered,
             },
         }
     );
@@ -545,7 +547,8 @@ async fn deferred_delegates_follow_cell_readiness_and_cancellation() {
         ClientToHost::DelegateResponse {
             id: first_delegate_id,
             result: WireResult::Ok {
-                value: atlas_engine_code_mode_protocol::host::DelegateResponse::NotificationDelivered,
+                value:
+                    atlas_engine_code_mode_protocol::host::DelegateResponse::NotificationDelivered,
             },
         }
     );

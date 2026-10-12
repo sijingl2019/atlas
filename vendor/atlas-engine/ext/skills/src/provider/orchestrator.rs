@@ -61,9 +61,11 @@ impl SkillProvider for OrchestratorSkillProvider {
                 return Ok(SkillCatalog::default());
             }
 
-            let _discovery_timer =
-                atlas_engine_otel::start_global_timer(ORCHESTRATOR_SKILL_DISCOVERY_DURATION_METRIC, &[])
-                    .ok();
+            let _discovery_timer = atlas_engine_otel::start_global_timer(
+                ORCHESTRATOR_SKILL_DISCOVERY_DURATION_METRIC,
+                &[],
+            )
+            .ok();
             let discovery_deadline =
                 tokio::time::Instant::now() + ORCHESTRATOR_SKILL_DISCOVERY_TIMEOUT;
             let mut catalog = SkillCatalog::default();

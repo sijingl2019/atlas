@@ -11,7 +11,7 @@
 //!   [`UI_ACTION_EVENT`], performed by the frontend through the app's own
 //!   openers and store actions, answered by [`ui_action_respond`]. Rust
 //!   forwards the frontend's JSON verbatim and mirrors no UI state — the
-//!   frontend owns layout and focus (ARCHITECTURE.md). An action the window
+//!   frontend owns layout and focus (docs/architecture.md). An action the window
 //!   does not answer in time is a tool error, never a hung turn.
 //! - **Gated by the user's navigation setting** ([`NavigationGate`]), at
 //!   offer time and on every call.
@@ -70,7 +70,11 @@ pub type NavigationGate = Arc<dyn Fn() -> bool + Send + Sync>;
 /// The window's answer to one UI action. An id nobody is waiting on — already
 /// answered, timed out, or never issued — is a harmless no-op.
 #[tauri::command]
-pub fn ui_action_respond(request_id: Uuid, reply: UiReply, bridge: State<'_, Arc<UiBridge>>) -> Result<(), String> {
+pub fn ui_action_respond(
+    request_id: Uuid,
+    reply: UiReply,
+    bridge: State<'_, Arc<UiBridge>>,
+) -> Result<(), String> {
     bridge.respond(request_id, reply);
     Ok(())
 }

@@ -36,7 +36,10 @@ async fn thread_settings_update_does_not_persist_when_config_exists() {
     .await
     .expect("submit override");
 
-    atlas_engine.submit(Op::Shutdown).await.expect("request shutdown");
+    atlas_engine
+        .submit(Op::Shutdown)
+        .await
+        .expect("request shutdown");
     wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::ShutdownComplete)).await;
 
     let contents = tokio::fs::read_to_string(&config_path)
@@ -68,7 +71,10 @@ async fn thread_settings_update_does_not_create_config_file() {
     .await
     .expect("submit override");
 
-    atlas_engine.submit(Op::Shutdown).await.expect("request shutdown");
+    atlas_engine
+        .submit(Op::Shutdown)
+        .await
+        .expect("request shutdown");
     wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::ShutdownComplete)).await;
 
     assert!(

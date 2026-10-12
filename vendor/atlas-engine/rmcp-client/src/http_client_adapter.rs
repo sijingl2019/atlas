@@ -16,7 +16,6 @@ use std::sync::PoisonError;
 use std::time::Duration;
 use std::time::Instant;
 
-use bytes::Bytes;
 use atlas_engine_api::SharedAuthProvider;
 use atlas_engine_exec_server::ExecServerError;
 use atlas_engine_exec_server::HttpClient;
@@ -24,6 +23,7 @@ use atlas_engine_exec_server::HttpHeader;
 use atlas_engine_exec_server::HttpRedirectPolicy;
 use atlas_engine_exec_server::HttpRequestParams;
 use atlas_engine_exec_server::HttpResponseBodyStream;
+use bytes::Bytes;
 use futures::StreamExt;
 use futures::stream;
 use futures::stream::BoxStream;

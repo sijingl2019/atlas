@@ -868,6 +868,13 @@ async fn closing_a_session_forgets_it_without_touching_the_connection() {
     let key = custom("claude-code");
 
     let session_id = open_session(&manager, key.clone(), server.clone()).await;
+    // The entry flips to Connected on a spawned task, after the connect future
+    // `open_session` awaited; wait for it so the assertion below is about close.
+    wait_for(|| {
+        (manager.connection_status(&key) == AgentConnectionStatus::Connected).then_some(())
+    })
+    .await
+    .expect("connected");
     assert_eq!(manager.sessions().len(), 1);
 
     manager

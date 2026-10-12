@@ -399,8 +399,10 @@ async fn run_mcp_permission_request_hook_test(outcome: PermissionRequestHookOutc
         ),
     }
 
-    let hook_inputs =
-        read_hook_inputs(test.atlas_agent_home_path(), "permission_request_hook_log.jsonl")?;
+    let hook_inputs = read_hook_inputs(
+        test.atlas_agent_home_path(),
+        "permission_request_hook_log.jsonl",
+    )?;
     assert_eq!(hook_inputs.len(), 1);
     assert_eq!(
         json!({
@@ -511,7 +513,8 @@ async fn pre_tool_use_blocks_mcp_tool_before_execution(
         "blocked MCP tool output should surface the hook reason and tool name",
     );
 
-    let hook_inputs = read_hook_inputs(test.atlas_agent_home_path(), "pre_tool_use_hook_log.jsonl")?;
+    let hook_inputs =
+        read_hook_inputs(test.atlas_agent_home_path(), "pre_tool_use_hook_log.jsonl")?;
     assert_eq!(hook_inputs.len(), 1);
     assert_eq!(
         json!({
@@ -601,7 +604,8 @@ async fn pre_tool_use_rewrites_mcp_tool_before_execution() -> Result<()> {
         "MCP tool should not execute the original input",
     );
 
-    let hook_inputs = read_hook_inputs(test.atlas_agent_home_path(), "pre_tool_use_hook_log.jsonl")?;
+    let hook_inputs =
+        read_hook_inputs(test.atlas_agent_home_path(), "pre_tool_use_hook_log.jsonl")?;
     assert_eq!(hook_inputs.len(), 1);
     assert_eq!(
         hook_inputs[0]["tool_input"],
@@ -700,7 +704,8 @@ async fn post_tool_use_records_mcp_tool_payload_and_context(
         "MCP tool output should still reach the model",
     );
 
-    let hook_inputs = read_hook_inputs(test.atlas_agent_home_path(), "post_tool_use_hook_log.jsonl")?;
+    let hook_inputs =
+        read_hook_inputs(test.atlas_agent_home_path(), "post_tool_use_hook_log.jsonl")?;
     assert_eq!(hook_inputs.len(), 1);
     assert_eq!(
         json!({

@@ -7,8 +7,8 @@ use atlas_engine_core::config::ConfigBuilder;
 use atlas_engine_core::config::Constrained;
 use atlas_engine_core::plugins_manager_for_config;
 use atlas_engine_exec_server_test_support::environment_manager_without_environments;
-use atlas_engine_login::AuthManager;
 use atlas_engine_login::AtlasEngineAuth;
+use atlas_engine_login::AuthManager;
 use atlas_engine_login::ExternalAuth;
 use atlas_engine_login::ExternalAuthFuture;
 use atlas_engine_login::ExternalAuthRefreshContext;
@@ -41,7 +41,10 @@ impl ExternalAuth for StaticExternalAuth {
         Box::pin(async { Ok(self.0.clone()) })
     }
 
-    fn refresh(&self, _context: ExternalAuthRefreshContext) -> ExternalAuthFuture<'_, AtlasEngineAuth> {
+    fn refresh(
+        &self,
+        _context: ExternalAuthRefreshContext,
+    ) -> ExternalAuthFuture<'_, AtlasEngineAuth> {
         Box::pin(async { Ok(self.0.clone()) })
     }
 }
@@ -65,11 +68,12 @@ async fn hosted_plugin_runtime_ps_mcp_tool_calls_use_current_auth_manager_token(
     // Build the hosted-plugin config directly so the local test origin can
     // exercise the connection-manager auth path. Effective server resolution
     // correctly strips ChatGPT auth from untrusted localhost origins.
-    let mut hosted_plugin_runtime_config = atlas_engine_mcp::hosted_plugin_runtime_mcp_server_config(
-        &apps_server.chatgpt_base_url,
-        /*apps_mcp_product_sku*/ None,
-        /*originator*/ None,
-    );
+    let mut hosted_plugin_runtime_config =
+        atlas_engine_mcp::hosted_plugin_runtime_mcp_server_config(
+            &apps_server.chatgpt_base_url,
+            /*apps_mcp_product_sku*/ None,
+            /*originator*/ None,
+        );
     let McpServerTransportConfig::StreamableHttp {
         bearer_token_env_var,
         ..
@@ -106,7 +110,9 @@ async fn hosted_plugin_runtime_ps_mcp_tool_calls_use_current_auth_manager_token(
         ),
         atlas_apps_tools_cache: AtlasAppsToolsCache::default(),
         tool_catalog_cache: McpToolCatalogCache::default(),
-        atlas_apps_tools_cache_key: atlas_engine_mcp::atlas_apps_tools_cache_key(Some(&expected_auth)),
+        atlas_apps_tools_cache_key: atlas_engine_mcp::atlas_apps_tools_cache_key(Some(
+            &expected_auth,
+        )),
         client_mcp_extensions: ClientMcpExtensions::default(),
         auth: Some(expected_auth.clone()),
         atlas_apps_auth_manager: Some(Arc::clone(&auth_manager)),

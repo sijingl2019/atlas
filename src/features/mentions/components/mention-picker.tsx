@@ -40,6 +40,7 @@ import {
   Hash,
   Layers,
   MessageSquare,
+  MessageSquareQuote,
   MessagesSquare,
   Scale,
   SquareSlash,
@@ -48,6 +49,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { shortPath } from "@/lib/paths";
+import { timeAgo } from "@/lib/time-ago";
 import { Kbd } from "@/ui/kbd";
 
 import {
@@ -97,6 +99,9 @@ export interface MentionPickerProps {
   /** Active chat agent's skill-registry id. When set, pack-component
    *  mentions (command/agent/rule) only list ones enabled for this agent. */
   agentId?: string;
+  /** The chat tab this picker types into. Comments on that tab's recorded
+   *  session are offered only when it is given. */
+  tabId?: string;
   /** A mention was picked. Parent inserts the chip. */
   onSelect: (mention: MentionData) => void;
   /** Picker closed itself (Esc, no anchor, etc). */
@@ -140,6 +145,7 @@ export const MentionPicker = forwardRef<MentionPickerHandle, MentionPickerProps>
       anchor,
       projectPath,
       agentId,
+      tabId,
       onSelect,
       onClose,
       excludeIds,
@@ -193,7 +199,7 @@ export const MentionPicker = forwardRef<MentionPickerHandle, MentionPickerProps>
     useEffect(() => {
       if (!open) return;
       const controller = new AbortController();
-      const ctx: MentionContext = { projectPath, agentId };
+      const ctx: MentionContext = { projectPath, agentId, tabId };
 
       // No debounce — the Rust side reads everything from cached
       // state now (file index, folder list, git refs, knowledge,
@@ -236,6 +242,7 @@ export const MentionPicker = forwardRef<MentionPickerHandle, MentionPickerProps>
       pastSession,
       projectPath,
       agentId,
+      tabId,
       excludeIds,
       indexNonce,
       activeOrganisationId,
@@ -421,11 +428,14 @@ export const MentionPicker = forwardRef<MentionPickerHandle, MentionPickerProps>
       if (emptyQuery) {
         out.push({ type: "header", label: "Browse" });
         for (const cat of MENTION_CATEGORIES) {
+          // Comments belong to a chat's recorded session; a surface with no
+          // chat tab (the notes editor) has none to offer.
+          if (cat.kind === "comment" && !tabId) continue;
           out.push({ type: "category", cat });
         }
       }
       return out;
-    }, [scope, query, results, recentFiles, projectPath]);
+    }, [scope, query, results, recentFiles, projectPath, tabId]);
 
     // Compute the navigable rows (skip headers). `active` is an index into
     // *navigable* rows, not the full list; the renderer maps it back.
@@ -887,6 +897,8 @@ function CategoryIcon({ kind }: { kind: MentionKind }) {
       return <MessagesSquare size={size} />;
     case "recorded_session":
       return <Layers size={size} />;
+    case "comment":
+      return <MessageSquareQuote size={size} />;
   }
 }
 
@@ -934,6 +946,15 @@ function secondaryLabel(m: MentionData): string {
           : "direct message";
     case "recorded_session":
       return "recorded session · Timeline";
+    case "comment":
+      return [
+        m.parentId ? "reply" : "comment",
+        `on ${m.anchorLabel}`,
+        timeAgo(m.createdAt, { suffix: true }),
+        m.resolved ? "resolved" : null,
+      ]
+        .filter(Boolean)
+        .join(" · ");
   }
 }
 
@@ -958,6 +979,11 @@ function emptyStateCopy(args: {
     return args.query
       ? `No user messages matching "${args.query}".`
       : "No user messages in this session.";
+  }
+  if (args.scope === "comment") {
+    return args.query
+      ? `No comments matching "${args.query}".`
+      : "No comments on this session yet — comments appear once it is in the cloud.";
   }
   if (args.scope) {
     const label = MENTION_CATEGORIES.find((c) => c.kind === args.scope)?.label ?? args.scope;
@@ -998,5 +1024,7 @@ function mentionTitle(m: MentionData): string {
       return m.displayName;
     case "recorded_session":
       return `Recorded session ${m.sessionId}`;
+    case "comment":
+      return `${m.authorName}: ${m.body}`;
   }
 }

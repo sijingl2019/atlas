@@ -29,12 +29,12 @@ impl AppsRequestProcessor {
             .collect::<Vec<_>>();
         let config = self.load_apps_config(thread_id.as_deref()).await?;
         let auth = self.auth_manager.auth().await;
-        if !config
-            .features
-            .apps_enabled_for_auth(auth.as_ref().is_some_and(AtlasEngineAuth::uses_atlas_engine_backend))
-            || !self
-                .workspace_atlas_engine_plugins_enabled(&config, auth.as_ref())
-                .await
+        if !config.features.apps_enabled_for_auth(
+            auth.as_ref()
+                .is_some_and(AtlasEngineAuth::uses_atlas_engine_backend),
+        ) || !self
+            .workspace_atlas_engine_plugins_enabled(&config, auth.as_ref())
+            .await
         {
             let response = AppsReadResponse {
                 apps: Vec::new(),

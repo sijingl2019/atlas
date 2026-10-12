@@ -121,7 +121,10 @@ async fn submit_turn(
             }),
         )
         .await?;
-    wait_for_event(atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
     Ok(())
 }
 
@@ -197,7 +200,12 @@ async fn mode_hints_override_reasoning_effort(source: ModeHintSource) -> Result<
         .build(&server)
         .await?;
     submit_turn(&test.atlas_engine, "explicit", Some(ReasoningEffort::High)).await?;
-    submit_turn(&test.atlas_engine, "proactive", Some(ReasoningEffort::Ultra)).await?;
+    submit_turn(
+        &test.atlas_engine,
+        "proactive",
+        Some(ReasoningEffort::Ultra),
+    )
+    .await?;
 
     let requests = responses.requests();
     let first_input = requests[0].input();
@@ -260,7 +268,12 @@ async fn model_switch_refreshes_catalog_role_and_explicit_mode() -> Result<()> {
         .with_config(configure_multi_agent_v2)
         .build_with_auto_env(&server)
         .await?;
-    submit_turn(&test.atlas_engine, "first model", Some(ReasoningEffort::High)).await?;
+    submit_turn(
+        &test.atlas_engine,
+        "first model",
+        Some(ReasoningEffort::High),
+    )
+    .await?;
     core_test_support::submit_thread_settings(
         &test.atlas_engine,
         ThreadSettingsOverrides {
@@ -269,7 +282,12 @@ async fn model_switch_refreshes_catalog_role_and_explicit_mode() -> Result<()> {
         },
     )
     .await?;
-    submit_turn(&test.atlas_engine, "second model", Some(ReasoningEffort::High)).await?;
+    submit_turn(
+        &test.atlas_engine,
+        "second model",
+        Some(ReasoningEffort::High),
+    )
+    .await?;
 
     let requests = responses.requests();
     for (index, request) in requests.iter().enumerate() {
@@ -511,7 +529,12 @@ async fn leaving_ultra_after_cold_resume_emits_explicit_mode() -> Result<()> {
         .with_config(configure_ultra);
     let resumed = resume_builder.restart(&server, &initial).await?;
     drop(initial);
-    submit_turn(&resumed.atlas_engine, "after resume", Some(ReasoningEffort::High)).await?;
+    submit_turn(
+        &resumed.atlas_engine,
+        "after resume",
+        Some(ReasoningEffort::High),
+    )
+    .await?;
 
     let requests = responses.requests();
     assert_eq!(

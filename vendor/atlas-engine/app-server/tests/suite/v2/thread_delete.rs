@@ -92,7 +92,8 @@ async fn thread_delete_rejects_paginated_writer_owned_by_another_process() -> Re
 async fn thread_delete_deletes_spawned_descendants() -> Result<()> {
     let atlas_agent_home = TempDir::new()?;
 
-    let parent_id = create_delete_test_rollout(atlas_agent_home.path(), /*minute*/ 0, "parent")?;
+    let parent_id =
+        create_delete_test_rollout(atlas_agent_home.path(), /*minute*/ 0, "parent")?;
     let child_id = create_delete_test_rollout(atlas_agent_home.path(), /*minute*/ 1, "child")?;
     let grandchild_id =
         create_delete_test_rollout(atlas_agent_home.path(), /*minute*/ 2, "grandchild")?;
@@ -174,9 +175,11 @@ async fn thread_delete_deletes_spawned_descendants() -> Result<()> {
 async fn thread_delete_preflights_external_fork_references_for_spawned_subtrees() -> Result<()> {
     let atlas_agent_home = TempDir::new()?;
 
-    let parent_id = create_delete_test_rollout(atlas_agent_home.path(), /*minute*/ 0, "parent")?;
+    let parent_id =
+        create_delete_test_rollout(atlas_agent_home.path(), /*minute*/ 0, "parent")?;
     let child_id = create_delete_test_rollout(atlas_agent_home.path(), /*minute*/ 1, "child")?;
-    let external_id = create_delete_test_rollout(atlas_agent_home.path(), /*minute*/ 2, "external")?;
+    let external_id =
+        create_delete_test_rollout(atlas_agent_home.path(), /*minute*/ 2, "external")?;
     let parent_thread_id = ThreadId::from_string(&parent_id)?;
     let child_thread_id = ThreadId::from_string(&child_id)?;
     let external_thread_id = ThreadId::from_string(&external_id)?;
@@ -262,7 +265,11 @@ async fn thread_delete_preflights_external_fork_references_for_spawned_subtrees(
     Ok(())
 }
 
-fn create_delete_test_rollout(atlas_agent_home: &Path, minute: u8, preview: &str) -> Result<String> {
+fn create_delete_test_rollout(
+    atlas_agent_home: &Path,
+    minute: u8,
+    preview: &str,
+) -> Result<String> {
     create_fake_rollout(
         atlas_agent_home,
         &format!("2025-01-01T00-{minute:02}-00"),

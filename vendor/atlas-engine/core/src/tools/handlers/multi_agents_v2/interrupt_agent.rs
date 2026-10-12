@@ -71,7 +71,8 @@ async fn handle_interrupt_agent(
         Err(err)
             if matches!(
                 err.details(),
-                AtlasEngineErrorDetails::ThreadNotFound(_) | AtlasEngineErrorDetails::InternalAgentDied
+                AtlasEngineErrorDetails::ThreadNotFound(_)
+                    | AtlasEngineErrorDetails::InternalAgentDied
             ) =>
         {
             Ok(())

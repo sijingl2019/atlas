@@ -9,7 +9,8 @@ use super::super::cloud::{CommentRef, Member, NewReply};
 use super::super::OrgScope;
 use super::mentions::named_mentions;
 use super::{
-    author_json, roster_name, string_in, strings_in, tool_error, tool_json, NamedSession, OrgTools, SessionTarget,
+    author_json, roster_name, string_in, strings_in, tool_error, tool_json, NamedSession, OrgTools,
+    SessionTarget,
 };
 use crate::commands::memory_server::Grant;
 
@@ -60,7 +61,10 @@ fn threads(comments: &[Comment]) -> Vec<(&Comment, Vec<&Comment>)> {
         .iter()
         .filter(|c| is_root(c))
         .map(|root| {
-            let replies = comments.iter().filter(|c| c.parent_id.as_deref() == Some(root.id.as_str())).collect();
+            let replies = comments
+                .iter()
+                .filter(|c| c.parent_id.as_deref() == Some(root.id.as_str()))
+                .collect();
             (root, replies)
         })
         .collect()
@@ -88,20 +92,32 @@ impl OrgTools {
             Ok(target) => target,
             Err(answer) => return answer,
         };
-        let comments = match self.cloud.comments(&scope.org_id, &target.workspace_id, &target.id).await {
+        let comments = match self
+            .cloud
+            .comments(&scope.org_id, &target.workspace_id, &target.id)
+            .await
+        {
             Ok(comments) => comments,
             Err(e) => return tool_error(e.to_string()),
         };
-        let chosen: Vec<_> =
-            threads(&comments).into_iter().filter(|(root, _)| !unresolved_only || open_thread(root)).collect();
+        let chosen: Vec<_> = threads(&comments)
+            .into_iter()
+            .filter(|(root, _)| !unresolved_only || open_thread(root))
+            .collect();
         // Only guests, with no mentions and nothing resolved, name no member.
         let names_a_member = |c: &Comment| {
-            c.guest_name.is_none() || c.resolved_by.is_some() || c.body.as_deref().is_some_and(|b| b.contains("<@"))
+            c.guest_name.is_none()
+                || c.resolved_by.is_some()
+                || c.body.as_deref().is_some_and(|b| b.contains("<@"))
         };
-        let needs_roster = chosen
-            .iter()
-            .any(|(root, replies)| names_a_member(root) || replies.iter().any(|r| names_a_member(r)));
-        let roster = if needs_roster { self.cloud.members(&scope.org_id).await.ok() } else { None };
+        let needs_roster = chosen.iter().any(|(root, replies)| {
+            names_a_member(root) || replies.iter().any(|r| names_a_member(r))
+        });
+        let roster = if needs_roster {
+            self.cloud.members(&scope.org_id).await.ok()
+        } else {
+            None
+        };
         let roster = roster.as_deref();
         let listed: Vec<Value> = chosen
             .iter()
@@ -111,7 +127,10 @@ impl OrgTools {
                 thread
             })
             .collect();
-        let open = threads(&comments).iter().filter(|(root, _)| open_thread(root)).count();
+        let open = threads(&comments)
+            .iter()
+            .filter(|(root, _)| open_thread(root))
+            .count();
         tool_json(json!({
             "session": { "id": target.id, "title": target.title, "current": target.current },
             "unresolved": open,
@@ -136,7 +155,11 @@ impl OrgTools {
             Ok(target) => target,
             Err(answer) => return answer,
         };
-        let comments = match self.cloud.comments(&scope.org_id, &target.workspace_id, &target.id).await {
+        let comments = match self
+            .cloud
+            .comments(&scope.org_id, &target.workspace_id, &target.id)
+            .await
+        {
             Ok(comments) => comments,
             Err(e) => return tool_error(e.to_string()),
         };
@@ -147,7 +170,9 @@ impl OrgTools {
             ));
         };
         if let Some(root) = &found.parent_id {
-            return tool_error(format!("only a thread's first comment can be resolved; its root is {root}"));
+            return tool_error(format!(
+                "only a thread's first comment can be resolved; its root is {root}"
+            ));
         }
         let at = CommentRef {
             org_id: &scope.org_id,
@@ -195,9 +220,9 @@ impl OrgTools {
                 Some(root) => root.clone(),
                 None => {
                     return Err(tool_error(format!(
-                        "comment {comment_id} answers {parent}, which is not on recorded session {}",
-                        target.id
-                    )))
+                    "comment {comment_id} answers {parent}, which is not on recorded session {}",
+                    target.id
+                )))
                 }
             },
         };
@@ -227,7 +252,10 @@ impl OrgTools {
             Err(answer) => return answer,
         };
         let mut roster = None;
-        let body = match self.post_body(&scope.org_id, body, mentions, &mut roster).await {
+        let body = match self
+            .post_body(&scope.org_id, body, mentions, &mut roster)
+            .await
+        {
             Ok(body) => body,
             Err(answer) => return answer,
         };

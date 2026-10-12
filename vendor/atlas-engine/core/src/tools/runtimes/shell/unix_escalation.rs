@@ -208,7 +208,12 @@ pub(super) async fn try_run_zsh_fork(
         arg0,
         sandbox_policy_cwd,
         windows_sandbox_workspace_roots,
-        atlas_engine_linux_sandbox_exe: ctx.step_context.turn.config.atlas_engine_linux_sandbox_exe.clone(),
+        atlas_engine_linux_sandbox_exe: ctx
+            .step_context
+            .turn
+            .config
+            .atlas_engine_linux_sandbox_exe
+            .clone(),
         use_legacy_landlock: ctx.step_context.turn.config.features.use_legacy_landlock(),
     };
     let main_execve_wrapper_exe = ctx
@@ -324,7 +329,12 @@ pub(crate) async fn prepare_unified_exec_zsh_fork(
         arg0: exec_request.arg0.clone(),
         sandbox_policy_cwd,
         windows_sandbox_workspace_roots: exec_request.windows_sandbox_workspace_roots.clone(),
-        atlas_engine_linux_sandbox_exe: ctx.step_context.turn.config.atlas_engine_linux_sandbox_exe.clone(),
+        atlas_engine_linux_sandbox_exe: ctx
+            .step_context
+            .turn
+            .config
+            .atlas_engine_linux_sandbox_exe
+            .clone(),
         use_legacy_landlock: ctx.step_context.turn.config.features.use_legacy_landlock(),
     };
     let escalation_policy = CoreShellActionProvider {
@@ -1054,17 +1064,21 @@ fn map_exec_result(
     };
 
     if result.timed_out {
-        return Err(ToolError::AtlasEngine(AtlasEngineErr::Sandbox(SandboxErr::Timeout {
-            output: Box::new(output),
-        })));
+        return Err(ToolError::AtlasEngine(AtlasEngineErr::Sandbox(
+            SandboxErr::Timeout {
+                output: Box::new(output),
+            },
+        )));
     }
 
     if is_likely_sandbox_denied(sandbox, &output) {
         record_filesystem_sandbox_violation(sandbox, &output);
-        return Err(ToolError::AtlasEngine(AtlasEngineErr::Sandbox(SandboxErr::Denied {
-            output: Box::new(output),
-            network_policy_decision: None,
-        })));
+        return Err(ToolError::AtlasEngine(AtlasEngineErr::Sandbox(
+            SandboxErr::Denied {
+                output: Box::new(output),
+                network_policy_decision: None,
+            },
+        )));
     }
 
     Ok(output)

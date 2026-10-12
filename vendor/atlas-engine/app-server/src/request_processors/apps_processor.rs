@@ -75,10 +75,10 @@ impl AppsRequestProcessor {
         }
 
         let auth = self.auth_manager.auth().await;
-        if !config
-            .features
-            .apps_enabled_for_auth(auth.as_ref().is_some_and(AtlasEngineAuth::uses_atlas_engine_backend))
-        {
+        if !config.features.apps_enabled_for_auth(
+            auth.as_ref()
+                .is_some_and(AtlasEngineAuth::uses_atlas_engine_backend),
+        ) {
             let response = AppsListResponse {
                 data: Vec::new(),
                 next_cursor: None,
@@ -176,7 +176,9 @@ impl AppsRequestProcessor {
             )
             .await
             {
-                warn!("failed to refresh app list after atlas-engine-apps readiness retry: {err:?}");
+                warn!(
+                    "failed to refresh app list after atlas-engine-apps readiness retry: {err:?}"
+                );
             }
         }
     }

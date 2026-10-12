@@ -1,6 +1,4 @@
 // Modified by Atlas from upstream OpenAI Codex (Apache-2.0). See CONTEXT.md.
-use chrono::DateTime;
-use chrono::Utc;
 use atlas_engine_protocol::models::PermissionProfile;
 use atlas_engine_protocol::protocol::AskForApproval;
 use atlas_engine_protocol::protocol::SessionMetaLine;
@@ -11,6 +9,8 @@ use atlas_engine_rollout::find_thread_name_by_id;
 use atlas_engine_rollout::read_session_meta_line;
 use atlas_engine_rollout::read_thread_item_from_rollout;
 use atlas_engine_state::ThreadMetadata;
+use chrono::DateTime;
+use chrono::Utc;
 
 use super::LocalThreadStore;
 use super::helpers::distinct_thread_metadata_title;
@@ -105,7 +105,10 @@ async fn sqlite_rollout_path_can_load_history_for_thread(
     path: &std::path::Path,
     thread_id: atlas_engine_protocol::ThreadId,
 ) -> bool {
-    if atlas_engine_rollout::existing_rollout_path(path).await.is_none() {
+    if atlas_engine_rollout::existing_rollout_path(path)
+        .await
+        .is_none()
+    {
         return false;
     }
     // SQLite metadata can outlive a moved/recreated rollout path. When history is
@@ -245,7 +248,8 @@ async fn read_thread_from_rollout_path(
     let Some(item) = read_thread_item_from_rollout(path.clone()).await else {
         return stored_thread_from_session_meta(store, path).await;
     };
-    let archived = rollout_path_is_archived(store.config.atlas_agent_home.as_path(), path.as_path());
+    let archived =
+        rollout_path_is_archived(store.config.atlas_agent_home.as_path(), path.as_path());
     let mut thread = stored_thread_from_rollout_item(
         item,
         archived,
@@ -428,7 +432,8 @@ async fn stored_thread_from_session_meta(
     path: std::path::PathBuf,
 ) -> ThreadStoreResult<StoredThread> {
     let meta_line = read_required_session_meta_line(path.as_path()).await?;
-    let archived = rollout_path_is_archived(store.config.atlas_agent_home.as_path(), path.as_path());
+    let archived =
+        rollout_path_is_archived(store.config.atlas_agent_home.as_path(), path.as_path());
     Ok(stored_thread_from_meta_line(
         store, meta_line, path, archived,
     ))
@@ -522,7 +527,6 @@ mod tests {
     use std::io::Write;
     use std::path::PathBuf;
 
-    use chrono::Utc;
     use atlas_engine_protocol::ThreadId;
     use atlas_engine_protocol::items::TurnItem;
     use atlas_engine_protocol::items::UserMessageItem;
@@ -534,6 +538,7 @@ mod tests {
     use atlas_engine_protocol::user_input::UserInput;
     use atlas_engine_rollout::RolloutItem;
     use atlas_engine_state::ThreadMetadataBuilder;
+    use chrono::Utc;
     use pretty_assertions::assert_eq;
     use tempfile::TempDir;
     use uuid::Uuid;

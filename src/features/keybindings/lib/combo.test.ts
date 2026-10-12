@@ -3,6 +3,7 @@ import {
   comboFromEvent,
   displayKeys,
   displayLabel,
+  effectiveCombo,
   matchesCombo,
   parseCombo,
   serializeCombo,
@@ -43,6 +44,9 @@ describe("parseCombo / serializeCombo", () => {
     expect(serializeCombo(parseCombo("Command+Option+J")!)).toBe("cmd+alt+j");
     expect(serializeCombo(parseCombo("esc")!)).toBe("escape");
   });
+  it("reads `mod` as the primary modifier", () => {
+    expect(serializeCombo(parseCombo("mod+shift+p")!)).toBe("cmd+shift+p");
+  });
   it("accepts a literal plus key", () => {
     expect(serializeCombo(parseCombo("cmd++")!)).toBe("cmd+shift+=");
   });
@@ -71,10 +75,31 @@ describe("matchesCombo", () => {
     expect(matchesCombo(evMeta, withMeta)).toBe(true);
     expect(matchesCombo(evMeta, altOnly)).toBe(false);
   });
-  it("cmd accepts ctrl as the primary modifier", () => {
-    const c = parseCombo("cmd+k")!;
-    expect(matchesCombo(key({ key: "k", code: "KeyK", ctrlKey: true }), c)).toBe(true);
-    expect(matchesCombo(key({ key: "k", code: "KeyK" }), c)).toBe(false);
+  it("off macOS, cmd is Ctrl — and so is ctrl", () => {
+    const ctrlK = key({ key: "k", code: "KeyK", ctrlKey: true });
+    expect(matchesCombo(ctrlK, parseCombo("cmd+k")!, false)).toBe(true);
+    expect(matchesCombo(ctrlK, parseCombo("ctrl+k")!, false)).toBe(true);
+    expect(matchesCombo(key({ key: "k", code: "KeyK" }), parseCombo("cmd+k")!, false)).toBe(false);
+    // Ctrl+Super is the one way to ask for both.
+    const both = key({ key: "k", code: "KeyK", ctrlKey: true, metaKey: true });
+    expect(matchesCombo(both, parseCombo("cmd+ctrl+k")!, false)).toBe(true);
+    expect(matchesCombo(both, parseCombo("cmd+k")!, false)).toBe(false);
+  });
+  it("on macOS every modifier is exact: ⌃B never fires a ⌘B binding", () => {
+    const cmdB = parseCombo("cmd+b")!;
+    expect(matchesCombo(key({ key: "b", code: "KeyB", ctrlKey: true }), cmdB, true)).toBe(false);
+    expect(matchesCombo(key({ key: "b", code: "KeyB", metaKey: true }), cmdB, true)).toBe(true);
+    const ctrlCmdI = parseCombo("cmd+ctrl+i")!;
+    const both = key({ key: "i", code: "KeyI", ctrlKey: true, metaKey: true });
+    expect(matchesCombo(both, ctrlCmdI, true)).toBe(true);
+    expect(matchesCombo(both, parseCombo("cmd+i")!, true)).toBe(false);
+  });
+  it("effectiveCombo folds cmd and ctrl together only off macOS", () => {
+    const ctrlK = parseCombo("ctrl+k")!;
+    expect(serializeCombo(effectiveCombo(ctrlK, false))).toBe("cmd+k");
+    expect(serializeCombo(effectiveCombo(ctrlK, true))).toBe("ctrl+k");
+    const both = parseCombo("cmd+ctrl+k")!;
+    expect(serializeCombo(effectiveCombo(both, false))).toBe("cmd+ctrl+k");
   });
   it("shift must match exactly", () => {
     const c = parseCombo("cmd+b")!;
@@ -98,6 +123,13 @@ describe("comboFromEvent", () => {
   it("captures a chord", () => {
     const c = comboFromEvent(key({ key: "G", code: "KeyG", metaKey: true, shiftKey: true }))!;
     expect(serializeCombo(c)).toBe("cmd+shift+g");
+  });
+  it("records ⌃⌘ on macOS, and a plain Ctrl as cmd elsewhere", () => {
+    const both = key({ key: "i", code: "KeyI", metaKey: true, ctrlKey: true });
+    expect(serializeCombo(comboFromEvent(both, true)!)).toBe("cmd+ctrl+i");
+    const ctrl = key({ key: "k", code: "KeyK", ctrlKey: true });
+    expect(serializeCombo(comboFromEvent(ctrl, true)!)).toBe("ctrl+k");
+    expect(serializeCombo(comboFromEvent(ctrl, false)!)).toBe("cmd+k");
   });
 });
 

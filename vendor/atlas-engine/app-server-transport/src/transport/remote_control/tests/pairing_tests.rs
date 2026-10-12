@@ -842,7 +842,8 @@ async fn pairing_auth_recovery_failure_publishes_cleared_server_token() {
         respond_with_status(stale_refresh_request.stream, "401 Unauthorized", "").await;
     });
     let atlas_agent_home = TempDir::new().expect("temp dir should create");
-    let auth_manager = auth_manager_with_replacement(&atlas_agent_home, "different_account_id").await;
+    let auth_manager =
+        auth_manager_with_replacement(&atlas_agent_home, "different_account_id").await;
     let remote_handle =
         remote_control_handle_with_current_enrollment(&remote_control_url, auth_manager);
     remote_handle

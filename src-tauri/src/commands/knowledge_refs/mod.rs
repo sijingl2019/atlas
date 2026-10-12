@@ -283,7 +283,9 @@ fn process(job: Job, stores: &mut HashMap<String, RefStore>, shared: &Shared) {
 }
 
 fn has_knowledge_base(cwd: &str) -> bool {
-    Path::new(cwd).join(".atlas").join("knowledge").is_dir()
+    atlas_profile::dir_in(Path::new(cwd))
+        .join("knowledge")
+        .is_dir()
         || !super::knowledge::load_sources(cwd).is_empty()
 }
 

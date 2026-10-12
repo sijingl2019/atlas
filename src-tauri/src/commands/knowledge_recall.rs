@@ -56,7 +56,7 @@ impl KnowledgeRecallState {
             .entry(project_path.to_string())
             .or_insert_with(|| {
                 let root = PathBuf::from(project_path);
-                let index_dir = root.join(".atlas").join("knowledge-index");
+                let index_dir = atlas_profile::dir_in(&root).join("knowledge-index");
                 Arc::new(RwLock::new(MemoryEngine::open_at_dir(root, index_dir)))
             })
             .value()

@@ -43,14 +43,31 @@ pub const ORG_LINK_SCHEME: &str = "atlas-org://";
 /// - `atlas-org://member/<user id>`
 /// - `atlas-org://conversation/<conversation id>`
 /// - `atlas-org://recorded-session/<Workspace id>/<session id>`
+/// - `atlas-org://comment/<Workspace id>/<session id>/<comment id>`
 ///
 /// A recorded session is not a local past session: that one is a transcript on
 /// this disk, inlined into the prompt, and never becomes a link.
+///
+/// A comment link names one comment on a recorded session — a root or a reply
+/// — which the user linked for the agent to attend to. The comment tools take
+/// it as their `comment`, reading the recorded session from it too.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OrgLink {
-    Member { user_id: String },
-    Conversation { id: String },
-    RecordedSession { workspace_id: String, session_id: String },
+    Member {
+        user_id: String,
+    },
+    Conversation {
+        id: String,
+    },
+    RecordedSession {
+        workspace_id: String,
+        session_id: String,
+    },
+    Comment {
+        workspace_id: String,
+        session_id: String,
+        comment_id: String,
+    },
 }
 
 /// One id as a path segment: the characters that would end or re-scope it
@@ -94,10 +111,29 @@ impl OrgLink {
     pub fn uri(&self) -> String {
         match self {
             OrgLink::Member { user_id } => format!("{ORG_LINK_SCHEME}member/{}", segment(user_id)),
-            OrgLink::Conversation { id } => format!("{ORG_LINK_SCHEME}conversation/{}", segment(id)),
-            OrgLink::RecordedSession { workspace_id, session_id } => {
-                format!("{ORG_LINK_SCHEME}recorded-session/{}/{}", segment(workspace_id), segment(session_id))
+            OrgLink::Conversation { id } => {
+                format!("{ORG_LINK_SCHEME}conversation/{}", segment(id))
             }
+            OrgLink::RecordedSession {
+                workspace_id,
+                session_id,
+            } => {
+                format!(
+                    "{ORG_LINK_SCHEME}recorded-session/{}/{}",
+                    segment(workspace_id),
+                    segment(session_id)
+                )
+            }
+            OrgLink::Comment {
+                workspace_id,
+                session_id,
+                comment_id,
+            } => format!(
+                "{ORG_LINK_SCHEME}comment/{}/{}/{}",
+                segment(workspace_id),
+                segment(session_id),
+                segment(comment_id)
+            ),
         }
     }
 
@@ -112,11 +148,18 @@ impl OrgLink {
         let rest = text[ORG_LINK_SCHEME.len()..].trim_end_matches('/');
         let parts: Vec<&str> = rest.split('/').collect();
         match parts.as_slice() {
-            ["member", id] => Some(OrgLink::Member { user_id: unsegment(id)? }),
+            ["member", id] => Some(OrgLink::Member {
+                user_id: unsegment(id)?,
+            }),
             ["conversation", id] => Some(OrgLink::Conversation { id: unsegment(id)? }),
             ["recorded-session", workspace, session] => Some(OrgLink::RecordedSession {
                 workspace_id: unsegment(workspace)?,
                 session_id: unsegment(session)?,
+            }),
+            ["comment", workspace, session, comment] => Some(OrgLink::Comment {
+                workspace_id: unsegment(workspace)?,
+                session_id: unsegment(session)?,
+                comment_id: unsegment(comment)?,
             }),
             _ => None,
         }
@@ -125,7 +168,9 @@ impl OrgLink {
     /// Whether `text` is written as an organisation link at all, well formed
     /// or not.
     pub fn looks_like(text: &str) -> bool {
-        text.trim().get(..ORG_LINK_SCHEME.len()).is_some_and(|s| s.eq_ignore_ascii_case(ORG_LINK_SCHEME))
+        text.trim()
+            .get(..ORG_LINK_SCHEME.len())
+            .is_some_and(|s| s.eq_ignore_ascii_case(ORG_LINK_SCHEME))
     }
 }
 
@@ -158,7 +203,9 @@ fn first_tier<'a, T>(items: &'a [T], tiers: &[&dyn Fn(&T) -> bool]) -> Resolutio
 pub fn member<'a>(roster: &'a [Member], query: &str) -> Resolution<'a, Member> {
     if OrgLink::looks_like(query) {
         return match OrgLink::parse(query) {
-            Some(OrgLink::Member { user_id }) => first_tier(roster, &[&|m: &Member| m.user_id == user_id]),
+            Some(OrgLink::Member { user_id }) => {
+                first_tier(roster, &[&|m: &Member| m.user_id == user_id])
+            }
             _ => Resolution::None,
         };
     }
@@ -181,15 +228,23 @@ pub fn member<'a>(roster: &'a [Member], query: &str) -> Resolution<'a, Member> {
 
 /// A channel's name as people write it after the `#`.
 fn named(conversation: &OrgConversation) -> Option<&str> {
-    conversation.name.as_deref().map(|n| n.strip_prefix('#').unwrap_or(n))
+    conversation
+        .name
+        .as_deref()
+        .map(|n| n.strip_prefix('#').unwrap_or(n))
 }
 
 /// A conversation by id or name. Only channels have names; a DM is reached
 /// through its member, not its conversation.
-pub fn conversation<'a>(conversations: &'a [OrgConversation], query: &str) -> Resolution<'a, OrgConversation> {
+pub fn conversation<'a>(
+    conversations: &'a [OrgConversation],
+    query: &str,
+) -> Resolution<'a, OrgConversation> {
     if OrgLink::looks_like(query) {
         return match OrgLink::parse(query) {
-            Some(OrgLink::Conversation { id }) => first_tier(conversations, &[&|c: &OrgConversation| c.id == id]),
+            Some(OrgLink::Conversation { id }) => {
+                first_tier(conversations, &[&|c: &OrgConversation| c.id == id])
+            }
             _ => Resolution::None,
         };
     }
@@ -216,7 +271,12 @@ mod tests {
     use super::*;
 
     fn m(user_id: &str, name: &str, email: &str) -> Member {
-        Member { user_id: user_id.into(), name: name.into(), email: email.into(), role: None }
+        Member {
+            user_id: user_id.into(),
+            name: name.into(),
+            email: email.into(),
+            role: None,
+        }
     }
 
     fn roster() -> Vec<Member> {
@@ -244,7 +304,11 @@ mod tests {
     #[test]
     fn an_exact_name_resolves_to_its_member() {
         assert_eq!(who("Ada Lovelace"), Ok("u-ada".into()));
-        assert_eq!(who("@Ada Lovelace"), Ok("u-ada".into()), "an @ is how people write a member");
+        assert_eq!(
+            who("@Ada Lovelace"),
+            Ok("u-ada".into()),
+            "an @ is how people write a member"
+        );
     }
 
     #[test]
@@ -257,7 +321,11 @@ mod tests {
     fn an_exact_name_wins_over_the_same_name_in_another_case() {
         assert_eq!(who("grace hopper"), Ok("u-GRACE".into()));
         assert_eq!(who("Grace Hopper"), Ok("u-grace".into()));
-        assert_eq!(who("GRACE HOPPER"), Err(vec!["u-grace".into(), "u-GRACE".into()]), "two differ only by case");
+        assert_eq!(
+            who("GRACE HOPPER"),
+            Err(vec!["u-grace".into(), "u-GRACE".into()]),
+            "two differ only by case"
+        );
     }
 
     #[test]
@@ -286,7 +354,13 @@ mod tests {
     }
 
     fn c(id: &str, kind: ConversationKind, name: Option<&str>) -> OrgConversation {
-        OrgConversation { id: id.into(), kind, name: name.map(Into::into), member_ids: None, caller_is_member: true }
+        OrgConversation {
+            id: id.into(),
+            kind,
+            name: name.map(Into::into),
+            member_ids: None,
+            caller_is_member: true,
+        }
     }
 
     fn channels() -> Vec<OrgConversation> {
@@ -307,7 +381,11 @@ mod tests {
     fn a_channel_resolves_by_name_with_or_without_its_hash() {
         assert_eq!(which("general"), Ok("c-general".into()));
         assert_eq!(which("#general"), Ok("c-general".into()));
-        assert_eq!(which("ops"), Ok("c-ops".into()), "a name stored with its hash matches without it");
+        assert_eq!(
+            which("ops"),
+            Ok("c-ops".into()),
+            "a name stored with its hash matches without it"
+        );
         assert_eq!(which("#OPS"), Ok("c-ops".into()));
     }
 
@@ -315,7 +393,10 @@ mod tests {
     fn a_channel_name_in_another_case_resolves_unless_one_has_it_exactly() {
         assert_eq!(which("GENERAL"), Ok("c-general".into()));
         assert_eq!(which("design"), Ok("c-design-2".into()));
-        assert_eq!(which("DESIGN"), Err(vec!["c-design".into(), "c-design-2".into()]));
+        assert_eq!(
+            which("DESIGN"),
+            Err(vec!["c-design".into(), "c-design-2".into()])
+        );
     }
 
     #[test]
@@ -325,37 +406,105 @@ mod tests {
 
     #[test]
     fn a_member_link_resolves_to_the_member_it_carries_and_to_nothing_else() {
-        assert_eq!(who("atlas-org://member/u-sam2"), Ok("u-sam2".into()), "one of two Sam Lees, by id");
+        assert_eq!(
+            who("atlas-org://member/u-sam2"),
+            Ok("u-sam2".into()),
+            "one of two Sam Lees, by id"
+        );
         assert_eq!(who("  ATLAS-ORG://member/u-ada "), Ok("u-ada".into()));
         assert_eq!(who("atlas-org://member/u-nobody"), Err(vec![]));
-        assert_eq!(who("atlas-org://conversation/u-ada"), Err(vec![]), "a conversation link is not a member");
+        assert_eq!(
+            who("atlas-org://conversation/u-ada"),
+            Err(vec![]),
+            "a conversation link is not a member"
+        );
         assert_eq!(who("atlas-org://recorded-session/ws/u-ada"), Err(vec![]));
-        assert_eq!(who("atlas-org://member/"), Err(vec![]), "a malformed link is not a name either");
+        assert_eq!(
+            who("atlas-org://member/"),
+            Err(vec![]),
+            "a malformed link is not a name either"
+        );
     }
 
     #[test]
     fn a_conversation_link_resolves_to_the_conversation_it_carries_and_to_nothing_else() {
-        assert_eq!(which("atlas-org://conversation/c-dm"), Ok("c-dm".into()), "a DM, which has no name");
-        assert_eq!(which("atlas-org://conversation/c-design"), Ok("c-design".into()));
-        assert_eq!(which("atlas-org://member/c-general"), Err(vec![]), "a member link is not a conversation");
-        assert_eq!(which("atlas-org://conversation/general"), Err(vec![]), "a link carries an id, never a name");
+        assert_eq!(
+            which("atlas-org://conversation/c-dm"),
+            Ok("c-dm".into()),
+            "a DM, which has no name"
+        );
+        assert_eq!(
+            which("atlas-org://conversation/c-design"),
+            Ok("c-design".into())
+        );
+        assert_eq!(
+            which("atlas-org://member/c-general"),
+            Err(vec![]),
+            "a member link is not a conversation"
+        );
+        assert_eq!(
+            which("atlas-org://conversation/general"),
+            Err(vec![]),
+            "a link carries an id, never a name"
+        );
     }
 
     #[test]
     fn every_link_reads_back_as_itself() {
         for link in [
-            OrgLink::Member { user_id: "u-1".into() },
-            OrgLink::Conversation { id: "c-general".into() },
-            OrgLink::RecordedSession { workspace_id: "ws-atlas".into(), session_id: "rs-1".into() },
-            OrgLink::Member { user_id: "odd/id?#with space%".into() },
+            OrgLink::Member {
+                user_id: "u-1".into(),
+            },
+            OrgLink::Conversation {
+                id: "c-general".into(),
+            },
+            OrgLink::RecordedSession {
+                workspace_id: "ws-atlas".into(),
+                session_id: "rs-1".into(),
+            },
+            OrgLink::Comment {
+                workspace_id: "ws-atlas".into(),
+                session_id: "rs-1".into(),
+                comment_id: "cm/1 odd".into(),
+            },
+            OrgLink::Member {
+                user_id: "odd/id?#with space%".into(),
+            },
         ] {
-            assert_eq!(OrgLink::parse(&link.uri()), Some(link.clone()), "{}", link.uri());
+            assert_eq!(
+                OrgLink::parse(&link.uri()),
+                Some(link.clone()),
+                "{}",
+                link.uri()
+            );
         }
-        assert_eq!(OrgLink::Member { user_id: "u-1".into() }.uri(), "atlas-org://member/u-1");
-        assert_eq!(OrgLink::Conversation { id: "c-1".into() }.uri(), "atlas-org://conversation/c-1");
         assert_eq!(
-            OrgLink::RecordedSession { workspace_id: "ws".into(), session_id: "rs".into() }.uri(),
+            OrgLink::Member {
+                user_id: "u-1".into()
+            }
+            .uri(),
+            "atlas-org://member/u-1"
+        );
+        assert_eq!(
+            OrgLink::Conversation { id: "c-1".into() }.uri(),
+            "atlas-org://conversation/c-1"
+        );
+        assert_eq!(
+            OrgLink::RecordedSession {
+                workspace_id: "ws".into(),
+                session_id: "rs".into()
+            }
+            .uri(),
             "atlas-org://recorded-session/ws/rs",
+        );
+        assert_eq!(
+            OrgLink::Comment {
+                workspace_id: "ws".into(),
+                session_id: "rs".into(),
+                comment_id: "cm".into()
+            }
+            .uri(),
+            "atlas-org://comment/ws/rs/cm",
         );
     }
 
@@ -369,6 +518,8 @@ mod tests {
             "atlas-org://member",
             "atlas-org://member/a/b",
             "atlas-org://recorded-session/ws",
+            "atlas-org://comment/ws/rs",
+            "atlas-org://comment/ws/rs/cm/extra",
             "atlas-org://session/rs-1",
             "atlas-org://member/%zz",
         ] {

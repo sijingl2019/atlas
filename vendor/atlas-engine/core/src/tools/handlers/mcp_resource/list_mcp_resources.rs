@@ -65,7 +65,10 @@ impl ListMcpResourcesHandler {
         let args = args.normalized();
 
         let invocation = McpInvocation {
-            server: args.server.clone().unwrap_or_else(|| "atlas-agent".to_string()),
+            server: args
+                .server
+                .clone()
+                .unwrap_or_else(|| "atlas-agent".to_string()),
             tool: "list_mcp_resources".to_string(),
             arguments: arguments.clone(),
         };

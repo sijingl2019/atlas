@@ -84,8 +84,8 @@ mod tests {
     use atlas_engine_exec_server::EnvironmentManager;
     use atlas_engine_extension_api::NoopExtensionEventSink;
     use atlas_engine_home::AtlasAgentHomeUserInstructionsProvider;
-    use atlas_engine_login::AuthManager;
     use atlas_engine_login::AtlasEngineAuth;
+    use atlas_engine_login::AuthManager;
     use atlas_engine_protocol::protocol::SessionSource;
     use atlas_engine_utils_absolute_path::AbsolutePathBuf;
     use pretty_assertions::assert_eq;
@@ -307,18 +307,20 @@ enabled = false
             )
             .await?;
 
-        let auth_manager = AuthManager::from_auth_for_testing(AtlasEngineAuth::from_api_key("dummy"));
+        let auth_manager =
+            AuthManager::from_auth_for_testing(AtlasEngineAuth::from_api_key("dummy"));
         let state_db = init_state_db(&good_config)
             .await
             .expect("refresh tests require state db");
         let thread_store = thread_store_from_config(&good_config, Some(state_db.clone()));
         let environment_manager = Arc::new(EnvironmentManager::default_for_tests());
-        let executor_skill_provider: Arc<dyn atlas_engine_skills_extension::SkillProvider> = Arc::new(
-            atlas_engine_skills_extension::ExecutorSkillProvider::new_with_restriction_product(
-                Arc::clone(&environment_manager),
-                SessionSource::Exec.restriction_product(),
-            ),
-        );
+        let executor_skill_provider: Arc<dyn atlas_engine_skills_extension::SkillProvider> =
+            Arc::new(
+                atlas_engine_skills_extension::ExecutorSkillProvider::new_with_restriction_product(
+                    Arc::clone(&environment_manager),
+                    SessionSource::Exec.restriction_product(),
+                ),
+            );
         let thread_manager = Arc::new_cyclic(|thread_manager| {
             ThreadManager::new(
                 &good_config,
@@ -333,7 +335,8 @@ enabled = false
                         event_sink: Arc::new(NoopExtensionEventSink),
                         auth_manager: auth_manager.clone(),
                         state_db: Some(state_db.clone()),
-                        analytics_events_client: atlas_engine_analytics::AnalyticsEventsClient::disabled(),
+                        analytics_events_client:
+                            atlas_engine_analytics::AnalyticsEventsClient::disabled(),
                         thread_manager: thread_manager.clone(),
                         goal_service: Arc::new(atlas_engine_goal_extension::GoalService::new()),
                         environment_manager: Arc::clone(&environment_manager),

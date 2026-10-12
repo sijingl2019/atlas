@@ -44,7 +44,8 @@ pub fn is_openai_curated_marketplace_name(marketplace_name: &str) -> bool {
 }
 
 pub type LoadedPlugin = atlas_engine_plugin::LoadedPlugin<atlas_engine_config::McpServerConfig>;
-pub type PluginLoadOutcome = atlas_engine_plugin::PluginLoadOutcome<atlas_engine_config::McpServerConfig>;
+pub type PluginLoadOutcome =
+    atlas_engine_plugin::PluginLoadOutcome<atlas_engine_config::McpServerConfig>;
 
 pub use app_mcp_routing::apps_route_available;
 pub use artifact_operation::ArtifactOperation;

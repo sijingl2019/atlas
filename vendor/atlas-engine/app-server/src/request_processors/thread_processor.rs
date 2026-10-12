@@ -1354,8 +1354,12 @@ impl ThreadRequestProcessor {
                 initial_history: match session_start_source
                     .unwrap_or(atlas_engine_app_server_protocol::ThreadStartSource::Startup)
                 {
-                    atlas_engine_app_server_protocol::ThreadStartSource::Startup => InitialHistory::New,
-                    atlas_engine_app_server_protocol::ThreadStartSource::Clear => InitialHistory::Cleared,
+                    atlas_engine_app_server_protocol::ThreadStartSource::Startup => {
+                        InitialHistory::New
+                    }
+                    atlas_engine_app_server_protocol::ThreadStartSource::Clear => {
+                        InitialHistory::Cleared
+                    }
                 },
                 history_mode,
                 thread_source,
@@ -1374,7 +1378,9 @@ impl ThreadRequestProcessor {
             ))
             .await
             .map_err(|err| match err.details() {
-                AtlasEngineErrorDetails::InvalidRequest(message) => invalid_request(message.clone()),
+                AtlasEngineErrorDetails::InvalidRequest(message) => {
+                    invalid_request(message.clone())
+                }
                 AtlasEngineErrorDetails::UnsupportedOperation(message) => {
                     method_not_found(message.clone())
                 }
@@ -1656,7 +1662,9 @@ impl ThreadRequestProcessor {
             .decrement_out_of_band_elicitation_count()
             .await
             .map_err(|err| match err.details() {
-                AtlasEngineErrorDetails::InvalidRequest(message) => invalid_request(message.clone()),
+                AtlasEngineErrorDetails::InvalidRequest(message) => {
+                    invalid_request(message.clone())
+                }
                 _ => internal_error(format!(
                     "failed to decrement out-of-band elicitation counter: {err}"
                 )),
@@ -2069,8 +2077,12 @@ impl ThreadRequestProcessor {
         // Start the replacement listener from that state instead of depending on the requesting
         // connection still being open.
         let thread_state = self.thread_state_manager.thread_state(thread_id).await;
-        self.ensure_listener_task_running(thread_id, Arc::clone(&atlas_engine_thread), thread_state)
-            .await?;
+        self.ensure_listener_task_running(
+            thread_id,
+            Arc::clone(&atlas_engine_thread),
+            thread_state,
+        )
+        .await?;
         let mut thread = self
             .load_thread_from_resume_source_or_send_internal(
                 thread_id,
@@ -3755,7 +3767,9 @@ impl ThreadRequestProcessor {
             }
             Err(err) => {
                 let error = match err.details() {
-                    AtlasEngineErrorDetails::InvalidRequest(message) => invalid_request(message.clone()),
+                    AtlasEngineErrorDetails::InvalidRequest(message) => {
+                        invalid_request(message.clone())
+                    }
                     _ => internal_error(format!("error resuming thread: {err}")),
                 };
                 self.outgoing.send_error(request_id, error).await;
@@ -5490,7 +5504,10 @@ pub(crate) fn thread_from_stored_thread(
     thread: StoredThread,
     fallback_provider: &str,
     fallback_cwd: &AbsolutePathBuf,
-) -> (Thread, Option<atlas_engine_thread_store::StoredThreadHistory>) {
+) -> (
+    Thread,
+    Option<atlas_engine_thread_store::StoredThreadHistory>,
+) {
     let path = thread.rollout_path;
     let git_info = thread.git_info.map(|info| ApiGitInfo {
         sha: info.commit_hash.map(|sha| sha.0),
@@ -5678,8 +5695,11 @@ fn preview_from_rollout_items(items: &[RolloutItem]) -> String {
     items
         .iter()
         .find_map(|item| match item {
-            RolloutItem::ResponseItem(item) => match atlas_engine_core::parse_turn_item(&item.item) {
-                Some(atlas_engine_protocol::items::TurnItem::UserMessage(user)) => Some(user.message()),
+            RolloutItem::ResponseItem(item) => match atlas_engine_core::parse_turn_item(&item.item)
+            {
+                Some(atlas_engine_protocol::items::TurnItem::UserMessage(user)) => {
+                    Some(user.message())
+                }
                 _ => None,
             },
             _ => None,

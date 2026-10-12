@@ -282,7 +282,7 @@ function healthOf(project: ProjectCapture): CaptureHealth {
     issues.push({
       state: "degraded",
       reason:
-        "No longer authorized to sync with your Organisation — new work stays on this machine.",
+        "No longer authorized to sync with your Organization — new work stays on this machine.",
       nextStep:
         "Reconnect or re-register this Project to resume syncing. Capture itself continues.",
     });
@@ -298,7 +298,7 @@ function healthOf(project: ProjectCapture): CaptureHealth {
   if (project.failedRows > 0) {
     issues.push({
       state: "degraded",
-      reason: `${project.failedRows} record${plural(project.failedRows)} could not be sent to your Organisation.`,
+      reason: `${project.failedRows} record${plural(project.failedRows)} could not be sent to your Organization.`,
       nextStep: "They are skipped so the rest keep syncing. Retry from the sync status.",
     });
   }
@@ -440,6 +440,7 @@ export interface CaptureResponses {
   capture_connect_options: ConnectOptions;
   capture_register_cloud: Unread;
   capture_connect: ConnectResult;
+  capture_switch_project: ConnectResult;
   capture_promotion_preview: PromotionPreview;
   capture_promote: Unread;
 }
@@ -595,6 +596,7 @@ export const captureHandlers: TypedHandlers<CaptureResponses> = {
         binding: null,
         candidates: REMOTE_WORKSPACES.slice(0, 2),
         matched: false,
+        moved: 0,
       };
     }
     project.binding = {
@@ -607,7 +609,38 @@ export const captureHandlers: TypedHandlers<CaptureResponses> = {
       drainState: "ok",
     };
     captureChanged();
-    return { binding: project.binding, candidates: [], matched: true };
+    return { binding: project.binding, candidates: [], matched: true, moved: 0 };
+  },
+
+  // Cloud→Cloud. The server has no move, so the whole history is re-queued
+  // for the new destination — the pending count jumps by everything sent.
+  capture_switch_project: ({ projectPath, orgId, slug, workspaceId }): ConnectResult => {
+    const project = projectFor(projectPath);
+    if (!project.binding) throw new Error("enable capture for this Project first");
+    if (project.binding.mode !== "cloud") {
+      throw new Error("this Project is not on Cloud yet — promote it first");
+    }
+    if (String(slug) === "internal-scratch") {
+      return {
+        binding: null,
+        candidates: REMOTE_WORKSPACES.slice(0, 2),
+        matched: false,
+        moved: 0,
+      };
+    }
+    // Everything already sent plus what failed against the old destination.
+    const moved = project.preview.newSessionCount + project.failedRows;
+    project.pendingRows += moved;
+    project.failedRows = 0;
+    project.binding = {
+      ...project.binding,
+      slug: String(slug),
+      orgId: String(orgId),
+      remoteWorkspaceId: String(workspaceId),
+      drainState: "ok",
+    };
+    captureChanged();
+    return { binding: project.binding, candidates: [], matched: true, moved };
   },
 
   capture_promotion_preview: ({ projectPath }): PromotionPreview => {

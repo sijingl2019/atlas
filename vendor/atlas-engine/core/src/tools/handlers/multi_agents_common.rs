@@ -85,7 +85,9 @@ where
 
 pub(crate) fn collab_spawn_error(err: AtlasEngineErr) -> FunctionCallError {
     match err.details() {
-        AtlasEngineErrorDetails::UnsupportedOperation(message) if message == "thread manager dropped" => {
+        AtlasEngineErrorDetails::UnsupportedOperation(message)
+            if message == "thread manager dropped" =>
+        {
             FunctionCallError::RespondToModel("collab manager unavailable".to_string())
         }
         AtlasEngineErrorDetails::UnsupportedOperation(message) => {

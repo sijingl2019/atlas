@@ -25,12 +25,12 @@ use std::time::Duration;
 use agent_client_protocol::schema::v1 as acp;
 use atlas_acp_thread::{AcpThreadEvent, AgentConnection, AgentId};
 use atlas_agent_servers::ThreadEventSink;
-use atlas_native_agent::engine::config::{EngineHome, EngineProvider, EngineSettings};
-use atlas_native_agent::engine::connection::EngineConnection;
 use atlas_engine_sandboxing::landlock::ATLAS_AGENT_LINUX_SANDBOX_ARG0;
 use atlas_engine_test_binary_support::{
-    TestBinaryDispatchGuard, TestBinaryDispatchMode, configure_test_binary_dispatch,
+    configure_test_binary_dispatch, TestBinaryDispatchGuard, TestBinaryDispatchMode,
 };
+use atlas_native_agent::engine::config::{EngineHome, EngineProvider, EngineSettings};
+use atlas_native_agent::engine::connection::EngineConnection;
 use serde_json::json;
 use wiremock::matchers::method;
 use wiremock::matchers::path;
@@ -98,7 +98,10 @@ fn sse(events: Vec<serde_json::Value>) -> String {
     use std::fmt::Write as _;
     let mut out = String::new();
     for ev in events {
-        let kind = ev.get("type").and_then(|v| v.as_str()).expect("typed event");
+        let kind = ev
+            .get("type")
+            .and_then(|v| v.as_str())
+            .expect("typed event");
         writeln!(&mut out, "event: {kind}").expect("write");
         write!(&mut out, "data: {ev}\n\n").expect("write");
     }
@@ -216,7 +219,9 @@ impl Harness {
     /// The assistant text currently rendered in the newest thread.
     fn assistant_text(&self) -> String {
         let thread = self.thread();
-        let thread = thread.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let thread = thread
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         thread
             .entries()
             .iter()
@@ -407,7 +412,9 @@ async fn token_usage_reaches_the_thread_the_app_reads() {
         .expect("the turn should complete");
 
     let thread = h.thread();
-    let locked = thread.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let locked = thread
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let usage = locked
         .token_usage()
         .expect("a turn that reported usage must leave it on the thread");
@@ -453,8 +460,7 @@ async fn a_cancelled_turn_ends_aborted_rather_than_hanging_or_ending_normally() 
     // which loses the fact that the answer is incomplete.
     let h = harness_with(vec![(
         None,
-        sse_ok(assistant_turn("this should never be delivered"))
-            .set_delay(Duration::from_secs(30)),
+        sse_ok(assistant_turn("this should never be delivered")).set_delay(Duration::from_secs(30)),
     )])
     .await;
     let session_id = h.open_thread().await;
@@ -637,12 +643,16 @@ async fn the_effort_knob_reaches_the_engine_and_rejects_a_level_it_does_not_know
         .session_effort(&session_id)
         .expect("the native agent must offer the effort knob");
 
-    for level in ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"] {
+    for level in [
+        "none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra",
+    ] {
         effort
             .set_effort(Some(level.to_string()))
             .unwrap_or_else(|e| panic!("{level} should be a valid effort: {e}"));
     }
-    effort.set_effort(None).expect("clearing the override is valid");
+    effort
+        .set_effort(None)
+        .expect("clearing the override is valid");
 
     // Rejected rather than silently defaulted: a level that quietly became
     // "medium" would look like the knob doing nothing.
@@ -677,7 +687,10 @@ async fn a_turn_still_completes_after_switching_into_plan_mode() {
 
     let response = h
         .connection
-        .prompt(acp::PromptRequest::new(session_id, text("what would you do?")))
+        .prompt(acp::PromptRequest::new(
+            session_id,
+            text("what would you do?"),
+        ))
         .await
         .expect("a turn in plan mode should still run");
     assert_eq!(response.stop_reason, acp::StopReason::EndTurn);
@@ -714,7 +727,10 @@ async fn a_mode_switch_during_a_turn_is_refused_rather_than_relabelling_the_pick
     tokio::time::sleep(Duration::from_millis(500)).await;
 
     assert!(
-        modes.set_mode(acp::SessionModeId::new("plan")).await.is_err(),
+        modes
+            .set_mode(acp::SessionModeId::new("plan"))
+            .await
+            .is_err(),
         "a mid-turn mode switch must be refused, not displayed",
     );
     assert_eq!(
@@ -873,7 +889,10 @@ async fn a_command_approval_reaches_the_dialog_with_atlas_own_option_vocabulary(
     // stop has to arrive as a tool-call authorization on the thread — the same
     // event an external ACP agent produces, so the existing dialog renders it.
     let h = harness_with(vec![
-        (Some(1), sse_ok(command_then_done("rm -rf /tmp/atlas-approval-probe"))),
+        (
+            Some(1),
+            sse_ok(command_then_done("rm -rf /tmp/atlas-approval-probe")),
+        ),
         (None, sse_ok(assistant_turn("done"))),
     ])
     .await;
@@ -917,7 +936,10 @@ async fn declining_a_command_lets_the_turn_finish_rather_than_killing_it() {
     // the same answer: "the agent will continue the turn". A decline that
     // aborted would lose whatever the agent was going to say next.
     let h = harness_with(vec![
-        (Some(1), sse_ok(command_then_done("rm -rf /tmp/atlas-approval-probe"))),
+        (
+            Some(1),
+            sse_ok(command_then_done("rm -rf /tmp/atlas-approval-probe")),
+        ),
         (None, sse_ok(assistant_turn("understood"))),
     ])
     .await;
@@ -1028,7 +1050,10 @@ async fn cancelling_mid_tool_stops_the_command_it_started() {
         let session_id = session_id.clone();
         tokio::spawn(async move {
             connection
-                .prompt(acp::PromptRequest::new(session_id, text("do the slow thing")))
+                .prompt(acp::PromptRequest::new(
+                    session_id,
+                    text("do the slow thing"),
+                ))
                 .await
         })
     };
@@ -1227,7 +1252,12 @@ async fn the_engine_is_handed_the_memory_server_and_a_turn_calls_memory_search()
     });
     let h = harness_full(
         vec![
-            (Some(1), sse_ok(memory_search_turn(json!({"query": "how do we sign tokens"})))),
+            (
+                Some(1),
+                sse_ok(memory_search_turn(
+                    json!({"query": "how do we sign tokens"}),
+                )),
+            ),
             (None, sse_ok(assistant_turn("grounded answer"))),
         ],
         |s| s,
@@ -1240,29 +1270,58 @@ async fn the_engine_is_handed_the_memory_server_and_a_turn_calls_memory_search()
     );
     let session_id = h.open_thread().await;
 
-    let asked = offering.asked.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
+    let asked = offering
+        .asked
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone();
     assert_eq!(asked.len(), 1, "one offer per session request");
     assert!(asked[0].http_mcp);
-    assert!(asked[0].ui_control, "the in-process engine carries UI control (ADR-0012)");
-    assert!(asked[0].org_access, "the in-process engine carries organisation access (ADR-0014)");
+    assert!(
+        asked[0].ui_control,
+        "the in-process engine carries UI control (ADR-0012)"
+    );
+    assert!(
+        asked[0].org_access,
+        "the in-process engine carries organisation access (ADR-0014)"
+    );
     assert_eq!(asked[0].agent_id.as_str(), "atlas-agent");
-    assert_eq!(asked[0].session_id, None, "a new thread has no id until the engine answers");
     assert_eq!(
-        *offering.settled.lock().unwrap_or_else(std::sync::PoisonError::into_inner),
+        asked[0].session_id, None,
+        "a new thread has no id until the engine answers"
+    );
+    assert_eq!(
+        *offering
+            .settled
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner),
         vec![Some(session_id.to_string())],
         "the offer is bound to the engine's thread id",
     );
 
     let response = h
         .connection
-        .prompt(acp::PromptRequest::new(session_id, text("how do we sign tokens?")))
+        .prompt(acp::PromptRequest::new(
+            session_id,
+            text("how do we sign tokens?"),
+        ))
         .await
         .expect("the turn should complete");
     assert_eq!(response.stop_reason, acp::StopReason::EndTurn);
 
-    let calls = calls.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
-    assert_eq!(calls.len(), 1, "the engine should have called memory_search once: {calls:?}");
-    assert_eq!(calls[0].0, "Bearer session-token", "with the session's token");
+    let calls = calls
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone();
+    assert_eq!(
+        calls.len(),
+        1,
+        "the engine should have called memory_search once: {calls:?}"
+    );
+    assert_eq!(
+        calls[0].0, "Bearer session-token",
+        "with the session's token"
+    );
     assert_eq!(calls[0].1, json!({"query": "how do we sign tokens"}));
 }
 
@@ -1277,7 +1336,10 @@ async fn the_engine_is_handed_the_memory_server_and_a_turn_calls_memory_search()
 
 /// A turn that calls `atlas_org`'s `org_comment_reply`, then answers.
 fn reply_turn() -> String {
-    outward_turn("org_comment_reply", json!({ "comment": "k1", "body": "Renamed it." }))
+    outward_turn(
+        "org_comment_reply",
+        json!({ "comment": "k1", "body": "Renamed it." }),
+    )
 }
 
 /// A turn that calls `atlas_org`'s outward `tool` with `arguments`, then
@@ -1319,14 +1381,20 @@ struct OfferingOrg {
 }
 
 impl atlas_agent_servers::SessionMcpServers for OfferingOrg {
-    fn offer(&self, _request: &atlas_agent_servers::SessionMcpRequest) -> atlas_agent_servers::SessionMcpOffer {
+    fn offer(
+        &self,
+        _request: &atlas_agent_servers::SessionMcpRequest,
+    ) -> atlas_agent_servers::SessionMcpOffer {
         let server = acp::McpServer::Http(
-            acp::McpServerHttp::new("atlas_org", self.url.clone())
-                .headers(vec![acp::HttpHeader::new("Authorization", "Bearer session-token")]),
+            acp::McpServerHttp::new("atlas_org", self.url.clone()).headers(vec![
+                acp::HttpHeader::new("Authorization", "Bearer session-token"),
+            ]),
         );
         let session = self.session.clone();
         atlas_agent_servers::SessionMcpOffer::new(vec![server], move |id| {
-            *session.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = id.map(ToString::to_string);
+            *session
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = id.map(ToString::to_string);
         })
         // As the app's offer declares them: the host names its outward tools.
         .asking_first(
@@ -1342,10 +1410,17 @@ impl atlas_agent_servers::SessionMcpServers for OfferingOrg {
         &self,
         call: atlas_agent_servers::CallToApprove<'_>,
     ) -> futures::future::BoxFuture<'static, Option<atlas_agent_servers::CallDescription>> {
-        let body = call.arguments["body"].as_str().unwrap_or_default().to_string();
+        let body = call.arguments["body"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string();
         let title = format!("{} in the organisation", call.tool);
         Box::pin(async move {
-            Some(atlas_agent_servers::CallDescription { title, recipient: "the test recipient".into(), body })
+            Some(atlas_agent_servers::CallDescription {
+                title,
+                recipient: "the test recipient".into(),
+                body,
+            })
         })
     }
 
@@ -1357,25 +1432,41 @@ impl atlas_agent_servers::SessionMcpServers for OfferingOrg {
 /// A stand-in `atlas_org` that posts a reply only when the user approved that
 /// exact call — the organisation tool server's own check — and the offer
 /// that hands it to a session.
-async fn consenting_org() -> (Arc<dyn atlas_agent_servers::SessionMcpServers>, memory_server::Calls) {
+async fn consenting_org() -> (
+    Arc<dyn atlas_agent_servers::SessionMcpServers>,
+    memory_server::Calls,
+) {
     consenting_org_for("org_comment_reply").await
 }
 
 /// [`consenting_org`], standing in for the outward `tool`.
 async fn consenting_org_for(
     tool: &'static str,
-) -> (Arc<dyn atlas_agent_servers::SessionMcpServers>, memory_server::Calls) {
+) -> (
+    Arc<dyn atlas_agent_servers::SessionMcpServers>,
+    memory_server::Calls,
+) {
     let consent = Arc::new(atlas_agent_servers::OutwardConsent::new());
     let session: Arc<std::sync::Mutex<Option<String>>> = Arc::default();
     let gate: memory_server::Gate = {
         let (consent, session) = (consent.clone(), session.clone());
         Arc::new(move |arguments| {
-            let session = session.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
+            let session = session
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .clone();
             session.is_some_and(|id| consent.take(&id, "atlas_org", tool, arguments))
         })
     };
     let (url, calls) = memory_server::start_gated(tool, gate).await;
-    (Arc::new(OfferingOrg { url, consent, session }), calls)
+    (
+        Arc::new(OfferingOrg {
+            url,
+            consent,
+            session,
+        }),
+        calls,
+    )
 }
 
 /// A reply turn against a stand-in `atlas_org`, answered with `pick`.
@@ -1383,7 +1474,12 @@ async fn consenting_org_for(
 async fn reply_answered_with(
     pick: acp::PermissionOptionKind,
 ) -> (Vec<(String, serde_json::Value)>, Vec<String>) {
-    outward_answered_with("org_comment_reply", json!({ "comment": "k1", "body": "Renamed it." }), pick).await
+    outward_answered_with(
+        "org_comment_reply",
+        json!({ "comment": "k1", "body": "Renamed it." }),
+        pick,
+    )
+    .await
 }
 
 /// A turn calling the outward `tool` with `arguments` against a stand-in
@@ -1396,7 +1492,10 @@ async fn outward_answered_with(
 ) -> (Vec<(String, serde_json::Value)>, Vec<String>) {
     let (org, calls) = consenting_org_for(tool).await;
     let h = harness_full(
-        vec![(Some(1), sse_ok(outward_turn(tool, arguments))), (None, sse_ok(assistant_turn("ok")))],
+        vec![
+            (Some(1), sse_ok(outward_turn(tool, arguments))),
+            (None, sse_ok(assistant_turn("ok"))),
+        ],
         |s| s,
         Some(org),
     )
@@ -1405,7 +1504,10 @@ async fn outward_answered_with(
     let connection = h.connection.clone();
     let prompting = tokio::spawn(async move {
         connection
-            .prompt(acp::PromptRequest::new(session_id, text("reply on the comment")))
+            .prompt(acp::PromptRequest::new(
+                session_id,
+                text("reply on the comment"),
+            ))
             .await
     });
 
@@ -1419,7 +1521,10 @@ async fn outward_answered_with(
         .expect("the turn should complete");
     assert_eq!(response.stop_reason, acp::StopReason::EndTurn);
 
-    let calls = calls.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
+    let calls = calls
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone();
     let sent = h
         ._server
         .received_requests()
@@ -1434,9 +1539,13 @@ async fn outward_answered_with(
 #[tokio::test(flavor = "multi_thread")]
 async fn a_declined_reply_is_never_posted_and_the_model_is_told_it_was_rejected() {
     let (calls, sent) = reply_answered_with(acp::PermissionOptionKind::RejectOnce).await;
-    assert!(calls.is_empty(), "the tool server was never called: {calls:?}");
     assert!(
-        sent.last().is_some_and(|body| body.contains("user rejected MCP tool call")),
+        calls.is_empty(),
+        "the tool server was never called: {calls:?}"
+    );
+    assert!(
+        sent.last()
+            .is_some_and(|body| body.contains("user rejected MCP tool call")),
         "the model reads the rejection as the call's error",
     );
 }
@@ -1445,7 +1554,10 @@ async fn a_declined_reply_is_never_posted_and_the_model_is_told_it_was_rejected(
 async fn an_allowed_reply_is_posted_once() {
     let (calls, _) = reply_answered_with(acp::PermissionOptionKind::AllowOnce).await;
     assert_eq!(calls.len(), 1, "{calls:?}");
-    assert_eq!(calls[0].1, json!({ "comment": "k1", "body": "Renamed it." }));
+    assert_eq!(
+        calls[0].1,
+        json!({ "comment": "k1", "body": "Renamed it." })
+    );
 }
 
 /// #120: a message is the same kind of outward action, declared by the host
@@ -1453,12 +1565,23 @@ async fn an_allowed_reply_is_posted_once() {
 #[tokio::test(flavor = "multi_thread")]
 async fn an_allowed_send_is_posted_once_and_a_declined_one_never() {
     let args = json!({ "to": "general", "body": "The importer is fixed." });
-    let (calls, _) = outward_answered_with("org_send", args.clone(), acp::PermissionOptionKind::AllowOnce).await;
+    let (calls, _) = outward_answered_with(
+        "org_send",
+        args.clone(),
+        acp::PermissionOptionKind::AllowOnce,
+    )
+    .await;
     assert_eq!(calls.len(), 1, "{calls:?}");
     assert_eq!(calls[0].1, args);
-    let (calls, sent) = outward_answered_with("org_send", args, acp::PermissionOptionKind::RejectOnce).await;
-    assert!(calls.is_empty(), "a declined send never reaches the server: {calls:?}");
-    assert!(sent.last().is_some_and(|body| body.contains("user rejected MCP tool call")));
+    let (calls, sent) =
+        outward_answered_with("org_send", args, acp::PermissionOptionKind::RejectOnce).await;
+    assert!(
+        calls.is_empty(),
+        "a declined send never reaches the server: {calls:?}"
+    );
+    assert!(sent
+        .last()
+        .is_some_and(|body| body.contains("user rejected MCP tool call")));
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -1478,7 +1601,10 @@ async fn a_reply_allowed_for_the_session_is_posted() {
 async fn in_bypass_mode_an_outward_action_is_refused_and_nothing_is_posted() {
     let (org, calls) = consenting_org().await;
     let h = harness_full(
-        vec![(Some(1), sse_ok(reply_turn())), (None, sse_ok(assistant_turn("ok")))],
+        vec![
+            (Some(1), sse_ok(reply_turn())),
+            (None, sse_ok(assistant_turn("ok"))),
+        ],
         |s| s,
         Some(org),
     )
@@ -1492,17 +1618,25 @@ async fn in_bypass_mode_an_outward_action_is_refused_and_nothing_is_posted() {
         .expect("bypass is a mode");
     let response = tokio::time::timeout(
         Duration::from_secs(30),
-        h.connection.prompt(acp::PromptRequest::new(session_id, text("reply on the comment"))),
+        h.connection.prompt(acp::PromptRequest::new(
+            session_id,
+            text("reply on the comment"),
+        )),
     )
     .await
     .expect("nothing waits on a card in bypass")
     .expect("the turn should complete");
     assert_eq!(response.stop_reason, acp::StopReason::EndTurn);
     assert!(
-        !h.drained().iter().any(|e| matches!(e, AcpThreadEvent::ToolAuthorizationRequested { .. })),
+        !h.drained()
+            .iter()
+            .any(|e| matches!(e, AcpThreadEvent::ToolAuthorizationRequested { .. })),
         "no card was raised",
     );
-    let calls = calls.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
+    let calls = calls
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone();
     assert!(calls.is_empty(), "nothing is posted unasked: {calls:?}");
     let sent: Vec<String> = h
         ._server
@@ -1513,7 +1647,8 @@ async fn in_bypass_mode_an_outward_action_is_refused_and_nothing_is_posted() {
         .map(|r| String::from_utf8_lossy(&r.body).into_owned())
         .collect();
     assert!(
-        sent.last().is_some_and(|body| body.contains("not approved by the user")),
+        sent.last()
+            .is_some_and(|body| body.contains("not approved by the user")),
         "the model reads the refusal as the call's result",
     );
 }

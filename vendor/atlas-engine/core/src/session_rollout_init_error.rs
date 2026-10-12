@@ -6,14 +6,19 @@ use crate::rollout::SESSIONS_SUBDIR;
 use atlas_engine_protocol::error::AtlasEngineErr;
 use atlas_engine_thread_store::ThreadStoreError;
 
-pub(crate) fn map_session_init_error(err: &anyhow::Error, atlas_agent_home: &Path) -> AtlasEngineErr {
+pub(crate) fn map_session_init_error(
+    err: &anyhow::Error,
+    atlas_agent_home: &Path,
+) -> AtlasEngineErr {
     if let Some(store_error) = err
         .chain()
         .find_map(|cause| cause.downcast_ref::<ThreadStoreError>())
     {
         match store_error {
             ThreadStoreError::Unsupported { operation } => {
-                return AtlasEngineErr::UnsupportedOperation(format!("{operation} is not supported yet"));
+                return AtlasEngineErr::UnsupportedOperation(format!(
+                    "{operation} is not supported yet"
+                ));
             }
             ThreadStoreError::Conflict { message } => {
                 return AtlasEngineErr::InvalidRequest(message.clone());
@@ -35,7 +40,10 @@ pub(crate) fn map_session_init_error(err: &anyhow::Error, atlas_agent_home: &Pat
     AtlasEngineErr::Fatal(format!("Failed to initialize session: {err:#}"))
 }
 
-fn map_rollout_io_error(io_err: &std::io::Error, atlas_agent_home: &Path) -> Option<AtlasEngineErr> {
+fn map_rollout_io_error(
+    io_err: &std::io::Error,
+    atlas_agent_home: &Path,
+) -> Option<AtlasEngineErr> {
     let sessions_dir = atlas_agent_home.join(SESSIONS_SUBDIR);
     let hint = match io_err.kind() {
         ErrorKind::PermissionDenied => format!(

@@ -132,8 +132,13 @@ fn copy_resources(
         let sync_result = match files_by_project.get(project_key) {
             Some(project_files) => {
                 if let Some(project_cwd) = project_cwd(project_files) {
-                    replace_project_resources(atlas_agent_home, project_key, project_cwd, project_files)
-                        .map(|()| true)
+                    replace_project_resources(
+                        atlas_agent_home,
+                        project_key,
+                        project_cwd,
+                        project_files,
+                    )
+                    .map(|()| true)
                 } else if project_has_unscoped_target(atlas_agent_home, project_key)? {
                     remove_project_resources(atlas_agent_home, project_key)
                 } else {

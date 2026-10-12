@@ -105,9 +105,9 @@ async fn migrated_requests_preserve_query_auth_and_json_body() {
         format!("http://{address}"),
         HttpClientFactory::new(OutboundProxyPolicy::ReqwestDefault),
     )
-    .with_auth_provider(Arc::new(atlas_engine_model_provider::BearerAuthProvider::new(
-        "request-token".to_string(),
-    )));
+    .with_auth_provider(Arc::new(
+        atlas_engine_model_provider::BearerAuthProvider::new("request-token".to_string()),
+    ));
 
     let tasks = client
         .list_tasks(

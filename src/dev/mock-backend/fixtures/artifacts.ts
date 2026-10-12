@@ -830,30 +830,65 @@ function boardRow(seed: Seed): BoardSession {
 }
 
 /**
- * A teammate's Session, which exists only on the server.
+ * Teammates' Sessions, which exist only on the server.
  *
- * No `projectPath`: this machine has no checkout to read it from, which is the
- * case the detail pane has to route over the network for. It carries an
- * `authorId` because that is the one thing a remote row says that a local one
- * does not.
+ * No `projectPath`: this machine has no checkout to read them from, which is
+ * the case the detail pane has to route over the network for. Each carries an
+ * `authorId` — a roster `userId` from `integrations.ts`, so the row shows a
+ * name and a face — because that is the one thing a remote row says that a
+ * local one does not. Two sit in `acme-app`'s Workspace beside your own rows;
+ * one is in another Project the Organisation shares.
  */
-function remoteBoardRow(): BoardSession {
-  const base = summaryOf(SEEDS[1]);
-  return {
-    ...base,
+const TEAMMATE_ROWS: {
+  base: number;
+  id: string;
+  title: string;
+  projectName: string;
+  remoteProjectId: string;
+  authorId: string;
+}[] = [
+  {
+    base: 1,
     id: "ses_teammate_01",
     title: "Rework the billing webhook retries",
-    projectPath: "",
     // The name the Organisation gave the Project, which is what both the web
     // board and the desktop row now show — not the slug, and never the id.
     projectName: "Acme Infra (platform)",
+    remoteProjectId: "rw_8c41f20b",
+    authorId: "usr_tobi",
+  },
+  {
+    base: 6,
+    id: "ses_teammate_02",
+    title: "Split the invoice PDF renderer out of the API worker",
+    projectName: "acme-app",
+    remoteProjectId: "rw_1d55e903",
+    authorId: "usr_sam",
+  },
+  {
+    base: 7,
+    id: "ses_teammate_03",
+    title: "Audit the feature flags still reading the v1 config",
+    projectName: "acme-app",
+    remoteProjectId: "rw_1d55e903",
+    authorId: "usr_priya",
+  },
+];
+
+function teammateBoardRows(): BoardSession[] {
+  return TEAMMATE_ROWS.map((row) => ({
+    ...summaryOf(SEEDS[row.base]),
+    id: row.id,
+    title: row.title,
+    projectPath: "",
+    projectName: row.projectName,
     synced: true,
     origin: "remote",
-    remoteProjectId: "rw_8c41f20b",
-    authorId: "AZRAF AL MONZIM",
+    remoteProjectId: row.remoteProjectId,
+    authorId: row.authorId,
     needsAttention: false,
     attentionReason: null,
-  };
+  }));
 }
 
 function detailOf(seed: Seed): SessionDetail {
@@ -1106,15 +1141,16 @@ function seedComments() {
         id: "cm_1",
         anchorKind: "message",
         anchorId: prompt.id,
-        body: "Is <@user_ada> expecting the retry helper to keep its old signature?",
-        mentions: ["user_ada"],
+        body: "Is <@usr_priya> expecting the retry helper to keep its old signature?",
+        mentions: ["usr_priya"],
+        authorId: "usr_sam",
       }),
       mockComment({
         id: "cm_2",
         anchorKind: "message",
         anchorId: prompt.id,
         parentId: "cm_1",
-        body: "No — she signed off on the breaking change last week.",
+        body: "No — I signed off on the breaking change last week.",
       }),
     );
   }
@@ -1135,7 +1171,7 @@ function seedComments() {
         anchorKind: "tool_call",
         anchorId: laterTool.id,
         body: "Was this search narrow enough? It missed the legacy call site.",
-        authorId: "user_bob",
+        authorId: "usr_sam",
       }),
     );
   }
@@ -1147,7 +1183,85 @@ function seedComments() {
       body: "Picking this up tomorrow.",
     }),
   );
+  const laterPrompt = entries.filter((e) => e.kind === "prompt")[1];
+  if (laterPrompt) {
+    rows.push(
+      mockComment({
+        id: "cm_6",
+        anchorKind: "message",
+        anchorId: laterPrompt.id,
+        body: "Should this wait for the admin table fix to land first?",
+        authorId: "usr_tobi",
+        createdAt: at(0, 9, 40),
+        resolvedAt: at(0, 11, 2),
+        resolvedBy: "usr_dev",
+      }),
+      mockComment({
+        id: "cm_7",
+        anchorKind: "message",
+        anchorId: laterPrompt.id,
+        parentId: "cm_6",
+        body: "It landed this morning — safe to go ahead.",
+        authorId: "usr_dev",
+        createdAt: at(0, 10, 58),
+        editedAt: at(0, 11, 1),
+      }),
+    );
+  }
   COMMENTS.set(LIVE_ID, rows);
+
+  // A teammate's Session is discussed too: the thread a reviewer lands on.
+  const teammate = TEAMMATE_ROWS[1];
+  const teammateEntries = TIMELINES.get(SEEDS[teammate.base].id) ?? [];
+  const teammatePrompt = teammateEntries.find((e) => e.kind === "prompt");
+  const teammateTool = teammateEntries.find((e) => e.kind === "tool_call");
+  const threads: Comment[] = [];
+  if (teammatePrompt) {
+    threads.push(
+      mockComment({
+        id: "ct_1",
+        sessionId: teammate.id,
+        anchorKind: "message",
+        anchorId: teammatePrompt.id,
+        body: "<@usr_dev> this touches the retry helper you just changed.",
+        mentions: ["usr_dev"],
+        authorId: "usr_priya",
+      }),
+      mockComment({
+        id: "ct_2",
+        sessionId: teammate.id,
+        anchorKind: "message",
+        anchorId: teammatePrompt.id,
+        parentId: "ct_1",
+        body: "Good catch, I'll rebase onto it.",
+        authorId: "usr_sam",
+      }),
+    );
+  }
+  if (teammateTool) {
+    threads.push(
+      mockComment({
+        id: "ct_3",
+        sessionId: teammate.id,
+        anchorKind: "tool_call",
+        anchorId: teammateTool.id,
+        body: "This run took 4 minutes on CI — worth caching?",
+        authorId: "usr_tobi",
+      }),
+    );
+  }
+  threads.push(
+    mockComment({
+      id: "ct_4",
+      sessionId: teammate.id,
+      anchorKind: "session",
+      anchorId: teammate.id,
+      body: "Looks good to merge once the renderer tests pass.",
+      guestName: "Lena (Northwind)",
+      authorId: "",
+    }),
+  );
+  COMMENTS.set(teammate.id, threads);
 }
 
 export function mockComment(over: Partial<Comment> & { id: string }): Comment {
@@ -1156,7 +1270,7 @@ export function mockComment(over: Partial<Comment> & { id: string }): Comment {
     anchorKind: "message",
     anchorId: "",
     parentId: null,
-    authorId: "user_ada",
+    authorId: "usr_priya",
     guestName: null,
     body: "",
     mentions: [],
@@ -1199,8 +1313,28 @@ function threadsFor(sessionId: string): CommentThreads {
 }
 
 export const artifactsHandlers: TypedHandlers<ArtifactsResponses> = {
-  // Targeting is a Rust-side concern with nothing to answer.
-  artifacts_cloud_retarget: (): null => null,
+  // Targeting is a Rust-side concern with nothing to answer — except that the
+  // real board sockets each hear their Project's roster on connect, which is
+  // what lights the Timeline header's online stack. Sam is on one Project and
+  // Mira on the other: Mira is offline in team chat (`comms.ts`), so her face
+  // here proves the two sources are unioned rather than one replacing the
+  // other. `usr_dev` is the viewer and must never appear in the stack.
+  artifacts_cloud_retarget: ({ orgId }): null => {
+    if (orgId == null) return null;
+    setTimeout(() => {
+      void emit("atlas:artifacts-cloud", {
+        kind: "presence",
+        projectId: "rw_1d55e903",
+        online: ["usr_dev", "usr_sam", "usr_mira"],
+      });
+      void emit("atlas:artifacts-cloud", {
+        kind: "presence",
+        projectId: "rw_8c41f20b",
+        online: ["usr_dev", "usr_priya"],
+      });
+    }, 300);
+    return null;
+  },
   // The harness never fails, so a retry always "succeeds".
   artifacts_cloud_refresh: (): boolean => true,
   artifacts_cloud_follow: (): null => null,
@@ -1212,11 +1346,17 @@ export const artifactsHandlers: TypedHandlers<ArtifactsResponses> = {
   // real command maps the wire entries in Rust, so nothing downstream learns
   // that a Session can arrive two ways.
   artifacts_cloud_session: ({ sessionId }): SessionDetail => {
-    const seed = SEEDS.find((s) => s.id === String(sessionId)) ?? SEEDS[1];
+    const teammate = TEAMMATE_ROWS.find((row) => row.id === String(sessionId));
+    const seed =
+      SEEDS.find((s) => s.id === String(sessionId)) ?? SEEDS[teammate?.base ?? 1] ?? SEEDS[1];
     const detail = detailOf(seed);
     return {
       ...detail,
-      summary: { ...detail.summary, id: String(sessionId) },
+      summary: {
+        ...detail.summary,
+        id: String(sessionId),
+        title: teammate?.title ?? detail.summary.title,
+      },
       // A remote Checkpoint has no commit subject and nothing carries a blob
       // key: the desktop resolves the first from git and the second from its
       // own sidecar, and a Session captured elsewhere has neither here.
@@ -1257,6 +1397,11 @@ export const artifactsHandlers: TypedHandlers<ArtifactsResponses> = {
       anchorId: String(anchorId),
       parentId: parentId == null ? null : String(parentId),
       body: String(body),
+      // The signed-in account (`usr_dev` in `integrations.ts`), as the server
+      // stamps it from the token — so a new comment reads as "You" and can be
+      // edited and deleted.
+      authorId: "usr_dev",
+      mentions: [...String(body).matchAll(/<@([^>]+)>/g)].map((m) => m[1]),
       createdAt: new Date().toISOString(),
     });
     COMMENTS.set(id, [...(COMMENTS.get(id) ?? []), created]);
@@ -1269,7 +1414,7 @@ export const artifactsHandlers: TypedHandlers<ArtifactsResponses> = {
       body: body == null ? row.body : String(body),
       editedAt: body == null ? row.editedAt : new Date().toISOString(),
       resolvedAt: resolved == null ? row.resolvedAt : resolved ? new Date().toISOString() : null,
-      resolvedBy: resolved == null ? row.resolvedBy : resolved ? "user_ada" : null,
+      resolvedBy: resolved == null ? row.resolvedBy : resolved ? "usr_priya" : null,
     })),
 
   // The row survives with a null body so replies keep their places — which is
@@ -1287,7 +1432,7 @@ export const artifactsHandlers: TypedHandlers<ArtifactsResponses> = {
     const local = SEEDS.filter((seed) => paths.includes(seed.project.path)).map(boardRow);
     // The merge the real command does: local rows, plus whatever the
     // Organisation has that this machine does not.
-    const sessions = [...local, remoteBoardRow()].sort((a, b) =>
+    const sessions = [...local, ...teammateBoardRows()].sort((a, b) =>
       b.lastActivityAt.localeCompare(a.lastActivityAt),
     );
     // The fixture answers in one tick, so the remote half is never outstanding

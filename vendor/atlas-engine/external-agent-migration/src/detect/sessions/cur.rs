@@ -53,7 +53,10 @@ pub(crate) fn detect_recent_cur_sessions_with_limits(
         }
     }
     detect_recent_sessions(
-        atlas_agent_home, candidates, /*require_existing_cwd*/ false, limits,
+        atlas_agent_home,
+        candidates,
+        /*require_existing_cwd*/ false,
+        limits,
     )
 }
 

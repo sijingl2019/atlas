@@ -42,8 +42,8 @@ use std::sync::Arc;
 
 use rmcp::handler::server::ServerHandler;
 use rmcp::model::{
-    CacheScope, CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock as Content, JsonObject,
-    ListToolsResult, PaginatedRequestParams, ServerCapabilities, ServerInfo, Tool,
+    CacheScope, CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock as Content,
+    JsonObject, ListToolsResult, PaginatedRequestParams, ServerCapabilities, ServerInfo, Tool,
 };
 use rmcp::service::{RequestContext, RoleServer};
 use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
@@ -59,18 +59,20 @@ use super::{OrgAccessGate, OrgScope, ORG_PATH, ORG_SERVER_NAME};
 use crate::auth::Role;
 use crate::commands::memory_server::{Grant, TOOLS_LIST_TTL_MS};
 use crate::commands::ui_server::UiBridge;
-use atlas_agent_servers::OutwardConsent;
 use activity::ActivityArgs;
-use comments::ReplyArgs;
-use messages::SendArgs;
-#[cfg(test)]
-pub(super) use mentions::{named_mentions, with_mentions};
 #[cfg(test)]
 pub(super) use activity::{ACTIVITY_ROWS, RECORDED_NOTE};
+use atlas_agent_servers::OutwardConsent;
+use comments::ReplyArgs;
+#[cfg(test)]
+pub(super) use mentions::{named_mentions, with_mentions};
+use messages::SendArgs;
 pub(super) use sessions::SESSIONS_DEFAULT_LIMIT;
 use sessions::{SessionFilters, SESSIONS_MAX_LIMIT};
 #[cfg(test)]
-pub(super) use sessions::{SESSIONS_DEFAULT_WINDOW_DAYS, SESSIONS_SCAN_CAP, TIMELINE_DEFAULT_LIMIT};
+pub(super) use sessions::{
+    SESSIONS_DEFAULT_WINDOW_DAYS, SESSIONS_SCAN_CAP, TIMELINE_DEFAULT_LIMIT,
+};
 
 /// What the server tells the agent about itself. The engine keeps it as the
 /// description of the `atlas_org` tool namespace — but the Chat Completions
@@ -119,15 +121,16 @@ pub const WINDOW_TOOLS: &[&str] = &["org_page_write"];
 
 /// What a tool answers while the user has switched organisation access off.
 const OFF_NOTE: &str =
-    "Atlas Agent's organisation access is switched off in Settings → General; ask the user to turn it on.";
+    "Atlas Agent's organization access is switched off in Settings → General; ask the user to turn it on.";
 
 /// What a tool answers for a session that was not offered the server — its
 /// token names no organisation.
-const NO_ORG_NOTE: &str = "This session was not given access to an organisation: its project is not bound to a \
+const NO_ORG_NOTE: &str = "This session was not given access to an organization: its project is not bound to a \
      cloud Workspace, or it was opened before it was. Ask the user to bind the project and start a new chat.";
 
 /// What a tool answers once nobody is signed in on this machine any more.
-const SIGNED_OUT_NOTE: &str = "Nobody is signed in to Atlas on this machine any more; ask the user to sign in.";
+const SIGNED_OUT_NOTE: &str =
+    "Nobody is signed in to Atlas on this machine any more; ask the user to sign in.";
 
 /// What a tool answers once the session's Project is no longer bound to the
 /// organisation and Workspace it was offered in — unbound, local-only, moved
@@ -136,7 +139,8 @@ const UNBOUND_NOTE: &str = "This session's project is no longer bound to the clo
 
 /// What an outward action answers when the user did not approve that call on
 /// its card — above all in bypass mode, where the engine runs it unasked.
-const UNAPPROVED_NOTE: &str = "Replies and messages are sent in your name only after you approve them; bypass mode \
+const UNAPPROVED_NOTE: &str =
+    "Replies and messages are sent in your name only after you approve them; bypass mode \
      cannot approve outward actions — switch the chat out of bypass to send. Nothing was posted.";
 
 /// What `org_whoami` says in place of a current session the Workspace does
@@ -151,7 +155,11 @@ fn schema(value: Value) -> Arc<JsonObject> {
 }
 
 fn tool(name: &'static str, description: &'static str, input: Value) -> Tool {
-    Tool::new(Cow::Borrowed(name), Cow::Borrowed(description), schema(input))
+    Tool::new(
+        Cow::Borrowed(name),
+        Cow::Borrowed(description),
+        schema(input),
+    )
 }
 
 /// How a member or a conversation is named, said once where it matters most:
@@ -305,12 +313,18 @@ pub(super) fn tools() -> Vec<Tool> {
 /// The tools a session is offered: every one for an organisation admin,
 /// every one but [`ADMIN_TOOLS`] for anyone else.
 pub(super) fn tools_for(admin: bool) -> Vec<Tool> {
-    tools().into_iter().filter(|t| admin || !ADMIN_TOOLS.contains(&t.name.as_ref())).collect()
+    tools()
+        .into_iter()
+        .filter(|t| admin || !ADMIN_TOOLS.contains(&t.name.as_ref()))
+        .collect()
 }
 
 #[cfg(test)]
 pub(super) fn tool_names(admin: bool) -> Vec<String> {
-    tools_for(admin).into_iter().map(|t| t.name.to_string()).collect()
+    tools_for(admin)
+        .into_iter()
+        .map(|t| t.name.to_string())
+        .collect()
 }
 
 /// The `tools/list` answer, with the cache fields MCP 2026-07-28 requires
@@ -338,7 +352,11 @@ fn string_arg<'a>(request: &'a CallToolRequestParams, name: &str) -> Option<&'a 
 /// [`string_arg`] over a call's arguments however they arrived — on a call,
 /// or on the approval card's description of one.
 fn string_in<'a>(arguments: Option<&'a JsonObject>, name: &str) -> Option<&'a str> {
-    arguments.and_then(|args| args.get(name)).and_then(Value::as_str).map(str::trim).filter(|s| !s.is_empty())
+    arguments
+        .and_then(|args| args.get(name))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
 }
 
 /// The longest id a tool takes. The organisation's ids are UUID-, ULID- or
@@ -357,7 +375,9 @@ pub(crate) fn is_id(text: &str) -> bool {
     !text.is_empty()
         && text.len() <= ID_MAX
         && !text.bytes().all(|b| b == b'.')
-        && text.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b':'))
+        && text
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b':'))
 }
 
 /// `id` when it is one ([`is_id`]); else the tool's answer refusing it —
@@ -374,14 +394,55 @@ fn not_an_id(what: &str, text: &str) -> CallToolResult {
     tool_error(format!("\"{text}\" is not {what} id. Nothing was read."))
 }
 
+/// A comment tool's `comment` argument and its `session`, with a comment
+/// link ([`OrgLink::Comment`], what the composer puts in the prompt when the
+/// user links a comment) read as the comment id it carries — and, when no
+/// `session` is given, as the session too: `session_target` reads the link
+/// as the recorded session it names. A plain id passes through untouched.
+fn linked_comment<'a>(
+    comment: &'a str,
+    session: Option<&'a str>,
+) -> Result<(String, Option<&'a str>), CallToolResult> {
+    if !OrgLink::looks_like(comment) {
+        return Ok((comment.to_string(), session));
+    }
+    let Some(OrgLink::Comment {
+        session_id,
+        comment_id,
+        ..
+    }) = OrgLink::parse(comment)
+    else {
+        return Err(tool_error(format!(
+            "\"{comment}\" is not a comment; name one by its id or its atlas-org://comment link (org_comments lists them)"
+        )));
+    };
+    match session {
+        None => Ok((comment_id, Some(comment))),
+        Some(asked) if asked == session_id || asked == comment => Ok((comment_id, Some(comment))),
+        Some(asked) => Err(tool_error(format!(
+            "the link names recorded session {session_id} but `session` says {asked}; pass the link alone"
+        ))),
+    }
+}
+
 /// An optional boolean argument, absent read as `false`.
 fn bool_arg(request: &CallToolRequestParams, name: &str) -> bool {
-    request.arguments.as_ref().and_then(|args| args.get(name)).and_then(Value::as_bool).unwrap_or(false)
+    request
+        .arguments
+        .as_ref()
+        .and_then(|args| args.get(name))
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
 }
 
 /// An optional boolean argument, `default` when absent.
 fn bool_arg_or(request: &CallToolRequestParams, name: &str, default: bool) -> bool {
-    request.arguments.as_ref().and_then(|args| args.get(name)).and_then(Value::as_bool).unwrap_or(default)
+    request
+        .arguments
+        .as_ref()
+        .and_then(|args| args.get(name))
+        .and_then(Value::as_bool)
+        .unwrap_or(default)
 }
 
 /// An optional positive integer argument.
@@ -394,7 +455,13 @@ fn u32_arg(request: &CallToolRequestParams, name: &str) -> Option<u32> {
 /// list of one. Over a call's arguments however they arrived, as
 /// [`string_in`].
 fn strings_in(arguments: Option<&JsonObject>, name: &str) -> Vec<String> {
-    let strings = |value: &Value| value.as_str().map(str::trim).filter(|s| !s.is_empty()).map(str::to_string);
+    let strings = |value: &Value| {
+        value
+            .as_str()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+    };
     match arguments.and_then(|args| args.get(name)) {
         Some(Value::Array(items)) => items.iter().filter_map(strings).collect(),
         Some(value) => strings(value).into_iter().collect(),
@@ -406,13 +473,17 @@ fn strings_in(arguments: Option<&JsonObject>, name: &str) -> Vec<String> {
 /// signed it with, never as a member; a member by the roster when it could be
 /// read, else by id alone.
 fn author_json(user_id: &str, guest_name: Option<&str>, roster: Option<&[Member]>) -> Value {
-    let name = guest_name.map(str::to_string).or_else(|| roster_name(roster, user_id));
+    let name = guest_name
+        .map(str::to_string)
+        .or_else(|| roster_name(roster, user_id));
     json!({ "user_id": user_id, "name": name, "guest": guest_name.is_some() })
 }
 
 /// A member's name from the roster, when it could be read and holds them.
 fn roster_name(roster: Option<&[Member]>, user_id: &str) -> Option<String> {
-    roster.and_then(|r| r.iter().find(|m| m.user_id == user_id)).map(|m| m.name.clone())
+    roster
+        .and_then(|r| r.iter().find(|m| m.user_id == user_id))
+        .map(|m| m.name.clone())
 }
 
 fn member_json(member: &Member) -> Value {
@@ -464,7 +535,11 @@ pub(super) fn resolve_member(roster: &[Member], query: &str) -> Result<Member, C
         Resolution::None => Err(tool_error(format!(
             "no member matches \"{query}\" by id, name or email; call org_members for the roster"
         ))),
-        Resolution::Many(found) => Err(ambiguous(query, "members", found.into_iter().map(member_json).collect())),
+        Resolution::Many(found) => Err(ambiguous(
+            query,
+            "members",
+            found.into_iter().map(member_json).collect(),
+        )),
     }
 }
 
@@ -507,8 +582,19 @@ pub struct OrgTools {
 }
 
 impl OrgTools {
-    pub fn new(cloud: Arc<dyn OrganisationCloud>, gate: OrgAccessGate, orgs: Arc<dyn SessionOrgs>) -> Self {
-        Self { cloud, gate, orgs, consent: Arc::new(OutwardConsent::new()), audit: unaudited(), window: None }
+    pub fn new(
+        cloud: Arc<dyn OrganisationCloud>,
+        gate: OrgAccessGate,
+        orgs: Arc<dyn SessionOrgs>,
+    ) -> Self {
+        Self {
+            cloud,
+            gate,
+            orgs,
+            consent: Arc::new(OutwardConsent::new()),
+            audit: unaudited(),
+            window: None,
+        }
     }
 
     /// Hands [`WINDOW_TOOLS`] their way to the window: the bridge the UI tool
@@ -554,7 +640,12 @@ impl OrgTools {
         let outward = OUTWARD_TOOLS.contains(&request.name.as_ref());
         let consented = outward && {
             let arguments = request.arguments.clone().map_or(Value::Null, Value::Object);
-            self.consent.take(&grant.session_id, ORG_SERVER_NAME, &request.name, &arguments)
+            self.consent.take(
+                &grant.session_id,
+                ORG_SERVER_NAME,
+                &request.name,
+                &arguments,
+            )
         };
         if !(self.gate)() {
             return tool_error(OFF_NOTE);
@@ -575,7 +666,10 @@ impl OrgTools {
         match request.name.as_ref() {
             "org_whoami" => self.whoami(grant, &scope).await,
             "org_members" => self.members(&scope, string_arg(request, "name")).await,
-            "org_conversations" => self.conversations(&scope, string_arg(request, "name")).await,
+            "org_conversations" => {
+                self.conversations(&scope, string_arg(request, "name"))
+                    .await
+            }
             "org_inbox" => {
                 let query = InboxQuery {
                     unread_only: bool_arg(request, "unread_only"),
@@ -585,56 +679,96 @@ impl OrgTools {
                 self.inbox(&scope, query).await
             }
             "org_comments" => {
-                let session = (string_arg(request, "session"), string_arg(request, "workspace"));
-                self.comments(grant, &scope, session, bool_arg(request, "unresolved_only")).await
+                let session = (
+                    string_arg(request, "session"),
+                    string_arg(request, "workspace"),
+                );
+                self.comments(grant, &scope, session, bool_arg(request, "unresolved_only"))
+                    .await
             }
             "org_comment_resolve" => {
                 let Some(comment) = string_arg(request, "comment") else {
-                    return tool_error("name the comment to resolve: `comment` is its id (see org_comments)");
+                    return tool_error(
+                        "name the comment to resolve: `comment` is its id (see org_comments)",
+                    );
                 };
+                let (comment, session) =
+                    match linked_comment(comment, string_arg(request, "session")) {
+                        Ok(found) => found,
+                        Err(answer) => return answer,
+                    };
+                let comment = comment.as_str();
                 if let Err(answer) = checked_id("a comment", comment) {
                     return answer;
                 }
                 let resolved = bool_arg_or(request, "resolved", true);
-                let session = (string_arg(request, "session"), string_arg(request, "workspace"));
-                self.resolve_comment(grant, &scope, session, comment, resolved).await
+                let session = (session, string_arg(request, "workspace"));
+                self.resolve_comment(grant, &scope, session, comment, resolved)
+                    .await
             }
             "org_comment_reply" => {
                 let args = ReplyArgs::of(request.arguments.as_ref());
                 let Some(comment) = args.comment else {
-                    return tool_error("name the comment to reply to: `comment` is its id (see org_comments)");
+                    return tool_error(
+                        "name the comment to reply to: `comment` is its id (see org_comments)",
+                    );
                 };
+                let (comment, session) = match linked_comment(comment, args.session) {
+                    Ok(found) => found,
+                    Err(answer) => return answer,
+                };
+                let comment = comment.as_str();
                 if let Err(answer) = checked_id("a comment", comment) {
                     return answer;
                 }
                 let Some(body) = args.body else {
                     return tool_error("say what to reply: `body` is the reply's text");
                 };
-                self.reply_comment(grant, &scope, (args.session, args.workspace), comment, body, &args.mentions).await
+                self.reply_comment(
+                    grant,
+                    &scope,
+                    (session, args.workspace),
+                    comment,
+                    body,
+                    &args.mentions,
+                )
+                .await
             }
-            "org_send" => self.send(grant, &scope, &SendArgs::of(request.arguments.as_ref())).await,
+            "org_send" => {
+                self.send(grant, &scope, &SendArgs::of(request.arguments.as_ref()))
+                    .await
+            }
             "org_sessions" => {
                 let filters = SessionFilters {
                     workspace: string_arg(request, "workspace"),
                     author: string_arg(request, "author"),
                     since: string_arg(request, "since"),
                     until: string_arg(request, "until"),
-                    live: request.arguments.as_ref().and_then(|a| a.get("live")).and_then(Value::as_bool),
+                    live: request
+                        .arguments
+                        .as_ref()
+                        .and_then(|a| a.get("live"))
+                        .and_then(Value::as_bool),
                     q: string_arg(request, "q"),
-                    limit: u32_arg(request, "limit")
-                        .map_or(SESSIONS_DEFAULT_LIMIT, |n| (n as usize).min(SESSIONS_MAX_LIMIT)),
+                    limit: u32_arg(request, "limit").map_or(SESSIONS_DEFAULT_LIMIT, |n| {
+                        (n as usize).min(SESSIONS_MAX_LIMIT)
+                    }),
                 };
                 self.sessions(&scope, filters).await
             }
             "org_session" => {
-                let session = (string_arg(request, "session"), string_arg(request, "workspace"));
+                let session = (
+                    string_arg(request, "session"),
+                    string_arg(request, "workspace"),
+                );
                 match string_arg(request, "entry") {
                     Some(entry) => {
                         if let Err(answer) = checked_id("an entry", entry) {
                             return answer;
                         }
                         let part = string_arg(request, "part").unwrap_or("body");
-                        self.session_entry(grant, &scope, session, entry, part).await
+                        self.session_entry(grant, &scope, session, entry, part)
+                            .await
                     }
                     None => {
                         let page = (string_arg(request, "cursor"), u32_arg(request, "limit"));
@@ -664,15 +798,21 @@ impl OrgTools {
             }
             "org_page_write" => {
                 let Some(page) = string_arg(request, "page") else {
-                    return tool_error("name the page: `page` is its id, as org_page_create answered it");
+                    return tool_error(
+                        "name the page: `page` is its id, as org_page_create answered it",
+                    );
                 };
                 let Some(conversation) = string_arg(request, "conversation") else {
                     return tool_error(
                         "name the conversation whose Space holds the page: `conversation` is its id or channel name",
                     );
                 };
-                let document = request.arguments.as_ref().and_then(|args| args.get("document"));
-                self.write_page(grant, &scope, conversation, page, document).await
+                let document = request
+                    .arguments
+                    .as_ref()
+                    .and_then(|args| args.get("document"));
+                self.write_page(grant, &scope, conversation, page, document)
+                    .await
             }
             other => tool_error(format!("unknown tool `{other}`")),
         }
@@ -723,15 +863,19 @@ impl OrgTools {
     ) -> Result<SessionTarget, CallToolResult> {
         let Some(grant_workspace) = scope.workspace_id.clone() else {
             return Err(tool_error(
-                "this session's project is bound to the organisation but its Workspace id is not recorded yet; \
+                "this session's project is bound to the organization but its Workspace id is not recorded yet; \
                  ask the user to reopen the project's cloud settings and start a new chat",
             ));
         };
         let named = match session {
             // A recorded-session link (a composer mention) is read first, as
-            // the Workspace and id it carries.
+            // the Workspace and id it carries. A comment link names the
+            // recorded session its comment is on, so it reads the same way.
             Some(text) if OrgLink::looks_like(text) => match OrgLink::parse(text) {
-                Some(OrgLink::RecordedSession { workspace_id: linked, session_id }) => {
+                Some(
+                    OrgLink::RecordedSession { workspace_id: linked, session_id }
+                    | OrgLink::Comment { workspace_id: linked, session_id, .. },
+                ) => {
                     if let Some(asked) = workspace.filter(|asked| *asked != linked) {
                         return Err(tool_error(format!(
                             "the link names Workspace {linked} but `workspace` says {asked}; pass the link alone"
@@ -754,14 +898,23 @@ impl OrgTools {
         if let Some((workspace_id, id)) = named {
             checked_id("a Workspace", &workspace_id)?;
             checked_id("a recorded session", &id)?;
-            return Ok(SessionTarget { id, workspace_id, title: None, current: false });
+            return Ok(SessionTarget {
+                id,
+                workspace_id,
+                title: None,
+                current: false,
+            });
         }
         if workspace.is_some() {
             return Err(tool_error(
                 "`workspace` goes with a recorded session id; the current session is this chat's own Workspace's",
             ));
         }
-        let query = CurrentSessionQuery { scope, native_session_id: &grant.session_id, cwd: &grant.cwd };
+        let query = CurrentSessionQuery {
+            scope,
+            native_session_id: &grant.session_id,
+            cwd: &grant.cwd,
+        };
         match self.cloud.current_session(query).await {
             Ok(Some(session)) => Ok(SessionTarget {
                 id: session.id,
@@ -785,7 +938,9 @@ impl OrgTools {
     /// role the token does not state, a caller that cannot be read — is not,
     /// so an admin tool is only ever offered to someone the token names as one.
     async fn offers_admin_tools(&self, grant: Option<&Grant>) -> bool {
-        let Some(scope) = grant.and_then(|g| g.org.as_ref()) else { return false };
+        let Some(scope) = grant.and_then(|g| g.org.as_ref()) else {
+            return false;
+        };
         if !(self.gate)() || !self.orgs.signed_in() {
             return false;
         }
@@ -804,7 +959,8 @@ fn grant_of(context: &RequestContext<RoleServer>) -> Option<Grant> {
 
 impl ServerHandler for OrgTools {
     fn get_info(&self) -> ServerInfo {
-        ServerInfo::new(ServerCapabilities::builder().enable_tools().build()).with_instructions(INSTRUCTIONS)
+        ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
+            .with_instructions(INSTRUCTIONS)
     }
 
     /// The tools this session is offered: [`ADMIN_TOOLS`] only when its
@@ -823,7 +979,8 @@ impl ServerHandler for OrgTools {
         request: CallToolRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, McpError> {
-        let grant = grant_of(&context).ok_or_else(|| McpError::invalid_request("no session token", None))?;
+        let grant = grant_of(&context)
+            .ok_or_else(|| McpError::invalid_request("no session token", None))?;
         Ok(self.dispatch(grant, request).await.into())
     }
 }

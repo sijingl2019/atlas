@@ -125,7 +125,8 @@ fn accessible_connectors_from_mcp_tools_carries_plugin_display_names() {
 
 #[test]
 fn synthetic_links_are_exposed_to_the_agent_but_not_accessible_in_app_list() {
-    let mut synthetic_tool = atlas_engine_app_tool("gmail_batch_read_email", "gmail", Some("Gmail"), &[]);
+    let mut synthetic_tool =
+        atlas_engine_app_tool("gmail_batch_read_email", "gmail", Some("Gmail"), &[]);
     synthetic_tool.tool.meta = Some(MetaObject(
         serde_json::json!({
             "resource_name": "gmail.batch_read_email",

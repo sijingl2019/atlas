@@ -45,7 +45,10 @@ where
         }
         TestBinaryDispatchMode::Skip => None,
         TestBinaryDispatchMode::InstallAliases => {
-            let atlas_agent_home = match tempfile::Builder::new().prefix(atlas_agent_home_prefix).tempdir() {
+            let atlas_agent_home = match tempfile::Builder::new()
+                .prefix(atlas_agent_home_prefix)
+                .tempdir()
+            {
                 Ok(atlas_agent_home) => atlas_agent_home,
                 Err(error) => panic!("failed to create test ATLAS_AGENT_HOME: {error}"),
             };

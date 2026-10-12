@@ -18,8 +18,8 @@ use tracing::warn;
 use uuid::Uuid;
 
 use crate::AgentThreadId;
-use crate::CodeCellTraceContext;
 use crate::AtlasEngineTurnId;
+use crate::CodeCellTraceContext;
 use crate::CompactionId;
 use crate::CompactionTraceContext;
 use crate::InferenceTraceContext;
@@ -235,7 +235,11 @@ impl ThreadTraceContext {
     /// These events are runtime observations on an already-dispatched tool. The
     /// dispatch trace records the caller-facing boundary; these payloads explain
     /// what Atlas Agent did while executing that boundary.
-    pub fn record_tool_call_event(&self, atlas_engine_turn_id: impl Into<AtlasEngineTurnId>, event: &EventMsg) {
+    pub fn record_tool_call_event(
+        &self,
+        atlas_engine_turn_id: impl Into<AtlasEngineTurnId>,
+        event: &EventMsg,
+    ) {
         let ThreadTraceContextState::Enabled(context) = &self.state else {
             return;
         };
@@ -288,7 +292,10 @@ impl ThreadTraceContext {
     /// Most production turn lifecycle wiring lives outside this PR layer, but
     /// trace-focused integration tests need a small explicit hook so reducer
     /// inputs remain valid without exercising the full session loop.
-    pub fn record_atlas_engine_turn_started(&self, atlas_engine_turn_id: impl Into<AtlasEngineTurnId>) {
+    pub fn record_atlas_engine_turn_started(
+        &self,
+        atlas_engine_turn_id: impl Into<AtlasEngineTurnId>,
+    ) {
         let ThreadTraceContextState::Enabled(context) = &self.state else {
             return;
         };

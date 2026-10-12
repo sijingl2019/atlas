@@ -7,8 +7,8 @@
 //! `workspace-write` can continue to do so via `-c` overrides or their
 //! `config.toml`.
 
-use clap::ValueEnum;
 use atlas_engine_protocol::config_types::SandboxMode;
+use clap::ValueEnum;
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
 #[value(rename_all = "kebab-case")]

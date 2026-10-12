@@ -2,11 +2,11 @@
 use std::io::IsTerminal;
 use std::path::Path;
 
-use clap::Parser;
 use atlas_engine_file_search::Cli;
 use atlas_engine_file_search::FileMatch;
 use atlas_engine_file_search::Reporter;
 use atlas_engine_file_search::run_main;
+use clap::Parser;
 use serde_json::json;
 
 #[tokio::main]

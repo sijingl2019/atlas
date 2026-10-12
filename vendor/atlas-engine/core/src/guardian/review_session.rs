@@ -1066,10 +1066,12 @@ async fn run_review_on_session(
     let submission = review_session.io.submit_turn_input(
         TurnInputRequest::user_input(prompt_items.items)
             .with_thread_settings(atlas_engine_protocol::protocol::ThreadSettingsOverrides {
-                environments: Some(atlas_engine_protocol::protocol::TurnEnvironmentSelections::new(
-                    parent_turn_legacy_fallback_cwd,
-                    parent_turn_environments,
-                )),
+                environments: Some(
+                    atlas_engine_protocol::protocol::TurnEnvironmentSelections::new(
+                        parent_turn_legacy_fallback_cwd,
+                        parent_turn_environments,
+                    ),
+                ),
                 approval_policy: Some(AskForApproval::Never),
                 sandbox_policy: None,
                 permission_profile: Some(guardian_permission_profile),

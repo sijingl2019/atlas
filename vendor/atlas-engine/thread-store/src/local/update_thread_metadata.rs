@@ -2,7 +2,6 @@
 use std::path::Path;
 use std::path::PathBuf;
 
-use chrono::Utc;
 use atlas_engine_protocol::ThreadId;
 use atlas_engine_protocol::protocol::GitInfo;
 use atlas_engine_protocol::protocol::SessionSource;
@@ -13,6 +12,7 @@ use atlas_engine_rollout::append_rollout_item_to_path;
 use atlas_engine_rollout::append_thread_name;
 use atlas_engine_rollout::read_session_meta_line;
 use atlas_engine_state::ThreadMetadataBuilder;
+use chrono::Utc;
 use tracing::warn;
 
 use super::LocalThreadStore;
@@ -886,7 +886,9 @@ mod tests {
                 allowed_sources: Vec::new(),
                 model_providers: None,
                 cwd_filters: None,
-                section: Some(Some(atlas_engine_state::PINNED_THREAD_SECTION_ID.to_string())),
+                section: Some(Some(
+                    atlas_engine_state::PINNED_THREAD_SECTION_ID.to_string(),
+                )),
                 archived: false,
                 search_term: None,
                 relation_filter: None,
@@ -2019,8 +2021,9 @@ mod tests {
         let child = workspace.join("child");
         std::fs::create_dir_all(child.as_path()).expect("create workspace");
         let unnormalized_cwd = child.join("..");
-        let normalized_cwd = atlas_engine_utils_path::normalize_for_path_comparison(workspace.as_path())
-            .expect("normalize cwd");
+        let normalized_cwd =
+            atlas_engine_utils_path::normalize_for_path_comparison(workspace.as_path())
+                .expect("normalize cwd");
 
         store
             .update_thread_metadata(UpdateThreadMetadataParams {

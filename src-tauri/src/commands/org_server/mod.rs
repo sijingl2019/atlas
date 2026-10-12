@@ -77,17 +77,20 @@ pub use adapter::{AppOrganisationCloud, AppSessionOrgs};
 pub use audit::{OrgActionRecord, OrgAudit, ORG_ACTION_EVENT};
 #[allow(unused_imports)]
 pub use cloud::{
-    BoardQuery, Caller, CloudError, CloudFuture, CommentRef, CurrentSessionQuery, InboxQuery, Member, NewMessage, NewPage,
-    NewReply, OrgConversation, OrganisationCloud, PayloadRef, RecordedSession, SentMessage, TimelineQuery,
+    BoardQuery, Caller, CloudError, CloudFuture, CommentRef, CurrentSessionQuery, InboxQuery,
+    Member, NewMessage, NewPage, NewReply, OrgConversation, OrganisationCloud, PayloadRef,
+    RecordedSession, SentMessage, TimelineQuery,
 };
 #[allow(unused_imports)]
 pub use offers::{OrgOffer, OrgOfferDecision, SessionOrgs};
 pub use resolve::OrgLink;
-#[allow(unused_imports)]
-pub use tools::{router, OrgTools, ADMIN_TOOLS, EVERY_TIME_TOOLS, INSTRUCTIONS, OUTWARD_TOOLS, WINDOW_TOOLS};
 /// The shape every organisation id is checked for before it is used — also
 /// by the UI tool server, for the ids that open a Space page.
 pub(crate) use tools::is_id as is_org_id;
+#[allow(unused_imports)]
+pub use tools::{
+    router, OrgTools, ADMIN_TOOLS, EVERY_TIME_TOOLS, INSTRUCTIONS, OUTWARD_TOOLS, WINDOW_TOOLS,
+};
 
 /// The name the server goes by in the agent's MCP configuration; its tools
 /// reach the model as `mcp__atlas_org__<tool>`.

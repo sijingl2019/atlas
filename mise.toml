@@ -1,3 +1,6 @@
+# CI's frontend job and release-linux.yml install exactly these (jdx/mise-action),
+# so a local `mise install` gives the versions CI tests with. Rust is pinned in
+# rust-toolchain.toml, which rustup reads on its own.
 [tools]
 bun = "1.4.0"
-node = "lts"
+node = "24"

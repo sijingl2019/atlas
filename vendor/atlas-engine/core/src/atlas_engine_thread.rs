@@ -676,14 +676,20 @@ impl AtlasEngineThread {
     pub async fn runtime_mcp_config_and_context(
         &self,
         config: &crate::config::Config,
-    ) -> (atlas_engine_mcp::McpConfig, atlas_engine_mcp::McpRuntimeContext) {
+    ) -> (
+        atlas_engine_mcp::McpConfig,
+        atlas_engine_mcp::McpRuntimeContext,
+    ) {
         self.session.runtime_mcp_config_and_context(config).await
     }
 
     /// Captures the exact MCP config and environment bindings for the current thread state.
     pub async fn current_mcp_config_and_runtime_context(
         &self,
-    ) -> (Arc<atlas_engine_mcp::McpConfig>, atlas_engine_mcp::McpRuntimeContext) {
+    ) -> (
+        Arc<atlas_engine_mcp::McpConfig>,
+        atlas_engine_mcp::McpRuntimeContext,
+    ) {
         let config = self.session.get_config().await;
         let (mcp_config, runtime_context) = self.runtime_mcp_config_and_context(&config).await;
         (Arc::new(mcp_config), runtime_context)

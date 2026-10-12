@@ -804,8 +804,10 @@ fn windows_elevated_supports_split_write_read_carveouts() {
             write_roots_override: None,
             additional_deny_read_paths: vec![],
             additional_deny_write_paths: vec![
-                atlas_engine_utils_absolute_path::AbsolutePathBuf::from_absolute_path(expected_docs)
-                    .expect("absolute docs"),
+                atlas_engine_utils_absolute_path::AbsolutePathBuf::from_absolute_path(
+                    expected_docs
+                )
+                .expect("absolute docs"),
             ],
         }))
     );
@@ -835,9 +837,9 @@ fn windows_workspace_defaults_do_not_hide_explicit_metadata_carveouts() {
             .entries
             .push(atlas_engine_protocol::permissions::FileSystemSandboxEntry {
                 path: atlas_engine_protocol::permissions::FileSystemPath::Special {
-                    value: atlas_engine_protocol::permissions::FileSystemSpecialPath::project_roots(Some(
-                        (*name).into(),
-                    )),
+                    value: atlas_engine_protocol::permissions::FileSystemSpecialPath::project_roots(
+                        Some((*name).into()),
+                    ),
                 },
                 access: atlas_engine_protocol::permissions::FileSystemAccessMode::Read,
                 missing_path_behavior: None,
@@ -911,8 +913,10 @@ fn windows_elevated_supports_unreadable_split_carveouts() {
                 .expect("absolute blocked"),
             ],
             additional_deny_write_paths: vec![
-                atlas_engine_utils_absolute_path::AbsolutePathBuf::from_absolute_path(expected_blocked)
-                    .expect("absolute blocked"),
+                atlas_engine_utils_absolute_path::AbsolutePathBuf::from_absolute_path(
+                    expected_blocked
+                )
+                .expect("absolute blocked"),
             ],
         }))
     );
@@ -1033,8 +1037,9 @@ fn windows_elevated_rejects_reopened_writable_descendants() {
 
 #[test]
 fn process_exec_tool_call_uses_platform_sandbox_for_network_only_restrictions() {
-    let expected = atlas_engine_sandboxing::get_platform_sandbox(/*windows_sandbox_enabled*/ false)
-        .unwrap_or(SandboxType::None);
+    let expected =
+        atlas_engine_sandboxing::get_platform_sandbox(/*windows_sandbox_enabled*/ false)
+            .unwrap_or(SandboxType::None);
 
     assert_eq!(
         select_process_exec_tool_sandbox_type(

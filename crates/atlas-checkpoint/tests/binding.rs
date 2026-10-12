@@ -12,8 +12,8 @@ use support::{git, git_command, init_repo};
 
 use atlas_checkpoint::model::ProjectMode;
 use atlas_checkpoint::{
-    bind, detect, disable, enable, refresh_detection, walk_new_commits, Capture, SessionKey,
-    Source, Store,
+    bind, detect, disable, enable, refresh_detection, walk_new_commits, Capture, Mode, Role,
+    SessionKey, Source, Store, SyncState, TurnContent,
 };
 
 const WORKSPACE: &str = "ws-atlas";
@@ -402,4 +402,161 @@ fn detection_reports_everything_the_popover_shows() {
         Some("github.com/tryatlas/atlas")
     );
     assert!(!detection.suggested_slug.is_empty());
+}
+
+// ── Promotion onto an existing Cloud Project ────────────────────────────────
+
+/// Connecting a Local Project to a Project the Organisation already has goes
+/// through `promote_to_cloud`, exactly like creating a new one: the binding
+/// flip and the `local` → `pending` row flip commit together, so the history
+/// the developer was shown in the disclosure is what the drain picks up.
+#[test]
+fn connecting_a_local_project_to_an_existing_cloud_project_queues_its_history() {
+    let dir = tempfile::tempdir().unwrap();
+    init_repo(dir.path());
+    commit(dir.path(), "a.rs", "one", "initial");
+
+    let mut store = store_in(dir.path());
+    bind(&store, WORKSPACE, dir.path(), ProjectMode::Local).unwrap();
+
+    let mut capture = Capture::new(&mut store, ProjectMode::Local);
+    let key = SessionKey {
+        workspace_id: WORKSPACE.into(),
+        source: Source::Acp,
+        native_session_id: "s1".into(),
+    };
+    let session = capture
+        .record_prompt(&key, "Add rate limiting", 1, None, None, None)
+        .unwrap();
+    capture
+        .record_turn(
+            &session,
+            TurnContent {
+                turn_seq: 1,
+                native_message_id: None,
+                role: Role::Assistant,
+                mode: Mode::Text,
+                body: "done".into(),
+                created_at: None,
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        store.session(&session).unwrap().unwrap().sync_state,
+        SyncState::Local
+    );
+
+    // What `capture_connect` does once the server has bound the pick.
+    let moved = store
+        .promote_to_cloud(WORKSPACE, "org-1", "atlas", Some("remote-atlas"))
+        .unwrap();
+    assert!(
+        moved >= 2,
+        "the session and its messages were queued, got {moved}"
+    );
+
+    let binding = store.binding().unwrap().unwrap();
+    assert_eq!(binding.mode, ProjectMode::Cloud);
+    assert_eq!(binding.slug.as_deref(), Some("atlas"));
+    assert_eq!(binding.org_id.as_deref(), Some("org-1"));
+    assert_eq!(binding.remote_workspace_id.as_deref(), Some("remote-atlas"));
+
+    assert_eq!(
+        store.session(&session).unwrap().unwrap().sync_state,
+        SyncState::Pending
+    );
+    for message in store.messages_for_session(&session).unwrap() {
+        assert_eq!(message.sync_state, SyncState::Pending);
+    }
+    // Nothing is left stranded for the healer.
+    assert_eq!(store.heal_stranded_local_rows(WORKSPACE).unwrap(), 0);
+}
+
+/// Changing which Cloud Project a repository syncs to re-sends everything: the
+/// server keeps one object per Project and has no move, so rows the old one
+/// accepted (`sent`) and rows that failed against it both go back to `pending`
+/// with a fresh attempt count, in the same transaction as the binding flip.
+#[test]
+fn switching_cloud_project_requeues_every_row_for_the_new_destination() {
+    let dir = tempfile::tempdir().unwrap();
+    init_repo(dir.path());
+    commit(dir.path(), "a.rs", "one", "initial");
+
+    let mut store = store_in(dir.path());
+    bind(&store, WORKSPACE, dir.path(), ProjectMode::Local).unwrap();
+    store
+        .promote_to_cloud(WORKSPACE, "org-1", "project1", Some("remote-1"))
+        .unwrap();
+
+    let mut capture = Capture::new(&mut store, ProjectMode::Cloud);
+    let key = SessionKey {
+        workspace_id: WORKSPACE.into(),
+        source: Source::Acp,
+        native_session_id: "s1".into(),
+    };
+    let session = capture
+        .record_prompt(&key, "hello", 1, None, None, None)
+        .unwrap();
+    capture
+        .record_turn(
+            &session,
+            TurnContent {
+                turn_seq: 1,
+                native_message_id: None,
+                role: Role::Assistant,
+                mode: Mode::Text,
+                body: "done".into(),
+                created_at: None,
+            },
+        )
+        .unwrap();
+    // The old destination accepted the session; a message failed against it.
+    store.mark_sent(&session).unwrap();
+    let message_id = store.messages_for_session(&session).unwrap()[0].id.clone();
+    store.mark_failed(&message_id).unwrap();
+    assert_eq!(
+        store.session(&session).unwrap().unwrap().sync_state,
+        SyncState::Sent
+    );
+    assert_eq!(
+        store.messages_for_session(&session).unwrap()[0].sync_state,
+        SyncState::Failed
+    );
+
+    let moved = store
+        .switch_cloud_project(WORKSPACE, "org-1", "project2", "remote-2")
+        .unwrap();
+    assert_eq!(moved, 2);
+
+    let binding = store.binding().unwrap().unwrap();
+    assert_eq!(binding.mode, ProjectMode::Cloud);
+    assert_eq!(binding.slug.as_deref(), Some("project2"));
+    assert_eq!(binding.remote_workspace_id.as_deref(), Some("remote-2"));
+    assert_eq!(
+        store.session(&session).unwrap().unwrap().sync_state,
+        SyncState::Pending
+    );
+    assert_eq!(
+        store.messages_for_session(&session).unwrap()[0].sync_state,
+        SyncState::Pending
+    );
+    // Nothing is left in a state the new destination will never see.
+    assert_eq!(
+        store
+            .row_count_in_state(WORKSPACE, SyncState::Sent)
+            .unwrap(),
+        0
+    );
+    assert_eq!(
+        store
+            .row_count_in_state(WORKSPACE, SyncState::Failed)
+            .unwrap(),
+        0
+    );
+    assert_eq!(
+        store
+            .row_count_in_state(WORKSPACE, SyncState::Local)
+            .unwrap(),
+        0
+    );
 }

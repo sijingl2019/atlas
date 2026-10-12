@@ -704,7 +704,8 @@ async fn thread_search_occurrences_reads_paginated_projection() -> Result<()> {
 #[tokio::test]
 async fn thread_turns_list_reads_store_history_without_rollout_path() -> Result<()> {
     let atlas_agent_home = TempDir::new()?;
-    let thread_id = atlas_engine_protocol::ThreadId::from_string("00000000-0000-4000-8000-000000000123")?;
+    let thread_id =
+        atlas_engine_protocol::ThreadId::from_string("00000000-0000-4000-8000-000000000123")?;
     let store_id = Uuid::new_v4().to_string();
     MockResponsesConfig::new("http://127.0.0.1:1")
         .with_root_config(&format!(
@@ -882,7 +883,8 @@ async fn thread_read_loaded_include_turns_reads_store_history_without_rollout_pa
 #[tokio::test]
 async fn thread_list_includes_store_thread_without_rollout_path() -> Result<()> {
     let atlas_agent_home = TempDir::new()?;
-    let thread_id = atlas_engine_protocol::ThreadId::from_string("00000000-0000-4000-8000-000000000124")?;
+    let thread_id =
+        atlas_engine_protocol::ThreadId::from_string("00000000-0000-4000-8000-000000000124")?;
     let store_id = Uuid::new_v4().to_string();
     MockResponsesConfig::new("http://127.0.0.1:1")
         .with_root_config(&format!(
@@ -1074,7 +1076,9 @@ async fn thread_resume_initial_turns_page_matches_requested_turns_list_page() ->
     assert!(thread.turns.is_empty());
     assert_eq!(
         initial_turns_page,
-        Some(atlas_engine_app_server_protocol::TurnsPage::from(expected_page))
+        Some(atlas_engine_app_server_protocol::TurnsPage::from(
+            expected_page
+        ))
     );
 
     Ok(())

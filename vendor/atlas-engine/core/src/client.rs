@@ -71,8 +71,8 @@ use atlas_engine_api::gateway_prompt_usage;
 use atlas_engine_api::response_create_client_metadata;
 use atlas_engine_http_client::ClientRouteClass;
 use atlas_engine_http_client::HttpClientFactory;
-use atlas_engine_login::AuthManager;
 use atlas_engine_login::AtlasEngineAuth;
+use atlas_engine_login::AuthManager;
 use atlas_engine_login::RefreshTokenError;
 use atlas_engine_login::UnauthorizedRecovery;
 use atlas_engine_login::default_client::add_originator_header;
@@ -907,7 +907,8 @@ impl ModelClient {
             && is_openai
             && reasoning.summary.is_some())
         .then_some(StreamOptions {
-            reasoning_summary_delivery: atlas_engine_api::ReasoningSummaryDelivery::SequentialCutoff,
+            reasoning_summary_delivery:
+                atlas_engine_api::ReasoningSummaryDelivery::SequentialCutoff,
         });
         let include = vec!["reasoning.encrypted_content".to_string()];
         let verbosity = if model_info.support_verbosity {
@@ -1776,7 +1777,10 @@ impl ModelClientSession {
                 .client
                 .build_ws_client_metadata(responses_metadata, model_info.use_responses_lite);
             if let Some(turn_state) = self.turn_state.get() {
-                client_metadata.insert(X_ATLAS_AGENT_TURN_STATE_HEADER.to_string(), turn_state.clone());
+                client_metadata.insert(
+                    X_ATLAS_AGENT_TURN_STATE_HEADER.to_string(),
+                    turn_state.clone(),
+                );
             }
             match self
                 .websocket_connection(WebsocketConnectParams {

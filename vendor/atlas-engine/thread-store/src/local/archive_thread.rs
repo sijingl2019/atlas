@@ -8,8 +8,8 @@ use super::helpers::validated_rollout_file_name;
 use crate::ArchiveThreadsParams;
 use crate::ThreadStoreError;
 use crate::ThreadStoreResult;
-use chrono::Utc;
 use atlas_engine_rollout::RolloutReferenceIndex;
+use chrono::Utc;
 use tracing::warn;
 
 use super::thread_rollout_resolver;
@@ -87,11 +87,17 @@ async fn archive_thread_with_paths(
     let mut archived_path = None;
     let mut rollout_moves = Vec::new();
     for rollout_path in rollout_paths {
-        if rollout_path_is_archived(store.config.atlas_agent_home.as_path(), rollout_path.as_path()) {
+        if rollout_path_is_archived(
+            store.config.atlas_agent_home.as_path(),
+            rollout_path.as_path(),
+        ) {
             continue;
         }
         let canonical_rollout_path = scoped_rollout_path(
-            store.config.atlas_agent_home.join(atlas_engine_rollout::SESSIONS_SUBDIR),
+            store
+                .config
+                .atlas_agent_home
+                .join(atlas_engine_rollout::SESSIONS_SUBDIR),
             rollout_path.as_path(),
             "sessions",
         )?;
@@ -145,12 +151,12 @@ async fn archive_thread_with_paths(
 mod tests {
     use std::time::Duration;
 
-    use chrono::Utc;
     use atlas_engine_protocol::ThreadId;
     use atlas_engine_protocol::protocol::SessionSource;
     use atlas_engine_protocol::protocol::ThreadHistoryMode;
     use atlas_engine_rollout::ARCHIVED_SESSIONS_SUBDIR;
     use atlas_engine_utils_absolute_path::test_support::PathExt;
+    use chrono::Utc;
     use pretty_assertions::assert_eq;
     use tempfile::TempDir;
     use uuid::Uuid;

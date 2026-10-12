@@ -12,8 +12,9 @@
 use atlas_git::{GitCommand, GitErrorCode, GitErrorPayload};
 use serde::Serialize;
 use std::path::Path;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
+use crate::commands::git_autofetch::{GitAutoFetchState, AUTOFETCH_EVENT};
 use crate::commands::git_watcher::emit_synthetic_change;
 
 const US: char = '\u{1f}'; // unit separator for --format parsing
@@ -345,6 +346,25 @@ pub async fn git_merge_preview(
 // keeping older call sites working.
 
 fn run_remote_op(
+    app: &AppHandle,
+    path: &str,
+    kind: &'static str,
+    op_id: Option<String>,
+    args: &[&str],
+) -> Result<String, GitErrorPayload> {
+    // Background auto-fetch stays off this repository until we're done, and a
+    // successful fetch/pull restarts its timer (see `git_autofetch`).
+    let autofetch = app.state::<GitAutoFetchState>();
+    let _busy = autofetch.hold(Path::new(path));
+    let result = run_remote_op_inner(app, path, kind, op_id, args);
+    if result.is_ok() && matches!(kind, "fetch" | "pull") {
+        let status = autofetch.record_success(Path::new(path), std::time::SystemTime::now());
+        let _ = app.emit(AUTOFETCH_EVENT, status);
+    }
+    result
+}
+
+fn run_remote_op_inner(
     app: &AppHandle,
     path: &str,
     kind: &'static str,

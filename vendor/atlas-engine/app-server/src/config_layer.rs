@@ -23,9 +23,11 @@ pub(crate) fn config_layer_source_to_api(source: ConfigLayerSource) -> ApiConfig
             ApiConfigLayerSource::EnterpriseManaged { id, name }
         }
         ConfigLayerSource::User { file, profile } => ApiConfigLayerSource::User { file, profile },
-        ConfigLayerSource::Project { dot_atlas_agent_folder } => {
-            ApiConfigLayerSource::Project { dot_atlas_agent_folder }
-        }
+        ConfigLayerSource::Project {
+            dot_atlas_agent_folder,
+        } => ApiConfigLayerSource::Project {
+            dot_atlas_agent_folder,
+        },
         ConfigLayerSource::SessionFlags => ApiConfigLayerSource::SessionFlags,
         ConfigLayerSource::LegacyManagedConfigTomlFromFile { file } => {
             ApiConfigLayerSource::LegacyManagedConfigTomlFromFile { file }

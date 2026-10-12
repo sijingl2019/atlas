@@ -1860,23 +1860,25 @@ async fn run_scenario(scenario: &ScenarioSpec) -> Result<()> {
     let thread_store_id = format!("approval-scenario-{}", scenario.name);
     let model_catalog = bundled_models_response()?;
 
-    let mut builder = test_atlas_engine().with_model(model).with_config(move |config| {
-        config.model_catalog = Some(model_catalog);
-        // These scenarios assert tool behavior, not rollout persistence.
-        config.experimental_thread_store = ThreadStoreConfig::InMemory {
-            id: thread_store_id,
-        };
-        config.permissions.approval_policy = Constrained::allow_any(approval_policy);
-        config
-            .set_legacy_sandbox_policy(sandbox_policy.clone())
-            .expect("set sandbox policy");
-        for feature in features {
+    let mut builder = test_atlas_engine()
+        .with_model(model)
+        .with_config(move |config| {
+            config.model_catalog = Some(model_catalog);
+            // These scenarios assert tool behavior, not rollout persistence.
+            config.experimental_thread_store = ThreadStoreConfig::InMemory {
+                id: thread_store_id,
+            };
+            config.permissions.approval_policy = Constrained::allow_any(approval_policy);
             config
-                .features
-                .enable(feature)
-                .expect("test config should allow feature update");
-        }
-    });
+                .set_legacy_sandbox_policy(sandbox_policy.clone())
+                .expect("set sandbox policy");
+            for feature in features {
+                config
+                    .features
+                    .enable(feature)
+                    .expect("test config should allow feature update");
+            }
+        });
     if let Some(policy_src) = policy_src {
         builder = builder.with_pre_build_hook(move |home| {
             let rules_dir = home.join("rules");
@@ -2921,9 +2923,11 @@ touch {outside_path:?}
     )?;
 
     let approval_policy = AskForApproval::OnRequest;
-    let mut builder = test_atlas_engine().with_home(home).with_config(move |config| {
-        config.permissions.approval_policy = Constrained::allow_any(approval_policy);
-    });
+    let mut builder = test_atlas_engine()
+        .with_home(home)
+        .with_config(move |config| {
+            config.permissions.approval_policy = Constrained::allow_any(approval_policy);
+        });
     let test = builder.build(&server).await?;
     assert!(!outside_path.starts_with(test.config.cwd.as_path()));
     assert_active_workspace_permission_profile(&test);
@@ -3212,8 +3216,7 @@ async fn invalid_requested_prefix_rule_falls_back_for_compound_command() -> Resu
     let test = builder.build(&server).await?;
 
     let call_id = "invalid-prefix-rule";
-    let command =
-        "touch /tmp/atlas-engine-fallback-rule-test.txt && echo hello > /tmp/atlas-engine-fallback-rule-test.txt";
+    let command = "touch /tmp/atlas-engine-fallback-rule-test.txt && echo hello > /tmp/atlas-engine-fallback-rule-test.txt";
     let event = shell_event_with_prefix_rule(
         call_id,
         command,
@@ -3265,8 +3268,7 @@ async fn approving_fallback_rule_for_compound_command_works() -> Result<()> {
     let test = builder.build(&server).await?;
 
     let call_id = "invalid-prefix-rule";
-    let command =
-        "touch /tmp/atlas-engine-fallback-rule-test.txt && echo hello > /tmp/atlas-engine-fallback-rule-test.txt";
+    let command = "touch /tmp/atlas-engine-fallback-rule-test.txt && echo hello > /tmp/atlas-engine-fallback-rule-test.txt";
     let event = shell_event_with_prefix_rule(
         call_id,
         command,
@@ -3312,8 +3314,7 @@ async fn approving_fallback_rule_for_compound_command_works() -> Result<()> {
     wait_for_completion(&test).await;
 
     let call_id = "invalid-prefix-rule-again";
-    let command =
-        "touch /tmp/atlas-engine-fallback-rule-test.txt && echo hello > /tmp/atlas-engine-fallback-rule-test.txt";
+    let command = "touch /tmp/atlas-engine-fallback-rule-test.txt && echo hello > /tmp/atlas-engine-fallback-rule-test.txt";
     let event = shell_event_with_prefix_rule(
         call_id,
         command,

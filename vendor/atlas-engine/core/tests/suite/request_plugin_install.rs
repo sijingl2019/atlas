@@ -204,7 +204,10 @@ async fn build_gated_step_preparation_test(
     builder.build_with_auto_env(server).await
 }
 
-async fn start_gated_step_preparation(test: &TestAtlasEngine, server: &MockServer) -> Result<PathUri> {
+async fn start_gated_step_preparation(
+    test: &TestAtlasEngine,
+    server: &MockServer,
+) -> Result<PathUri> {
     let prior_recommendation_count = server
         .received_requests()
         .await
@@ -257,7 +260,10 @@ async fn start_gated_step_preparation(test: &TestAtlasEngine, server: &MockServe
         .map_err(Into::into)
 }
 
-async fn start_install_turn(test: &TestAtlasEngine, prompt: &str) -> Result<ElicitationRequestEvent> {
+async fn start_install_turn(
+    test: &TestAtlasEngine,
+    prompt: &str,
+) -> Result<ElicitationRequestEvent> {
     let (sandbox_policy, permission_profile) =
         turn_permission_fields(PermissionProfile::Disabled, test.config.cwd.as_path());
     test.atlas_engine
@@ -283,11 +289,13 @@ async fn start_install_turn(test: &TestAtlasEngine, prompt: &str) -> Result<Elic
         )
         .await?;
 
-    Ok(wait_for_event_match(&test.atlas_engine, |event| match event {
-        EventMsg::ElicitationRequest(request) => Some(request.clone()),
-        _ => None,
-    })
-    .await)
+    Ok(
+        wait_for_event_match(&test.atlas_engine, |event| match event {
+            EventMsg::ElicitationRequest(request) => Some(request.clone()),
+            _ => None,
+        })
+        .await,
+    )
 }
 
 async fn resolve_install_elicitation(
@@ -817,7 +825,9 @@ async fn run_remote_plugin_install_metadata_case() -> Result<()> {
                 payload["events"].as_array().and_then(|events| {
                     events
                         .iter()
-                        .find(|event| event["event_type"] == "atlas_engine_plugin_install_requested")
+                        .find(|event| {
+                            event["event_type"] == "atlas_engine_plugin_install_requested"
+                        })
                         .cloned()
                 })
             })
@@ -971,7 +981,9 @@ async fn run_remote_plugin_install_refresh_case(refreshed_tools: RefreshedAppsTo
         "the refreshed installed-plugin cache should filter the cached recommendation"
     );
     drop(requests);
-    test.atlas_engine.refresh_runtime_config(test.config.clone()).await;
+    test.atlas_engine
+        .refresh_runtime_config(test.config.clone())
+        .await;
     test.submit_turn("check whether Calendar is still installed")
         .await?;
     let requests = mock.requests();

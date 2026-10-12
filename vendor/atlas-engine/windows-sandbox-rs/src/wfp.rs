@@ -63,9 +63,11 @@ use filter_specs::FilterSpec;
 
 const SESSION_NAME: &str = "Atlas Agent Windows Sandbox WFP";
 const PROVIDER_NAME: &str = "Atlas Agent Windows Sandbox WFP";
-const PROVIDER_DESCRIPTION: &str = "Persistent WFP provider for Atlas Agent Windows sandbox filters";
+const PROVIDER_DESCRIPTION: &str =
+    "Persistent WFP provider for Atlas Agent Windows sandbox filters";
 const SUBLAYER_NAME: &str = "Atlas Agent Windows Sandbox WFP";
-const SUBLAYER_DESCRIPTION: &str = "Persistent WFP sublayer for Atlas Agent Windows sandbox filters";
+const SUBLAYER_DESCRIPTION: &str =
+    "Persistent WFP sublayer for Atlas Agent Windows sandbox filters";
 
 // WFP identifies persistent providers, sublayers, and filters by stable GUIDs.
 // These values are Atlas Agent-owned identities; do not regenerate them unless we

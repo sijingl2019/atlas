@@ -843,7 +843,12 @@ async fn mount_second_compact_sequence(server: &MockServer) -> ResponseMock {
 async fn start_test_conversation(
     server: &MockServer,
     model: Option<&str>,
-) -> (Arc<TempDir>, Config, Arc<ThreadManager>, Arc<AtlasEngineThread>) {
+) -> (
+    Arc<TempDir>,
+    Config,
+    Arc<ThreadManager>,
+    Arc<AtlasEngineThread>,
+) {
     let base_url = format!("{}/v1", server.uri());
     let model = model.map(str::to_string);
     let mut builder = test_atlas_engine().with_config(move |config| {
@@ -857,7 +862,12 @@ async fn start_test_conversation(
     let test = Box::pin(builder.build(server))
         .await
         .expect("create conversation");
-    (test.home, test.config, test.thread_manager, test.atlas_engine)
+    (
+        test.home,
+        test.config,
+        test.thread_manager,
+        test.atlas_engine,
+    )
 }
 
 async fn user_turn(conversation: &Arc<AtlasEngineThread>, text: &str) {

@@ -17,7 +17,6 @@
     "core:webview:allow-set-webview-zoom",
     "dialog:default",
     "opener:default",
-    "notification:default",
     "core:window:allow-set-badge-count"
   ]
 }

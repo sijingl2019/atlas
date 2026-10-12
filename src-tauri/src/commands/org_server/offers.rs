@@ -53,7 +53,9 @@ impl OrgOfferDecision {
 
     /// The one log line per session request.
     pub fn log_line(self, agent: &str, http_mcp: bool, org_access: bool) -> String {
-        let head = format!("org tool server offer: agent={agent} http_mcp={http_mcp} org_access={org_access}");
+        let head = format!(
+            "org tool server offer: agent={agent} http_mcp={http_mcp} org_access={org_access}"
+        );
         match self {
             Self::Included => format!("{head} org_server=included"),
             Self::Omitted(reason) => format!("{head} org_server=omitted reason=\"{reason}\""),
@@ -91,7 +93,11 @@ pub struct OrgOffer {
 
 impl OrgOffer {
     pub fn new(gate: OrgAccessGate, orgs: Arc<dyn SessionOrgs>) -> Self {
-        Self { gate, orgs, tools: None }
+        Self {
+            gate,
+            orgs,
+            tools: None,
+        }
     }
 
     /// Describe outward calls with `tools` — the same tools the server
@@ -121,10 +127,20 @@ impl OrgOffer {
         let signed_in = setting_on && self.orgs.signed_in();
         // Bound means bound to a Workspace: a binding made before the server's
         // Workspace id was recorded names an organisation but nothing to read.
-        let scope = if signed_in { self.orgs.bound_to(cwd) } else { None }
-            .filter(|scope| scope.workspace_id.is_some());
-        let decision =
-            OrgOfferDecision::decide(http_mcp, org_access, setting_on, signed_in, scope.is_some(), server_running);
+        let scope = if signed_in {
+            self.orgs.bound_to(cwd)
+        } else {
+            None
+        }
+        .filter(|scope| scope.workspace_id.is_some());
+        let decision = OrgOfferDecision::decide(
+            http_mcp,
+            org_access,
+            setting_on,
+            signed_in,
+            scope.is_some(),
+            server_running,
+        );
         match decision {
             OrgOfferDecision::Included => (decision, scope),
             OrgOfferDecision::Omitted(_) => (decision, None),

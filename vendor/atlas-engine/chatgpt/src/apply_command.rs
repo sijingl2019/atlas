@@ -1,11 +1,11 @@
 // Modified by Atlas from upstream OpenAI Codex (Apache-2.0). See CONTEXT.md.
 use std::path::PathBuf;
 
-use clap::Parser;
 use atlas_engine_core::config::Config;
 use atlas_engine_git_utils::ApplyGitRequest;
 use atlas_engine_git_utils::apply_git_patch;
 use atlas_engine_utils_cli::CliConfigOverrides;
+use clap::Parser;
 
 use crate::get_task::GetTaskResponse;
 use crate::get_task::OutputItem;

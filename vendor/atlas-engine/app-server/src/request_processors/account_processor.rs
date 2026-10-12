@@ -4,10 +4,10 @@ use super::bedrock_auth::set_user_model_provider_to_bedrock;
 use super::*;
 use crate::auth_mode::auth_mode_to_api;
 use crate::external_auth::ExternalAuthBridge;
-use chrono::DateTime;
 use atlas_engine_app_server_protocol::DesktopOnboardingEntrypoint;
 use atlas_engine_login::LoginOnboardingEntrypoint;
 use atlas_engine_model_provider::is_supported_amazon_bedrock_region;
+use chrono::DateTime;
 
 mod rate_limit_resets;
 
@@ -312,8 +312,12 @@ impl AccountRequestProcessor {
                 } else {
                     LoginSuccessPage::default()
                 };
-                self.login_chatgpt_v2(request_id, atlas_engine_streamlined_login, login_success_page)
-                    .await;
+                self.login_chatgpt_v2(
+                    request_id,
+                    atlas_engine_streamlined_login,
+                    login_success_page,
+                )
+                .await;
             }
             LoginAccountParams::ChatgptDeviceCode => {
                 self.login_chatgpt_device_code_v2(request_id).await;
@@ -511,9 +515,9 @@ impl AccountRequestProcessor {
                 && let Ok(open_app_url) = std::env::var(LOGIN_OPEN_APP_URL_OVERRIDE_ENV_VAR)
                 && !open_app_url.trim().is_empty()
             {
-                *url = open_app_url
-                    .parse()
-                    .map_err(|err| internal_error(format!("invalid Atlas Agent open app URL: {err}")))?;
+                *url = open_app_url.parse().map_err(|err| {
+                    internal_error(format!("invalid Atlas Agent open app URL: {err}"))
+                })?;
             }
             opts
         };
@@ -1089,8 +1093,9 @@ impl AccountRequestProcessor {
             client.get_rate_limits_with_reset_credits(),
             Self::detailed_rate_limit_reset_credits(&client),
         );
-        let response = response
-            .map_err(|err| internal_error(format!("failed to fetch atlas-agent rate limits: {err}")))?;
+        let response = response.map_err(|err| {
+            internal_error(format!("failed to fetch atlas-agent rate limits: {err}"))
+        })?;
         if response.rate_limits.is_empty() {
             return Err(internal_error(
                 "failed to fetch atlas-agent rate limits: no snapshots returned",

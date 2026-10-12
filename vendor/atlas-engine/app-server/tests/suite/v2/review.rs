@@ -345,7 +345,9 @@ async fn review_start_with_detached_delivery_returns_new_thread_id() -> Result<(
 
     let atlas_agent_home = TempDir::new()?;
     create_config_toml(atlas_agent_home.path(), &server.uri())?;
-    let colliding_skill_dir = atlas_agent_home.path().join("skills/review-agent-collision");
+    let colliding_skill_dir = atlas_agent_home
+        .path()
+        .join("skills/review-agent-collision");
     std::fs::create_dir_all(&colliding_skill_dir)?;
     std::fs::write(
         colliding_skill_dir.join("SKILL.md"),

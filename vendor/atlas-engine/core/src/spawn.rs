@@ -19,7 +19,8 @@ use atlas_engine_protocol::shell_environment::is_non_inheritable_env_var;
 ///
 /// We may try to have just one environment variable for all sandboxing
 /// attributes, so this may change in the future.
-pub const ATLAS_AGENT_SANDBOX_NETWORK_DISABLED_ENV_VAR: &str = "ATLAS_AGENT_SANDBOX_NETWORK_DISABLED";
+pub const ATLAS_AGENT_SANDBOX_NETWORK_DISABLED_ENV_VAR: &str =
+    "ATLAS_AGENT_SANDBOX_NETWORK_DISABLED";
 
 /// Should be set when the process is spawned under a sandbox. Currently, the
 /// value is "seatbelt" for macOS, but it may change in the future to

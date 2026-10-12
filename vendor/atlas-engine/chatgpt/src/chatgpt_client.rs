@@ -2,8 +2,8 @@
 use atlas_engine_core::config::Config;
 use atlas_engine_http_client::HttpClient;
 use atlas_engine_http_client::HttpClientFactory;
-use atlas_engine_login::AuthManager;
 use atlas_engine_login::AtlasEngineAuth;
+use atlas_engine_login::AuthManager;
 use atlas_engine_login::default_client::RESIDENCY_HEADER_NAME;
 use atlas_engine_login::default_client::create_client;
 use atlas_engine_login::default_client::create_client_with_chatgpt_cookies;

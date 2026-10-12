@@ -42,12 +42,14 @@ export function useSessionUsage(tabId: string, open: boolean): SessionUsageView 
   const contextUsed = useChatStore((s) => s.sessions[tabId]?.contextUsage?.used ?? null);
   const contextSize = useChatStore((s) => s.sessions[tabId]?.contextUsage?.size ?? null);
   const contextCost = useChatStore((s) => s.sessions[tabId]?.contextUsage?.cost ?? 0);
+  const contextCurrency = useChatStore((s) => s.sessions[tabId]?.contextUsage?.currency ?? null);
   const input = useChatStore((s) => s.sessions[tabId]?.usage?.input_tokens ?? null);
   const output = useChatStore((s) => s.sessions[tabId]?.usage?.output_tokens ?? null);
   const cacheRead = useChatStore((s) => s.sessions[tabId]?.usage?.cache_read_tokens ?? null);
   const cacheWrite = useChatStore((s) => s.sessions[tabId]?.usage?.cache_creation_tokens ?? null);
   const reasoning = useChatStore((s) => s.sessions[tabId]?.usage?.reasoning_tokens ?? null);
   const usageCost = useChatStore((s) => s.sessions[tabId]?.usage?.cost ?? 0);
+  const usageCurrency = useChatStore((s) => s.sessions[tabId]?.usage?.currency ?? null);
   const compacting = useChatStore((s) => s.sessions[tabId]?.compacting ?? false);
   const pendingSavedTokens = useChatStore((s) => s.sessions[tabId]?.pendingSavedTokens ?? null);
   // A signature, not the object: the engine re-announces the same snapshot
@@ -129,7 +131,12 @@ export function useSessionUsage(tabId: string, open: boolean): SessionUsageView 
         cacheRead,
         cacheWrite,
         reasoning,
-        agentCost: usageCost > 0 ? usageCost : contextCost > 0 ? contextCost : null,
+        agentCost:
+          usageCost > 0
+            ? { amount: usageCost, currency: usageCurrency ?? "USD" }
+            : contextCost > 0
+              ? { amount: contextCost, currency: contextCurrency ?? "USD" }
+              : null,
         compacting,
         pendingSavedTokens,
         rateLimits,
@@ -149,7 +156,9 @@ export function useSessionUsage(tabId: string, open: boolean): SessionUsageView 
       cacheWrite,
       reasoning,
       usageCost,
+      usageCurrency,
       contextCost,
+      contextCurrency,
       compacting,
       pendingSavedTokens,
       rateLimits,

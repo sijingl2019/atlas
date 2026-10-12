@@ -13,8 +13,8 @@ use atlas_engine_core::content_items_to_text;
 use atlas_engine_core::detached_memory_responses_metadata;
 use atlas_engine_core::resolve_installation_id;
 use atlas_engine_features::Feature;
-use atlas_engine_login::AuthManager;
 use atlas_engine_login::AtlasEngineAuth;
+use atlas_engine_login::AuthManager;
 use atlas_engine_login::auth::AgentIdentityAuthPolicy;
 use atlas_engine_login::auth_env_telemetry::collect_auth_env_telemetry;
 use atlas_engine_login::default_client::originator;
@@ -87,7 +87,9 @@ fn build_session_telemetry(
 ) -> SessionTelemetry {
     let auth = auth_manager.auth_cached();
     let auth = auth.as_ref();
-    let auth_mode = auth.map(AtlasEngineAuth::auth_mode).map(TelemetryAuthMode::from);
+    let auth_mode = auth
+        .map(AtlasEngineAuth::auth_mode)
+        .map(TelemetryAuthMode::from);
     let account_id = auth.and_then(AtlasEngineAuth::get_account_id);
     let account_email = auth.and_then(AtlasEngineAuth::get_account_email);
     let auth_env_telemetry = collect_auth_env_telemetry(
@@ -300,7 +302,9 @@ impl MemoryStartupContext {
                 ResponseEvent::OutputTextDelta(delta) => result.push_str(&delta),
                 ResponseEvent::OutputItemDone(item) => {
                     if result.is_empty()
-                        && let atlas_engine_protocol::models::ResponseItem::Message { content, .. } = item
+                        && let atlas_engine_protocol::models::ResponseItem::Message {
+                            content, ..
+                        } = item
                         && let Some(text) = content_items_to_text(&content)
                     {
                         result.push_str(&text);

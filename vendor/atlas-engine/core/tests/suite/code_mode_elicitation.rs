@@ -53,13 +53,12 @@ impl CodeModeElicitationHarness {
         configure: impl FnOnce(&mut Config) + Send + 'static,
     ) -> Result<Self> {
         let server = responses::start_mock_server().await;
-        let mut builder =
-            test_atlas_engine()
-                .with_model("test-gpt-5.1-codex")
-                .with_config(move |config| {
-                    let _ = config.features.enable(Feature::CodeMode);
-                    configure(config);
-                });
+        let mut builder = test_atlas_engine()
+            .with_model("test-gpt-5.1-codex")
+            .with_config(move |config| {
+                let _ = config.features.enable(Feature::CodeMode);
+                configure(config);
+            });
         let test = builder.build_with_auto_env(&server).await?;
         let follow_up = mount_code_mode_responses(&server, code).await;
         let turn_id = submit_turn(&test, permission_profile).await?;
@@ -113,7 +112,10 @@ async fn mount_code_mode_responses(server: &MockServer, code: &str) -> ResponseM
     .await
 }
 
-async fn submit_turn(test: &TestAtlasEngine, permission_profile: PermissionProfile) -> Result<String> {
+async fn submit_turn(
+    test: &TestAtlasEngine,
+    permission_profile: PermissionProfile,
+) -> Result<String> {
     let (sandbox_policy, permission_profile) =
         turn_permission_fields(permission_profile, test.config.cwd.as_path());
     test.atlas_engine
@@ -139,11 +141,13 @@ async fn submit_turn(test: &TestAtlasEngine, permission_profile: PermissionProfi
         )
         .await?;
 
-    Ok(wait_for_event_match(&test.atlas_engine, |event| match event {
-        EventMsg::TurnStarted(event) => Some(event.turn_id.clone()),
-        _ => None,
-    })
-    .await)
+    Ok(
+        wait_for_event_match(&test.atlas_engine, |event| match event {
+            EventMsg::TurnStarted(event) => Some(event.turn_id.clone()),
+            _ => None,
+        })
+        .await,
+    )
 }
 
 #[cfg_attr(windows, ignore = "no exec_command on Windows")]

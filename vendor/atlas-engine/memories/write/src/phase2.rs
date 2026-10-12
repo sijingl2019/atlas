@@ -255,7 +255,9 @@ mod job {
             atlas_engine_state::Phase2JobClaimOutcome::SkippedCooldown => {
                 return Err("skipped_cooldown");
             }
-            atlas_engine_state::Phase2JobClaimOutcome::SkippedRunning => return Err("skipped_running"),
+            atlas_engine_state::Phase2JobClaimOutcome::SkippedRunning => {
+                return Err("skipped_running");
+            }
         };
 
         Ok(Claim { token, watermark })

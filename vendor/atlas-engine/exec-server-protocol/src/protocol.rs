@@ -2,7 +2,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use atlas_engine_file_system::FileSystemSandboxContext;
 pub use atlas_engine_file_system::WalkOptions;
 pub use atlas_engine_file_system::WalkOutcome;
@@ -12,6 +11,7 @@ use atlas_engine_protocol::capabilities::SelectedCapabilityRoot;
 use atlas_engine_protocol::config_types::ShellEnvironmentPolicyInherit;
 use atlas_engine_shell_command::shell_detect::DetectedShell;
 use atlas_engine_utils_path_uri::PathUri;
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -166,7 +166,7 @@ impl EnvironmentInfo {
             if let Some(path) = std::env::var_os(name)
                 .filter(|path| !path.is_empty())
                 .filter(|path| cfg!(unix) || std::path::Path::new(path).is_absolute())
-                .and_then(&normalize_temp_path)
+                .and_then(normalize_temp_path)
                 && !temporary_directories.contains(&path)
             {
                 temporary_directories.push(path);

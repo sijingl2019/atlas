@@ -739,8 +739,9 @@ collaboration_modes = "true""#;
     std::fs::write(&config_path, contents).expect("write config");
 
     let _guard = atlas_engine_utils_absolute_path::AbsolutePathBufGuard::new(tmp.path());
-    let error = atlas_engine_config::config_error_from_typed_toml::<ConfigToml>(&config_path, contents)
-        .expect("schema error");
+    let error =
+        atlas_engine_config::config_error_from_typed_toml::<ConfigToml>(&config_path, contents)
+            .expect("schema error");
 
     let value_line = contents.lines().nth(1).expect("value line");
     let value_column = value_line.find("\"true\"").expect("value") + 1;
@@ -1084,8 +1085,8 @@ flag = false
 #[tokio::test]
 async fn managed_preferences_expand_home_directory_in_workspace_write_roots() -> anyhow::Result<()>
 {
-    use base64::Engine;
     use atlas_engine_protocol::protocol::SandboxPolicy;
+    use base64::Engine;
 
     let Some(home) = dirs::home_dir() else {
         return Ok(());
@@ -1186,7 +1187,8 @@ allowed_sandbox_modes = ["read-only"]
 
 #[cfg(target_os = "macos")]
 #[tokio::test]
-async fn managed_preferences_requirements_resolve_paths_against_atlas_agent_home() -> anyhow::Result<()> {
+async fn managed_preferences_requirements_resolve_paths_against_atlas_agent_home()
+-> anyhow::Result<()> {
     use base64::Engine;
 
     let tmp = tempdir()?;
@@ -1215,7 +1217,8 @@ model_catalog_json = "models.json"
         &atlas_engine_config::NoopThreadConfigLoader,
     )
     .await?;
-    let expected_log_dir = AbsolutePathBuf::resolve_path_against_base("~/.atlas-agent/logs", &atlas_agent_home);
+    let expected_log_dir =
+        AbsolutePathBuf::resolve_path_against_base("~/.atlas-agent/logs", &atlas_agent_home);
     let requirements = layers.requirements_toml();
 
     assert_eq!(
@@ -2487,8 +2490,11 @@ deny_read = ["secrets/**"]
     assert_eq!(
         filesystem.deny_read,
         Some(vec![
-            FilesystemDenyReadPattern::from_input(&format!("{}/secrets/**", atlas_agent_home.display()))
-                .expect("bundle requirements path should resolve against atlas_agent_home")
+            FilesystemDenyReadPattern::from_input(&format!(
+                "{}/secrets/**",
+                atlas_agent_home.display()
+            ))
+            .expect("bundle requirements path should resolve against atlas_agent_home")
         ])
     );
 
@@ -2653,12 +2659,17 @@ async fn project_layers_prefer_closest_cwd() -> std::io::Result<()> {
     let project_layers: Vec<_> = layers
         .layers_high_to_low()
         .filter_map(|layer| match &layer.name {
-            ConfigLayerSource::Project { dot_atlas_agent_folder } => Some(dot_atlas_agent_folder),
+            ConfigLayerSource::Project {
+                dot_atlas_agent_folder,
+            } => Some(dot_atlas_agent_folder),
             _ => None,
         })
         .collect();
     assert_eq!(project_layers.len(), 2);
-    assert_eq!(project_layers[0].as_path(), nested.join(".atlas-agent").as_path());
+    assert_eq!(
+        project_layers[0].as_path(),
+        nested.join(".atlas-agent").as_path()
+    );
     assert_eq!(
         project_layers[1].as_path(),
         project_root.join(".atlas-agent").as_path()
@@ -2783,8 +2794,16 @@ async fn malformed_untrusted_linked_worktree_does_not_read_root_hooks() -> std::
     tokio::fs::create_dir_all(worktree_root.join(".atlas-agent")).await?;
     tokio::fs::create_dir_all(repo_root.join(".atlas-agent")).await?;
     write_linked_worktree_pointer(&repo_root, &worktree_root).await?;
-    tokio::fs::write(worktree_root.join(".atlas-agent").join(CONFIG_TOML_FILE), "foo =").await?;
-    tokio::fs::write(repo_root.join(".atlas-agent").join(CONFIG_TOML_FILE), [0xff]).await?;
+    tokio::fs::write(
+        worktree_root.join(".atlas-agent").join(CONFIG_TOML_FILE),
+        "foo =",
+    )
+    .await?;
+    tokio::fs::write(
+        repo_root.join(".atlas-agent").join(CONFIG_TOML_FILE),
+        [0xff],
+    )
+    .await?;
 
     let atlas_agent_home = tmp.path().join("home");
     tokio::fs::create_dir_all(&atlas_agent_home).await?;
@@ -2933,7 +2952,9 @@ async fn nested_project_root_markers_do_not_redirect_regular_repo_hooks() -> std
     assert_eq!(project_layers.len(), 2);
     assert_eq!(
         project_layers[0].hooks_config_folder(),
-        Some(AbsolutePathBuf::from_absolute_path(nested.join(".atlas-agent"))?)
+        Some(AbsolutePathBuf::from_absolute_path(
+            nested.join(".atlas-agent")
+        )?)
     );
     assert_eq!(
         project_layers[1].hooks_config_folder(),
@@ -2968,8 +2989,8 @@ fn project_hook_command(layer: &ConfigLayerEntry) -> Option<&str> {
 }
 
 #[tokio::test]
-async fn project_paths_resolve_relative_to_dot_atlas_engine_and_override_in_order() -> std::io::Result<()>
-{
+async fn project_paths_resolve_relative_to_dot_atlas_engine_and_override_in_order()
+-> std::io::Result<()> {
     let tmp = tempdir()?;
     let project_root = tmp.path().join("project");
     let nested = project_root.join("child");
@@ -2983,8 +3004,16 @@ model_instructions_file = "root.txt"
     let nested_cfg = r#"
 model_instructions_file = "child.txt"
 "#;
-    tokio::fs::write(project_root.join(".atlas-agent").join(CONFIG_TOML_FILE), root_cfg).await?;
-    tokio::fs::write(nested.join(".atlas-agent").join(CONFIG_TOML_FILE), nested_cfg).await?;
+    tokio::fs::write(
+        project_root.join(".atlas-agent").join(CONFIG_TOML_FILE),
+        root_cfg,
+    )
+    .await?;
+    tokio::fs::write(
+        nested.join(".atlas-agent").join(CONFIG_TOML_FILE),
+        nested_cfg,
+    )
+    .await?;
     tokio::fs::write(
         project_root.join(".atlas-agent").join("root.txt"),
         "root instructions",
@@ -3084,7 +3113,8 @@ async fn inline_instructions_set_base_instructions() -> std::io::Result<()> {
 }
 
 #[tokio::test]
-async fn project_layer_is_added_when_dot_atlas_engine_exists_without_config_toml() -> std::io::Result<()> {
+async fn project_layer_is_added_when_dot_atlas_engine_exists_without_config_toml()
+-> std::io::Result<()> {
     let tmp = tempdir()?;
     let project_root = tmp.path().join("project");
     let nested = project_root.join("child");
@@ -3118,7 +3148,9 @@ async fn project_layer_is_added_when_dot_atlas_engine_exists_without_config_toml
         .collect();
     let expected_project_layer = ConfigLayerEntry::new(
         ConfigLayerSource::Project {
-            dot_atlas_agent_folder: AbsolutePathBuf::from_absolute_path(project_root.join(".atlas-agent"))?,
+            dot_atlas_agent_folder: AbsolutePathBuf::from_absolute_path(
+                project_root.join(".atlas-agent"),
+            )?,
         },
         TomlValue::Table(toml::map::Map::new()),
     );
@@ -3844,12 +3876,17 @@ async fn project_root_markers_supports_alternate_markers() -> std::io::Result<()
     let project_layers: Vec<_> = layers
         .layers_high_to_low()
         .filter_map(|layer| match &layer.name {
-            ConfigLayerSource::Project { dot_atlas_agent_folder } => Some(dot_atlas_agent_folder),
+            ConfigLayerSource::Project {
+                dot_atlas_agent_folder,
+            } => Some(dot_atlas_agent_folder),
             _ => None,
         })
         .collect();
     assert_eq!(project_layers.len(), 2);
-    assert_eq!(project_layers[0].as_path(), nested.join(".atlas-agent").as_path());
+    assert_eq!(
+        project_layers[0].as_path(),
+        nested.join(".atlas-agent").as_path()
+    );
     assert_eq!(
         project_layers[1].as_path(),
         project_root.join(".atlas-agent").as_path()
@@ -3904,7 +3941,9 @@ mod requirements_exec_policy_tests {
         let dot_atlas_agent_folder = AbsolutePathBuf::from_absolute_path(dot_atlas_agent_folder)
             .expect("absolute dot_atlas_agent_folder");
         let layer = ConfigLayerEntry::new(
-            ConfigLayerSource::Project { dot_atlas_agent_folder },
+            ConfigLayerSource::Project {
+                dot_atlas_agent_folder,
+            },
             TomlValue::Table(Default::default()),
         );
         ConfigLayerStack::new(vec![layer], requirements, ConfigRequirementsToml::default())
@@ -4117,8 +4156,10 @@ prefix_rules = []
                 ]
             "#,
         );
-        let config_stack =
-            config_stack_for_dot_atlas_agent_folder_with_requirements(temp_dir.path(), requirements);
+        let config_stack = config_stack_for_dot_atlas_agent_folder_with_requirements(
+            temp_dir.path(),
+            requirements,
+        );
 
         let policy = load_exec_policy(&config_stack).await?;
 
@@ -4156,8 +4197,10 @@ prefix_rules = []
                 ]
             "#,
         );
-        let config_stack =
-            config_stack_for_dot_atlas_agent_folder_with_requirements(temp_dir.path(), requirements);
+        let config_stack = config_stack_for_dot_atlas_agent_folder_with_requirements(
+            temp_dir.path(),
+            requirements,
+        );
 
         let policy = load_exec_policy(&config_stack).await?;
 

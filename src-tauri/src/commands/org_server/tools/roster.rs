@@ -7,8 +7,8 @@ use serde_json::{json, Value};
 use super::super::cloud::CurrentSessionQuery;
 use super::super::OrgScope;
 use super::{
-    conversation_json, member_json, resolve_conversation, resolve_member, tool_error, tool_json, OrgTools,
-    NOT_RECORDED_YET,
+    conversation_json, member_json, resolve_conversation, resolve_member, tool_error, tool_json,
+    OrgTools, NOT_RECORDED_YET,
 };
 use crate::commands::memory_server::Grant;
 impl OrgTools {
@@ -21,7 +21,11 @@ impl OrgTools {
             Ok(caller) => caller,
             Err(e) => return tool_error(e.to_string()),
         };
-        let query = CurrentSessionQuery { scope, native_session_id: &grant.session_id, cwd: &grant.cwd };
+        let query = CurrentSessionQuery {
+            scope,
+            native_session_id: &grant.session_id,
+            cwd: &grant.cwd,
+        };
         let current = match self.cloud.current_session(query).await {
             Ok(current) => current,
             Err(e) => return tool_error(e.to_string()),
@@ -35,7 +39,11 @@ impl OrgTools {
                     "title": session.title,
                     "live": session.live,
                 });
-                match self.cloud.comments(&scope.org_id, &session.workspace_id, &session.id).await {
+                match self
+                    .cloud
+                    .comments(&scope.org_id, &session.workspace_id, &session.id)
+                    .await
+                {
                     Ok(comments) => {
                         let unresolved = comments
                             .iter()
@@ -75,7 +83,9 @@ impl OrgTools {
             Err(e) => return tool_error(e.to_string()),
         };
         match name {
-            None => tool_json(json!({ "members": roster.iter().map(member_json).collect::<Vec<_>>() })),
+            None => {
+                tool_json(json!({ "members": roster.iter().map(member_json).collect::<Vec<_>>() }))
+            }
             Some(name) => match resolve_member(&roster, name) {
                 Ok(member) => tool_json(json!({ "member": member_json(&member) })),
                 Err(answer) => answer,
@@ -87,7 +97,11 @@ impl OrgTools {
     /// channels they could join, or the one a name resolves to. The roster is
     /// read only to name the people in a DM; when it cannot be, the DMs keep
     /// their member ids and the list still answers.
-    pub(super) async fn conversations(&self, scope: &OrgScope, name: Option<&str>) -> CallToolResult {
+    pub(super) async fn conversations(
+        &self,
+        scope: &OrgScope,
+        name: Option<&str>,
+    ) -> CallToolResult {
         let conversations = match self.cloud.conversations(&scope.org_id).await {
             Ok(conversations) => conversations,
             Err(e) => return tool_error(e.to_string()),
@@ -104,7 +118,10 @@ impl OrgTools {
         } else {
             None
         };
-        let listed: Vec<Value> = chosen.iter().map(|c| conversation_json(c, roster.as_deref())).collect();
+        let listed: Vec<Value> = chosen
+            .iter()
+            .map(|c| conversation_json(c, roster.as_deref()))
+            .collect();
         match name {
             None => tool_json(json!({ "conversations": listed })),
             Some(_) => tool_json(json!({ "conversation": listed[0] })),

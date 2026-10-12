@@ -1,11 +1,10 @@
-//! Wire shape for session-scoped delta events — FROZEN.
+//! Wire shape for session-scoped delta events (additive-only; see [`crate::types`]).
 //!
 //! One change to one session, routed through a [`DeltaSink`] the host provides
 //! (typically a window-event emitter) and fanned out on an [`EventBus`] for
 //! in-process subscribers.
 //!
-//! Both ACP stacks produce these: the old one from its ACP notifications, the
-//! ported one by projecting thread events (`atlas-agent-delta`). See
+//! They are produced by projecting thread events (`atlas-agent-delta`). See
 //! [`crate::types`] for why they live in a crate of their own.
 
 use std::sync::Arc;
@@ -129,6 +128,9 @@ pub enum SessionDelta {
         used: u64,
         size: u64,
         cost: f64,
+        /// ISO 4217 code `cost` is in; `None` means USD, as on `Usage`.
+        #[serde(default)]
+        currency: Option<String>,
     },
     /// Context compaction is running (`active = true`) or just finished.
     Compaction {

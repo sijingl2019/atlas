@@ -10,7 +10,6 @@
 //! byte-for-byte. Filesystem publishing and SQLite projection intentionally live outside this
 //! module.
 
-use chrono::DateTime;
 use atlas_engine_protocol::ThreadId;
 use atlas_engine_protocol::items::ReasoningItem;
 use atlas_engine_protocol::items::TurnItem;
@@ -23,6 +22,7 @@ use atlas_engine_protocol::protocol::TurnCompleteEvent;
 use atlas_engine_protocol::protocol::TurnStartedEvent;
 use atlas_engine_rollout::RolloutItem;
 use atlas_engine_rollout::RolloutLine;
+use chrono::DateTime;
 use std::collections::HashSet;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
@@ -279,8 +279,10 @@ impl LegacyRolloutCanonicalizer {
                     }
                 } else {
                     let item = RolloutItem::EventMsg(event);
-                    if atlas_engine_rollout::is_persisted_rollout_item(&item, ThreadHistoryMode::Paginated)
-                    {
+                    if atlas_engine_rollout::is_persisted_rollout_item(
+                        &item,
+                        ThreadHistoryMode::Paginated,
+                    ) {
                         self.write_item(writer, &timestamp, item).await?;
                     }
                 }

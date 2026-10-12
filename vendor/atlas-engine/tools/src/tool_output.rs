@@ -202,12 +202,13 @@ fn response_input_to_code_mode_result(response: ResponseInputItem) -> JsonValue 
                     | atlas_engine_protocol::models::ContentItem::OutputText { text } => {
                         FunctionCallOutputContentItem::InputText { text }
                     }
-                    atlas_engine_protocol::models::ContentItem::InputImage { image_url, detail } => {
-                        FunctionCallOutputContentItem::InputImage {
-                            image_url,
-                            detail: detail.or(Some(DEFAULT_IMAGE_DETAIL)),
-                        }
-                    }
+                    atlas_engine_protocol::models::ContentItem::InputImage {
+                        image_url,
+                        detail,
+                    } => FunctionCallOutputContentItem::InputImage {
+                        image_url,
+                        detail: detail.or(Some(DEFAULT_IMAGE_DETAIL)),
+                    },
                     atlas_engine_protocol::models::ContentItem::InputAudio { audio_url } => {
                         FunctionCallOutputContentItem::InputAudio { audio_url }
                     }

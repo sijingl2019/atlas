@@ -1811,9 +1811,10 @@ async fn migration_apply_conflicts_with_rollout_maintenance() {
         vec![user_message("maintenance question")],
     );
     let original = fs::read(&path).expect("read legacy rollout");
-    let _maintenance_guard = atlas_engine_rollout::try_acquire_rollout_maintenance_lock(home.path())
-        .expect("acquire rollout maintenance lock")
-        .expect("claim rollout maintenance lock");
+    let _maintenance_guard =
+        atlas_engine_rollout::try_acquire_rollout_maintenance_lock(home.path())
+            .expect("acquire rollout maintenance lock")
+            .expect("claim rollout maintenance lock");
     let store = LocalThreadStore::new(test_config(home.path()), /*state_db*/ None);
 
     let error = store

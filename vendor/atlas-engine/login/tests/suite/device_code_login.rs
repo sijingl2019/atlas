@@ -2,13 +2,13 @@
 // Modified by Atlas from upstream OpenAI Codex (Apache-2.0). See CONTEXT.md.
 
 use anyhow::Context;
-use base64::Engine;
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use atlas_engine_config::types::AuthCredentialsStoreMode;
 use atlas_engine_login::AuthKeyringBackendKind;
 use atlas_engine_login::ServerOptions;
 use atlas_engine_login::auth::load_auth_dot_json;
 use atlas_engine_login::run_device_code_login;
+use base64::Engine;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use serde_json::json;
 use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;

@@ -27,6 +27,17 @@ pub struct UsageSnap {
     pub cost: f64,
 }
 
+/// `cost` if it is in USD, else 0 — the "no cost reported" value.
+/// `turn_cost_usd` is named for one currency, and an agent may report in
+/// another; summing the two without a rate would be wrong, so it is dropped.
+fn usd_or_zero(cost: f64, currency: Option<&str>) -> f64 {
+    match currency {
+        None => cost,
+        Some(code) if code.eq_ignore_ascii_case("USD") => cost,
+        Some(_) => 0.0,
+    }
+}
+
 /// Everything accumulated for one turn of one session.
 pub struct TurnAcc {
     turn_seq: u64,
@@ -362,14 +373,14 @@ impl TurnAcc {
         self.usage_latest = Some(UsageSnap {
             input: usage.input_tokens,
             output: usage.output_tokens,
-            cost: usage.cost,
+            cost: usd_or_zero(usage.cost, usage.currency.as_deref()),
         });
     }
 
-    pub fn note_context(&mut self, used: u64, size: u64, cost: f64) {
+    pub fn note_context(&mut self, used: u64, size: u64, cost: f64, currency: Option<&str>) {
         self.context_used = used;
         self.context_size = size;
-        self.context_cost = cost;
+        self.context_cost = usd_or_zero(cost, currency);
     }
 
     pub fn note_permission_request(&mut self) {
@@ -542,11 +553,28 @@ mod tests {
     fn acp_turns_report_context_and_omit_token_counts() {
         let st = AnalyticsState::new();
         st.begin_turn("s1", 1);
-        st.with_turn("s1", |a| a.note_context(30_000, 200_000, 0.0));
+        st.with_turn("s1", |a| a.note_context(30_000, 200_000, 0.0, None));
         let props = st.finish_turn("s1", 1).expect("event");
         assert_eq!(props["token_source"], json!("context"));
         assert_eq!(props["context_pct"], json!(15.0));
         assert!(props.get("turn_input_tokens").is_none());
+    }
+
+    /// `turn_cost_usd` is USD by name. A cost an agent reported in another
+    /// currency cannot be converted here, so it is left out rather than
+    /// recorded as that many dollars.
+    #[test]
+    fn a_cost_in_another_currency_is_not_reported_as_usd() {
+        let st = AnalyticsState::new();
+        st.begin_turn("s1", 1);
+        st.with_turn("s1", |a| a.note_context(30_000, 200_000, 2.0, Some("EUR")));
+        let props = st.finish_turn("s1", 1).expect("event");
+        assert!(props.get("turn_cost_usd").is_none());
+
+        st.begin_turn("s2", 1);
+        st.with_turn("s2", |a| a.note_context(30_000, 200_000, 2.0, Some("usd")));
+        let props = st.finish_turn("s2", 1).expect("event");
+        assert_eq!(props["turn_cost_usd"], json!(2.0));
     }
 
     #[test]

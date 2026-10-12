@@ -416,7 +416,8 @@ fn auto_review_rollout_filename(thread_id: ThreadId) -> String {
 
 #[cfg(target_os = "windows")]
 fn windows_sandbox_log_attachment(atlas_agent_home: &Path) -> Option<FeedbackAttachmentPath> {
-    let sandbox_log_path = atlas_engine_windows_sandbox::current_log_file_path_for_atlas_agent_home(atlas_agent_home);
+    let sandbox_log_path =
+        atlas_engine_windows_sandbox::current_log_file_path_for_atlas_agent_home(atlas_agent_home);
     sandbox_log_path
         .is_file()
         .then_some(FeedbackAttachmentPath {
@@ -645,7 +646,8 @@ mod tests {
                     timezone: None,
                     approval_policy: atlas_engine_protocol::protocol::AskForApproval::Never,
                     approvals_reviewer: None,
-                    sandbox_policy: atlas_engine_protocol::protocol::SandboxPolicy::new_read_only_policy(),
+                    sandbox_policy:
+                        atlas_engine_protocol::protocol::SandboxPolicy::new_read_only_policy(),
                     permission_profile: None,
                     network: None,
                     file_system_sandbox_policy: None,
@@ -773,7 +775,9 @@ mod tests {
         let sandbox_dir = atlas_engine_windows_sandbox::sandbox_dir(atlas_agent_home.path());
         std::fs::create_dir_all(&sandbox_dir).expect("create sandbox dir");
         let sandbox_log_path =
-            atlas_engine_windows_sandbox::current_log_file_path_for_atlas_agent_home(atlas_agent_home.path());
+            atlas_engine_windows_sandbox::current_log_file_path_for_atlas_agent_home(
+                atlas_agent_home.path(),
+            );
         std::fs::write(&sandbox_log_path, "sandbox log").expect("write sandbox log");
 
         let attachment = windows_sandbox_log_attachment(atlas_agent_home.path())

@@ -31,7 +31,13 @@ import type {
 } from "@/features/memory/lib/memory-graph-api";
 import type { Policy } from "@/features/memory/lib/memory-policy-api";
 import type { SummarizerPref } from "@/features/memory/lib/memory-sharing-api";
-import type { EventKind, MemoryEvent, SharedState } from "@/features/memory/lib/shared-memory-api";
+import type {
+  ClaudeImportPreview,
+  EventKind,
+  MemoryEntry,
+  MemoryEvent,
+  SharedState,
+} from "@/features/memory/lib/shared-memory-api";
 import type { TypedHandlers, Unit, Unread } from "../types";
 import { fileText } from "./files";
 import { ALL_PROJECTS, MOCK_PROJECT } from "../project";
@@ -73,14 +79,20 @@ const CLAUDE_MEM = `${HOME}/.claude/projects/${MOCK_PROJECT.path.replace(/\//g, 
  * Downloaded and ready, which is the only state where the Graph, Tree and
  * Policy views render anything at all.
  *
- * To see the gates instead: set `MODEL_READY` to false and the Graph tab opens
- * on "Enable semantic memory" and Policy on "Enable preference learning".
- * Pressing Download then
- * streams a fake progress bar through `atlas:memory-embed:*`; flip
- * `DOWNLOAD_FAILS` to land on the "Model download failed" retry screen instead.
+ * The `memory-setup` scenario shows the gates instead: `MODEL_READY` starts
+ * false, so the Graph tab opens on "Enable semantic memory" and Policy on
+ * "Enable preference learning". Pressing Download then streams a fake progress
+ * bar through `atlas:memory-embed:*`; its `failNextDownload` action lands the
+ * next download on the "Model download failed" retry screen instead.
  */
 let MODEL_READY = true;
-const DOWNLOAD_FAILS = false;
+let DOWNLOAD_FAILS = false;
+
+/** Flip the gates from a scenario's `init` or a console action. */
+export function setMemoryModel(state: { ready?: boolean; downloadFails?: boolean }): void {
+  if (state.ready !== undefined) MODEL_READY = state.ready;
+  if (state.downloadFails !== undefined) DOWNLOAD_FAILS = state.downloadFails;
+}
 
 const MODEL_ID = "all-MiniLM-L6-v2";
 /** The three files `memory_graph.rs::MODEL_FILES` checks for, with real sizes. */
@@ -1046,6 +1058,207 @@ function foldEvents(events: MemoryEvent[]): SharedState {
   return state;
 }
 
+// ── Record entries (the Shared tab's Memories view) ─────────────────────────
+
+type EntrySeed = [
+  kind: MemoryEntry["kind"],
+  key: string,
+  content: string,
+  source: string,
+  sessionId: string,
+  confidence: number,
+  minutesAgo: number,
+  uses: number,
+];
+
+/**
+ * Every provenance the Source column renders — three agents, the extractor,
+ * the user and a Claude import — with confidences from a shaky extractor guess
+ * to a user's own edit, and a couple of entries nobody has used yet.
+ */
+const ENTRY_SEEDS: EntrySeed[] = [
+  [
+    "plan",
+    "plan",
+    "Move every user read onto /v2, then drop the v1 client once the admin table is off it.",
+    "claude",
+    S4,
+    1,
+    4 * 60,
+    3,
+  ],
+  [
+    "decision",
+    "retry-policy",
+    "Retry 5xx and network errors only — never a 4xx. withRetry passes a 4xx straight through.",
+    "claude",
+    S3,
+    1,
+    26 * 60,
+    7,
+  ],
+  [
+    "decision",
+    "tokens-source",
+    "Colour comes from design tokens only; a raw hex in a component is a bug.",
+    "codex",
+    S2,
+    0.92,
+    3 * 24 * 60,
+    12,
+  ],
+  [
+    "architecture",
+    "api-layer",
+    "request() in src/lib/api.ts is the only place a response is unwrapped; every caller inherits its error handling.",
+    "extractor",
+    S3,
+    0.84,
+    26 * 60 - 20,
+    5,
+  ],
+  [
+    "architecture",
+    "schemas",
+    "Zod schemas in src/lib/api.ts are the source of truth for API types — never hand-write a response type.",
+    "opencode",
+    S2,
+    1,
+    3 * 24 * 60 - 45,
+    4,
+  ],
+  [
+    "fact",
+    "focus-refetch",
+    "The admin table refetch comes from the window focus listener in main.tsx, not from the query options.",
+    "claude",
+    S4,
+    1,
+    4 * 60 - 20,
+    2,
+  ],
+  [
+    "fact",
+    "package-manager",
+    "The repo uses bun. npm and pnpm lockfiles are rejected in CI.",
+    "import:claude",
+    "",
+    0.7,
+    6 * 24 * 60,
+    9,
+  ],
+  [
+    "fact",
+    "commit-style",
+    "Conventional commits, imperative subject, no attribution footer.",
+    "user",
+    "",
+    1,
+    5 * 24 * 60,
+    6,
+  ],
+  [
+    "file_changed",
+    "src/components/button.tsx",
+    "Button accepts disabled and mirrors it to aria-disabled.",
+    "claude",
+    S4,
+    1,
+    3 * 60,
+    0,
+  ],
+  [
+    "file_changed",
+    "src/styles/tokens.css",
+    "Dark-mode ramp regenerated from the shadcn base tokens.",
+    "codex",
+    S2,
+    1,
+    3 * 24 * 60 - 90,
+    1,
+  ],
+  [
+    "failure",
+    "cargo-check-edition",
+    "cargo check fails on edition 2024 let-chains under the pinned 1.84 toolchain — bump rust-toolchain.toml first.",
+    "extractor",
+    S3,
+    0.61,
+    25 * 60,
+    0,
+  ],
+  [
+    "failure",
+    "pdf-rotate",
+    "Highlight rects drift on rotated pages unless they are mapped through the page viewport transform.",
+    "opencode",
+    S1,
+    0.78,
+    5 * 24 * 60 - 30,
+    2,
+  ],
+];
+
+function seededEntries(): MemoryEntry[] {
+  return ENTRY_SEEDS.map(
+    ([kind, key, content, source, sessionId, confidence, minutesAgo, uses], index) => {
+      const imported = source.startsWith("import:");
+      const byAgent = !imported && source !== "user" && source !== "extractor";
+      return {
+        id: index + 1,
+        kind,
+        key,
+        content,
+        status: kind === "plan" ? "active" : "",
+        source,
+        agent: byAgent ? source : source === "extractor" ? "claude" : "",
+        sessionId,
+        confidence,
+        createdAt: ago(minutesAgo),
+        updatedAt: ago(minutesAgo),
+        lastUsedAt: uses ? ago(Math.max(10, minutesAgo / 4)) : null,
+        uses,
+      };
+    },
+  );
+}
+
+const entryLog = new Map<string, MemoryEntry[]>([[MOCK_PROJECT.path, seededEntries()]]);
+const entriesFor = (projectPath: string): MemoryEntry[] => entryLog.get(projectPath) ?? [];
+
+/** What `memory_claude_import_preview` finds in the fake Claude memory dir:
+ *  two new lines, one already in the record (the bun rule above). */
+const CLAUDE_IMPORT: ClaudeImportPreview = {
+  sources: [CLAUDE_MEM],
+  alreadyImported: false,
+  lines: [
+    {
+      id: "fact:6f1c2a",
+      kind: "fact",
+      content: "Dark mode always, including in screenshots.",
+      file: "user_dark_mode.md",
+      claudeType: "user",
+      isNew: true,
+    },
+    {
+      id: "decision:a93e07",
+      kind: "decision",
+      content: "Switched the API client to the v2 user endpoints instead of patching v1.",
+      file: "project_api_v2.md",
+      claudeType: "project",
+      isNew: true,
+    },
+    {
+      id: "fact:0b5d44",
+      kind: "fact",
+      content: "The repo uses bun. npm and pnpm lockfiles are rejected in CI.",
+      file: "feedback_bun.md",
+      claudeType: "feedback",
+      isNew: false,
+    },
+  ],
+};
+
 // ── Handlers ────────────────────────────────────────────────────────────────
 
 /**
@@ -1070,6 +1283,11 @@ export interface MemoryResponses {
   memory_query: MemoryEvent[];
   memory_append_event: number;
   memory_clear_project: Unit;
+  memory_list_entries: MemoryEntry[];
+  memory_edit_entry: MemoryEntry;
+  memory_forget_entry: boolean;
+  memory_claude_import_preview: ClaudeImportPreview;
+  memory_claude_import_confirm: number;
   memory_indexer_close_project: Unread;
 }
 
@@ -1172,8 +1390,62 @@ export const memoryHandlers: TypedHandlers<MemoryResponses> = {
   },
   memory_clear_project: ({ projectPath }): null => {
     eventLog.set(String(projectPath), []);
+    entryLog.set(String(projectPath), []);
     indexedExtraSeqs = [];
     return null;
+  },
+
+  // ── record entries ───────────────────────────────────────────────────────
+  memory_list_entries: ({ projectPath }): MemoryEntry[] => entriesFor(String(projectPath)),
+  memory_edit_entry: ({ projectPath, id, content }): MemoryEntry => {
+    const entry = entriesFor(String(projectPath)).find((e) => e.id === Number(id));
+    if (!entry) throw new Error(`no memory entry ${String(id)}`);
+    // A user edit takes the entry over: Rust rewrites source and confidence.
+    Object.assign(entry, { content: String(content), source: "user", confidence: 1 });
+    entry.updatedAt = Date.now();
+    return { ...entry };
+  },
+  memory_forget_entry: ({ projectPath, id }): boolean => {
+    const path = String(projectPath);
+    const entries = entriesFor(path);
+    const kept = entries.filter((e) => e.id !== Number(id));
+    entryLog.set(path, kept);
+    return kept.length !== entries.length;
+  },
+
+  // ── Claude auto-memory import ────────────────────────────────────────────
+  memory_claude_import_preview: ({ projectPath }): ClaudeImportPreview =>
+    String(projectPath) === MOCK_PROJECT.path
+      ? CLAUDE_IMPORT
+      : { sources: [], alreadyImported: false, lines: [] },
+  memory_claude_import_confirm: ({ projectPath, ids }): number => {
+    const path = String(projectPath);
+    const wanted = new Set((ids as string[]) ?? []);
+    const lines = CLAUDE_IMPORT.lines.filter((line) => line.isNew && wanted.has(line.id));
+    const entries = entriesFor(path);
+    let nextId = entries.reduce((max, e) => Math.max(max, e.id), 0) + 1;
+    for (const line of lines) {
+      const now = Date.now();
+      entries.push({
+        id: nextId++,
+        kind: line.kind,
+        key: line.file.replace(/\.md$/, ""),
+        content: line.content,
+        status: "",
+        source: "import:claude",
+        agent: "",
+        sessionId: "",
+        confidence: 0.7,
+        createdAt: now,
+        updatedAt: now,
+        lastUsedAt: null,
+        uses: 0,
+      });
+      line.isNew = false;
+    }
+    entryLog.set(path, entries);
+    CLAUDE_IMPORT.alreadyImported = CLAUDE_IMPORT.lines.every((line) => !line.isNew);
+    return lines.length;
   },
 
   // ── housekeeping ─────────────────────────────────────────────────────────

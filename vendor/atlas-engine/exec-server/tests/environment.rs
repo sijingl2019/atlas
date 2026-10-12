@@ -84,7 +84,8 @@ async fn prepared_remote_environment_uses_configured_system_proxy() -> anyhow::R
         ),
     )?;
 
-    let prepared = EnvironmentManager::prepare_from_atlas_agent_home(atlas_agent_home.path()).await?;
+    let prepared =
+        EnvironmentManager::prepare_from_atlas_agent_home(atlas_agent_home.path()).await?;
     assert!(prepared.default_environment_is_remote());
     let manager = prepared.build(
         /*local_runtime_paths*/ None,

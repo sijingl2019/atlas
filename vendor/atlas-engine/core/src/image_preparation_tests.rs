@@ -1,11 +1,11 @@
 // Modified by Atlas from upstream OpenAI Codex (Apache-2.0). See CONTEXT.md.
 use std::io::Cursor;
 
-use base64::Engine;
-use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use atlas_engine_protocol::models::FunctionCallOutputBody;
 use atlas_engine_protocol::models::FunctionCallOutputPayload;
 use atlas_engine_utils_image::data_url_from_bytes;
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use image::DynamicImage;
 use image::GenericImageView;
 use image::ImageBuffer;

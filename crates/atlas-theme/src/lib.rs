@@ -363,7 +363,8 @@ pub fn user_theme_dir() -> Option<PathBuf> {
     config_root().map(|dir| dir.join("themes"))
 }
 
-/// `~/.config/atlas/` — the same root `src-tauri/src/state/atlas_config.rs`
+/// `~/.config/atlas/` (`atlas-dev/` under the dev profile, see
+/// `atlas-profile`) — the same root `src-tauri/src/state/atlas_config.rs`
 /// resolves for `config.toml`, **not** `dirs::config_dir()` (which on macOS is
 /// `~/Library/Application Support`). `atlas-theme` sits below `src-tauri` in
 /// the dependency graph — the app crate depends on this one, not the other
@@ -389,10 +390,10 @@ fn config_root() -> Option<PathBuf> {
 fn config_root_from(xdg: Option<&Path>, home: Option<&Path>) -> Option<PathBuf> {
     if let Some(xdg) = xdg {
         if xdg.is_absolute() {
-            return Some(xdg.join("atlas"));
+            return Some(xdg.join(atlas_profile::config_dir_name()));
         }
     }
-    home.map(|home| home.join(".config").join("atlas"))
+    home.map(|home| home.join(".config").join(atlas_profile::config_dir_name()))
 }
 
 /// Write a theme into `dir` as `<id>.toml`, returning the path.
@@ -797,7 +798,7 @@ fn flatten_keys(
         } else {
             return Err(validation(
                 origin,
-                format!("{field}.{dotted} must be a colour or style"),
+                format!("{field}.{dotted} must be a color or style"),
             ));
         }
     }
@@ -816,7 +817,7 @@ fn parse_style(value: &toml::Value, key: &str) -> Result<Option<ThemeKeyStyle>, 
     };
     if table.contains_key("font_style") {
         return Err(format!(
-            "{key} sets font_style, which Atlas does not apply — a theme key is a colour. \
+            "{key} sets font_style, which Atlas does not apply — a theme key is a color. \
              Remove it; leaving it in would silently render upright."
         ));
     }
@@ -887,7 +888,7 @@ fn validate_variant(
     {
         return Err(validation(
             origin,
-            format!("unknown palette colour '{key}' in {appearance}"),
+            format!("unknown palette color '{key}' in {appearance}"),
         ));
     }
     for (key, value) in base {
@@ -901,7 +902,7 @@ fn validate_variant(
         } else if !is_css_color(value) {
             return Err(validation(
                 origin,
-                format!("{appearance}.base.{key} is not a CSS colour"),
+                format!("{appearance}.base.{key} is not a CSS color"),
             ));
         }
     }
@@ -909,7 +910,7 @@ fn validate_variant(
         if !is_css_color(value) {
             return Err(validation(
                 origin,
-                format!("{appearance}.palette.{key} is not a CSS colour"),
+                format!("{appearance}.palette.{key} is not a CSS color"),
             ));
         }
     }
@@ -917,7 +918,7 @@ fn validate_variant(
         if !is_css_color(value.color()) {
             return Err(validation(
                 origin,
-                format!("{appearance}.keys.{key} is not a CSS colour"),
+                format!("{appearance}.keys.{key} is not a CSS color"),
             ));
         }
     }
@@ -1405,10 +1406,15 @@ mod tests {
         assert_eq!(written, 1);
     }
 
+    /// Compared as parsed JSON, not text: `serde_json`'s `preserve_order` is
+    /// enabled by sibling crates whenever the workspace is tested in one cargo
+    /// invocation (`scripts/test-rust.sh`), which reorders object keys in the
+    /// generated schema without changing it.
     #[test]
     fn generated_schema_is_current() {
-        let expected = serde_json::to_string_pretty(&json_schema()).unwrap() + "\n";
-        assert_eq!(include_str!("../schema/theme-v1.json"), expected);
+        let committed: serde_json::Value =
+            serde_json::from_str(include_str!("../schema/theme-v1.json")).unwrap();
+        assert_eq!(committed, serde_json::to_value(json_schema()).unwrap());
     }
 
     #[test]

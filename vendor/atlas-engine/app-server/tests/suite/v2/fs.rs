@@ -3,8 +3,6 @@ use anyhow::Context;
 use anyhow::Result;
 use app_test_support::TestAppServer;
 use app_test_support::to_response;
-use base64::Engine;
-use base64::engine::general_purpose::STANDARD;
 use atlas_engine_app_server_protocol::FsChangedNotification;
 use atlas_engine_app_server_protocol::FsCopyParams;
 use atlas_engine_app_server_protocol::FsGetMetadataResponse;
@@ -17,6 +15,8 @@ use atlas_engine_app_server_protocol::JSONRPCNotification;
 use atlas_engine_app_server_protocol::RequestId;
 use atlas_engine_exec_server::ATLAS_AGENT_EXEC_SERVER_URL_ENV_VAR;
 use atlas_engine_utils_absolute_path::AbsolutePathBuf;
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD;
 use pretty_assertions::assert_eq;
 use serde_json::json;
 use std::path::PathBuf;
@@ -189,10 +189,12 @@ async fn fs_methods_cover_current_fs_utils_surface() -> Result<()> {
     let mut mcp = initialized_mcp(&atlas_agent_home).await?;
 
     let create_directory_request_id = mcp
-        .send_fs_create_directory_request(atlas_engine_app_server_protocol::FsCreateDirectoryParams {
-            path: absolute_path(nested_dir.clone()),
-            recursive: None,
-        })
+        .send_fs_create_directory_request(
+            atlas_engine_app_server_protocol::FsCreateDirectoryParams {
+                path: absolute_path(nested_dir.clone()),
+                recursive: None,
+            },
+        )
         .await?;
     timeout(
         DEFAULT_READ_TIMEOUT,

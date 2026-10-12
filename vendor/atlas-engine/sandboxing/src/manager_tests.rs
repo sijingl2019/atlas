@@ -415,12 +415,17 @@ fn wsl1_allows_non_bubblewrap_linux_paths() {
 #[cfg(target_os = "linux")]
 #[test]
 fn transform_linux_seccomp_preserves_helper_path_in_arg0_when_available() {
-    let atlas_engine_linux_sandbox_exe = std::path::PathBuf::from("/tmp/atlas-engine-linux-sandbox");
+    let atlas_engine_linux_sandbox_exe =
+        std::path::PathBuf::from("/tmp/atlas-engine-linux-sandbox");
     let exec_request = transform_linux_seccomp_request(&atlas_engine_linux_sandbox_exe);
 
     assert_eq!(
         exec_request.arg0,
-        Some(atlas_engine_linux_sandbox_exe.to_string_lossy().into_owned())
+        Some(
+            atlas_engine_linux_sandbox_exe
+                .to_string_lossy()
+                .into_owned()
+        )
     );
 }
 
@@ -430,7 +435,10 @@ fn transform_linux_seccomp_uses_helper_alias_when_launcher_is_not_helper_path() 
     let atlas_engine_linux_sandbox_exe = std::path::PathBuf::from("/tmp/atlas-agent");
     let exec_request = transform_linux_seccomp_request(&atlas_engine_linux_sandbox_exe);
 
-    assert_eq!(exec_request.arg0, Some("atlas-engine-linux-sandbox".to_string()));
+    assert_eq!(
+        exec_request.arg0,
+        Some("atlas-engine-linux-sandbox".to_string())
+    );
 }
 
 #[cfg(target_os = "windows")]

@@ -12,8 +12,8 @@ use std::sync::Arc;
 
 use rmcp::handler::server::ServerHandler;
 use rmcp::model::{
-    CacheScope, CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock as Content, JsonObject,
-    ListToolsResult, PaginatedRequestParams, ServerCapabilities, ServerInfo, Tool,
+    CacheScope, CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock as Content,
+    JsonObject, ListToolsResult, PaginatedRequestParams, ServerCapabilities, ServerInfo, Tool,
 };
 use rmcp::service::{RequestContext, RoleServer};
 use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
@@ -40,8 +40,10 @@ things the user did not ask about, and never put text in a chat or terminal the 
 for. Results are JSON from the app; an error names what was not found or why it was refused.";
 
 /// What a tool answers while the user has switched agent navigation off.
-const OFF_NOTE: &str = "Atlas Agent navigation is switched off in Settings → General; ask the user to turn it on.";
-const NOT_OFFERED_NOTE: &str = "the Atlas window's UI tools were not offered to this session; nothing was done.";
+const OFF_NOTE: &str =
+    "Atlas Agent navigation is switched off in Settings → General; ask the user to turn it on.";
+const NOT_OFFERED_NOTE: &str =
+    "the Atlas window's UI tools were not offered to this session; nothing was done.";
 
 fn schema(value: Value) -> Arc<JsonObject> {
     match value {
@@ -51,7 +53,11 @@ fn schema(value: Value) -> Arc<JsonObject> {
 }
 
 fn tool(name: &'static str, description: &'static str, input: Value) -> Tool {
-    Tool::new(Cow::Borrowed(name), Cow::Borrowed(description), schema(input))
+    Tool::new(
+        Cow::Borrowed(name),
+        Cow::Borrowed(description),
+        schema(input),
+    )
 }
 
 /// The tools, reads first.
@@ -178,10 +184,12 @@ fn space_page_refusal(name: &str, args: &Value) -> Option<String> {
     if name != "ui_open" || args.get("target").and_then(Value::as_str) != Some("space_page") {
         return None;
     }
-    ["conversationId", "pageId"].into_iter().find_map(|key| match args.get(key).and_then(Value::as_str) {
-        Some(id) if is_org_id(id) => None,
-        Some(id) => Some(format!("ui_open: {key} \"{id}\" is not an id")),
-        None => Some(format!("ui_open: target space_page needs {key}")),
+    ["conversationId", "pageId"].into_iter().find_map(|key| {
+        match args.get(key).and_then(Value::as_str) {
+            Some(id) if is_org_id(id) => None,
+            Some(id) => Some(format!("ui_open: {key} \"{id}\" is not an id")),
+            None => Some(format!("ui_open: target space_page needs {key}")),
+        }
     })
 }
 
@@ -231,7 +239,8 @@ impl UiTools {
 
 impl ServerHandler for UiTools {
     fn get_info(&self) -> ServerInfo {
-        ServerInfo::new(ServerCapabilities::builder().enable_tools().build()).with_instructions(INSTRUCTIONS)
+        ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
+            .with_instructions(INSTRUCTIONS)
     }
 
     async fn list_tools(

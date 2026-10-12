@@ -1,7 +1,7 @@
 # Telemetry
 
 Atlas collects usage data to find out what breaks and what gets used. This file is
-the complete catalogue: every event, every property, and the list of things that are
+the complete catalog: every event, every property, and the list of things that are
 never collected under any circumstance.
 
 If something is not in the table below, Atlas does not send it. If you find something
@@ -54,6 +54,16 @@ to reset your analytics identity.**
 change — so a single install appeared in PostHog as a crowd of one-launch strangers.
 An install upgrading from 0.2.3 keeps the id it already had.)
 
+**A dev-profile build is a separate install.** `bun run dev:app` runs as "Atlas Dev",
+with its own `<app_config_dir>` and its own `~/.config/atlas-dev/config.toml` (see
+[CONTRIBUTING.md](CONTRIBUTING.md)). When a PostHog key resolves for it (from the
+environment or a `.env` in your checkout; the installed app's `telemetry.json` is in
+the other app dir), it sends telemetry like any other build, under a device id of its
+own, so PostHog sees it as a second device beside your installed Atlas. Its "Share
+usage data" toggle is its own too, and starts at the default rather than at what you
+chose in the installed app. Without a key it is inert, like any source build, and it
+never runs the update check.
+
 **Signed in**, Atlas sends PostHog an `$identify` that switches the identity to your
 Atlas account id and carries `$anon_distinct_id` — the device id. PostHog **merges the
 device person into the account person**, which means events that device sent *before*
@@ -83,14 +93,14 @@ Every event carries these, and nothing else implicitly:
 | `app_version` | Atlas version, e.g. `0.2.4` |
 | `os` | `macos`, `linux`, `windows` |
 | `arch` | `aarch64`, `x86_64` |
-| `$groups` | `{ organisation: <local org id> }` — whenever an Organisation is active |
-| `atlas_org_id` | The same local Organisation id, as a plain property |
+| `$groups` | `{ organisation: <local org id> }` — whenever an Organization is active |
+| `atlas_org_id` | The same local Organization id, as a plain property |
 | `atlas_org_kind` | `cloud` (the org is synced) or `local` (it exists only on this machine) |
 
-**Organisation scoping.** Every event is attributed to the Organisation you are
+**Organization scoping.** Every event is attributed to the Organization you are
 working in, so usage can be read per tenant rather than as one global stream.
 That includes **local-only orgs and events sent while signed out** — the active
-Organisation is a local fact, not an account one. The id that travels is always
+Organization is a local fact, not an account one. The id that travels is always
 the *local* id: a random UUID this install minted, meaningless to anyone else.
 
 A **local** org's **name is never sent** — it is a string you typed into a box on
@@ -103,7 +113,7 @@ coarse geo-resolution. Atlas sends no other device, network, or locale informati
 
 ---
 
-## Event catalogue
+## Event catalog
 
 ### Lifecycle
 
@@ -117,7 +127,7 @@ coarse geo-resolution. Atlas sends no other device, network, or locale informati
 | Event | When | Properties |
 | --- | --- | --- |
 | `$identify` | Sign-in, or when your account details change | `$anon_distinct_id` (device id, on the merge only), `$set` → `email`, `name`, `atlas_account`, `atlas_org_count`, `atlas_active_org_id`; `$set_once` → `atlas_device_id` |
-| `$groupidentify` | A **synced** Organisation becomes active (switch, sign-in, or "Turn on sync") | `$group_type: organisation`, `$group_key` (local org id), `$group_set` → `name`, `role`, `kind`. Never sent for a local-only org — there is nothing about it we are willing to describe. |
+| `$groupidentify` | A **synced** Organization becomes active (switch, sign-in, or "Turn on sync") | `$group_type: organisation`, `$group_key` (local org id), `$group_set` → `name`, `role`, `kind`. Never sent for a local-only org — there is nothing about it we are willing to describe. |
 | `auth_signed_in` | A device-authorization grant completes | `org_count`, `has_active_org` |
 | `auth_signed_out` | The user signs out from the account menu | `had_account` |
 
@@ -148,14 +158,15 @@ persisted.
   `error_kind`, `error_summary` (redacted, ≤160 chars), `duration_ms`
 - **Tools** — `tool_call_count`, `tool_calls_completed`, `tool_calls_failed`,
   `tool_kinds` (a count per kind: read, edit, execute, search, fetch, …),
-  `tool_names` (normalised; any MCP tool collapses to `mcp`), `distinct_tool_count`
+  `tool_names` (normalized; any MCP tool collapses to `mcp`), `distinct_tool_count`
 - **Files** — `files_read`, `files_written` (distinct **counts**, derived from salted
   in-memory digests), `file_extensions` (e.g. `{ rs: 4, ts: 9 }`), `lines_added`,
   `lines_removed`
 - **Tokens** — `turn_input_tokens`, `turn_output_tokens`, `turn_cost_usd` for the
   native agent; `context_used`, `context_size`, `context_pct` for ACP agents, which
   cannot report a token split. `token_source` (`usage` / `context` / `none`) says
-  which. Absent rather than zero when unknown.
+  which. Absent rather than zero when unknown. `turn_cost_usd` is only ever a USD
+  amount: a cost an agent reports in another currency is left out, not converted.
 - **Session shape** — `permission_requests`, `permissions_resolved`, `retries`,
   `compactions`, `compression_saved_tokens`, `assistant_messages`, `plan_updates`,
   `mode_changes`, `model_id`
@@ -243,7 +254,7 @@ one you thought you were making. It is not analytics and captures no event. It i
 gated by its own setting: **Settings → Updates → "Automatic updates"**.
 
 **2. Feedback you submit.** The feedback panel sends even when "Share usage data" is
-off, because a button labelled "Send" that silently discards your bug report is worse
+off, because a button labeled "Send" that silently discards your bug report is worse
 than the send itself. The panel says so on screen when the toggle is off, and every
 submission carries `telemetry_opt_in` so its consent state travels with it. It never
 sends anything you did not type or attach.
@@ -271,5 +282,5 @@ The PostHog key and host resolve in this order, first match winning:
 3. A compile-time key baked into official release builds
 4. Nothing — the client is permanently inert and makes no network calls
 
-Point rungs 1 or 2 at your own PostHog project to keep your organisation's data in
+Point rungs 1 or 2 at your own PostHog project to keep your organization's data in
 your own instance. Build from source without a key to have no telemetry path at all.

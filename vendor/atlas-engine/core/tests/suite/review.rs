@@ -130,7 +130,10 @@ async fn review_op_emits_lifecycle_and_review_output() {
         }
         other => panic!("expected entered review item completion, got {other:?}"),
     }
-    let entered = wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::EnteredReviewMode(_))).await;
+    let entered = wait_for_event(&atlas_engine, |ev| {
+        matches!(ev, EventMsg::EnteredReviewMode(_))
+    })
+    .await;
     match entered {
         EventMsg::EnteredReviewMode(event) => {
             assert_eq!(event.turn_id.as_deref(), Some(review_turn_id.as_str()));
@@ -169,7 +172,10 @@ async fn review_op_emits_lifecycle_and_review_output() {
         }
         other => panic!("expected exited review item completion, got {other:?}"),
     }
-    let closed = wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::ExitedReviewMode(_))).await;
+    let closed = wait_for_event(&atlas_engine, |ev| {
+        matches!(ev, EventMsg::ExitedReviewMode(_))
+    })
+    .await;
     let review = match closed {
         EventMsg::ExitedReviewMode(ev) => {
             assert_eq!(ev.turn_id.as_deref(), Some(review_turn_id.as_str()));
@@ -197,7 +203,8 @@ async fn review_op_emits_lifecycle_and_review_output() {
         overall_confidence_score: 0.8,
     };
     assert_eq!(expected, review);
-    let _complete = wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    let _complete =
+        wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
 
     let path = atlas_engine.rollout_path().expect("rollout path");
     let text = std::fs::read_to_string(&path).expect("read rollout file");
@@ -412,8 +419,14 @@ async fn review_op_with_plain_text_emits_review_fallback() {
         .await
         .unwrap();
 
-    let _entered = wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::EnteredReviewMode(_))).await;
-    let closed = wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::ExitedReviewMode(_))).await;
+    let _entered = wait_for_event(&atlas_engine, |ev| {
+        matches!(ev, EventMsg::EnteredReviewMode(_))
+    })
+    .await;
+    let closed = wait_for_event(&atlas_engine, |ev| {
+        matches!(ev, EventMsg::ExitedReviewMode(_))
+    })
+    .await;
     let review = match closed {
         EventMsg::ExitedReviewMode(ev) => ev
             .review_output
@@ -427,7 +440,8 @@ async fn review_op_with_plain_text_emits_review_fallback() {
         ..Default::default()
     };
     assert_eq!(expected, review);
-    let _complete = wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    let _complete =
+        wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
 
     let _atlas_agent_home_guard = atlas_agent_home;
     server.verify().await;
@@ -687,7 +701,10 @@ async fn review_uses_updated_turn_permissions_and_approval_policy() {
         })
         .await
         .expect("review should start");
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let request = request_log.single_request();
     assert_eq!(request.body_json()["reasoning"]["effort"], "medium");
@@ -814,7 +831,10 @@ async fn review_uses_custom_review_model_from_config() {
         .unwrap();
 
     // Wait for completion
-    let _entered = wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::EnteredReviewMode(_))).await;
+    let _entered = wait_for_event(&atlas_engine, |ev| {
+        matches!(ev, EventMsg::EnteredReviewMode(_))
+    })
+    .await;
     let _closed = wait_for_event(&atlas_engine, |ev| {
         matches!(
             ev,
@@ -825,7 +845,8 @@ async fn review_uses_custom_review_model_from_config() {
         )
     })
     .await;
-    let _complete = wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    let _complete =
+        wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
 
     // Assert the request body model equals the configured review model
     let request = request_log.single_request();
@@ -880,7 +901,10 @@ async fn review_uses_session_model_when_review_model_unset() {
         .await
         .unwrap();
 
-    let _entered = wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::EnteredReviewMode(_))).await;
+    let _entered = wait_for_event(&atlas_engine, |ev| {
+        matches!(ev, EventMsg::EnteredReviewMode(_))
+    })
+    .await;
     let _closed = wait_for_event(&atlas_engine, |ev| {
         matches!(
             ev,
@@ -891,7 +915,8 @@ async fn review_uses_session_model_when_review_model_unset() {
         )
     })
     .await;
-    let _complete = wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    let _complete =
+        wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
 
     let request = request_log.single_request();
     assert_eq!(request.path(), "/v1/responses");
@@ -980,9 +1005,13 @@ async fn review_input_isolated_from_parent_history() {
             .await
             .unwrap();
     }
-    let atlas_engine =
-        resume_conversation_for_server(&server, atlas_agent_home.clone(), session_file.clone(), |_| {})
-            .await;
+    let atlas_engine = resume_conversation_for_server(
+        &server,
+        atlas_agent_home.clone(),
+        session_file.clone(),
+        |_| {},
+    )
+    .await;
 
     // Submit review request; it must start fresh (no parent history in `input`).
     let review_prompt = "Please review only this".to_string();
@@ -998,7 +1027,10 @@ async fn review_input_isolated_from_parent_history() {
         .await
         .unwrap();
 
-    let _entered = wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::EnteredReviewMode(_))).await;
+    let _entered = wait_for_event(&atlas_engine, |ev| {
+        matches!(ev, EventMsg::EnteredReviewMode(_))
+    })
+    .await;
     let _closed = wait_for_event(&atlas_engine, |ev| {
         matches!(
             ev,
@@ -1009,7 +1041,8 @@ async fn review_input_isolated_from_parent_history() {
         )
     })
     .await;
-    let _complete = wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    let _complete =
+        wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
 
     // Assert the request `input` contains the environment context followed by the user review prompt.
     let request = request_log.single_request();
@@ -1111,7 +1144,10 @@ async fn review_history_surfaces_in_parent_session() {
         })
         .await
         .unwrap();
-    let _entered = wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::EnteredReviewMode(_))).await;
+    let _entered = wait_for_event(&atlas_engine, |ev| {
+        matches!(ev, EventMsg::EnteredReviewMode(_))
+    })
+    .await;
     let _closed = wait_for_event(&atlas_engine, |ev| {
         matches!(
             ev,
@@ -1122,7 +1158,8 @@ async fn review_history_surfaces_in_parent_session() {
         )
     })
     .await;
-    let _complete = wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    let _complete =
+        wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
 
     // 2) Continue in the parent session; request input must not include any review items.
     let followup = "back to parent".to_string();
@@ -1133,7 +1170,8 @@ async fn review_history_surfaces_in_parent_session() {
         }]))
         .await
         .unwrap();
-    let _complete = wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    let _complete =
+        wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
 
     // Inspect the second request (parent turn) input contents.
     // Parent turns include session initial messages (user_instructions, environment_context).
@@ -1229,10 +1267,11 @@ async fn review_uses_overridden_cwd_for_base_branch_merge_base() {
 
     let atlas_agent_home = Arc::new(TempDir::new().unwrap());
     let initial_cwd_path = initial_cwd.path().to_path_buf();
-    let atlas_engine = new_conversation_for_server(&server, atlas_agent_home.clone(), move |config| {
-        config.cwd = initial_cwd_path.abs();
-    })
-    .await;
+    let atlas_engine =
+        new_conversation_for_server(&server, atlas_agent_home.clone(), move |config| {
+            config.cwd = initial_cwd_path.abs();
+        })
+        .await;
 
     core_test_support::submit_thread_settings(
         &atlas_engine,
@@ -1256,8 +1295,12 @@ async fn review_uses_overridden_cwd_for_base_branch_merge_base() {
         .await
         .unwrap();
 
-    let _entered = wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::EnteredReviewMode(_))).await;
-    let _complete = wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    let _entered = wait_for_event(&atlas_engine, |ev| {
+        matches!(ev, EventMsg::EnteredReviewMode(_))
+    })
+    .await;
+    let _complete =
+        wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
 
     let requests = request_log.requests();
     assert_eq!(requests.len(), 1);

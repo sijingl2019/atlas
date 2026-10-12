@@ -1,5 +1,4 @@
 // Modified by Atlas from upstream OpenAI Codex (Apache-2.0). See CONTEXT.md.
-use clap::Parser;
 use atlas_engine_app_server::AppServerCodeModeHostArgs;
 use atlas_engine_app_server::AppServerRuntimeOptions;
 use atlas_engine_app_server::AppServerTransport;
@@ -11,6 +10,7 @@ use atlas_engine_arg0::arg0_dispatch_or_else;
 use atlas_engine_config::LoaderOverrides;
 use atlas_engine_protocol::protocol::SessionSource;
 use atlas_engine_utils_cli::CliConfigOverrides;
+use clap::Parser;
 use std::path::PathBuf;
 
 // Debug-only test hook: lets integration tests point the server at a temporary
@@ -97,8 +97,12 @@ fn main() -> anyhow::Result<()> {
         runtime_options.remote_control_startup_mode =
             match (remote_control, remote_control_disabled) {
                 (true, _) => atlas_engine_app_server::RemoteControlStartupMode::EnabledEphemeral,
-                (false, true) => atlas_engine_app_server::RemoteControlStartupMode::DisabledEphemeral,
-                (false, false) => atlas_engine_app_server::RemoteControlStartupMode::ResolvePersisted,
+                (false, true) => {
+                    atlas_engine_app_server::RemoteControlStartupMode::DisabledEphemeral
+                }
+                (false, false) => {
+                    atlas_engine_app_server::RemoteControlStartupMode::ResolvePersisted
+                }
             };
 
         run_main_with_transport_options(

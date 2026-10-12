@@ -18,7 +18,6 @@ use tokio::sync::{broadcast, mpsc};
 
 use crate::conn::{self, ConnEvent, ExitReason};
 use crate::error::Result;
-use crate::CommsError;
 use crate::events::{CommsEnvelope, CommsEvent, ConnReason, ConnectionState, WireMessage};
 use crate::rest::RestClient;
 use crate::state::{
@@ -26,7 +25,10 @@ use crate::state::{
     SendStatus, StateDelta,
 };
 use crate::store::CommsStore;
-use crate::wire::{SessionReference, ClientFrame, Message, ReactionRow, ServerFrame, CHAT_TYPING_INTERVAL_MS};
+use crate::wire::{
+    ClientFrame, Message, ReactionRow, ServerFrame, SessionReference, CHAT_TYPING_INTERVAL_MS,
+};
+use crate::CommsError;
 use crate::{chat_base, socket_url, OrgTarget, TokenSource};
 
 const RECONNECT_BASE_MS: u64 = 1_000;
@@ -780,7 +782,7 @@ impl CommsManager {
         artifact_refs: Vec<SessionReference>,
     ) -> Result<String> {
         if self.session().is_none() {
-            return Err(CommsError::Protocol("no organisation is connected".into()));
+            return Err(CommsError::Protocol("no organization is connected".into()));
         }
         let client_msg_id = uuid::Uuid::new_v4().to_string();
         let now = now_ms();
@@ -815,6 +817,10 @@ impl CommsManager {
             code_refs: Vec::new(),
             artifact_refs: artifact_refs.clone(),
             draft_id: None,
+            author_kind: crate::wire::AuthorKind::User,
+            author_name: None,
+            author_via: None,
+            author_avatar_hash: None,
         };
 
         self.inner.pending.lock().unwrap().insert(
@@ -1159,7 +1165,7 @@ impl CommsManager {
     ) -> Result<String> {
         let org_id = self
             .org_id()
-            .ok_or_else(|| CommsError::Protocol("no organisation is connected".into()))?;
+            .ok_or_else(|| CommsError::Protocol("no organization is connected".into()))?;
 
         let filename = path
             .file_name()
@@ -1201,7 +1207,7 @@ impl CommsManager {
             if self.upload_cancelled(upload_id) {
                 let _ = self.inner.rest.abort_upload(&org_id, &intent.file_id).await;
                 self.finish_upload(upload_id);
-                return Err(CommsError::Protocol("upload cancelled".into()));
+                return Err(CommsError::Protocol("upload canceled".into()));
             }
 
             // Every part but the last is exactly `part_bytes`; the last is
@@ -1270,7 +1276,11 @@ impl CommsManager {
     }
 
     fn upload_cancelled(&self, upload_id: &str) -> bool {
-        self.inner.cancelled_uploads.lock().unwrap().contains(upload_id)
+        self.inner
+            .cancelled_uploads
+            .lock()
+            .unwrap()
+            .contains(upload_id)
     }
 
     /// Resolve file ids to the metadata their upload returned.
@@ -1283,18 +1293,24 @@ impl CommsManager {
         file_ids
             .iter()
             .map(|id| {
-                done.get(id).cloned().unwrap_or_else(|| crate::wire::Attachment {
-                    id: id.clone(),
-                    filename: "file".into(),
-                    content_type: "application/octet-stream".into(),
-                    bytes: 0,
-                })
+                done.get(id)
+                    .cloned()
+                    .unwrap_or_else(|| crate::wire::Attachment {
+                        id: id.clone(),
+                        filename: "file".into(),
+                        content_type: "application/octet-stream".into(),
+                        bytes: 0,
+                    })
             })
             .collect()
     }
 
     fn finish_upload(&self, upload_id: &str) {
-        self.inner.cancelled_uploads.lock().unwrap().remove(upload_id);
+        self.inner
+            .cancelled_uploads
+            .lock()
+            .unwrap()
+            .remove(upload_id);
     }
 
     fn emit_upload(
@@ -1322,7 +1338,7 @@ impl CommsManager {
     pub async fn download_attachment(&self, file_id: &str, download_id: &str) -> Result<Vec<u8>> {
         let org = self
             .org_id()
-            .ok_or_else(|| CommsError::Protocol("no organisation is connected".into()))?;
+            .ok_or_else(|| CommsError::Protocol("no organization is connected".into()))?;
         let progress = self.progress_reporter(download_id);
         let mut on_chunk = progress;
         let result = self
@@ -1339,7 +1355,11 @@ impl CommsManager {
     pub async fn download_recording(&self, url: &str, download_id: &str) -> Result<Vec<u8>> {
         let progress = self.progress_reporter(download_id);
         let mut on_chunk = progress;
-        let result = self.inner.rest.download_recording_with(url, &mut on_chunk).await;
+        let result = self
+            .inner
+            .rest
+            .download_recording_with(url, &mut on_chunk)
+            .await;
         self.finish_download(download_id, &result);
         result
     }
@@ -1501,19 +1521,20 @@ impl CommsManager {
         conv_id: &str,
         mode: &str,
         public: bool,
+        provider: Option<&str>,
     ) -> Result<crate::wire::Call> {
         let session = self
             .session()
-            .ok_or_else(|| CommsError::Token("no organisation is connected".into()))?;
+            .ok_or_else(|| CommsError::Token("no organization is connected".into()))?;
         let call = self
             .inner
             .rest
-            .start_call(&session.org_id, conv_id, mode, public)
+            .start_call(&session.org_id, conv_id, mode, public, provider)
             .await?;
         {
             let mut state = self.inner.state.lock().unwrap();
             if !self.live(session.generation) {
-                return Err(CommsError::Protocol("organisation changed".into()));
+                return Err(CommsError::Protocol("organization changed".into()));
             }
             state.calls.insert(call.id.clone(), call.clone());
         }
@@ -1525,7 +1546,7 @@ impl CommsManager {
     pub async fn download_transcript(&self, call_id: &str) -> Result<Vec<u8>> {
         let org = self
             .org_id()
-            .ok_or_else(|| CommsError::Token("no organisation is connected".into()))?;
+            .ok_or_else(|| CommsError::Token("no organization is connected".into()))?;
         self.inner.rest.download_transcript(&org, call_id).await
     }
 
@@ -1631,7 +1652,11 @@ impl CommsManager {
                 at_ms,
             }),
             StateDelta::ReactionsChanged { message_id } => Some(CommsEvent::ReactionsChanged {
-                rows: state.reactions.get(&message_id).cloned().unwrap_or_default(),
+                rows: state
+                    .reactions
+                    .get(&message_id)
+                    .cloned()
+                    .unwrap_or_default(),
                 message_id,
             }),
             StateDelta::PinsChanged { conv_id } => Some(CommsEvent::PinsChanged {
@@ -1805,6 +1830,10 @@ pub fn to_wire(row: &LocalMessage) -> WireMessage {
         code_refs: row.message.code_refs.clone(),
         artifact_refs: row.message.artifact_refs.clone(),
         draft_id: row.message.draft_id.clone(),
+        author_kind: row.message.author_kind,
+        author_name: row.message.author_name.clone(),
+        author_via: row.message.author_via.clone(),
+        author_avatar_hash: row.message.author_avatar_hash.clone(),
         client_msg_id: row.client_msg_id.clone(),
         status: match row.status {
             SendStatus::Sending => "sending",
@@ -1825,10 +1854,7 @@ fn backoff_ms(attempt: u32) -> u64 {
 }
 
 /// Fill `buf`, tolerating a short final read at EOF.
-async fn read_exact_or_eof(
-    file: &mut tokio::fs::File,
-    buf: &mut Vec<u8>,
-) -> std::io::Result<()> {
+async fn read_exact_or_eof(file: &mut tokio::fs::File, buf: &mut Vec<u8>) -> std::io::Result<()> {
     use tokio::io::AsyncReadExt;
     let mut filled = 0;
     while filled < buf.len() {
@@ -1897,8 +1923,8 @@ impl CommsManager {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::backoff_ms;
+    use super::*;
 
     struct NoToken;
     impl TokenSource for NoToken {
@@ -2031,9 +2057,7 @@ mod tests {
     }
 
     fn target(org: &str) -> Option<OrgTarget> {
-        Some(OrgTarget {
-            org_id: org.into(),
-        })
+        Some(OrgTarget { org_id: org.into() })
     }
 
     fn fresh() -> CommsManager {
@@ -2088,12 +2112,18 @@ mod tests {
 
         mgr.set_target(target("org_a"));
         let after = mgr.session().expect("targeted");
-        assert!(after.generation > before.generation, "unavailable → respawn");
+        assert!(
+            after.generation > before.generation,
+            "unavailable → respawn"
+        );
 
         mgr.set_connection(ConnectionState::Disconnected, None, Some("org_a".into()));
         mgr.set_target(target("org_a"));
         let again = mgr.session().expect("targeted");
-        assert!(again.generation > after.generation, "disconnected → respawn");
+        assert!(
+            again.generation > after.generation,
+            "disconnected → respawn"
+        );
     }
 
     /// A stale attempt returning from its token mint used to install its
@@ -2128,7 +2158,10 @@ mod tests {
             conv_id: "c1".into(),
             seq: 2,
         });
-        assert!(live_rx.try_recv().is_ok(), "the live socket survives a stale release");
+        assert!(
+            live_rx.try_recv().is_ok(),
+            "the live socket survives a stale release"
+        );
         mgr.release_outbound(live.generation);
         assert!(mgr.inner.outbound.lock().unwrap().is_none());
     }
@@ -2253,6 +2286,10 @@ mod tests {
             code_refs: vec![],
             artifact_refs: vec![],
             draft_id: None,
+            author_kind: crate::wire::AuthorKind::User,
+            author_name: None,
+            author_via: None,
+            author_avatar_hash: None,
         };
         assert!(!mgr.adopt_page(&stale, "c1", vec![message], false));
         assert!(mgr.with_state(|s| s.messages("c1").is_empty()));
@@ -2285,7 +2322,9 @@ mod tests {
     async fn send_without_a_target_is_an_error_with_no_side_effects() {
         let mgr = fresh();
         let mut rx = mgr.subscribe();
-        assert!(mgr.send("c1", "hello".into(), None, vec![], vec![]).is_err());
+        assert!(mgr
+            .send("c1", "hello".into(), None, vec![], vec![])
+            .is_err());
         assert!(mgr.inner.pending.lock().unwrap().is_empty());
         assert!(mgr.with_state(|s| s.messages.is_empty()));
         assert!(rx.try_recv().is_err());
@@ -2360,7 +2399,10 @@ mod tests {
         let mut rx = mgr.subscribe();
         let session = mgr.session().expect("targeted");
         // …and the REST page, fetched before that frame, still says live.
-        mgr.adopt_calls(&session, vec![call("call_1", None), call("call_2", Some(50))]);
+        mgr.adopt_calls(
+            &session,
+            vec![call("call_1", None), call("call_2", Some(50))],
+        );
 
         // The frame's answer stands; the new row was learned.
         mgr.with_state(|state| {
@@ -2395,7 +2437,10 @@ mod tests {
 
         // Detaching drops every per-org fact, hydration included.
         mgr.set_target(None);
-        assert!(!mgr.is_hydrated("c1"), "hydration must not survive an org change");
+        assert!(
+            !mgr.is_hydrated("c1"),
+            "hydration must not survive an org change"
+        );
     }
 
     /// The optimism contract: a `react` mutates local state and emits its
@@ -2428,6 +2473,10 @@ mod tests {
                     code_refs: vec![],
                     artifact_refs: vec![],
                     draft_id: None,
+                    author_kind: crate::wire::AuthorKind::User,
+                    author_name: None,
+                    author_via: None,
+                    author_avatar_hash: None,
                 })],
             );
         });
@@ -2481,6 +2530,10 @@ mod tests {
                     code_refs: vec![],
                     artifact_refs: vec![],
                     draft_id: None,
+                    author_kind: crate::wire::AuthorKind::User,
+                    author_name: None,
+                    author_via: None,
+                    author_avatar_hash: None,
                 })],
             );
             state.pins.insert("c1".into(), vec!["m1".into()]);

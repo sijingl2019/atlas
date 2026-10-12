@@ -135,7 +135,11 @@ pub const GATEWAY_STREAM_MAX_RETRIES: usize = 1;
 
 impl EngineProvider {
     /// A developer-configured provider for the Phase 2 tracer bullet.
-    pub fn dev(id: impl Into<String>, base_url: impl Into<String>, env_key: Option<String>) -> Self {
+    pub fn dev(
+        id: impl Into<String>,
+        base_url: impl Into<String>,
+        env_key: Option<String>,
+    ) -> Self {
         let id = id.into();
         Self {
             name: id.clone(),
@@ -218,7 +222,12 @@ pub struct EngineSettings {
 }
 
 impl EngineSettings {
-    pub fn new(home: EngineHome, provider: EngineProvider, model: Option<String>, cwd: PathBuf) -> Self {
+    pub fn new(
+        home: EngineHome,
+        provider: EngineProvider,
+        model: Option<String>,
+        cwd: PathBuf,
+    ) -> Self {
         let wire = provider.wire;
         Self {
             home,
@@ -446,9 +455,7 @@ impl EngineSettings {
 
         if self.provider.wire == WireDialect::Chat {
             let Some(catalogue) = catalogue else {
-                anyhow::bail!(
-                    "the gateway dialect needs a model catalogue and none was resolved"
-                );
+                anyhow::bail!("the gateway dialect needs a model catalog and none was resolved");
             };
             // Written before the config is loaded, not after: `model_catalog_json`
             // names a path the loader reads immediately, and a missing file is a
@@ -567,12 +574,10 @@ mod tests {
         // It is a Windows-only posture change; the other platforms already have
         // Seatbelt and Seccomp and must not see the key at all.
         let tmp = std::env::temp_dir();
-        assert!(
-            !settings(&tmp)
-                .cli_overrides()
-                .iter()
-                .any(|(k, _)| k == "windows.sandbox"),
-        );
+        assert!(!settings(&tmp)
+            .cli_overrides()
+            .iter()
+            .any(|(k, _)| k == "windows.sandbox"),);
     }
 
     #[test]
@@ -593,13 +598,11 @@ mod tests {
             Some("test-model".to_string()),
             tmp.clone(),
         );
-        assert!(
-            keyed
-                .cli_overrides()
-                .iter()
-                .any(|(k, v)| k == "model_providers.byok.env_key"
-                    && v == &TomlValue::String("DEV_KEY".into())),
-        );
+        assert!(keyed
+            .cli_overrides()
+            .iter()
+            .any(|(k, v)| k == "model_providers.byok.env_key"
+                && v == &TomlValue::String("DEV_KEY".into())),);
     }
 
     #[test]
@@ -609,8 +612,14 @@ mod tests {
         // ConfigOverrides or not at all.
         let tmp = std::env::temp_dir();
         let overrides = settings(&tmp).config_overrides();
-        assert_eq!(overrides.atlas_engine_self_exe, std::env::current_exe().ok());
-        assert!(overrides.atlas_engine_self_exe.is_some(), "current_exe must resolve in a test binary");
+        assert_eq!(
+            overrides.atlas_engine_self_exe,
+            std::env::current_exe().ok()
+        );
+        assert!(
+            overrides.atlas_engine_self_exe.is_some(),
+            "current_exe must resolve in a test binary"
+        );
     }
 
     #[test]
@@ -649,7 +658,10 @@ mod tests {
         let s = settings(tmp.path());
         let config = s.build_config(None).await.expect("config should load");
 
-        assert!(s.home.path().is_dir(), "the engine home must exist after build");
+        assert!(
+            s.home.path().is_dir(),
+            "the engine home must exist after build"
+        );
         assert_eq!(config.model.as_deref(), Some("test-model"));
         assert_eq!(
             config.model_provider.base_url.as_deref(),
@@ -687,10 +699,18 @@ mod tests {
         use atlas_engine_protocol::config_types::ModeKind;
 
         let tmp = tempfile::tempdir().expect("tempdir");
-        let config = settings(tmp.path()).build_config(None).await.expect("config loads");
+        let config = settings(tmp.path())
+            .build_config(None)
+            .await
+            .expect("config loads");
 
-        assert!(config.features.enabled(Feature::DefaultModeRequestUserInput));
-        assert!(config.experimental_request_user_input_enabled, "the tool is registered");
+        assert!(config
+            .features
+            .enabled(Feature::DefaultModeRequestUserInput));
+        assert!(
+            config.experimental_request_user_input_enabled,
+            "the tool is registered"
+        );
         assert!(
             atlas_engine_tools::request_user_input_available_modes(&config.features)
                 .contains(&ModeKind::Default),
@@ -748,11 +768,10 @@ mod tests {
 
         // And not on the dev provider, which classifies errors upstream's way.
         let dev = EngineSettings::from_env(Path::new("/tmp/atlas"), PathBuf::from("/tmp"));
-        assert!(
-            !dev.cli_overrides()
-                .iter()
-                .any(|(k, _)| k.ends_with(".request_max_retries")),
-        );
+        assert!(!dev
+            .cli_overrides()
+            .iter()
+            .any(|(k, _)| k.ends_with(".request_max_retries")),);
     }
 
     #[tokio::test]
@@ -797,7 +816,7 @@ mod tests {
         let Err(err) = s.build_config(None).await else {
             panic!("the gateway dialect must not load with no catalogue");
         };
-        assert!(err.to_string().contains("catalogue"), "{err:#}");
+        assert!(err.to_string().contains("catalog"), "{err:#}");
         assert!(
             !s.home.path().join("models.json").exists(),
             "and it must not have written an empty file for the engine to trip on",

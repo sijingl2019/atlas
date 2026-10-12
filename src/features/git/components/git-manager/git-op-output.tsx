@@ -62,7 +62,7 @@ export function GitOpOutput() {
       {!collapsed && (
         <div
           ref={scrollRef}
-          className="max-h-[120px] overflow-y-auto hide-scrollbar bg-[var(--background)] px-2 py-1"
+          className="max-h-[120px] overflow-y-auto hide-scrollbar bg-[var(--background)] px-2 py-1 select-text cursor-text"
         >
           {activeOp.lines.map((l, i) => (
             <div

@@ -71,7 +71,11 @@ impl MemoryTokens {
     }
 
     fn mint_locked(table: &mut TokenTable, session_id: &str, agent: &str, cwd: &str) -> String {
-        let token = format!("{}{}", uuid::Uuid::new_v4().simple(), uuid::Uuid::new_v4().simple());
+        let token = format!(
+            "{}{}",
+            uuid::Uuid::new_v4().simple(),
+            uuid::Uuid::new_v4().simple()
+        );
         if let Some(old) = table.by_session.remove(session_id) {
             table.by_token.remove(&old);
         }
@@ -85,7 +89,9 @@ impl MemoryTokens {
                 ui: false,
             },
         );
-        table.by_session.insert(session_id.to_string(), token.clone());
+        table
+            .by_session
+            .insert(session_id.to_string(), token.clone());
         token
     }
 
@@ -97,7 +103,11 @@ impl MemoryTokens {
     /// request, so an organisation tool called before the bind already knows
     /// where it acts.
     pub fn mint_unbound(&self, agent: &str, cwd: &str, org: Option<OrgScope>, ui: bool) -> String {
-        let token = format!("{}{}", uuid::Uuid::new_v4().simple(), uuid::Uuid::new_v4().simple());
+        let token = format!(
+            "{}{}",
+            uuid::Uuid::new_v4().simple(),
+            uuid::Uuid::new_v4().simple()
+        );
         self.table.lock().by_token.insert(
             token.clone(),
             Grant {
@@ -130,7 +140,10 @@ impl MemoryTokens {
             return;
         };
         grant.session_id = session_id.to_string();
-        if let Some(old) = table.by_session.insert(session_id.to_string(), token.to_string()) {
+        if let Some(old) = table
+            .by_session
+            .insert(session_id.to_string(), token.to_string())
+        {
             if old != token {
                 table.by_token.remove(&old);
             }
@@ -141,7 +154,11 @@ impl MemoryTokens {
     pub fn revoke_token(&self, token: &str) {
         let mut table = self.table.lock();
         if let Some(grant) = table.by_token.remove(token) {
-            if table.by_session.get(&grant.session_id).is_some_and(|t| t == token) {
+            if table
+                .by_session
+                .get(&grant.session_id)
+                .is_some_and(|t| t == token)
+            {
                 table.by_session.remove(&grant.session_id);
             }
         }
@@ -195,7 +212,9 @@ impl SessionLifecycle for MemoryTokens {
             .by_session
             .get(session_id)
             .and_then(|t| table.by_token.get(t))
-            .is_some_and(|g| std::path::Path::new(&g.cwd) == std::path::Path::new(cwd) && g.agent == agent);
+            .is_some_and(|g| {
+                std::path::Path::new(&g.cwd) == std::path::Path::new(cwd) && g.agent == agent
+            });
         if !same {
             Self::mint_locked(&mut table, session_id, agent, cwd);
         }

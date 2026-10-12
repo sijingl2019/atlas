@@ -18,8 +18,8 @@ use atlas_engine_config::CloudConfigBundle;
 use atlas_engine_config::CloudConfigBundleLoadError;
 use atlas_engine_config::CloudConfigBundleLoadErrorCode;
 use atlas_engine_core::util::backoff;
-use atlas_engine_login::AuthManager;
 use atlas_engine_login::AtlasEngineAuth;
+use atlas_engine_login::AuthManager;
 use atlas_engine_login::RefreshTokenError;
 use atlas_engine_login::UnauthorizedRecovery;
 use atlas_engine_protocol::account::PlanType;
@@ -117,8 +117,10 @@ where
     pub(crate) async fn load_startup_bundle_with_timeout(
         &self,
     ) -> Result<Option<CloudConfigBundle>, CloudConfigBundleLoadError> {
-        let _timer =
-            atlas_engine_otel::start_global_timer("atlas_agent.cloud_config_bundle.fetch.duration_ms", &[]);
+        let _timer = atlas_engine_otel::start_global_timer(
+            "atlas_agent.cloud_config_bundle.fetch.duration_ms",
+            &[],
+        );
         let started_at = Instant::now();
         let load_result = timeout(self.timeout, self.load_startup_bundle())
             .await

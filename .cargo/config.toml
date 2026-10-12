@@ -57,3 +57,22 @@ CXXFLAGS_x86_64_pc_windows_msvc = "/utf-8"
 # the prebuilt NASM objects it ships instead. aws-lc-sys ignores it on every
 # other target, and the Tauri CLI never sets it, so it doesn't un-align caches.
 AWS_LC_SYS_PREBUILT_NASM = "1"
+# Windows MSVC only: cl reads source files in the system ANSI codepage, not
+# UTF-8. On a Chinese/Japanese Windows (cp936 / cp932) a lead byte inside a
+# UTF-8 comment pairs with the byte after it and can swallow the newline, so
+# the next line of code disappears into the comment. `numkong` (via `usearch`
+# -> `atlas-memory`) has non-ASCII comments throughout its headers, and on
+# cp936 `cast/serial.h` failed with a cascade of "C2059: syntax error: 'if'";
+# `/utf-8` makes the same command exit 0. Invisible on an English install.
+#
+# Passed through `CL`, the environment variable cl.exe (and clang-cl) prepends
+# to every command line, not through cc's `CFLAGS_<target>`: cc appends those
+# to EVERY compiler it runs for the triple, and on aarch64-pc-windows-msvc
+# `ring` forces GNU-style `clang` (MSVC cannot build its assembly), which took
+# `/utf-8` for an input file — "clang: error: no such file or directory:
+# '/utf-8'" — and failed the `app-windows` job on every run. GNU clang never
+# reads `CL` and already reads source as UTF-8, so the flag now reaches exactly
+# the compilers that need it, C and C++ alike, on both MSVC triples. Off
+# Windows nothing reads `CL`, and cc does not track it, so no cache moves.
+# Like every key here it yields to a `CL` the contributor already exports.
+CL = "/utf-8"

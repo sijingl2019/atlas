@@ -88,7 +88,10 @@ pub(crate) fn write_curated_plugin_sha(atlas_agent_home: &Path) {
 }
 
 pub(crate) fn write_curated_plugin_sha_with(atlas_agent_home: &Path, sha: &str) {
-    write_file(&atlas_agent_home.join(".tmp/plugins.sha"), &format!("{sha}\n"));
+    write_file(
+        &atlas_agent_home.join(".tmp/plugins.sha"),
+        &format!("{sha}\n"),
+    );
 }
 
 pub(crate) fn write_plugins_feature_config(atlas_agent_home: &Path) {

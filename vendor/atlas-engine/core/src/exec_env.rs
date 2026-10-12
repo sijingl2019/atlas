@@ -38,7 +38,10 @@ pub fn create_env(
 
 /// Exposes the shared root-session identity to model-reachable shell commands.
 pub(crate) fn inject_session_id_env(env: &mut HashMap<String, String>, session_id: SessionId) {
-    env.insert(ATLAS_AGENT_SESSION_ID_ENV_VAR.to_string(), session_id.to_string());
+    env.insert(
+        ATLAS_AGENT_SESSION_ID_ENV_VAR.to_string(),
+        session_id.to_string(),
+    );
 }
 
 /// Injects the selected named permission profile into a shell tool's environment.
@@ -69,7 +72,9 @@ pub(crate) fn inject_permission_profile_env(
 /// active feature configuration remains authoritative. The in-process
 /// apply-patch path reads the feature directly.
 pub fn inject_apply_patch_env(env: &mut HashMap<String, String>, features: &Features) {
-    env.retain(|key, _| !key.eq_ignore_ascii_case(ATLAS_AGENT_APPLY_PATCH_PRESERVE_LINE_ENDINGS_ENV_VAR));
+    env.retain(|key, _| {
+        !key.eq_ignore_ascii_case(ATLAS_AGENT_APPLY_PATCH_PRESERVE_LINE_ENDINGS_ENV_VAR)
+    });
     if features.enabled(Feature::ApplyPatchPreserveLineEndings) {
         env.insert(
             ATLAS_AGENT_APPLY_PATCH_PRESERVE_LINE_ENDINGS_ENV_VAR.to_string(),

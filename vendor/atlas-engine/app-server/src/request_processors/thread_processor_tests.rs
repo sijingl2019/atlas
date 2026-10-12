@@ -239,8 +239,6 @@ mod thread_processor_behavior_tests {
     use crate::outgoing_message::OutgoingEnvelope;
     use crate::outgoing_message::OutgoingMessage;
     use anyhow::Result;
-    use chrono::DateTime;
-    use chrono::Utc;
     use atlas_engine_app_server_protocol::ServerRequestPayload;
     use atlas_engine_app_server_protocol::ThreadItem;
     use atlas_engine_app_server_protocol::ToolRequestUserInputParams;
@@ -265,6 +263,8 @@ mod thread_processor_behavior_tests {
     use atlas_engine_thread_store::StoredThread;
     use atlas_engine_utils_absolute_path::test_support::PathBufExt;
     use atlas_engine_utils_absolute_path::test_support::test_path_buf;
+    use chrono::DateTime;
+    use chrono::Utc;
     use pretty_assertions::assert_eq;
     use serde_json::Value;
     use serde_json::json;
@@ -286,13 +286,13 @@ mod thread_processor_behavior_tests {
             defer_loading,
         };
         match namespace {
-            Some(namespace) => {
-                DynamicToolSpec::Namespace(atlas_engine_app_server_protocol::DynamicToolNamespaceSpec {
+            Some(namespace) => DynamicToolSpec::Namespace(
+                atlas_engine_app_server_protocol::DynamicToolNamespaceSpec {
                     name: namespace.to_string(),
                     description: "test namespace".to_string(),
                     tools: vec![DynamicToolNamespaceTool::Function(function)],
-                })
-            }
+                },
+            ),
             None => DynamicToolSpec::Function(function),
         }
     }

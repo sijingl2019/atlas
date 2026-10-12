@@ -279,7 +279,10 @@ fn uses_frameless_alpha_header_for_realtime_v3() {
 fn realtime_headers_include_only_non_default_originator() {
     let default_originator = atlas_engine_login::default_client::originator();
     for (originator, expected_header) in [
-        ("atlas_engine_work_desktop", Some("atlas_engine_work_desktop")),
+        (
+            "atlas_engine_work_desktop",
+            Some("atlas_engine_work_desktop"),
+        ),
         (default_originator.value.as_str(), None),
     ] {
         let headers = realtime_request_headers(

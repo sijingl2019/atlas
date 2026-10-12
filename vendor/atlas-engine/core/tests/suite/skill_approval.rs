@@ -117,7 +117,9 @@ fn skill_script_command(test: &TestAtlasEngine, script_name: &str) -> Result<Str
     Ok(shlex::try_join([script_path.to_string_lossy().as_ref()])?)
 }
 
-async fn wait_for_exec_approval_request(test: &TestAtlasEngine) -> Option<ExecApprovalRequestEvent> {
+async fn wait_for_exec_approval_request(
+    test: &TestAtlasEngine,
+) -> Option<ExecApprovalRequestEvent> {
     wait_for_event_match(test.atlas_engine.as_ref(), |event| match event {
         EventMsg::ExecApprovalRequest(request) => Some(Some(request.clone())),
         EventMsg::TurnComplete(_) => Some(None),

@@ -67,8 +67,9 @@ fn version_skew_binaries() -> Result<Option<(PathBuf, PathBuf)>> {
     let Some(released) = std::env::var_os(RELEASED_ATLAS_AGENT_ENV_VAR) else {
         return Ok(None);
     };
-    let current = std::env::var_os(CURRENT_ATLAS_AGENT_ENV_VAR)
-        .with_context(|| format!("{CURRENT_ATLAS_AGENT_ENV_VAR} must name the current Atlas Agent binary"))?;
+    let current = std::env::var_os(CURRENT_ATLAS_AGENT_ENV_VAR).with_context(|| {
+        format!("{CURRENT_ATLAS_AGENT_ENV_VAR} must name the current Atlas Agent binary")
+    })?;
     let current = PathBuf::from(current);
     let released = PathBuf::from(released);
     anyhow::ensure!(
@@ -192,12 +193,18 @@ stream_max_retries = 0
             "ATLAS_AGENT_APP_SERVER_MANAGED_CONFIG_PATH",
             atlas_agent_home.path().join("managed_config.toml"),
         )
-        .env(ATLAS_AGENT_EXEC_SERVER_NOISE_REGISTRY_URL_ENV_VAR, &registry_url)
+        .env(
+            ATLAS_AGENT_EXEC_SERVER_NOISE_REGISTRY_URL_ENV_VAR,
+            &registry_url,
+        )
         .env(
             ATLAS_AGENT_EXEC_SERVER_NOISE_ENVIRONMENT_ID_ENV_VAR,
             ENVIRONMENT_ID,
         )
-        .env(ATLAS_AGENT_EXEC_SERVER_NOISE_AUTH_TOKEN_ENV_VAR, REGISTRY_TOKEN)
+        .env(
+            ATLAS_AGENT_EXEC_SERVER_NOISE_AUTH_TOKEN_ENV_VAR,
+            REGISTRY_TOKEN,
+        )
         .env_remove(ATLAS_AGENT_EXEC_SERVER_URL_ENV_VAR)
         .env_remove(EXECUTOR_MARKER_ENV_VAR)
         .stdin(Stdio::piped())

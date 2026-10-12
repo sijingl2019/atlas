@@ -6,15 +6,15 @@ use std::time::Duration;
 
 use anyhow::Context;
 use anyhow::Result;
+use atlas_engine_http_client::HttpClient;
+use atlas_engine_http_client::HttpError;
+use atlas_engine_protocol::auth::PlanType as AuthPlanType;
+use atlas_engine_protocol::protocol::SessionSource;
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use chrono::SecondsFormat;
 use chrono::Utc;
-use atlas_engine_http_client::HttpClient;
-use atlas_engine_http_client::HttpError;
-use atlas_engine_protocol::auth::PlanType as AuthPlanType;
-use atlas_engine_protocol::protocol::SessionSource;
 use crypto_box::SecretKey as Curve25519SecretKey;
 use ed25519_dalek::Signer as _;
 use ed25519_dalek::SigningKey;
@@ -565,7 +565,6 @@ fn signing_key_from_private_key_pkcs8_base64(private_key_pkcs8_base64: &str) -> 
 
 #[cfg(test)]
 mod tests {
-    use base64::Engine as _;
     use ed25519_dalek::Signature;
     use ed25519_dalek::Verifier as _;
     use jsonwebtoken::EncodingKey;

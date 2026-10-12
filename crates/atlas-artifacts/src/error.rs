@@ -17,7 +17,7 @@ pub enum Error {
     /// auth service was unreachable is a `Transport` — classifying it here
     /// would tell a developer on a flaky connection that they had been signed
     /// out, which is the mistake `commands/comms.rs` documents at length.
-    #[error("not authorised: {0}")]
+    #[error("not authorized: {0}")]
     Unauthorized(String),
 
     /// The server understood and refused (403). Terminal for this Project
@@ -82,10 +82,22 @@ mod tests {
 
     #[test]
     fn statuses_map_onto_the_taxonomy() {
-        assert!(matches!(Error::from_status(401, "read"), Error::Unauthorized(_)));
-        assert!(matches!(Error::from_status(403, "read"), Error::Forbidden(_)));
-        assert!(matches!(Error::from_status(404, "read"), Error::NotFound(_)));
-        assert!(matches!(Error::from_status(429, "read"), Error::RateLimited { .. }));
+        assert!(matches!(
+            Error::from_status(401, "read"),
+            Error::Unauthorized(_)
+        ));
+        assert!(matches!(
+            Error::from_status(403, "read"),
+            Error::Forbidden(_)
+        ));
+        assert!(matches!(
+            Error::from_status(404, "read"),
+            Error::NotFound(_)
+        ));
+        assert!(matches!(
+            Error::from_status(429, "read"),
+            Error::RateLimited { .. }
+        ));
         // Anything else is the network's fault until proven otherwise, so it
         // stays retryable rather than becoming a permanent local failure.
         assert!(Error::from_status(503, "read").retryable());

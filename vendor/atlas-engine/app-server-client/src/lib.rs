@@ -20,13 +20,13 @@
 mod path;
 mod remote;
 
+use atlas_engine_login::auth::ExternalAuth;
 use std::error::Error;
 use std::fmt;
 use std::io::Error as IoError;
 use std::io::ErrorKind;
 use std::io::Result as IoResult;
 use std::sync::Arc;
-use atlas_engine_login::auth::ExternalAuth;
 use std::time::Duration;
 
 pub use atlas_engine_app_server::app_server_control_socket_path;
@@ -705,12 +705,17 @@ impl AppServerRequestHandle {
 }
 
 impl AppServerClient {
-    pub fn atlas_agent_home(&self, local_atlas_agent_home: &AbsolutePathBuf) -> Option<AppServerPath> {
+    pub fn atlas_agent_home(
+        &self,
+        local_atlas_agent_home: &AbsolutePathBuf,
+    ) -> Option<AppServerPath> {
         match self {
             Self::InProcess(_) => Some(AppServerPath::from_app_server(
                 local_atlas_agent_home.display().to_string(),
             )),
-            Self::Remote(client) => client.atlas_agent_home().map(AppServerPath::from_app_server),
+            Self::Remote(client) => client
+                .atlas_agent_home()
+                .map(AppServerPath::from_app_server),
         }
     }
 
@@ -869,7 +874,8 @@ mod tests {
         channel_capacity: usize,
     ) -> TestClient {
         let atlas_agent_home = TempDir::new().expect("temp dir");
-        let config = Arc::new(build_test_config_for_atlas_agent_home(atlas_agent_home.path()).await);
+        let config =
+            Arc::new(build_test_config_for_atlas_agent_home(atlas_agent_home.path()).await);
         let state_db = init_state_db(config.as_ref())
             .await
             .expect("state db should initialize for in-process test");
@@ -1046,33 +1052,37 @@ mod tests {
     }
 
     fn item_completed_notification(text: &str) -> ServerNotification {
-        ServerNotification::ItemCompleted(atlas_engine_app_server_protocol::ItemCompletedNotification {
-            thread_id: "thread".to_string(),
-            turn_id: "turn".to_string(),
-            completed_at_ms: 0,
-            item: atlas_engine_app_server_protocol::ThreadItem::AgentMessage {
-                id: "item".to_string(),
-                text: text.to_string(),
-                phase: None,
-                memory_citation: None,
+        ServerNotification::ItemCompleted(
+            atlas_engine_app_server_protocol::ItemCompletedNotification {
+                thread_id: "thread".to_string(),
+                turn_id: "turn".to_string(),
+                completed_at_ms: 0,
+                item: atlas_engine_app_server_protocol::ThreadItem::AgentMessage {
+                    id: "item".to_string(),
+                    text: text.to_string(),
+                    phase: None,
+                    memory_citation: None,
+                },
             },
-        })
+        )
     }
 
     fn turn_completed_notification() -> ServerNotification {
-        ServerNotification::TurnCompleted(atlas_engine_app_server_protocol::TurnCompletedNotification {
-            thread_id: "thread".to_string(),
-            turn: atlas_engine_app_server_protocol::Turn {
-                id: "turn".to_string(),
-                items_view: atlas_engine_app_server_protocol::TurnItemsView::Full,
-                items: Vec::new(),
-                status: atlas_engine_app_server_protocol::TurnStatus::Completed,
-                error: None,
-                started_at: None,
-                completed_at: Some(0),
-                duration_ms: Some(1),
+        ServerNotification::TurnCompleted(
+            atlas_engine_app_server_protocol::TurnCompletedNotification {
+                thread_id: "thread".to_string(),
+                turn: atlas_engine_app_server_protocol::Turn {
+                    id: "turn".to_string(),
+                    items_view: atlas_engine_app_server_protocol::TurnItemsView::Full,
+                    items: Vec::new(),
+                    status: atlas_engine_app_server_protocol::TurnStatus::Completed,
+                    error: None,
+                    started_at: None,
+                    completed_at: Some(0),
+                    duration_ms: Some(1),
+                },
             },
-        })
+        )
     }
 
     fn test_remote_connect_args(websocket_url: String) -> RemoteAppServerConnectArgs {
@@ -1328,8 +1338,9 @@ mod tests {
     #[tokio::test]
     async fn remote_unix_socket_typed_request_roundtrip_works() {
         let socket_dir = TempDir::new().expect("socket dir");
-        let socket_path = AbsolutePathBuf::from_absolute_path(socket_dir.path().join("atlas_agent.sock"))
-            .expect("socket path should resolve");
+        let socket_path =
+            AbsolutePathBuf::from_absolute_path(socket_dir.path().join("atlas_agent.sock"))
+                .expect("socket path should resolve");
         let mut listener = UnixListener::bind(socket_path.as_path())
             .await
             .expect("listener should bind");

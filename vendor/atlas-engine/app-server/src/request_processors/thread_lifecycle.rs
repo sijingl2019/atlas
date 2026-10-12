@@ -402,7 +402,9 @@ pub(super) async fn ensure_listener_task_running(
     Ok(())
 }
 
-pub(super) async fn wait_for_thread_shutdown(thread: &Arc<AtlasEngineThread>) -> ThreadShutdownResult {
+pub(super) async fn wait_for_thread_shutdown(
+    thread: &Arc<AtlasEngineThread>,
+) -> ThreadShutdownResult {
     match tokio::time::timeout(Duration::from_secs(10), thread.shutdown_and_wait()).await {
         Ok(Ok(())) => ThreadShutdownResult::Complete,
         Ok(Err(_)) => ThreadShutdownResult::SubmitFailed,

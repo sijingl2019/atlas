@@ -14,7 +14,8 @@ pub const WEBSOCKET_REQUEST_COUNT_METRIC: &str = "atlas_agent.websocket.request"
 pub const WEBSOCKET_REQUEST_DURATION_METRIC: &str = "atlas_agent.websocket.request.duration_ms";
 pub const WEBSOCKET_EVENT_COUNT_METRIC: &str = "atlas_agent.websocket.event";
 pub const WEBSOCKET_EVENT_DURATION_METRIC: &str = "atlas_agent.websocket.event.duration_ms";
-pub const RESPONSES_API_OVERHEAD_DURATION_METRIC: &str = "atlas_agent.responses_api_overhead.duration_ms";
+pub const RESPONSES_API_OVERHEAD_DURATION_METRIC: &str =
+    "atlas_agent.responses_api_overhead.duration_ms";
 pub const RESPONSES_API_INFERENCE_TIME_DURATION_METRIC: &str =
     "atlas_agent.responses_api_inference_time.duration_ms";
 pub const RESPONSES_API_ENGINE_IAPI_TTFT_DURATION_METRIC: &str =
@@ -36,7 +37,8 @@ pub const TURN_UNIFIED_EXEC_RUNNING_PROCESSES_METRIC: &str =
     "atlas_agent.turn.unified_exec.running_processes";
 pub const GUARDIAN_REVIEW_COUNT_METRIC: &str = "atlas_agent.guardian.review";
 pub const GUARDIAN_REVIEW_DURATION_METRIC: &str = "atlas_agent.guardian.review.duration_ms";
-pub const GUARDIAN_REVIEW_TTFT_DURATION_METRIC: &str = "atlas_agent.guardian.review.ttft.duration_ms";
+pub const GUARDIAN_REVIEW_TTFT_DURATION_METRIC: &str =
+    "atlas_agent.guardian.review.ttft.duration_ms";
 pub const GUARDIAN_REVIEW_TOKEN_USAGE_METRIC: &str = "atlas_agent.guardian.review.token_usage";
 pub const GOAL_CREATED_METRIC: &str = "atlas_agent.goal.created";
 pub const GOAL_RESUMED_METRIC: &str = "atlas_agent.goal.resumed";
@@ -46,10 +48,12 @@ pub const GOAL_USAGE_LIMITED_METRIC: &str = "atlas_agent.goal.usage_limited";
 pub const GOAL_BLOCKED_METRIC: &str = "atlas_agent.goal.blocked";
 pub const GOAL_TOKEN_COUNT_METRIC: &str = "atlas_agent.goal.token_count";
 pub const GOAL_DURATION_SECONDS_METRIC: &str = "atlas_agent.goal.duration_s";
-pub const PLUGIN_INSTALL_ELICITATION_SENT_METRIC: &str = "atlas_agent.plugins.install_elicitation.sent";
+pub const PLUGIN_INSTALL_ELICITATION_SENT_METRIC: &str =
+    "atlas_agent.plugins.install_elicitation.sent";
 pub const PLUGIN_INSTALL_SUGGESTION_METRIC: &str = "atlas_agent.plugins.install_suggestion";
 pub const CURATED_PLUGINS_STARTUP_SYNC_METRIC: &str = "atlas_agent.plugins.startup_sync";
-pub const CURATED_PLUGINS_STARTUP_SYNC_FINAL_METRIC: &str = "atlas_agent.plugins.startup_sync.final";
+pub const CURATED_PLUGINS_STARTUP_SYNC_FINAL_METRIC: &str =
+    "atlas_agent.plugins.startup_sync.final";
 pub const HOOK_RUN_METRIC: &str = "atlas_agent.hooks.run";
 pub const HOOK_RUN_DURATION_METRIC: &str = "atlas_agent.hooks.run.duration_ms";
 /// Duration for coarse startup phases, tagged by low-cardinality phase and status.

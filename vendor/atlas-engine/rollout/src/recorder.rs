@@ -14,13 +14,13 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use chrono::SecondsFormat;
 use atlas_engine_protocol::RolloutId;
 use atlas_engine_protocol::SessionId;
 use atlas_engine_protocol::ThreadId;
 use atlas_engine_protocol::capabilities::SelectedCapabilityRoot;
 use atlas_engine_protocol::dynamic_tools::DynamicToolSpec;
 use atlas_engine_protocol::models::BaseInstructions;
+use chrono::SecondsFormat;
 use serde_json::Value;
 use time::OffsetDateTime;
 use time::format_description::FormatItem;
@@ -716,7 +716,11 @@ impl RolloutRecorder {
         // If SQLite listing still fails, return the filesystem page rather than failing the list.
         tracing::error!("Falling back on rollout system");
         tracing::warn!("state db discrepancy during list_threads_with_db_fallback: falling_back");
-        atlas_engine_state::record_fallback("list_threads", "db_error", /*telemetry_override*/ None);
+        atlas_engine_state::record_fallback(
+            "list_threads",
+            "db_error",
+            /*telemetry_override*/ None,
+        );
         Ok(page_from_filesystem_scan(
             fs_page,
             sort_direction,
@@ -1365,8 +1369,12 @@ async fn list_threads_from_files_desc(
             .await?;
             scanned_files = scanned_files.saturating_add(page.num_scanned_files);
             reached_scan_cap |= page.reached_scan_cap;
-            filter_thread_items_by_search_term(atlas_agent_home, &mut page.items, Some(search_term))
-                .await?;
+            filter_thread_items_by_search_term(
+                atlas_agent_home,
+                &mut page.items,
+                Some(search_term),
+            )
+            .await?;
             matching_items.extend(page.items);
             page_cursor = page.next_cursor;
             if matching_items.len() > page_size || page_cursor.is_none() {

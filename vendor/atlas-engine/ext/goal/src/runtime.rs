@@ -269,9 +269,10 @@ impl GoalRuntimeHandle {
             ActiveGoalStopReason::TurnError => {
                 ("turn-error", atlas_engine_state::ThreadGoalStatus::Blocked)
             }
-            ActiveGoalStopReason::UsageLimit => {
-                ("usage-limit", atlas_engine_state::ThreadGoalStatus::UsageLimited)
-            }
+            ActiveGoalStopReason::UsageLimit => (
+                "usage-limit",
+                atlas_engine_state::ThreadGoalStatus::UsageLimited,
+            ),
         };
         self.account_active_goal_progress(
             turn_id,

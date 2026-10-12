@@ -41,9 +41,11 @@ import {
   type ChatCall,
   type ChatCodeRef,
   type ChatConversation,
+  type ChatFeatures,
   type ChatPin,
   type ChatReaction,
   type ChatReadState,
+  type ChatSessionReference,
   type CommsMessage,
   type OrgMemberProfile,
   type PromptDraft,
@@ -77,8 +79,14 @@ const TOBI = "usr_tobi";
  */
 export const COMMS_MEMBERS: OrgMemberProfile[] = [
   { id: ME, name: "Dev", email: "dev@acme.dev", image: null, role: "admin" },
-  { id: PRIYA, name: "Priya Raman", email: "priya@acme.dev", image: null, role: "product_owner" },
-  { id: SAM, name: "Sam Okafor", email: "sam@acme.dev", image: null, role: "developer" },
+  {
+    id: PRIYA,
+    name: "Priya Raghunathan",
+    email: "priya@acme.dev",
+    image: null,
+    role: "product_owner",
+  },
+  { id: SAM, name: "Sam Oyelaran", email: "sam@acme.dev", image: null, role: "developer" },
   {
     id: MIRA,
     name: "Mirabel Fitzgerald-Okonkwo",
@@ -211,9 +219,15 @@ interface Seed {
   status?: SendStatus;
   attachments?: ChatAttachment[];
   codeRefs?: ChatCodeRef[];
+  /** Timeline Sessions or Checkpoints shared into the message (`artifact_refs`). */
+  sessionRefs?: ChatSessionReference[];
   reactions?: [emoji: string, users: string[]][];
   pinned?: boolean;
   draftId?: string;
+  /** Posted by an incoming webhook, not a person: `by` is then the webhook's
+   *  `whk_…` id, `name` the frozen `author_name`, and `via` the webhook's own
+   *  name when the post overrode it. */
+  webhook?: { name: string; via?: string };
 }
 
 const IMAGE_ATTACHMENT: ChatAttachment = {
@@ -492,6 +506,63 @@ const DESKTOP_SEEDS: Seed[] = [
   },
   {
     by: ME,
+    gap: 4,
+    // Session References: a whole recorded Session and one Checkpoint inside
+    // it, pointing at real rows in `artifacts.ts` so the cards open on the
+    // Timeline. `rw_1d55e903` is acme-app's Workspace there.
+    body: "Unrelated, but the /v2 move is done — here's the session if anyone wants to see how the retry helper ended up.",
+    sessionRefs: [
+      {
+        kind: "session",
+        workspace_ref_id: "rw_1d55e903",
+        session_id: "sess-8f21ac",
+        session_title: "Move the user reads onto /v2 and keep the retry helper honest",
+        agent: "claude-code",
+        started_at: NOW - 150 * MIN,
+        messages: 14,
+        tool_calls: 23,
+        checkpoints: 2,
+      },
+    ],
+    reactions: [[EMOJI.eyes, [PRIYA, SAM]]],
+  },
+  {
+    by: SAM,
+    gap: 3,
+    body: "This checkpoint is the one to review — the rest is call sites.",
+    sessionRefs: [
+      {
+        kind: "checkpoint",
+        workspace_ref_id: "rw_1d55e903",
+        session_id: "sess-8f21ac",
+        session_title: "Move the user reads onto /v2 and keep the retry helper honest",
+        row_id: "sess-8f21ac-e30",
+        commit_sha: "4f21a9033c1d8e77b0a5f1c2d3e4b5a6c7d8e9f0",
+        branch: "feature/auth-v2",
+        insertions: 96,
+        deletions: 41,
+        files: 3,
+      },
+    ],
+  },
+  {
+    // An incoming webhook (ADR-0020 on the server): the id is the webhook's,
+    // never a member's, so without `author_kind` this rendered as "Unknown".
+    by: "whk_ci",
+    gap: 2,
+    webhook: { name: "GitHub Actions" },
+    body: "Build #412 passed on `feature/auth-v2` in 3m 12s.",
+  },
+  {
+    // The same webhook posting under a per-message username: drawn as
+    // "Release · via GitHub Actions", so the override can never stand alone.
+    by: "whk_ci",
+    gap: 1,
+    webhook: { name: "Release", via: "GitHub Actions" },
+    body: "Draft release **v0.4.0** created from `feature/auth-v2`.",
+  },
+  {
+    by: ME,
     gap: 5,
     // A send that failed and STAYED in the transcript. Rust keeps the row and
     // marks it, because a message that silently disappears from the composer
@@ -630,7 +701,16 @@ function build(convId: string, startAt: number, seeds: Seed[]): CommsMessage[] {
       created_at: at,
       attachments: seed.attachments ?? [],
       code_refs: seed.codeRefs ?? [],
+      ...(seed.sessionRefs ? { artifact_refs: seed.sessionRefs } : {}),
       draft_id: seed.draftId ?? null,
+      ...(seed.webhook
+        ? {
+            author_kind: "webhook" as const,
+            author_name: seed.webhook.name,
+            author_via: seed.webhook.via ?? seed.webhook.name,
+            author_avatar_hash: null,
+          }
+        : {}),
       ...(seed.deleted ? { deleted: true } : {}),
       ...(seed.status ? { status: seed.status } : {}),
     } satisfies CommsMessage;
@@ -752,6 +832,18 @@ const calls = new Map<string, ChatCall>([
   ],
 ]);
 
+/**
+ * The org's plan, as `GET /features` answers it. The catalogue defaults —
+ * free Voice Calls on, paid Meetings off — because that is what nearly every
+ * Organisation has, and it is the plan the header has to get right: the
+ * phone starts a Voice Call and the camera is disabled with its reason.
+ * Flip `calls.paid` to see the Meeting rows.
+ */
+const MOCK_FEATURES: ChatFeatures = {
+  features: { "calls.mesh": true, "calls.paid": false, "chat.webhooks": true },
+  mesh_call_max: 20,
+};
+
 const RECORDINGS = new Map<string, RecordingsResponse>([
   [
     "call_desktop_sync",
@@ -760,13 +852,13 @@ const RECORDINGS = new Map<string, RecordingsResponse>([
       tracks: [
         {
           id: "trk_priya",
-          filename: "priya-raman.m4a",
+          filename: "priya-raghunathan.m4a",
           bytes: 8_412_006,
           url: "https://chat.acme.dev/recordings/trk_priya?ticket=mock",
         },
         {
           id: "trk_sam",
-          filename: "sam-okafor.m4a",
+          filename: "sam-oyelaran.m4a",
           bytes: 7_118_440,
           url: "https://chat.acme.dev/recordings/trk_sam?ticket=mock",
         },
@@ -946,6 +1038,7 @@ export interface CommsResponses {
   comms_draft_update: Unit;
   comms_draft_awareness: Unit;
   comms_start_call: ChatCall;
+  comms_features: ChatFeatures;
   comms_call_recordings: RecordingsResponse;
   comms_fetch_recording: string;
   comms_save_recording: Unit;
@@ -1290,7 +1383,22 @@ export const commsHandlers: TypedHandlers<CommsResponses> = {
   comms_draft_awareness: (): null => null,
 
   // ── calls ───────────────────────────────────────────────────────────────
-  comms_start_call: ({ convId, mode, public: isPublic }): ChatCall => {
+  // The server's rules, as far as the header can see them: no provider means
+  // a Meeting, a Meeting needs `calls.paid` (off here, per MOCK_FEATURES),
+  // and a Voice Call is audio-only, guest-less, one live per conversation.
+  comms_start_call: ({ convId, mode, public: isPublic, provider }): ChatCall => {
+    // Thrown as the Rust bridge rejects: the refusal envelope as a string.
+    const refuse = (code: string, message: string) => JSON.stringify({ code, message });
+    if (provider === "mesh") {
+      if (mode !== "audio" || isPublic) {
+        throw refuse("bad_request", "A voice call is audio only and has no guest link.");
+      }
+      for (const live of calls.values()) {
+        if (live.conv_id === String(convId) && live.ended_at === null) return live;
+      }
+    } else if (!MOCK_FEATURES.features["calls.paid"]) {
+      throw refuse("feature_disabled", "Meetings are not available on this Organization's plan.");
+    }
     const call: ChatCall = {
       id: `call_${Date.now()}`,
       conv_id: String(convId),
@@ -1307,6 +1415,7 @@ export const commsHandlers: TypedHandlers<CommsResponses> = {
     push({ kind: "callChanged", call });
     return call;
   },
+  comms_features: (): ChatFeatures => MOCK_FEATURES,
   // Links are minted per read and die in ~60s, so this is asked at open time
   // and never cached. A call with nothing kept answers with an empty list.
   comms_call_recordings: ({ callId }): RecordingsResponse =>

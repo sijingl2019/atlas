@@ -161,8 +161,6 @@ mod requirements;
 mod resolved_permission_profile;
 #[cfg(test)]
 mod schema;
-pub use auth_keyring::bootstrap_auth_config;
-pub use auth_keyring::resolve_bootstrap_auth_keyring_backend_kind;
 pub use atlas_engine_config::ConfigLoadOptions;
 pub use atlas_engine_config::Constrained;
 pub use atlas_engine_config::ConstraintError;
@@ -171,6 +169,8 @@ pub use atlas_engine_config::LoaderOverrides;
 pub use atlas_engine_network_proxy::NetworkProxyAuditMetadata;
 use atlas_engine_sandboxing::compatibility_sandbox_policy_for_permission_profile;
 pub use atlas_engine_sandboxing::system_bwrap_warning;
+pub use auth_keyring::bootstrap_auth_config;
+pub use auth_keyring::resolve_bootstrap_auth_keyring_backend_kind;
 pub use managed_features::ManagedFeatures;
 pub use network_proxy_spec::NetworkProxySpec;
 pub use network_proxy_spec::StartedNetworkProxy;
@@ -272,7 +272,8 @@ pub(crate) async fn test_config() -> Config {
             ..Default::default()
         },
         ConfigOverrides::default(),
-        AbsolutePathBuf::from_absolute_path(atlas_agent_home.path()).expect("temp dir should resolve"),
+        AbsolutePathBuf::from_absolute_path(atlas_agent_home.path())
+            .expect("temp dir should resolve"),
     )
     .await
     .expect("load default test config")
@@ -1417,11 +1418,12 @@ impl ConfigBuilder {
         let config_toml: ConfigToml = match merged_toml.try_into() {
             Ok(config_toml) => config_toml,
             Err(err) => {
-                if let Some(config_error) = atlas_engine_config::first_layer_config_error::<ConfigToml>(
-                    &config_layer_stack,
-                    atlas_engine_config::CONFIG_TOML_FILE,
-                )
-                .await
+                if let Some(config_error) =
+                    atlas_engine_config::first_layer_config_error::<ConfigToml>(
+                        &config_layer_stack,
+                        atlas_engine_config::CONFIG_TOML_FILE,
+                    )
+                    .await
                 {
                     return Err(atlas_engine_config::io_error_from_config_error(
                         std::io::ErrorKind::InvalidData,
@@ -1893,8 +1895,13 @@ pub async fn load_config_as_toml_with_cli_and_loader_overrides(
     cli_overrides: Vec<(String, TomlValue)>,
     loader_overrides: LoaderOverrides,
 ) -> std::io::Result<ConfigToml> {
-    load_config_as_toml_with_cli_and_load_options(atlas_agent_home, cwd, cli_overrides, loader_overrides)
-        .await
+    load_config_as_toml_with_cli_and_load_options(
+        atlas_agent_home,
+        cwd,
+        cli_overrides,
+        loader_overrides,
+    )
+    .await
 }
 
 /// DEPRECATED for most callers: prefer [Config::load_with_cli_overrides()] or

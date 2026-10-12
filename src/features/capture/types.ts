@@ -123,6 +123,16 @@ export interface ConnectResult {
   binding: Binding | null;
   candidates: RemoteWorkspace[];
   matched: boolean;
+  /** Locally captured Sessions now queued for sync — non-zero only when a
+   *  Local Project was connected to an existing Cloud Project. */
+  moved: number;
+}
+
+/** A Connect-tab pick, carried to the disclosure step before anything is sent. */
+export interface ConnectPick {
+  orgId: string;
+  slug: string;
+  workspaceId: string;
 }
 
 /** What a promotion is about to publish — mirrors `PromotionPreview`. */

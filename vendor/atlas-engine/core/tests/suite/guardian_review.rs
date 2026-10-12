@@ -3,9 +3,6 @@
 
 use anyhow::Context;
 use anyhow::Result;
-use chrono::DateTime;
-use chrono::Local;
-use chrono::Utc;
 use atlas_engine_core::SleepFuture;
 use atlas_engine_core::TimeFuture;
 use atlas_engine_core::TimeProvider;
@@ -40,6 +37,9 @@ use atlas_engine_protocol::protocol::SandboxPolicy;
 use atlas_engine_protocol::protocol::ThreadSettingsOverrides;
 use atlas_engine_protocol::protocol::TurnAbortReason;
 use atlas_engine_protocol::user_input::UserInput;
+use chrono::DateTime;
+use chrono::Local;
+use chrono::Utc;
 use core_test_support::fs_wait;
 use core_test_support::responses::assert_parent_turn;
 use core_test_support::responses::assert_root_turn;
@@ -411,7 +411,9 @@ async fn guardian_session_is_reused_for_consecutive_tool_reviews_without_prewarm
         })
         .with_workspace_setup(|cwd, fs| async move {
             fs.write_file(
-                &atlas_engine_utils_path_uri::PathUri::from_abs_path(&cwd.join("guardian-secret.txt")),
+                &atlas_engine_utils_path_uri::PathUri::from_abs_path(
+                    &cwd.join("guardian-secret.txt"),
+                ),
                 SECRET.as_bytes().to_vec(),
                 /*sandbox*/ None,
             )

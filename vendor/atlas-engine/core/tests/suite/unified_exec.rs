@@ -249,14 +249,16 @@ async fn create_workspace_directory(
 async fn exec_command_hides_and_rejects_login_when_disabled() -> Result<()> {
     skip_if_no_network!(Ok(()));
 
-    let builder = test_atlas_engine().with_model("gpt-5.4").with_config(|config| {
-        config.permissions.allow_login_shell = false;
-        config.use_experimental_unified_exec_tool = true;
-        config
-            .features
-            .enable(Feature::UnifiedExec)
-            .expect("test config should allow feature update");
-    });
+    let builder = test_atlas_engine()
+        .with_model("gpt-5.4")
+        .with_config(|config| {
+            config.permissions.allow_login_shell = false;
+            config.use_experimental_unified_exec_tool = true;
+            config
+                .features
+                .enable(Feature::UnifiedExec)
+                .expect("test config should allow feature update");
+        });
     let harness = TestAtlasEngineHarness::with_builder(builder).await?;
     let call_id = "exec-command-login-disabled";
     let arguments = json!({
@@ -442,13 +444,15 @@ async fn unified_exec_rejects_justification_without_sandbox_permissions() -> Res
     skip_if_no_network!(Ok(()));
 
     let server = start_mock_server().await;
-    let mut builder = test_atlas_engine().with_model("gpt-5.2").with_config(|config| {
-        config.use_experimental_unified_exec_tool = true;
-        config
-            .features
-            .enable(Feature::UnifiedExec)
-            .expect("test config should allow feature update");
-    });
+    let mut builder = test_atlas_engine()
+        .with_model("gpt-5.2")
+        .with_config(|config| {
+            config.use_experimental_unified_exec_tool = true;
+            config
+                .features
+                .enable(Feature::UnifiedExec)
+                .expect("test config should allow feature update");
+        });
     let test = builder.build_with_auto_env(&server).await?;
 
     let call_id = "uexec-missing-sandbox-permissions";
@@ -521,13 +525,15 @@ async fn unified_exec_emits_exec_command_begin_event() -> Result<()> {
 
     let server = start_mock_server().await;
 
-    let mut builder = test_atlas_engine().with_model("gpt-5.2").with_config(|config| {
-        config.use_experimental_unified_exec_tool = true;
-        config
-            .features
-            .enable(Feature::UnifiedExec)
-            .expect("test config should allow feature update");
-    });
+    let mut builder = test_atlas_engine()
+        .with_model("gpt-5.2")
+        .with_config(|config| {
+            config.use_experimental_unified_exec_tool = true;
+            config
+                .features
+                .enable(Feature::UnifiedExec)
+                .expect("test config should allow feature update");
+        });
     let test = builder.build_with_auto_env(&server).await?;
     let cwd = test.config.cwd.to_path_buf();
 
@@ -584,13 +590,15 @@ async fn unified_exec_resolves_relative_workdir() -> Result<()> {
 
     let server = start_mock_server().await;
 
-    let mut builder = test_atlas_engine().with_model("gpt-5.2").with_config(|config| {
-        config.use_experimental_unified_exec_tool = true;
-        config
-            .features
-            .enable(Feature::UnifiedExec)
-            .expect("test config should allow feature update");
-    });
+    let mut builder = test_atlas_engine()
+        .with_model("gpt-5.2")
+        .with_config(|config| {
+            config.use_experimental_unified_exec_tool = true;
+            config
+                .features
+                .enable(Feature::UnifiedExec)
+                .expect("test config should allow feature update");
+        });
     let test = builder.build_with_auto_env(&server).await?;
 
     let workdir_rel = std::path::PathBuf::from("uexec_relative_workdir");
@@ -654,13 +662,15 @@ async fn unified_exec_respects_workdir_override() -> Result<()> {
 
     let server = start_mock_server().await;
 
-    let mut builder = test_atlas_engine().with_model("gpt-5.2").with_config(|config| {
-        config.use_experimental_unified_exec_tool = true;
-        config
-            .features
-            .enable(Feature::UnifiedExec)
-            .expect("test config should allow feature update");
-    });
+    let mut builder = test_atlas_engine()
+        .with_model("gpt-5.2")
+        .with_config(|config| {
+            config.use_experimental_unified_exec_tool = true;
+            config
+                .features
+                .enable(Feature::UnifiedExec)
+                .expect("test config should allow feature update");
+        });
     let test = builder.build_with_auto_env(&server).await?;
 
     let workdir = create_workspace_directory(&test, "uexec_workdir_test").await?;
@@ -1669,14 +1679,16 @@ async fn exec_command_clamps_model_requested_max_output_tokens_to_policy() -> Re
 
     let server = start_mock_server().await;
 
-    let mut builder = test_atlas_engine().with_model("gpt-5.4").with_config(|config| {
-        config.use_experimental_unified_exec_tool = true;
-        config.tool_output_token_limit = Some(50);
-        config
-            .features
-            .enable(Feature::UnifiedExec)
-            .expect("test config should allow feature update");
-    });
+    let mut builder = test_atlas_engine()
+        .with_model("gpt-5.4")
+        .with_config(|config| {
+            config.use_experimental_unified_exec_tool = true;
+            config.tool_output_token_limit = Some(50);
+            config
+                .features
+                .enable(Feature::UnifiedExec)
+                .expect("test config should allow feature update");
+        });
     let test = builder.build_with_auto_env(&server).await?;
 
     let call_id = "uexec-clamped-max-output";
@@ -1732,14 +1744,16 @@ async fn write_stdin_clamps_model_requested_max_output_tokens_to_policy() -> Res
 
     let server = start_mock_server().await;
 
-    let mut builder = test_atlas_engine().with_model("gpt-5.4").with_config(|config| {
-        config.use_experimental_unified_exec_tool = true;
-        config.tool_output_token_limit = Some(50);
-        config
-            .features
-            .enable(Feature::UnifiedExec)
-            .expect("test config should allow feature update");
-    });
+    let mut builder = test_atlas_engine()
+        .with_model("gpt-5.4")
+        .with_config(|config| {
+            config.use_experimental_unified_exec_tool = true;
+            config.tool_output_token_limit = Some(50);
+            config
+                .features
+                .enable(Feature::UnifiedExec)
+                .expect("test config should allow feature update");
+        });
     let test = builder.build_with_auto_env(&server).await?;
 
     let start_call_id = "uexec-stdin-clamp-start";
@@ -2645,7 +2659,10 @@ async fn unified_exec_keeps_long_running_session_after_turn_end() -> Result<()> 
         "expected numeric pid, got {pid:?}"
     );
 
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     assert!(
         process_is_alive(&pid)?,
@@ -2653,7 +2670,10 @@ async fn unified_exec_keeps_long_running_session_after_turn_end() -> Result<()> 
     );
 
     atlas_engine.submit(Op::Shutdown).await?;
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::ShutdownComplete)).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::ShutdownComplete)
+    })
+    .await;
     wait_for_process_exit(&pid).await?;
 
     Ok(())
@@ -2741,7 +2761,10 @@ async fn unified_exec_interrupt_preserves_long_running_session() -> Result<()> {
     );
 
     atlas_engine.submit(Op::Interrupt).await?;
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TurnAborted(_))).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TurnAborted(_))
+    })
+    .await;
 
     assert!(
         process_is_alive(&pid)?,
@@ -3229,7 +3252,10 @@ async fn unified_exec_runs_under_sandbox() -> Result<()> {
         )
         .await?;
 
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let requests = request_log.requests();
     assert!(!requests.is_empty(), "expected at least one POST request");
@@ -3349,7 +3375,10 @@ async fn unified_exec_enforces_glob_deny_read_policy() -> Result<()> {
         )
         .await?;
 
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let requests = request_log.requests();
     assert!(!requests.is_empty(), "expected at least one POST request");
@@ -3484,7 +3513,10 @@ async fn unified_exec_python_prompt_under_seatbelt() -> Result<()> {
         )
         .await?;
 
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let requests = request_log.requests();
     assert!(!requests.is_empty(), "expected at least one POST request");
@@ -3599,13 +3631,15 @@ async fn write_stdin_calls_run_in_parallel_across_sessions() -> Result<()> {
     skip_if_target_windows!(Ok(()), "uses bash and POSIX file rendezvous commands");
 
     let server = start_mock_server().await;
-    let mut builder = test_atlas_engine().with_model("gpt-5.4").with_config(|config| {
-        config.use_experimental_unified_exec_tool = true;
-        config
-            .features
-            .enable(Feature::UnifiedExec)
-            .expect("test config should allow feature update");
-    });
+    let mut builder = test_atlas_engine()
+        .with_model("gpt-5.4")
+        .with_config(|config| {
+            config.use_experimental_unified_exec_tool = true;
+            config
+                .features
+                .enable(Feature::UnifiedExec)
+                .expect("test config should allow feature update");
+        });
     let test = builder.build_with_auto_env(&server).await?;
 
     let start_args = serde_json::to_string(&json!({

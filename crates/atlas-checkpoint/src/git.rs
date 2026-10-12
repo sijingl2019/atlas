@@ -975,7 +975,10 @@ mod tests {
         assert_eq!(changed.len(), 1);
         assert_eq!(changed[0].path, "index.html");
         assert!(!changed[0].kind.existed_in_parent());
-        assert_eq!(commits_between(repo.path(), None, &root).unwrap(), vec![root]);
+        assert_eq!(
+            commits_between(repo.path(), None, &root).unwrap(),
+            vec![root]
+        );
     }
 
     #[test]

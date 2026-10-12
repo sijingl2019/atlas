@@ -48,7 +48,10 @@ async fn resume_includes_initial_messages_from_rollout_events() -> Result<()> {
         }]))
         .await?;
 
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
     let resumed = builder.restart(&server, &initial).await?;
     let initial_messages = resumed
         .session_configured
@@ -103,7 +106,10 @@ async fn resume_includes_initial_messages_from_reasoning_events() -> Result<()> 
         }]))
         .await?;
 
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
     let resumed = builder.restart(&server, &initial).await?;
     let initial_messages = resumed
         .session_configured
@@ -159,7 +165,10 @@ async fn resume_switches_models_preserves_base_instructions() -> Result<()> {
             text_elements: Vec::new(),
         }]))
         .await?;
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
     let initial_body = initial_mock.single_request().body_json();
     let initial_instructions = initial_body
         .get("instructions")
@@ -268,7 +277,10 @@ async fn resume_model_switch_is_not_duplicated_after_pre_turn_override() -> Resu
             text_elements: Vec::new(),
         }]))
         .await?;
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
     let _ = initial_mock.single_request();
 
     let resumed_mock = mount_sse_once(

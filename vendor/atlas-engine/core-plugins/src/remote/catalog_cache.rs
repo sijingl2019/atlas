@@ -2,9 +2,9 @@
 use super::RemotePluginDirectoryItem;
 use super::RemotePluginScope;
 use super::RemotePluginServiceConfig;
+use atlas_engine_login::AtlasEngineAuth;
 use chrono::DateTime;
 use chrono::Utc;
-use atlas_engine_login::AtlasEngineAuth;
 use serde::Deserialize;
 use serde::Serialize;
 use std::path::Path;

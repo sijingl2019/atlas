@@ -465,7 +465,8 @@ impl SessionTelemetry {
                     "atlas_agent.usage.reasoning_output_tokens",
                     token_usage.reasoning_output_tokens,
                 );
-                handle_responses_span.record("atlas_agent.usage.total_tokens", token_usage.total_tokens);
+                handle_responses_span
+                    .record("atlas_agent.usage.total_tokens", token_usage.total_tokens);
             }
             _ => {}
         }

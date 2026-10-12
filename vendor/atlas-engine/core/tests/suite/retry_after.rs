@@ -588,7 +588,10 @@ async fn compact_v2_stream_failure_without_retry_after_exhausts_stream_retries()
         match wait_for_event(&test.atlas_engine, |_| true).await {
             EventMsg::Error(error) => {
                 error_events += 1;
-                assert_eq!(error.atlas_engine_error_info, Some(AtlasEngineErrorInfo::Other));
+                assert_eq!(
+                    error.atlas_engine_error_info,
+                    Some(AtlasEngineErrorInfo::Other)
+                );
                 assert!(error.message.contains("Rate limit exceeded."));
             }
             EventMsg::StreamError(_) => stream_error_events += 1,
@@ -1002,7 +1005,10 @@ async fn sse_failure_without_retry_after_exhausts_stream_retries() -> Result<()>
         match wait_for_event(&test.atlas_engine, |_| true).await {
             EventMsg::Error(error) => {
                 error_events += 1;
-                assert_eq!(error.atlas_engine_error_info, Some(AtlasEngineErrorInfo::Other));
+                assert_eq!(
+                    error.atlas_engine_error_info,
+                    Some(AtlasEngineErrorInfo::Other)
+                );
                 assert!(error.message.contains("Rate limit exceeded."));
             }
             EventMsg::StreamError(_) => stream_error_events += 1,

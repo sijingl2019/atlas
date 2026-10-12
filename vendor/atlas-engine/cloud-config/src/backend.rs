@@ -59,7 +59,10 @@ impl BackendBundleClient {
 }
 
 impl BundleClient for BackendBundleClient {
-    async fn get_bundle(&self, auth: &AtlasEngineAuth) -> Result<CloudConfigBundle, BundleRequestError> {
+    async fn get_bundle(
+        &self,
+        auth: &AtlasEngineAuth,
+    ) -> Result<CloudConfigBundle, BundleRequestError> {
         let client = BackendClient::from_auth(
             self.base_url.clone(),
             auth,

@@ -123,7 +123,11 @@ fn node_name(index: usize, id: Option<&str>) -> String {
 }
 
 /// An optional string field, blank read as absent.
-fn text_field<'a>(object: &'a serde_json::Map<String, Value>, key: &str, what: &str) -> Result<Option<&'a str>, String> {
+fn text_field<'a>(
+    object: &'a serde_json::Map<String, Value>,
+    key: &str,
+    what: &str,
+) -> Result<Option<&'a str>, String> {
     match object.get(key) {
         None | Some(Value::Null) => Ok(None),
         Some(Value::String(s)) if s.trim().is_empty() => Ok(None),
@@ -133,7 +137,11 @@ fn text_field<'a>(object: &'a serde_json::Map<String, Value>, key: &str, what: &
 }
 
 /// An optional number field.
-fn number_field(object: &serde_json::Map<String, Value>, key: &str, what: &str) -> Result<Option<f64>, String> {
+fn number_field(
+    object: &serde_json::Map<String, Value>,
+    key: &str,
+    what: &str,
+) -> Result<Option<f64>, String> {
     match object.get(key) {
         None | Some(Value::Null) => Ok(None),
         Some(value) => match value.as_f64() {
@@ -149,18 +157,29 @@ fn one_of(value: &str, allowed: &[&str], what: &str, key: &str) -> Result<String
     if allowed.contains(&lowered.as_str()) {
         Ok(lowered)
     } else {
-        Err(format!("{what}: `{key}` \"{value}\" is not one of {}", allowed.join(", ")))
+        Err(format!(
+            "{what}: `{key}` \"{value}\" is not one of {}",
+            allowed.join(", ")
+        ))
     }
 }
 
 fn read_node(index: usize, value: &Value) -> Result<DiagramNode, String> {
     let Value::Object(object) = value else {
-        return Err(format!("{} must be an object with an `id` and a `kind`", node_name(index, None)));
+        return Err(format!(
+            "{} must be an object with an `id` and a `kind`",
+            node_name(index, None)
+        ));
     };
     let id = match object.get("id") {
         Some(Value::String(id)) if !id.trim().is_empty() => id.trim().to_string(),
         Some(Value::Number(n)) => n.to_string(),
-        _ => return Err(format!("{} has no `id`; give every node a short unique id", node_name(index, None))),
+        _ => {
+            return Err(format!(
+                "{} has no `id`; give every node a short unique id",
+                node_name(index, None)
+            ))
+        }
     };
     let what = node_name(index, Some(&id));
     if id.chars().count() > ID_MAX {
@@ -168,14 +187,23 @@ fn read_node(index: usize, value: &Value) -> Result<DiagramNode, String> {
     }
     let kind = match text_field(object, "kind", &what)? {
         Some(kind) if kind.trim().eq_ignore_ascii_case("media") => {
-            return Err(format!("{what}: media nodes cannot be drawn; use a note, text, shape or group"))
+            return Err(format!(
+                "{what}: media nodes cannot be drawn; use a note, text, shape or group"
+            ))
         }
         Some(kind) => one_of(kind, NODE_KINDS, &what, "kind")?,
-        None => return Err(format!("{what} has no `kind`; use one of {}", NODE_KINDS.join(", "))),
+        None => {
+            return Err(format!(
+                "{what} has no `kind`; use one of {}",
+                NODE_KINDS.join(", ")
+            ))
+        }
     };
     let shape = match text_field(object, "shape", &what)? {
         Some(_) if kind != "shape" => {
-            return Err(format!("{what}: `shape` is only for kind shape; drop it or make the node a shape"))
+            return Err(format!(
+                "{what}: `shape` is only for kind shape; drop it or make the node a shape"
+            ))
         }
         Some(shape) => Some(one_of(shape, SHAPES, &what, "shape")?),
         None if kind == "shape" => Some("rectangle".to_string()),
@@ -185,26 +213,50 @@ fn read_node(index: usize, value: &Value) -> Result<DiagramNode, String> {
     if let Some(text) = &text {
         let length = text.chars().count();
         if length > TEXT_MAX {
-            return Err(format!("{what}: `text` is at most {TEXT_MAX} characters, and is {length}; shorten it"));
+            return Err(format!(
+                "{what}: `text` is at most {TEXT_MAX} characters, and is {length}; shorten it"
+            ));
         }
     }
     let parent = text_field(object, "parent", &what)?.map(|p| p.trim().to_string());
-    let (x, y) = (number_field(object, "x", &what)?, number_field(object, "y", &what)?);
+    let (x, y) = (
+        number_field(object, "x", &what)?,
+        number_field(object, "y", &what)?,
+    );
     if x.is_some() != y.is_some() {
-        return Err(format!("{what}: give both `x` and `y`, or neither to have it laid out"));
+        return Err(format!(
+            "{what}: give both `x` and `y`, or neither to have it laid out"
+        ));
     }
     for (key, value) in [("x", x), ("y", y)] {
         if value.is_some_and(|v| v.abs() > COORD_MAX) {
-            return Err(format!("{what}: `{key}` is at most {COORD_MAX} either side of 0"));
+            return Err(format!(
+                "{what}: `{key}` is at most {COORD_MAX} either side of 0"
+            ));
         }
     }
-    let (w, h) = (number_field(object, "w", &what)?, number_field(object, "h", &what)?);
+    let (w, h) = (
+        number_field(object, "w", &what)?,
+        number_field(object, "h", &what)?,
+    );
     for (key, value) in [("w", w), ("h", h)] {
         if value.is_some_and(|v| !(SIZE_MIN..=SIZE_MAX).contains(&v)) {
-            return Err(format!("{what}: `{key}` is between {SIZE_MIN} and {SIZE_MAX}"));
+            return Err(format!(
+                "{what}: `{key}` is between {SIZE_MIN} and {SIZE_MAX}"
+            ));
         }
     }
-    Ok(DiagramNode { id, kind, text, shape, parent, x, y, w, h })
+    Ok(DiagramNode {
+        id,
+        kind,
+        text,
+        shape,
+        parent,
+        x,
+        y,
+        w,
+        h,
+    })
 }
 
 fn read_edge(index: usize, value: &Value, ids: &HashSet<&str>) -> Result<DiagramEdge, String> {
@@ -219,27 +271,41 @@ fn read_edge(index: usize, value: &Value, ids: &HashSet<&str>) -> Result<Diagram
             _ => return Err(format!("{what} has no `{key}`; name the node by its id")),
         };
         if !ids.contains(id.as_str()) {
-            return Err(format!("{what}: `{key}` names node `{id}`, which the document does not have"));
+            return Err(format!(
+                "{what}: `{key}` names node `{id}`, which the document does not have"
+            ));
         }
         Ok(id)
     };
     let (from, to) = (end("from")?, end("to")?);
     let what = format!("edge {} ({from} → {to})", index + 1);
     if from == to {
-        return Err(format!("{what} joins a node to itself; an edge joins two different nodes"));
+        return Err(format!(
+            "{what} joins a node to itself; an edge joins two different nodes"
+        ));
     }
     let anchor = |key: &str| -> Result<Option<String>, String> {
-        text_field(object, key, &what)?.map(|a| one_of(a, ANCHORS, &what, key)).transpose()
+        text_field(object, key, &what)?
+            .map(|a| one_of(a, ANCHORS, &what, key))
+            .transpose()
     };
     let (from_anchor, to_anchor) = (anchor("from_anchor")?, anchor("to_anchor")?);
     let label = text_field(object, "label", &what)?.map(str::to_string);
     if let Some(label) = &label {
         let length = label.chars().count();
         if length > LABEL_MAX {
-            return Err(format!("{what}: `label` is at most {LABEL_MAX} characters, and is {length}"));
+            return Err(format!(
+                "{what}: `label` is at most {LABEL_MAX} characters, and is {length}"
+            ));
         }
     }
-    Ok(DiagramEdge { from, to, from_anchor, to_anchor, label })
+    Ok(DiagramEdge {
+        from,
+        to,
+        from_anchor,
+        to_anchor,
+        label,
+    })
 }
 
 /// Read and check the `document` argument. `Err` is the refusal the model
@@ -248,44 +314,71 @@ pub(super) fn diagram(document: Option<&Value>) -> Result<Diagram, String> {
     let Some(Value::Object(document)) = document else {
         return Err("give the `document` to draw: { nodes: [...], edges: [...] }".to_string());
     };
-    let nodes = match document.get("nodes") {
-        Some(Value::Array(nodes)) if !nodes.is_empty() => nodes,
-        Some(Value::Array(_)) | None | Some(Value::Null) => {
-            return Err("the document has no nodes; a write replaces the page, so give at least one node".to_string())
-        }
-        Some(_) => return Err("the document's `nodes` must be a list".to_string()),
-    };
+    let nodes =
+        match document.get("nodes") {
+            Some(Value::Array(nodes)) if !nodes.is_empty() => nodes,
+            Some(Value::Array(_)) | None | Some(Value::Null) => return Err(
+                "the document has no nodes; a write replaces the page, so give at least one node"
+                    .to_string(),
+            ),
+            Some(_) => return Err("the document's `nodes` must be a list".to_string()),
+        };
     let edges: &[Value] = match document.get("edges") {
         Some(Value::Array(edges)) => edges,
         None | Some(Value::Null) => &[],
         Some(_) => return Err("the document's `edges` must be a list".to_string()),
     };
     if nodes.len() > NODES_MAX {
-        return Err(format!("the document has {} nodes; at most {NODES_MAX} fit on a page in one write", nodes.len()));
+        return Err(format!(
+            "the document has {} nodes; at most {NODES_MAX} fit on a page in one write",
+            nodes.len()
+        ));
     }
     if edges.len() > EDGES_MAX {
-        return Err(format!("the document has {} edges; at most {EDGES_MAX} fit on a page in one write", edges.len()));
+        return Err(format!(
+            "the document has {} edges; at most {EDGES_MAX} fit on a page in one write",
+            edges.len()
+        ));
     }
 
-    let nodes = nodes.iter().enumerate().map(|(i, n)| read_node(i, n)).collect::<Result<Vec<_>, _>>()?;
+    let nodes = nodes
+        .iter()
+        .enumerate()
+        .map(|(i, n)| read_node(i, n))
+        .collect::<Result<Vec<_>, _>>()?;
     let mut seen = HashSet::new();
     for node in &nodes {
         if !seen.insert(node.id.as_str()) {
-            return Err(format!("two nodes have the id `{}`; every node's id must be unique", node.id));
+            return Err(format!(
+                "two nodes have the id `{}`; every node's id must be unique",
+                node.id
+            ));
         }
     }
-    let kinds: HashMap<&str, &str> = nodes.iter().map(|n| (n.id.as_str(), n.kind.as_str())).collect();
-    let parents: HashMap<&str, &str> =
-        nodes.iter().filter_map(|n| n.parent.as_deref().map(|p| (n.id.as_str(), p))).collect();
+    let kinds: HashMap<&str, &str> = nodes
+        .iter()
+        .map(|n| (n.id.as_str(), n.kind.as_str()))
+        .collect();
+    let parents: HashMap<&str, &str> = nodes
+        .iter()
+        .filter_map(|n| n.parent.as_deref().map(|p| (n.id.as_str(), p)))
+        .collect();
     for node in &nodes {
-        let Some(parent) = node.parent.as_deref() else { continue };
+        let Some(parent) = node.parent.as_deref() else {
+            continue;
+        };
         match kinds.get(parent) {
-            None => return Err(format!("node `{}`: `parent` names `{parent}`, which the document does not have", node.id)),
-            Some(&kind) if kind != "group" => {
+            None => {
                 return Err(format!(
-                    "node `{}`: `parent` names `{parent}`, a {kind}; only a group can hold other nodes",
+                    "node `{}`: `parent` names `{parent}`, which the document does not have",
                     node.id
                 ))
+            }
+            Some(&kind) if kind != "group" => {
+                return Err(format!(
+                "node `{}`: `parent` names `{parent}`, a {kind}; only a group can hold other nodes",
+                node.id
+            ))
             }
             Some(_) => {}
         }
@@ -293,7 +386,10 @@ pub(super) fn diagram(document: Option<&Value>) -> Result<Diagram, String> {
         let mut at = parent;
         for _ in 0..=nodes.len() {
             if at == node.id {
-                return Err(format!("group `{}` is inside itself through its parents; break the loop", node.id));
+                return Err(format!(
+                    "group `{}` is inside itself through its parents; break the loop",
+                    node.id
+                ));
             }
             match parents.get(at) {
                 Some(next) => at = next,
@@ -302,7 +398,11 @@ pub(super) fn diagram(document: Option<&Value>) -> Result<Diagram, String> {
         }
     }
 
-    let edges = edges.iter().enumerate().map(|(i, e)| read_edge(i, e, &seen)).collect::<Result<Vec<_>, _>>()?;
+    let edges = edges
+        .iter()
+        .enumerate()
+        .map(|(i, e)| read_edge(i, e, &seen))
+        .collect::<Result<Vec<_>, _>>()?;
     Ok(Diagram { nodes, edges })
 }
 
@@ -317,9 +417,17 @@ mod tests {
     /// is one the check accepts, and nothing the check accepts is left out.
     #[test]
     fn the_schema_offers_exactly_the_kinds_shapes_and_anchors_the_check_accepts() {
-        for (values, key) in [(NODE_KINDS, "kind"), (SHAPES, "shape"), (ANCHORS, "to_anchor")] {
-            assert!(DOCUMENT_SHAPE.contains(&format!("{key}:{}", values.join("|")))
-                || DOCUMENT_SHAPE.contains(&format!("{key}?:{}", values.join("|"))), "{key}: {}", *DOCUMENT_SHAPE);
+        for (values, key) in [
+            (NODE_KINDS, "kind"),
+            (SHAPES, "shape"),
+            (ANCHORS, "to_anchor"),
+        ] {
+            assert!(
+                DOCUMENT_SHAPE.contains(&format!("{key}:{}", values.join("|")))
+                    || DOCUMENT_SHAPE.contains(&format!("{key}?:{}", values.join("|"))),
+                "{key}: {}",
+                *DOCUMENT_SHAPE
+            );
         }
         for kind in NODE_KINDS {
             let node = if *kind == "shape" {

@@ -295,11 +295,6 @@ fn normalize_scopes(scopes_supported: Option<Vec<String>>) -> Option<Vec<String>
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::Json;
-    use axum::Router;
-    use axum::http::StatusCode;
-    use axum::http::header::WWW_AUTHENTICATE;
-    use axum::routing::get;
     use atlas_engine_exec_server::ExecServerError;
     use atlas_engine_exec_server::HttpRedirectPolicy;
     use atlas_engine_exec_server::HttpRequestParams;
@@ -308,6 +303,11 @@ mod tests {
     use atlas_engine_exec_server::RouteAwareHttpClient;
     use atlas_engine_http_client::HttpClientFactory;
     use atlas_engine_http_client::OutboundProxyPolicy;
+    use axum::Json;
+    use axum::Router;
+    use axum::http::StatusCode;
+    use axum::http::header::WWW_AUTHENTICATE;
+    use axum::routing::get;
     use futures::future::BoxFuture;
     use pretty_assertions::assert_eq;
     use serial_test::serial;
@@ -491,7 +491,10 @@ mod tests {
     #[tokio::test]
     #[serial(auth_status_env)]
     async fn determine_auth_status_uses_bearer_token_when_env_authorization_header_present() {
-        let _guard = EnvVarGuard::set("ATLAS_AGENT_RMCP_CLIENT_AUTH_STATUS_TEST_TOKEN", "Bearer token");
+        let _guard = EnvVarGuard::set(
+            "ATLAS_AGENT_RMCP_CLIENT_AUTH_STATUS_TEST_TOKEN",
+            "Bearer token",
+        );
         let status = determine_streamable_http_auth_status(
             "server",
             "not-a-url",

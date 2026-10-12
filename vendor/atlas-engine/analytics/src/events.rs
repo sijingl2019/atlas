@@ -92,7 +92,9 @@ pub(crate) enum TrackEventRequest {
     PluginEnabled(AtlasEnginePluginEventRequest),
     PluginDisabled(AtlasEnginePluginEventRequest),
     PluginInstallFailed(AtlasEnginePluginInstallFailedEventRequest),
-    ExternalAgentConfigImportCompleted(AtlasEngineOnboardingExternalAgentImportCompleteEventRequest),
+    ExternalAgentConfigImportCompleted(
+        AtlasEngineOnboardingExternalAgentImportCompleteEventRequest,
+    ),
     ExternalAgentConfigImportFailure(AtlasEngineOnboardingExternalAgentImportFailureEventRequest),
 }
 
@@ -1191,7 +1193,9 @@ pub(crate) fn atlas_engine_app_metadata(
     }
 }
 
-pub(crate) fn atlas_engine_plugin_metadata(plugin: PluginTelemetryMetadata) -> AtlasEnginePluginMetadata {
+pub(crate) fn atlas_engine_plugin_metadata(
+    plugin: PluginTelemetryMetadata,
+) -> AtlasEnginePluginMetadata {
     atlas_engine_plugin_metadata_with_product_client_id(plugin, originator().value)
 }
 

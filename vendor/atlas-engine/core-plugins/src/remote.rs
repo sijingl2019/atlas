@@ -5,8 +5,6 @@ use crate::http_client_selector::HttpClientSelector;
 use crate::loader::plugin_app_declarations_from_value;
 use crate::store::PLUGINS_CACHE_DIR;
 use crate::store::PluginStore;
-use chrono::DateTime;
-use chrono::Utc;
 use atlas_engine_app_server_protocol::JSONRPCErrorError;
 use atlas_engine_app_server_protocol::PluginAuthPolicy;
 use atlas_engine_app_server_protocol::PluginAvailability;
@@ -30,6 +28,8 @@ use atlas_engine_plugin::PluginId;
 use atlas_engine_plugin::app_connector_ids_from_declarations;
 use atlas_engine_plugin::prompt_safe_plugin_description;
 use atlas_engine_utils_absolute_path::AbsolutePathBuf;
+use chrono::DateTime;
+use chrono::Utc;
 use http::Method;
 use http::StatusCode;
 use serde::Deserialize;
@@ -973,7 +973,8 @@ pub async fn fetch_and_cache_global_remote_plugin_catalog(
     config: &RemotePluginServiceConfig,
     auth: Option<&AtlasEngineAuth>,
 ) -> Result<(), RemotePluginCatalogError> {
-    fetch_and_cache_remote_plugin_catalog(atlas_agent_home, config, auth, RemotePluginScope::Global).await
+    fetch_and_cache_remote_plugin_catalog(atlas_agent_home, config, auth, RemotePluginScope::Global)
+        .await
 }
 
 pub fn invalidate_cached_remote_plugin_catalog_scopes(
@@ -1102,7 +1103,8 @@ pub(crate) fn cached_remote_plugin_catalog_scopes(
     RemotePluginScope::CATALOG_CACHE_SCOPES
         .into_iter()
         .filter(|scope| {
-            catalog_cache::load_cached_directory_plugins(atlas_agent_home, config, auth, *scope).is_some()
+            catalog_cache::load_cached_directory_plugins(atlas_agent_home, config, auth, *scope)
+                .is_some()
         })
         .collect()
 }
@@ -1642,7 +1644,12 @@ pub async fn uninstall_remote_plugin(
 
     let legacy_plugin_id = response.id;
     tokio::task::spawn_blocking(move || {
-        remove_remote_plugin_cache(atlas_agent_home, marketplace_name, plugin_name, legacy_plugin_id)
+        remove_remote_plugin_cache(
+            atlas_agent_home,
+            marketplace_name,
+            plugin_name,
+            legacy_plugin_id,
+        )
     })
     .await
     .map_err(|err| {
@@ -1972,7 +1979,13 @@ async fn fetch_directory_plugins_for_scope_with_cache(
 
     let plugins = fetch_directory_plugins_for_scope(config, auth, scope).await?;
     if let Some(atlas_agent_home) = atlas_agent_home {
-        catalog_cache::write_cached_directory_plugins(atlas_agent_home, config, auth, scope, &plugins);
+        catalog_cache::write_cached_directory_plugins(
+            atlas_agent_home,
+            config,
+            auth,
+            scope,
+            &plugins,
+        );
     }
     Ok(DirectoryPluginsFetchOutcome {
         plugins,
@@ -2207,7 +2220,9 @@ fn remote_plugin_skill_detail_url(
     Ok(url.to_string())
 }
 
-fn ensure_chatgpt_auth(auth: Option<&AtlasEngineAuth>) -> Result<&AtlasEngineAuth, RemotePluginCatalogError> {
+fn ensure_chatgpt_auth(
+    auth: Option<&AtlasEngineAuth>,
+) -> Result<&AtlasEngineAuth, RemotePluginCatalogError> {
     let Some(auth) = auth else {
         return Err(RemotePluginCatalogError::AuthRequired);
     };

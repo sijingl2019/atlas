@@ -8,7 +8,6 @@ use std::thread;
 use std::time::Duration;
 
 use anyhow::Result;
-use base64::Engine;
 use atlas_engine_config::types::AuthCredentialsStoreMode;
 use atlas_engine_http_client::HttpClientBuilder;
 use atlas_engine_login::AuthKeyringBackendKind;
@@ -18,6 +17,7 @@ use atlas_engine_login::LoginSuccessPage;
 use atlas_engine_login::LoginSuccessPageBrand;
 use atlas_engine_login::ServerOptions;
 use atlas_engine_login::run_login_server;
+use base64::Engine;
 use core_test_support::skip_if_no_network;
 use pretty_assertions::assert_eq;
 use tempfile::tempdir;

@@ -152,7 +152,10 @@ impl FileSystemSandboxRunner {
                     environment_id: None,
                     network: None,
                     sandbox_policy_cwd: &cwd.uri,
-                    atlas_engine_linux_sandbox_exe: self.runtime_paths.atlas_engine_linux_sandbox_exe.as_deref(),
+                    atlas_engine_linux_sandbox_exe: self
+                        .runtime_paths
+                        .atlas_engine_linux_sandbox_exe
+                        .as_deref(),
                     use_legacy_landlock: sandbox_context.use_legacy_landlock,
                     windows_sandbox_level: sandbox_context.windows_sandbox_level,
                     windows_sandbox_private_desktop: sandbox_context
@@ -360,7 +363,9 @@ pub(crate) fn spawn_command(
     // TODO(anp): Keep PathUri through the filesystem helper launch boundary.
     let cwd = cwd.to_abs_path().map_err(io_error)?;
     command.current_dir(cwd.as_path());
-    env.retain(|name, _| !atlas_engine_protocol::shell_environment::is_non_inheritable_env_var(name));
+    env.retain(|name, _| {
+        !atlas_engine_protocol::shell_environment::is_non_inheritable_env_var(name)
+    });
     command.env_clear();
     command.envs(env);
     command.stdin(stdin);
@@ -447,9 +452,11 @@ mod tests {
     #[test]
     fn helper_permissions_preserve_existing_writes() {
         let atlas_engine_self_exe = std::env::current_exe().expect("current exe");
-        let runtime_paths =
-            ExecServerRuntimePaths::new(atlas_engine_self_exe, /*atlas_engine_linux_sandbox_exe*/ None)
-                .expect("runtime paths");
+        let runtime_paths = ExecServerRuntimePaths::new(
+            atlas_engine_self_exe,
+            /*atlas_engine_linux_sandbox_exe*/ None,
+        )
+        .expect("runtime paths");
         let cwd = AbsolutePathBuf::from_absolute_path(std::env::temp_dir().as_path())
             .expect("absolute cwd");
         let writable = cwd.join("writable");
@@ -660,9 +667,13 @@ mod tests {
             access: FileSystemAccessMode::Write,
             missing_path_behavior: None,
         }]);
-        let sandbox_context = atlas_engine_file_system::FileSystemSandboxContext::from_permission_profile(
-            PermissionProfile::from_runtime_permissions(&policy, NetworkSandboxPolicy::Restricted),
-        );
+        let sandbox_context =
+            atlas_engine_file_system::FileSystemSandboxContext::from_permission_profile(
+                PermissionProfile::from_runtime_permissions(
+                    &policy,
+                    NetworkSandboxPolicy::Restricted,
+                ),
+            );
 
         let err = sandbox_cwd(&sandbox_context).expect_err("missing cwd should be rejected");
 
@@ -675,9 +686,11 @@ mod tests {
     #[test]
     fn helper_permissions_include_only_the_helper_executable() {
         let atlas_engine_self_exe = std::env::current_exe().expect("current exe");
-        let runtime_paths =
-            ExecServerRuntimePaths::new(atlas_engine_self_exe, /*atlas_engine_linux_sandbox_exe*/ None)
-                .expect("runtime paths");
+        let runtime_paths = ExecServerRuntimePaths::new(
+            atlas_engine_self_exe,
+            /*atlas_engine_linux_sandbox_exe*/ None,
+        )
+        .expect("runtime paths");
         let cwd = AbsolutePathBuf::from_absolute_path(std::env::temp_dir().as_path())
             .expect("absolute cwd");
         let mut policy = restricted_policy(Vec::new());
@@ -694,7 +707,10 @@ mod tests {
         );
 
         assert!(
-            policy.can_read_path_with_cwd(runtime_paths.atlas_engine_self_exe.as_path(), cwd.as_path())
+            policy.can_read_path_with_cwd(
+                runtime_paths.atlas_engine_self_exe.as_path(),
+                cwd.as_path()
+            )
         );
         assert!(!policy.can_read_path_with_cwd(parent.as_path(), cwd.as_path()));
         assert!(!policy.can_read_path_with_cwd(sibling.as_path(), cwd.as_path()));
@@ -704,14 +720,22 @@ mod tests {
     fn helper_permissions_include_only_linux_sandbox_alias_executable() {
         let root = tempfile::tempdir().expect("temp dir");
         let atlas_engine_self_exe = root.path().join("bin").join("atlas-agent");
-        let atlas_engine_linux_sandbox_exe = root.path().join("aliases").join("atlas-engine-linux-sandbox");
-        let runtime_paths =
-            ExecServerRuntimePaths::new(atlas_engine_self_exe, Some(atlas_engine_linux_sandbox_exe))
-                .expect("runtime paths");
+        let atlas_engine_linux_sandbox_exe = root
+            .path()
+            .join("aliases")
+            .join("atlas-engine-linux-sandbox");
+        let runtime_paths = ExecServerRuntimePaths::new(
+            atlas_engine_self_exe,
+            Some(atlas_engine_linux_sandbox_exe),
+        )
+        .expect("runtime paths");
         let cwd = AbsolutePathBuf::from_absolute_path(std::env::temp_dir().as_path())
             .expect("absolute cwd");
         let mut policy = restricted_policy(Vec::new());
-        let atlas_engine_parent = runtime_paths.atlas_engine_self_exe.parent().expect("atlas-agent parent");
+        let atlas_engine_parent = runtime_paths
+            .atlas_engine_self_exe
+            .parent()
+            .expect("atlas-agent parent");
         let alias = runtime_paths
             .atlas_engine_linux_sandbox_exe
             .as_ref()
@@ -725,7 +749,10 @@ mod tests {
         );
 
         assert!(
-            policy.can_read_path_with_cwd(runtime_paths.atlas_engine_self_exe.as_path(), cwd.as_path())
+            policy.can_read_path_with_cwd(
+                runtime_paths.atlas_engine_self_exe.as_path(),
+                cwd.as_path()
+            )
         );
         assert!(policy.can_read_path_with_cwd(alias.as_path(), cwd.as_path()));
         assert!(!policy.can_read_path_with_cwd(atlas_engine_parent.as_path(), cwd.as_path()));

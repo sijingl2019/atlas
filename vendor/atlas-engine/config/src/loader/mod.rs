@@ -170,7 +170,9 @@ pub async fn load_config_layers_state(
         let config = toml::from_str(raw_toml).map_err(|error| {
             io::Error::new(
                 io::ErrorKind::InvalidData,
-                format!("invalid embedded packaged defaults; this is a Atlas Agent build error: {error}"),
+                format!(
+                    "invalid embedded packaged defaults; this is a Atlas Agent build error: {error}"
+                ),
             )
         })?;
         ConfigLayerEntry::new_with_raw_toml(
@@ -209,7 +211,8 @@ pub async fn load_config_layers_state(
 
         #[cfg(target_os = "macos")]
         {
-            let managed_preferences_base_dir = AbsolutePathBuf::from_absolute_path(atlas_agent_home)?;
+            let managed_preferences_base_dir =
+                AbsolutePathBuf::from_absolute_path(atlas_agent_home)?;
             managed_preferences_requirements_layer = macos::load_managed_admin_requirements_layer(
                 overrides
                     .macos_managed_config_requirements_base64
@@ -230,9 +233,13 @@ pub async fn load_config_layers_state(
         managed_preferences_requirements_layer = None;
     }
 
-    let loaded_config_layers =
-        layer_io::load_config_layers_internal(fs, atlas_agent_home, overrides.clone(), strict_config)
-            .await?;
+    let loaded_config_layers = layer_io::load_config_layers_internal(
+        fs,
+        atlas_agent_home,
+        overrides.clone(),
+        strict_config,
+    )
+    .await?;
     if !ignore_managed_requirements {
         requirements_layers.extend(system_requirements_layer);
         requirements_layers.extend(bundle_requirements_layers);
@@ -307,7 +314,8 @@ pub async fn load_config_layers_state(
     // profile config as a second user layer on top so the profile only needs to
     // contain overrides.
     let active_user_file = overrides.user_config_path(atlas_agent_home)?;
-    let base_user_file = AbsolutePathBuf::resolve_path_against_base(CONFIG_TOML_FILE, atlas_agent_home);
+    let base_user_file =
+        AbsolutePathBuf::resolve_path_against_base(CONFIG_TOML_FILE, atlas_agent_home);
     let base_user_layer = load_user_config_layer(
         fs,
         &base_user_file,
@@ -1343,8 +1351,10 @@ async fn load_project_layers(
     .await?;
     let mut layers = Vec::with_capacity(discovered.layers.len());
     for layer in discovered.layers {
-        let config =
-            resolve_relative_paths_in_config_toml(layer.config, layer.dot_atlas_agent_folder.as_path())?;
+        let config = resolve_relative_paths_in_config_toml(
+            layer.config,
+            layer.dot_atlas_agent_folder.as_path(),
+        )?;
         let config = if layer.load_root_checkout_hooks {
             merge_root_checkout_project_hooks(
                 fs,
@@ -1379,8 +1389,8 @@ async fn discover_project_layers(
     strict_config: bool,
 ) -> io::Result<DiscoveredProjectLayers> {
     let atlas_agent_home_abs = AbsolutePathBuf::from_absolute_path(atlas_agent_home)?;
-    let atlas_agent_home_normalized =
-        normalize_path(atlas_agent_home_abs.as_path()).unwrap_or_else(|_| atlas_agent_home_abs.to_path_buf());
+    let atlas_agent_home_normalized = normalize_path(atlas_agent_home_abs.as_path())
+        .unwrap_or_else(|_| atlas_agent_home_abs.to_path_buf());
     let mut dirs = cwd
         .ancestors()
         .scan(false, |done, a| {
@@ -1413,9 +1423,11 @@ async fn discover_project_layers(
         let decision = trust_context.decision_for_dir(&dir);
         let disabled_reason = trust_context.disabled_reason_for_decision(&decision);
         let hooks_config_folder_override = trust_context.root_checkout_hooks_folder_for_dir(&dir);
-        let dot_atlas_engine_normalized =
-            normalize_path(dot_atlas_engine_abs.as_path()).unwrap_or_else(|_| dot_atlas_engine_abs.to_path_buf());
-        if dot_atlas_engine_abs == atlas_agent_home_abs || dot_atlas_engine_normalized == atlas_agent_home_normalized {
+        let dot_atlas_engine_normalized = normalize_path(dot_atlas_engine_abs.as_path())
+            .unwrap_or_else(|_| dot_atlas_engine_abs.to_path_buf());
+        if dot_atlas_engine_abs == atlas_agent_home_abs
+            || dot_atlas_engine_normalized == atlas_agent_home_normalized
+        {
             continue;
         }
         let config_file = dot_atlas_engine_abs.join(CONFIG_TOML_FILE);
@@ -1707,7 +1719,11 @@ foo = "xyzzy"
             windows_system_requirements_toml_file()
                 .expect("requirements.toml path")
                 .as_path()
-                .ends_with(Path::new("OpenAI").join("Atlas Agent").join("requirements.toml"))
+                .ends_with(
+                    Path::new("OpenAI")
+                        .join("Atlas Agent")
+                        .join("requirements.toml")
+                )
         );
     }
 

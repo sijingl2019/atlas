@@ -23,8 +23,8 @@ pub use atlas_engine_core::connectors::list_accessible_connectors_from_mcp_tools
 pub use atlas_engine_core::connectors::list_accessible_connectors_from_mcp_tools_with_options;
 pub use atlas_engine_core::connectors::list_accessible_connectors_from_mcp_tools_with_options_and_status;
 pub use atlas_engine_core::connectors::list_cached_accessible_connectors_from_mcp_tools;
-use atlas_engine_login::AuthManager;
 use atlas_engine_login::AtlasEngineAuth;
+use atlas_engine_login::AuthManager;
 use atlas_engine_plugin::AppConnectorId;
 use serde::Deserialize;
 use serde::Serialize;
@@ -37,9 +37,10 @@ async fn apps_enabled(config: &Config) -> anyhow::Result<bool> {
     let auth_manager =
         AuthManager::shared_from_config(config, /*enable_atlas_engine_api_key_env*/ false).await?;
     let auth = auth_manager.auth().await;
-    Ok(config
-        .features
-        .apps_enabled_for_auth(auth.as_ref().is_some_and(AtlasEngineAuth::uses_atlas_engine_backend)))
+    Ok(config.features.apps_enabled_for_auth(
+        auth.as_ref()
+            .is_some_and(AtlasEngineAuth::uses_atlas_engine_backend),
+    ))
 }
 
 async fn connector_auth(config: &Config) -> anyhow::Result<AtlasEngineAuth> {

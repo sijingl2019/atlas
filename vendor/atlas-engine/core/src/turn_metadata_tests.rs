@@ -933,7 +933,10 @@ fn turn_metadata_state_overlays_compaction_only_on_compaction_requests() {
     assert_eq!(compact_json["request_kind"].as_str(), Some("compaction"));
     assert_eq!(compact_json["turn_id"].as_str(), Some("turn-a"));
     assert_eq!(compact_json[WINDOW_ID_KEY].as_str(), Some("thread-a:2"));
-    assert_eq!(compact_json["atlas_engine_security_surface"].as_str(), Some("sdk"));
+    assert_eq!(
+        compact_json["atlas_engine_security_surface"].as_str(),
+        Some("sdk")
+    );
     assert_eq!(
         compact_json["compaction"],
         serde_json::json!({
@@ -949,7 +952,10 @@ fn turn_metadata_state_overlays_compaction_only_on_compaction_requests() {
     let regular_json: Value = serde_json::from_str(&regular_header).expect("json");
     assert_eq!(regular_json["request_kind"].as_str(), Some("turn"));
     assert_eq!(regular_json[WINDOW_ID_KEY].as_str(), Some("thread-a:3"));
-    assert_eq!(regular_json["atlas_engine_security_surface"].as_str(), Some("sdk"));
+    assert_eq!(
+        regular_json["atlas_engine_security_surface"].as_str(),
+        Some("sdk")
+    );
     assert!(regular_json.get("compaction").is_none());
 }
 

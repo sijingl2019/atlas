@@ -122,9 +122,15 @@ pub enum AtlasEngineErrorInfo {
 impl From<CoreAtlasEngineErrorInfo> for AtlasEngineErrorInfo {
     fn from(value: CoreAtlasEngineErrorInfo) -> Self {
         match value {
-            CoreAtlasEngineErrorInfo::ContextWindowExceeded => AtlasEngineErrorInfo::ContextWindowExceeded,
-            CoreAtlasEngineErrorInfo::SessionBudgetExceeded => AtlasEngineErrorInfo::SessionBudgetExceeded,
-            CoreAtlasEngineErrorInfo::UsageLimitExceeded => AtlasEngineErrorInfo::UsageLimitExceeded,
+            CoreAtlasEngineErrorInfo::ContextWindowExceeded => {
+                AtlasEngineErrorInfo::ContextWindowExceeded
+            }
+            CoreAtlasEngineErrorInfo::SessionBudgetExceeded => {
+                AtlasEngineErrorInfo::SessionBudgetExceeded
+            }
+            CoreAtlasEngineErrorInfo::UsageLimitExceeded => {
+                AtlasEngineErrorInfo::UsageLimitExceeded
+            }
             CoreAtlasEngineErrorInfo::ServerOverloaded => AtlasEngineErrorInfo::ServerOverloaded,
             CoreAtlasEngineErrorInfo::CyberPolicy => AtlasEngineErrorInfo::CyberPolicy,
             CoreAtlasEngineErrorInfo::HttpConnectionFailed { http_status_code } => {
@@ -133,10 +139,14 @@ impl From<CoreAtlasEngineErrorInfo> for AtlasEngineErrorInfo {
             CoreAtlasEngineErrorInfo::ResponseStreamConnectionFailed { http_status_code } => {
                 AtlasEngineErrorInfo::ResponseStreamConnectionFailed { http_status_code }
             }
-            CoreAtlasEngineErrorInfo::InternalServerError => AtlasEngineErrorInfo::InternalServerError,
+            CoreAtlasEngineErrorInfo::InternalServerError => {
+                AtlasEngineErrorInfo::InternalServerError
+            }
             CoreAtlasEngineErrorInfo::Unauthorized => AtlasEngineErrorInfo::Unauthorized,
             CoreAtlasEngineErrorInfo::BadRequest => AtlasEngineErrorInfo::BadRequest,
-            CoreAtlasEngineErrorInfo::ThreadRollbackFailed => AtlasEngineErrorInfo::ThreadRollbackFailed,
+            CoreAtlasEngineErrorInfo::ThreadRollbackFailed => {
+                AtlasEngineErrorInfo::ThreadRollbackFailed
+            }
             CoreAtlasEngineErrorInfo::SandboxError => AtlasEngineErrorInfo::SandboxError,
             CoreAtlasEngineErrorInfo::ResponseStreamDisconnected { http_status_code } => {
                 AtlasEngineErrorInfo::ResponseStreamDisconnected { http_status_code }

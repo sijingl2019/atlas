@@ -487,7 +487,7 @@ export const useLayoutStore = createSelectors(
           addTab: (tab, groupId) =>
             set((s) => {
               // chat: each session is its own tab. File-backed viewers (editor /
-              // diff / media / svg / pdf / unsupported) are one-per-FILE (deduped
+              // diff / media / svg / pdf / notebook / unsupported) are one-per-FILE (deduped
               // by id, which is `${type}:${path}`) so opening a different file
               // always gets its own tab. Everything else is a singleton PER COLUMN
               // (focus the existing instance in the target column, else open one).
@@ -498,6 +498,7 @@ export const useLayoutStore = createSelectors(
                 tab.type === "media" ||
                 tab.type === "svg" ||
                 tab.type === "pdf" ||
+                tab.type === "notebook" ||
                 // One per DRAFT (id is `comms-draft-{id}`): the singleton rule
                 // would focus draft A when asked to open draft B.
                 tab.type === "comms-draft" ||

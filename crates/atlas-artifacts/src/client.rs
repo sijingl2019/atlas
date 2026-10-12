@@ -119,7 +119,12 @@ impl ArtifactsClient {
             .timeout(std::time::Duration::from_secs(30))
             .build()
             .map_err(|e| Error::Transport(format!("building http client: {e}")))?;
-        Ok(Self { http, base: ingest_base(), tokens, cached: std::sync::Mutex::new(None) })
+        Ok(Self {
+            http,
+            base: ingest_base(),
+            tokens,
+            cached: std::sync::Mutex::new(None),
+        })
     }
 
     /// A client against another base, for tests that answer on loopback.
@@ -140,13 +145,18 @@ impl ArtifactsClient {
     /// is refused before anything is sent: a URL parser drops or resolves
     /// those rather than encoding them.
     fn url(&self, segments: &[&str]) -> Result<reqwest::Url> {
-        if let Some(bad) = segments.iter().find(|s| s.is_empty() || **s == "." || **s == "..") {
+        if let Some(bad) = segments
+            .iter()
+            .find(|s| s.is_empty() || **s == "." || **s == "..")
+        {
             return Err(Error::Protocol(format!("\"{bad}\" is not an id")));
         }
         let mut url = reqwest::Url::parse(&self.base)
             .map_err(|e| Error::Transport(format!("the artifacts base {}: {e}", self.base)))?;
         url.path_segments_mut()
-            .map_err(|()| Error::Transport(format!("the artifacts base {} takes no path", self.base)))?
+            .map_err(|()| {
+                Error::Transport(format!("the artifacts base {} takes no path", self.base))
+            })?
             .pop_if_empty()
             .extend(segments);
         Ok(url)
@@ -157,11 +167,7 @@ impl ArtifactsClient {
     /// Walks up to [`MAX_BOARD_PAGES`]. `notes` from every page are kept: a
     /// Project the server could not reach is the difference between "no work
     /// here" and "we could not look", and the board has to be able to say so.
-    pub async fn board(
-        &self,
-        org_id: &str,
-        project_id: Option<&str>,
-    ) -> Result<SessionBoardPage> {
+    pub async fn board(&self, org_id: &str, project_id: Option<&str>) -> Result<SessionBoardPage> {
         let mut out = SessionBoardPage::default();
         let mut cursor: Option<String> = None;
 
@@ -202,8 +208,15 @@ impl ArtifactsClient {
     /// [`board`](Self::board) walks pages for the Timeline's glance; a caller
     /// that folds pages itself — and must know where it stopped — reads them
     /// one at a time here, continuing from each page's `next_cursor`.
-    pub async fn board_page(&self, org_id: &str, query: BoardQuery<'_>) -> Result<SessionBoardPage> {
-        let limit = query.limit.unwrap_or(BOARD_PAGE_MAX).clamp(1, BOARD_PAGE_MAX);
+    pub async fn board_page(
+        &self,
+        org_id: &str,
+        query: BoardQuery<'_>,
+    ) -> Result<SessionBoardPage> {
+        let limit = query
+            .limit
+            .unwrap_or(BOARD_PAGE_MAX)
+            .clamp(1, BOARD_PAGE_MAX);
         let mut req = self
             .http
             .get(format!("{}/sessions", self.base))
@@ -315,7 +328,9 @@ impl ArtifactsClient {
     ) -> Result<EntryPayload> {
         let req = self
             .http
-            .get(self.url(&["sessions", project_id, session_id, "entries", row_id, "payload"])?)
+            .get(self.url(&[
+                "sessions", project_id, session_id, "entries", row_id, "payload",
+            ])?)
             .bearer_auth(self.token().await?)
             .query(&[("org", org_id), ("part", part)]);
         self.send(req, "entry payload").await
@@ -346,7 +361,11 @@ impl ArtifactsClient {
     }
 
     /// Post a comment. See [`NewComment`] for what is deliberately not sent.
-    pub async fn create_comment(&self, at: CommentTarget<'_>, new: NewComment<'_>) -> Result<Comment> {
+    pub async fn create_comment(
+        &self,
+        at: CommentTarget<'_>,
+        new: NewComment<'_>,
+    ) -> Result<Comment> {
         #[derive(serde::Deserialize)]
         struct Wrapper {
             comment: Comment,
@@ -467,7 +486,10 @@ impl ArtifactsClient {
 
     async fn token(&self) -> Result<String> {
         {
-            let cached = self.cached.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            let cached = self
+                .cached
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             if let Some((token, minted)) = cached.as_ref() {
                 if minted.elapsed() < TOKEN_REUSE {
                     return Ok(token.clone());
@@ -475,13 +497,19 @@ impl ArtifactsClient {
             }
         }
         let token = self.tokens.mint().await?;
-        *self.cached.lock().unwrap_or_else(std::sync::PoisonError::into_inner) =
+        *self
+            .cached
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) =
             Some((token.clone(), std::time::Instant::now()));
         Ok(token)
     }
 
     fn forget_token(&self) {
-        *self.cached.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+        *self
+            .cached
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
     }
 
     /// Send, classify the status, then decode.
@@ -504,7 +532,9 @@ impl ArtifactsClient {
             self.forget_token();
         }
         if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
-            return Err(Error::RateLimited { retry_after: retry_after(&response) });
+            return Err(Error::RateLimited {
+                retry_after: retry_after(&response),
+            });
         }
         if !status.is_success() {
             return Err(Error::from_status(status.as_u16(), what));
@@ -562,7 +592,9 @@ mod tests {
     /// Answers every request with `body` and keeps each request's head (the
     /// request line and headers), so a test asserts what reached the wire.
     async fn loopback(body: &'static str) -> (String, Arc<std::sync::Mutex<Vec<String>>>) {
-        let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind loopback");
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind loopback");
         let base = format!("http://{}", listener.local_addr().unwrap());
         let seen = Arc::new(std::sync::Mutex::new(Vec::new()));
         let log = seen.clone();
@@ -573,13 +605,17 @@ mod tests {
                     let mut head = Vec::new();
                     let mut buf = [0u8; 1024];
                     while !head.windows(4).any(|w| w == b"\r\n\r\n") {
-                        let Ok(n) = stream.read(&mut buf).await else { return };
+                        let Ok(n) = stream.read(&mut buf).await else {
+                            return;
+                        };
                         if n == 0 {
                             return;
                         }
                         head.extend_from_slice(&buf[..n]);
                     }
-                    log.lock().unwrap().push(String::from_utf8_lossy(&head).into_owned());
+                    log.lock()
+                        .unwrap()
+                        .push(String::from_utf8_lossy(&head).into_owned());
                     let response = format!(
                         "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\n\
                          content-length: {}\r\nconnection: close\r\n\r\n{body}",
@@ -605,19 +641,28 @@ mod tests {
         let (base, seen) = loopback(ONE_UNREAD).await;
         let client = ArtifactsClient::at(&base, Arc::new(Tok));
 
-        let page = client.inbox("org_1", true, Some("1758362651000:n0"), Some(500)).await.unwrap();
+        let page = client
+            .inbox("org_1", true, Some("1758362651000:n0"), Some(500))
+            .await
+            .unwrap();
 
         assert_eq!(page.unread, 7);
         assert_eq!(page.entries[0].kind, crate::InboxKind::Mention);
         let seen = seen.lock().unwrap().clone();
-        assert_eq!(seen.len(), 1, "one request, and never a second to mark anything read: {seen:?}");
+        assert_eq!(
+            seen.len(),
+            1,
+            "one request, and never a second to mark anything read: {seen:?}"
+        );
         let request_line = seen[0].lines().next().unwrap();
         assert_eq!(
             request_line,
             "GET /inbox?org=org_1&unread=true&cursor=1758362651000%3An0&limit=100 HTTP/1.1",
             "the read route, the grant's organisation, and the limit clamped to the server's maximum"
         );
-        assert!(seen[0].to_ascii_lowercase().contains("authorization: bearer tok"));
+        assert!(seen[0]
+            .to_ascii_lowercase()
+            .contains("authorization: bearer tok"));
     }
 
     #[tokio::test]
@@ -629,7 +674,10 @@ mod tests {
 
         let seen = seen.lock().unwrap().clone();
         assert_eq!(seen.len(), 1);
-        assert_eq!(seen[0].lines().next().unwrap(), "GET /inbox?org=org_1 HTTP/1.1");
+        assert_eq!(
+            seen[0].lines().next().unwrap(),
+            "GET /inbox?org=org_1 HTTP/1.1"
+        );
     }
 
     // ── One board page and one timeline page, as the organisation tools read them ──
@@ -649,7 +697,11 @@ mod tests {
         };
         let page = client.board_page("org_1", query).await.unwrap();
 
-        assert_eq!(page.next_cursor.as_deref(), Some("c2"), "one page, its cursor handed back");
+        assert_eq!(
+            page.next_cursor.as_deref(),
+            Some("c2"),
+            "one page, its cursor handed back"
+        );
         let seen = seen.lock().unwrap().clone();
         assert_eq!(seen.len(), 1, "one page, not a walk: {seen:?}");
         assert_eq!(
@@ -660,27 +712,51 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_board_page_without_a_keyword_sends_no_q_and_a_long_keyword_is_cut_to_the_servers_maximum() {
+    async fn a_board_page_without_a_keyword_sends_no_q_and_a_long_keyword_is_cut_to_the_servers_maximum(
+    ) {
         let (base, seen) = loopback(EMPTY_BOARD).await;
         let client = ArtifactsClient::at(&base, Arc::new(Tok));
 
-        client.board_page("org_1", BoardQuery::default()).await.unwrap();
+        client
+            .board_page("org_1", BoardQuery::default())
+            .await
+            .unwrap();
         let long = "é".repeat(300);
-        client.board_page("org_1", BoardQuery { q: Some(&long), ..BoardQuery::default() }).await.unwrap();
+        client
+            .board_page(
+                "org_1",
+                BoardQuery {
+                    q: Some(&long),
+                    ..BoardQuery::default()
+                },
+            )
+            .await
+            .unwrap();
 
         let seen = seen.lock().unwrap().clone();
-        assert_eq!(seen[0].lines().next().unwrap(), "GET /sessions?org=org_1&limit=100 HTTP/1.1");
+        assert_eq!(
+            seen[0].lines().next().unwrap(),
+            "GET /sessions?org=org_1&limit=100 HTTP/1.1"
+        );
         let line = seen[1].lines().next().unwrap();
         let q = line.split("q=").nth(1).unwrap().split(' ').next().unwrap();
-        assert_eq!(q.matches("%C3%A9").count(), SEARCH_MAX_CHARS, "cut on a character boundary: {line}");
+        assert_eq!(
+            q.matches("%C3%A9").count(),
+            SEARCH_MAX_CHARS,
+            "cut on a character boundary: {line}"
+        );
     }
 
     #[tokio::test]
     async fn one_timeline_page_is_one_get_with_the_cursor_and_clamped_limit() {
-        let (base, seen) = loopback(r#"{"summary":{"id":"ses_1"},"entries":[],"nextCursor":null}"#).await;
+        let (base, seen) =
+            loopback(r#"{"summary":{"id":"ses_1"},"entries":[],"nextCursor":null}"#).await;
         let client = ArtifactsClient::at(&base, Arc::new(Tok));
 
-        let page = client.session_page("org_1", "ws_1", "ses_1", Some("t9"), Some(9_000)).await.unwrap();
+        let page = client
+            .session_page("org_1", "ws_1", "ses_1", Some("t9"), Some(9_000))
+            .await
+            .unwrap();
 
         assert_eq!(page.summary.id, "ses_1");
         let seen = seen.lock().unwrap().clone();
@@ -698,9 +774,18 @@ mod tests {
         let (base, seen) = loopback(r#"{"comments":[]}"#).await;
         let client = ArtifactsClient::at(&base, Arc::new(Tok));
 
-        client.comments("org_1", "ws_1", "../ws_other/ses_9").await.unwrap();
-        client.comments("org_1", "ws_1", "ses_1%2F..%2Fx").await.unwrap();
-        client.comments("org_1", "ws_1", "ses_1?org=org_2#x").await.unwrap();
+        client
+            .comments("org_1", "ws_1", "../ws_other/ses_9")
+            .await
+            .unwrap();
+        client
+            .comments("org_1", "ws_1", "ses_1%2F..%2Fx")
+            .await
+            .unwrap();
+        client
+            .comments("org_1", "ws_1", "ses_1?org=org_2#x")
+            .await
+            .unwrap();
         client.comments("org_1", "ws_1", "ses_1").await.unwrap();
 
         let seen = seen.lock().unwrap().clone();
@@ -723,10 +808,18 @@ mod tests {
         let client = ArtifactsClient::at(&base, Arc::new(Tok));
 
         for id in ["..", ".", ""] {
-            let refused = client.entry_payload("org_1", "ws_1", "ses_1", id, "body").await;
-            assert!(matches!(refused, Err(Error::Protocol(_))), "{id:?}: {refused:?}");
+            let refused = client
+                .entry_payload("org_1", "ws_1", "ses_1", id, "body")
+                .await;
+            assert!(
+                matches!(refused, Err(Error::Protocol(_))),
+                "{id:?}: {refused:?}"
+            );
             let refused = client.comments("org_1", id, "ses_1").await;
-            assert!(matches!(refused, Err(Error::Protocol(_))), "{id:?}: {refused:?}");
+            assert!(
+                matches!(refused, Err(Error::Protocol(_))),
+                "{id:?}: {refused:?}"
+            );
         }
         assert!(seen.lock().unwrap().is_empty(), "nothing reached the wire");
     }

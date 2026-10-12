@@ -1,6 +1,6 @@
 // Modified by Atlas from upstream OpenAI Codex (Apache-2.0). See CONTEXT.md.
-use bytes::Bytes;
 use atlas_engine_utils_path_uri::PathUri;
+use bytes::Bytes;
 use tokio::io;
 use uuid::Uuid;
 

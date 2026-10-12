@@ -132,7 +132,11 @@ impl TraceReducer {
         atlas_engine_turn_id: AtlasEngineTurnId,
         thread_id: String,
     ) -> Result<()> {
-        if self.rollout.atlas_engine_turns.contains_key(&atlas_engine_turn_id) {
+        if self
+            .rollout
+            .atlas_engine_turns
+            .contains_key(&atlas_engine_turn_id)
+        {
             bail!("duplicate atlas-agent turn start for {atlas_engine_turn_id}");
         }
 
@@ -176,7 +180,11 @@ impl TraceReducer {
             );
         }
 
-        let Some(turn) = self.rollout.atlas_engine_turns.get_mut(&atlas_engine_turn_id) else {
+        let Some(turn) = self
+            .rollout
+            .atlas_engine_turns
+            .get_mut(&atlas_engine_turn_id)
+        else {
             bail!("atlas-agent turn end referenced unknown turn {atlas_engine_turn_id}");
         };
         turn.execution.ended_at_unix_ms = Some(wall_time_unix_ms);

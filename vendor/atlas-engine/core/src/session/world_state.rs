@@ -205,7 +205,9 @@ impl Session {
                 .time_provider
                 .current_time(self.thread_id())
                 .await
-                .map_err(|err| AtlasEngineErr::Fatal(format!("failed to read current time: {err:#}")))?
+                .map_err(|err| {
+                    AtlasEngineErr::Fatal(format!("failed to read current time: {err:#}"))
+                })?
                 .with_timezone(&chrono::Local)
                 .format("%Y-%m-%d")
                 .to_string();

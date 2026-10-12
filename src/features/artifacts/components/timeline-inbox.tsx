@@ -16,6 +16,7 @@ import { Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 import { formatDuration, sessionState, sessionTitle } from "../lib/board";
+import { boardKey } from "../lib/board-key";
 import type { BoardSession } from "../types";
 import { AgentGlyph } from "./agent-glyph";
 
@@ -49,7 +50,7 @@ export function TimelineInbox({
               const live = sessionState(session) === "live";
               return (
                 <button
-                  key={session.id}
+                  key={boardKey(session)}
                   type="button"
                   onClick={() => onOpen(session.id, session.projectPath, session.remoteProjectId)}
                   title={title ?? undefined}

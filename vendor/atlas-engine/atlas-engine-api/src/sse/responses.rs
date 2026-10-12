@@ -712,11 +712,11 @@ fn rate_limit_regex() -> &'static regex_lite::Regex {
 mod tests {
     use super::*;
     use assert_matches::assert_matches;
-    use bytes::Bytes;
     use atlas_engine_client::StreamResponse;
     use atlas_engine_client::TransportError;
     use atlas_engine_protocol::models::MessagePhase;
     use atlas_engine_protocol::models::ResponseItem;
+    use bytes::Bytes;
     use futures::TryStreamExt;
     use futures::stream;
     use http::HeaderMap;

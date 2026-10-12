@@ -312,7 +312,11 @@ async fn run_manual_session(
     let compact_mock = mount_legacy_compact_if_needed(&harness, mode).await;
 
     for (idx, step) in scenario.steps.iter().enumerate() {
-        submit_user_input(&atlas_engine, user_input_for_step(scenario.name, idx, *step)).await?;
+        submit_user_input(
+            &atlas_engine,
+            user_input_for_step(scenario.name, idx, *step),
+        )
+        .await?;
     }
 
     atlas_engine.submit(Op::Compact).await?;
@@ -499,7 +503,11 @@ async fn build_auto_harness(mode: Mode) -> Result<TestAtlasEngineHarness> {
     .await
 }
 
-async fn build_harness(mode: Mode, settings: RunSettings, hooks: bool) -> Result<TestAtlasEngineHarness> {
+async fn build_harness(
+    mode: Mode,
+    settings: RunSettings,
+    hooks: bool,
+) -> Result<TestAtlasEngineHarness> {
     build_harness_inner(mode, settings, hooks, /*auto_compact_limit*/ None).await
 }
 
@@ -520,9 +528,9 @@ async fn build_harness_inner(
         builder = builder.with_pre_build_hook(write_manual_compact_hooks);
     }
     TestAtlasEngineHarness::with_builder(builder.with_config(move |config| {
-        config.cwd = atlas_engine_utils_absolute_path::AbsolutePathBuf::from_absolute_path(PathBuf::from(
-            FIXED_CWD,
-        ))
+        config.cwd = atlas_engine_utils_absolute_path::AbsolutePathBuf::from_absolute_path(
+            PathBuf::from(FIXED_CWD),
+        )
         .expect("fixed cwd should be absolute");
         config.developer_instructions = Some("PARITY_DEVELOPER_INSTRUCTIONS".to_string());
         if settings.service_tier_fast {
@@ -605,7 +613,10 @@ async fn capture_from_requests(
     })
 }
 
-async fn submit_user_input(atlas_engine: &atlas_engine_core::AtlasEngineThread, items: Vec<UserInput>) -> Result<()> {
+async fn submit_user_input(
+    atlas_engine: &atlas_engine_core::AtlasEngineThread,
+    items: Vec<UserInput>,
+) -> Result<()> {
     atlas_engine
         .start_or_steer_turn(TurnInputRequest::user_input(items))
         .await?;

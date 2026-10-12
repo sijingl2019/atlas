@@ -19,8 +19,8 @@ use atlas_engine_workload_identity::WorkloadIdentityToken;
 use thiserror::Error;
 use url::Url;
 
-use super::AuthConfig;
 use super::AtlasEngineAuth;
+use super::AuthConfig;
 use super::ExternalAuth;
 use super::ExternalAuthFuture;
 use super::ExternalAuthRefreshContext;
@@ -407,7 +407,10 @@ impl ExternalAuth for WorkloadIdentityExternalAuth {
         })
     }
 
-    fn refresh(&self, context: ExternalAuthRefreshContext) -> ExternalAuthFuture<'_, AtlasEngineAuth> {
+    fn refresh(
+        &self,
+        context: ExternalAuthRefreshContext,
+    ) -> ExternalAuthFuture<'_, AtlasEngineAuth> {
         Box::pin(async move {
             let observed_version = self.observed_token_version.load(Ordering::Acquire);
             let token = self

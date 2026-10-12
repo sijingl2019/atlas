@@ -4,8 +4,6 @@ use std::collections::hash_map::Entry;
 use std::sync::Arc;
 use std::time::Duration;
 
-use base64::Engine;
-use base64::engine::general_purpose::STANDARD;
 use atlas_engine_app_server_protocol::ClientResponsePayload;
 use atlas_engine_app_server_protocol::JSONRPCErrorError;
 use atlas_engine_app_server_protocol::ProcessExitedNotification;
@@ -32,6 +30,8 @@ use atlas_engine_utils_pty::DEFAULT_OUTPUT_BYTES_CAP;
 use atlas_engine_utils_pty::ProcessHandle;
 use atlas_engine_utils_pty::SpawnedProcess;
 use atlas_engine_utils_pty::TerminalSize;
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD;
 use tokio::sync::Mutex;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
@@ -319,8 +319,15 @@ impl ProcessExecManager {
             )
             .await
         } else if stream_stdin {
-            atlas_engine_utils_pty::spawn_pipe_process(program, args, cwd.as_path(), &env, &arg0, &[])
-                .await
+            atlas_engine_utils_pty::spawn_pipe_process(
+                program,
+                args,
+                cwd.as_path(),
+                &env,
+                &arg0,
+                &[],
+            )
+            .await
         } else {
             atlas_engine_utils_pty::spawn_pipe_process_no_stdin(
                 program,

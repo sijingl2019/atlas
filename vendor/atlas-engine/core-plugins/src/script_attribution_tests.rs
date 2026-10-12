@@ -46,7 +46,11 @@ fn loaded_plugin(config_name: &str, root: &Path, enabled: bool) -> LoadedPlugin 
         error: None,
     }
 }
-fn synced_plugin_root(atlas_agent_home: &Path, marketplace: &str, plugin_name: &str) -> AbsolutePathBuf {
+fn synced_plugin_root(
+    atlas_agent_home: &Path,
+    marketplace: &str,
+    plugin_name: &str,
+) -> AbsolutePathBuf {
     let synced_root = curated_plugins_repo_path(atlas_agent_home);
     match marketplace {
         OPENAI_CURATED_MARKETPLACE_NAME => {
@@ -245,7 +249,11 @@ fn recognizes_windows_executor_plugin_cache_root() {
 
     assert!(executor_plugin_root_matches(&script, &attribution));
 }
-fn assert_invalid_metrics_manifest(atlas_agent_home: &Path, root: &AbsolutePathBuf, manifest: &str) {
+fn assert_invalid_metrics_manifest(
+    atlas_agent_home: &Path,
+    root: &AbsolutePathBuf,
+    manifest: &str,
+) {
     fs::write(root.join("analytics.yaml"), manifest).expect("write analytics manifest");
     let roots = roots_for(
         atlas_agent_home,
@@ -265,9 +273,12 @@ fn assert_invalid_metrics_manifest(atlas_agent_home: &Path, root: &AbsolutePathB
 }
 fn assert_untrusted(atlas_agent_home: &Path, config_name: &str, root: &Path) {
     assert!(
-        roots_for(atlas_agent_home, vec![loaded_plugin(config_name, root, ENABLED)])
-            .roots
-            .is_empty()
+        roots_for(
+            atlas_agent_home,
+            vec![loaded_plugin(config_name, root, ENABLED)]
+        )
+        .roots
+        .is_empty()
     );
 }
 fn command(parts: &[&str]) -> Vec<String> {

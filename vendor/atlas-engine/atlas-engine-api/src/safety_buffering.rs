@@ -2,7 +2,8 @@
 use crate::common::SafetyBufferingTreatment;
 use http::HeaderMap;
 
-pub(crate) const X_ATLAS_AGENT_SAFETY_BUFFERING_ENABLED_HEADER: &str = "x-atlas-engine-safety-buffering-enabled";
+pub(crate) const X_ATLAS_AGENT_SAFETY_BUFFERING_ENABLED_HEADER: &str =
+    "x-atlas-engine-safety-buffering-enabled";
 pub(crate) const X_ATLAS_AGENT_SAFETY_BUFFERING_FASTER_MODEL_HEADER: &str =
     "x-atlas-engine-safety-buffering-faster-model";
 

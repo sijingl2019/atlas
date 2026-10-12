@@ -113,7 +113,9 @@ impl MarketplacePolicy {
         }
 
         let root = marketplace_root_dir(marketplace_path).map_err(|err| err.to_string())?;
-        if let Some(expected_name) = managed_marketplace_name(atlas_agent_home, marketplace_path, &root) {
+        if let Some(expected_name) =
+            managed_marketplace_name(atlas_agent_home, marketplace_path, &root)
+        {
             return validate_expected_marketplace_name(expected_name, marketplace_name);
         }
 
@@ -286,7 +288,8 @@ pub(crate) fn configured_plugins_from_stack(
     config_layer_stack: &ConfigLayerStack,
     atlas_agent_home: &Path,
 ) -> HashMap<String, PluginConfig> {
-    let Some(user_config) = project_effective_user_config(config_layer_stack, atlas_agent_home) else {
+    let Some(user_config) = project_effective_user_config(config_layer_stack, atlas_agent_home)
+    else {
         return HashMap::new();
     };
     let Some(plugins_value) = user_config.get("plugins") else {
@@ -455,7 +458,8 @@ fn managed_marketplace_name(
     ) {
         return Some(OPENAI_API_CURATED_MARKETPLACE_NAME);
     }
-    if paths_match_after_normalization(root.as_path(), curated_plugins_repo_path(atlas_agent_home)) {
+    if paths_match_after_normalization(root.as_path(), curated_plugins_repo_path(atlas_agent_home))
+    {
         return Some(OPENAI_CURATED_MARKETPLACE_NAME);
     }
     managed_local_marketplace_name(atlas_agent_home, root.as_path())

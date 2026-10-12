@@ -199,7 +199,9 @@ use std::sync::Arc;
 use std::sync::OnceLock;
 use std::time::Duration as StdDuration;
 
-pub(crate) fn mcp_config_for_test(config: &crate::config::Config) -> Arc<atlas_engine_mcp::McpConfig> {
+pub(crate) fn mcp_config_for_test(
+    config: &crate::config::Config,
+) -> Arc<atlas_engine_mcp::McpConfig> {
     Arc::new(config.to_mcp_config_with_loaded_plugins(
         &atlas_engine_core_plugins::PluginLoadOutcome::default(),
         std::iter::empty(),
@@ -464,7 +466,8 @@ async fn world_state_extension_metrics_follow_turn_model_switch() {
             .with_model(next_model.to_string(), &session.services.models_manager)
             .await,
     );
-    let mut builder = atlas_engine_extension_api::ExtensionRegistryBuilder::<crate::config::Config>::new();
+    let mut builder =
+        atlas_engine_extension_api::ExtensionRegistryBuilder::<crate::config::Config>::new();
     builder.prompt_contributor(Arc::new(WorldStateMetricsRecorder));
     session.services.extensions = Arc::new(builder.build());
 
@@ -1045,13 +1048,14 @@ async fn managed_network_proxy_decider_survives_full_access_start() -> anyhow::R
     )?;
     let exec_policy = Policy::empty();
     let decider_calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
-    let network_policy_decider: Arc<dyn atlas_engine_network_proxy::NetworkPolicyDecider> = Arc::new({
-        let decider_calls = Arc::clone(&decider_calls);
-        move |_request| {
-            decider_calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            async { atlas_engine_network_proxy::NetworkDecision::ask("not_allowed") }
-        }
-    });
+    let network_policy_decider: Arc<dyn atlas_engine_network_proxy::NetworkPolicyDecider> =
+        Arc::new({
+            let decider_calls = Arc::clone(&decider_calls);
+            move |_request| {
+                decider_calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                async { atlas_engine_network_proxy::NetworkDecision::ask("not_allowed") }
+            }
+        });
 
     let (started_proxy, _) = Session::start_managed_network_proxy(
         &spec,
@@ -1683,21 +1687,22 @@ async fn reload_user_config_layer_refreshes_hooks() -> anyhow::Result<()> {
         atlas_engine_protocol::protocol::HookTrustStatus::Untrusted
     );
 
-    let trusted_user_config: atlas_engine_config::TomlValue = serde_json::from_value(serde_json::json!({
-        "hooks": {
-            "SessionStart": [{
-                "hooks": [{
-                    "type": "command",
-                    "command": "python3 /tmp/user.py",
+    let trusted_user_config: atlas_engine_config::TomlValue =
+        serde_json::from_value(serde_json::json!({
+            "hooks": {
+                "SessionStart": [{
+                    "hooks": [{
+                        "type": "command",
+                        "command": "python3 /tmp/user.py",
+                    }],
                 }],
-            }],
-            "state": {
-                hook_list.hooks[0].key.clone(): {
-                    "trusted_hash": hook_list.hooks[0].current_hash.clone(),
+                "state": {
+                    hook_list.hooks[0].key.clone(): {
+                        "trusted_hash": hook_list.hooks[0].current_hash.clone(),
+                    },
                 },
             },
-        },
-    }))?;
+        }))?;
     std::fs::write(&config_toml_path, toml::to_string(&trusted_user_config)?)?;
 
     session.reload_user_config_layer().await;
@@ -1746,21 +1751,22 @@ async fn refresh_runtime_config_refreshes_hooks() -> anyhow::Result<()> {
         atlas_engine_config::version_for_toml(&identity)
     };
     let hook_key = format!("{}:session_start:0:0", config_toml_path.display());
-    let trusted_user_config: atlas_engine_config::TomlValue = serde_json::from_value(serde_json::json!({
-        "hooks": {
-            "SessionStart": [{
-                "hooks": [{
-                    "type": "command",
-                    "command": "python3 /tmp/user.py",
+    let trusted_user_config: atlas_engine_config::TomlValue =
+        serde_json::from_value(serde_json::json!({
+            "hooks": {
+                "SessionStart": [{
+                    "hooks": [{
+                        "type": "command",
+                        "command": "python3 /tmp/user.py",
+                    }],
                 }],
-            }],
-            "state": {
-                hook_key: {
-                    "trusted_hash": trusted_hash,
+                "state": {
+                    hook_key: {
+                        "trusted_hash": trusted_hash,
+                    },
                 },
             },
-        },
-    }))?;
+        }))?;
     std::fs::write(&config_toml_path, toml::to_string(&trusted_user_config)?)?;
 
     let request = atlas_engine_hooks::SessionStartRequest {
@@ -2800,7 +2806,8 @@ async fn record_token_usage_info_notifies_extension_contributors() {
 
     let (mut session, turn_context) = make_session_and_context().await;
     let records = Arc::new(std::sync::Mutex::new(Vec::new()));
-    let mut builder = atlas_engine_extension_api::ExtensionRegistryBuilder::<crate::config::Config>::new();
+    let mut builder =
+        atlas_engine_extension_api::ExtensionRegistryBuilder::<crate::config::Config>::new();
     builder.token_usage_contributor(Arc::new(TokenUsageRecorder {
         records: Arc::clone(&records),
     }));
@@ -2930,7 +2937,8 @@ async fn turn_start_lifecycle_exposes_turn_metadata_and_token_baseline() {
 
     let (mut session, turn_context) = make_session_and_context().await;
     let records = Arc::new(std::sync::Mutex::new(Vec::new()));
-    let mut builder = atlas_engine_extension_api::ExtensionRegistryBuilder::<crate::config::Config>::new();
+    let mut builder =
+        atlas_engine_extension_api::ExtensionRegistryBuilder::<crate::config::Config>::new();
     builder.turn_lifecycle_contributor(Arc::new(TurnStartRecorder {
         records: Arc::clone(&records),
     }));
@@ -3036,7 +3044,8 @@ async fn turn_error_lifecycle_exposes_error_and_stores() {
 
     let (mut session, turn_context) = make_session_and_context().await;
     let records = Arc::new(std::sync::Mutex::new(Vec::new()));
-    let mut builder = atlas_engine_extension_api::ExtensionRegistryBuilder::<crate::config::Config>::new();
+    let mut builder =
+        atlas_engine_extension_api::ExtensionRegistryBuilder::<crate::config::Config>::new();
     builder.turn_lifecycle_contributor(Arc::new(TurnErrorRecorder {
         records: Arc::clone(&records),
     }));
@@ -3115,7 +3124,8 @@ async fn config_change_contributor_observes_effective_config_changes() {
 
     let (mut session, _turn_context) = make_session_and_context().await;
     let records = Arc::new(std::sync::Mutex::new(Vec::new()));
-    let mut builder = atlas_engine_extension_api::ExtensionRegistryBuilder::<crate::config::Config>::new();
+    let mut builder =
+        atlas_engine_extension_api::ExtensionRegistryBuilder::<crate::config::Config>::new();
     builder.config_contributor(Arc::new(ConfigRecorder {
         records: Arc::clone(&records),
     }));
@@ -3404,7 +3414,10 @@ async fn fork_startup_context_then_first_turn_diff_snapshot() -> anyhow::Result<
             },
         ]))
         .await?;
-    wait_for_event(&initial.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&initial.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
     // Forking reads the persisted rollout JSONL, so force the completed source turn to disk
     // before snapshotting from it.
     initial.atlas_engine.ensure_rollout_materialized().await;
@@ -4537,7 +4550,8 @@ async fn wait_for_thread_rollback_failed(rx: &async_channel::Receiver<Event>) ->
             .expect("event");
         match evt.msg {
             EventMsg::Error(payload)
-                if payload.atlas_engine_error_info == Some(AtlasEngineErrorInfo::ThreadRollbackFailed) =>
+                if payload.atlas_engine_error_info
+                    == Some(AtlasEngineErrorInfo::ThreadRollbackFailed) =>
             {
                 return payload;
             }
@@ -4880,8 +4894,9 @@ async fn emit_subagent_session_started_includes_fork_lineage_and_originator() {
         .mount(&server)
         .await;
 
-    let auth_manager =
-        AuthManager::from_auth_for_testing(AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing());
+    let auth_manager = AuthManager::from_auth_for_testing(
+        AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing(),
+    );
     let analytics_events_client = AnalyticsEventsClient::new(
         auth_manager,
         server.uri(),
@@ -5064,10 +5079,11 @@ async fn session_configuration_apply_permission_profile_preserves_existing_deny_
         &workspace_policy,
         session_configuration.cwd().as_path(),
     );
-    let permission_profile = atlas_engine_protocol::models::PermissionProfile::from_runtime_permissions(
-        &requested_file_system_policy,
-        NetworkSandboxPolicy::Restricted,
-    );
+    let permission_profile =
+        atlas_engine_protocol::models::PermissionProfile::from_runtime_permissions(
+            &requested_file_system_policy,
+            NetworkSandboxPolicy::Restricted,
+        );
     let updated = session_configuration
         .apply(
             &SessionSettingsUpdate {
@@ -5095,8 +5111,10 @@ async fn session_configuration_apply_permission_profile_accepts_direct_write_roo
     session_configuration.legacy_fallback_cwd = cwd.path().abs();
     let external_write_dir = tempfile::tempdir().expect("create external write root");
     let external_write_path = AbsolutePathBuf::from_absolute_path(
-        atlas_engine_utils_absolute_path::canonicalize_preserving_symlinks(external_write_dir.path())
-            .expect("canonical temp dir"),
+        atlas_engine_utils_absolute_path::canonicalize_preserving_symlinks(
+            external_write_dir.path(),
+        )
+        .expect("canonical temp dir"),
     )
     .expect("canonical temp dir should be absolute");
     let file_system_sandbox_policy =
@@ -5190,7 +5208,9 @@ async fn active_profile_update_rebuilds_network_proxy_config() -> std::io::Resul
         ..Default::default()
     };
     std::fs::write(
-        atlas_agent_home.path().join(atlas_engine_config::CONFIG_TOML_FILE),
+        atlas_agent_home
+            .path()
+            .join(atlas_engine_config::CONFIG_TOML_FILE),
         toml::to_string(&base_config).expect("serialize config"),
     )?;
     let locked_config = Arc::new(
@@ -5600,7 +5620,8 @@ async fn session_new_fails_when_zsh_fork_enabled_without_packaged_zsh() {
     config.zsh_path = None;
     let config = Arc::new(config);
 
-    let auth_manager = AuthManager::from_auth_for_testing(AtlasEngineAuth::from_api_key("Test API Key"));
+    let auth_manager =
+        AuthManager::from_auth_for_testing(AtlasEngineAuth::from_api_key("Test API Key"));
     let models_manager = models_manager_with_provider(
         config.atlas_agent_home.to_path_buf(),
         auth_manager.clone(),
@@ -5740,7 +5761,8 @@ pub(crate) async fn make_session_and_context() -> (Session, TurnContext) {
     let config = build_test_config(atlas_agent_home.path()).await;
     let config = Arc::new(config);
     let thread_id = ThreadId::default();
-    let auth_manager = AuthManager::from_auth_for_testing(AtlasEngineAuth::from_api_key("Test API Key"));
+    let auth_manager =
+        AuthManager::from_auth_for_testing(AtlasEngineAuth::from_api_key("Test API Key"));
     let models_manager = models_manager_with_provider(
         config.atlas_agent_home.to_path_buf(),
         auth_manager.clone(),
@@ -5833,7 +5855,9 @@ pub(crate) async fn make_session_and_context() -> (Session, TurnContext) {
         /*bundled_skills_enabled*/ true,
     ));
     let network_approval = Arc::new(NetworkApprovalService::default());
-    let mcp_runtime = Arc::new(atlas_engine_mcp::McpRuntime::empty(config.prefix_mcp_tool_names()));
+    let mcp_runtime = Arc::new(atlas_engine_mcp::McpRuntime::empty(
+        config.prefix_mcp_tool_names(),
+    ));
     let executed_tool_calls = config
         .features
         .enabled(Feature::ExecutedToolCallMetadata)
@@ -5884,7 +5908,9 @@ pub(crate) async fn make_session_and_context() -> (Session, TurnContext) {
         session_extension_data: atlas_engine_extension_api::ExtensionData::new(
             agent_control.session_id().to_string(),
         ),
-        thread_extension_data: atlas_engine_extension_api::ExtensionData::new(thread_id.to_string()),
+        thread_extension_data: atlas_engine_extension_api::ExtensionData::new(
+            thread_id.to_string(),
+        ),
         selected_capability_roots: Vec::new(),
         mcp_thread_init: atlas_engine_extension_api::ExtensionDataInit::default(),
         client_mcp_extensions: ClientMcpExtensions::default(),
@@ -6025,7 +6051,8 @@ async fn make_session_with_config_and_rx(
     let mut config = build_test_config(atlas_agent_home.path()).await;
     mutator(&mut config);
     let config = Arc::new(config);
-    let auth_manager = AuthManager::from_auth_for_testing(AtlasEngineAuth::from_api_key("Test API Key"));
+    let auth_manager =
+        AuthManager::from_auth_for_testing(AtlasEngineAuth::from_api_key("Test API Key"));
     let models_manager = models_manager_with_provider(
         config.atlas_agent_home.to_path_buf(),
         auth_manager.clone(),
@@ -6143,7 +6170,8 @@ async fn make_session_with_history_source_and_agent_control_and_rx(
     let mut config = build_test_config(atlas_agent_home.path()).await;
     config.ephemeral = true;
     let config = Arc::new(config);
-    let auth_manager = AuthManager::from_auth_for_testing(AtlasEngineAuth::from_api_key("Test API Key"));
+    let auth_manager =
+        AuthManager::from_auth_for_testing(AtlasEngineAuth::from_api_key("Test API Key"));
     let models_manager = models_manager_with_provider(
         config.atlas_agent_home.to_path_buf(),
         auth_manager.clone(),
@@ -6543,16 +6571,17 @@ async fn request_permissions_emits_event_when_granular_policy_allows_requests() 
     let session = Arc::new(session);
     let turn_context = Arc::new(turn_context);
     let call_id = "call-1".to_string();
-    let expected_response = atlas_engine_protocol::request_permissions::RequestPermissionsResponse {
-        permissions: RequestPermissionProfile {
-            network: Some(atlas_engine_protocol::models::NetworkPermissions {
-                enabled: Some(true),
-            }),
-            ..RequestPermissionProfile::default()
-        },
-        scope: PermissionGrantScope::Turn,
-        strict_auto_review: false,
-    };
+    let expected_response =
+        atlas_engine_protocol::request_permissions::RequestPermissionsResponse {
+            permissions: RequestPermissionProfile {
+                network: Some(atlas_engine_protocol::models::NetworkPermissions {
+                    enabled: Some(true),
+                }),
+                ..RequestPermissionProfile::default()
+            },
+            scope: PermissionGrantScope::Turn,
+            strict_auto_review: false,
+        };
 
     let handle = tokio::spawn({
         let session = Arc::clone(&session);
@@ -6864,11 +6893,12 @@ async fn request_permissions_response_materializes_session_cwd_grants_before_rec
         )),
         ..Default::default()
     };
-    let expected_response = atlas_engine_protocol::request_permissions::RequestPermissionsResponse {
-        permissions: expected_permissions.clone(),
-        scope: PermissionGrantScope::Session,
-        strict_auto_review: false,
-    };
+    let expected_response =
+        atlas_engine_protocol::request_permissions::RequestPermissionsResponse {
+            permissions: expected_permissions.clone(),
+            scope: PermissionGrantScope::Session,
+            strict_auto_review: false,
+        };
 
     let response = tokio::time::timeout(StdDuration::from_secs(1), handle)
         .await
@@ -7407,7 +7437,8 @@ async fn spawn_task_turn_span_inherits_dispatch_trace_context() {
         .expect("turn task should capture the current span trace context");
     let submission_context =
         atlas_engine_otel::context_from_w3c_trace_context(&submission_trace).expect("submission");
-    let task_context = atlas_engine_otel::context_from_w3c_trace_context(&task_trace).expect("task trace");
+    let task_context =
+        atlas_engine_otel::context_from_w3c_trace_context(&task_trace).expect("task trace");
 
     assert_eq!(
         task_context.span().span_context().trace_id(),
@@ -7516,7 +7547,9 @@ async fn submission_loop_channel_close_runs_full_thread_teardown() {
         expected_thread_id: ThreadId,
     }
 
-    impl atlas_engine_extension_api::ThreadLifecycleContributor<crate::config::Config> for ThreadStopRecorder {
+    impl atlas_engine_extension_api::ThreadLifecycleContributor<crate::config::Config>
+        for ThreadStopRecorder
+    {
         fn on_thread_stop<'a>(
             &'a self,
             input: atlas_engine_extension_api::ThreadStopInput<'a>,
@@ -7572,7 +7605,8 @@ async fn submission_loop_channel_close_runs_full_thread_teardown() {
     session.services.thread_store = thread_store;
     session.services.live_thread = Some(live_thread);
     let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
-    let mut builder = atlas_engine_extension_api::ExtensionRegistryBuilder::<crate::config::Config>::new();
+    let mut builder =
+        atlas_engine_extension_api::ExtensionRegistryBuilder::<crate::config::Config>::new();
     builder.thread_lifecycle_contributor(Arc::new(ThreadStopRecorder {
         calls: Arc::clone(&calls),
         expected_thread_id: session.thread_id,
@@ -7611,7 +7645,9 @@ async fn submission_loop_channel_close_aborts_active_turn_before_thread_stop_lif
         expected_turn_id: String,
     }
 
-    impl atlas_engine_extension_api::ThreadLifecycleContributor<crate::config::Config> for LifecycleRecorder {
+    impl atlas_engine_extension_api::ThreadLifecycleContributor<crate::config::Config>
+        for LifecycleRecorder
+    {
         fn on_thread_stop<'a>(
             &'a self,
             input: atlas_engine_extension_api::ThreadStopInput<'a>,
@@ -7656,7 +7692,8 @@ async fn submission_loop_channel_close_aborts_active_turn_before_thread_stop_lif
         expected_thread_id: session.thread_id,
         expected_turn_id: turn_context.sub_id.clone(),
     });
-    let mut builder = atlas_engine_extension_api::ExtensionRegistryBuilder::<crate::config::Config>::new();
+    let mut builder =
+        atlas_engine_extension_api::ExtensionRegistryBuilder::<crate::config::Config>::new();
     builder.thread_lifecycle_contributor(recorder.clone());
     builder.turn_lifecycle_contributor(recorder);
     session.services.extensions = Arc::new(builder.build());
@@ -8028,7 +8065,9 @@ where
         /*bundled_skills_enabled*/ true,
     ));
     let network_approval = Arc::new(NetworkApprovalService::default());
-    let mcp_runtime = Arc::new(atlas_engine_mcp::McpRuntime::empty(config.prefix_mcp_tool_names()));
+    let mcp_runtime = Arc::new(atlas_engine_mcp::McpRuntime::empty(
+        config.prefix_mcp_tool_names(),
+    ));
     let executed_tool_calls = config
         .features
         .enabled(Feature::ExecutedToolCallMetadata)
@@ -8079,7 +8118,9 @@ where
         session_extension_data: atlas_engine_extension_api::ExtensionData::new(
             agent_control.session_id().to_string(),
         ),
-        thread_extension_data: atlas_engine_extension_api::ExtensionData::new(thread_id.to_string()),
+        thread_extension_data: atlas_engine_extension_api::ExtensionData::new(
+            thread_id.to_string(),
+        ),
         selected_capability_roots: Vec::new(),
         mcp_thread_init: atlas_engine_extension_api::ExtensionDataInit::default(),
         client_mcp_extensions: ClientMcpExtensions::default(),
@@ -8290,7 +8331,8 @@ async fn refresh_mcp_servers_uses_latest_state_for_existing_turns() {
         "an already-bound step must keep its captured config"
     );
     assert!(
-        atlas_engine_mcp::configured_mcp_servers(rematerialized_old.config()).contains_key("refreshed"),
+        atlas_engine_mcp::configured_mcp_servers(rematerialized_old.config())
+            .contains_key("refreshed"),
         "an older turn should resolve the latest MCP state"
     );
     let current = session
@@ -8408,8 +8450,14 @@ async fn mcp_elicitation_reviewer_uses_latest_runtime_authority() {
             rmcp::model::ElicitRequestParams::FormElicitationParams {
                 meta: Some(rmcp::model::RequestMetaObject::from(
                     serde_json::Map::from_iter([
-                        ("atlas_agent_approval_kind".to_string(), json!("mcp_tool_call")),
-                        ("atlas_agent_request_type".to_string(), json!("approval_request")),
+                        (
+                            "atlas_agent_approval_kind".to_string(),
+                            json!("mcp_tool_call"),
+                        ),
+                        (
+                            "atlas_agent_request_type".to_string(),
+                            json!("approval_request"),
+                        ),
                         ("tool_name".to_string(), json!("access_browser_origin")),
                     ]),
                 )),
@@ -8607,7 +8655,10 @@ impl atlas_engine_exec_server::NoiseRendezvousConnectProvider for PendingNoiseCo
         _: atlas_engine_exec_server::NoiseChannelPublicKey,
     ) -> futures::future::BoxFuture<
         '_,
-        Result<atlas_engine_exec_server::NoiseRendezvousConnectBundle, atlas_engine_exec_server::ExecServerError>,
+        Result<
+            atlas_engine_exec_server::NoiseRendezvousConnectBundle,
+            atlas_engine_exec_server::ExecServerError,
+        >,
     > {
         Box::pin(futures::future::pending())
     }
@@ -8618,14 +8669,15 @@ impl atlas_engine_exec_server::NoiseRendezvousConnectProvider for PendingNoiseCo
 async fn conflicting_ready_environment_root_ids_keep_first_location() {
     let (session, turn_context) = make_session_and_context().await;
     let environment_manager = session.services.turn_environments.environment_manager();
-    let selected_root =
-        |environment_id: &str, path: &str| atlas_engine_protocol::capabilities::SelectedCapabilityRoot {
+    let selected_root = |environment_id: &str, path: &str| {
+        atlas_engine_protocol::capabilities::SelectedCapabilityRoot {
             id: "shared-root".to_string(),
             location: atlas_engine_protocol::capabilities::CapabilityRootLocation::Environment {
                 environment_id: environment_id.to_string(),
                 path: PathUri::parse(path).expect("root URI"),
             },
-        };
+        }
+    };
     let selected_roots = [
         selected_root("executor-a", "file:///plugins/a"),
         selected_root("executor-b", "file:///plugins/b"),
@@ -9189,7 +9241,11 @@ impl atlas_engine_extension_api::ContextContributor for PromptExtensionTestContr
         _session_store: &'a atlas_engine_extension_api::ExtensionData,
         thread_store: &'a atlas_engine_extension_api::ExtensionData,
     ) -> std::pin::Pin<
-        Box<dyn std::future::Future<Output = Vec<atlas_engine_extension_api::PromptFragment>> + Send + 'a>,
+        Box<
+            dyn std::future::Future<Output = Vec<atlas_engine_extension_api::PromptFragment>>
+                + Send
+                + 'a,
+        >,
     > {
         Box::pin(async move {
             thread_store
@@ -9218,7 +9274,11 @@ impl atlas_engine_extension_api::ContextContributor for TurnContextExtensionTest
         &'a self,
         input: atlas_engine_extension_api::TurnContextContributionInput<'a>,
     ) -> std::pin::Pin<
-        Box<dyn std::future::Future<Output = Vec<atlas_engine_extension_api::PromptFragment>> + Send + 'a>,
+        Box<
+            dyn std::future::Future<Output = Vec<atlas_engine_extension_api::PromptFragment>>
+                + Send
+                + 'a,
+        >,
     > {
         Box::pin(async move {
             let Some(state) = input.turn_store.get::<TurnContextExtensionTestState>() else {
@@ -10139,7 +10199,9 @@ impl SessionTask for GuardianDeniedApprovalTask {
 async fn guardian_auto_review_emits_thread_idle_after_interrupt() {
     struct ThreadIdleRecorder(async_channel::Sender<()>);
 
-    impl atlas_engine_extension_api::ThreadLifecycleContributor<crate::config::Config> for ThreadIdleRecorder {
+    impl atlas_engine_extension_api::ThreadLifecycleContributor<crate::config::Config>
+        for ThreadIdleRecorder
+    {
         fn on_thread_idle<'a>(
             &'a self,
             _input: atlas_engine_extension_api::ThreadIdleInput<'a>,
@@ -10152,7 +10214,8 @@ async fn guardian_auto_review_emits_thread_idle_after_interrupt() {
 
     let (mut session, turn_context) = make_session_and_context().await;
     let (idle_tx, idle_rx) = async_channel::bounded(1);
-    let mut builder = atlas_engine_extension_api::ExtensionRegistryBuilder::<crate::config::Config>::new();
+    let mut builder =
+        atlas_engine_extension_api::ExtensionRegistryBuilder::<crate::config::Config>::new();
     builder.thread_lifecycle_contributor(Arc::new(ThreadIdleRecorder(idle_tx)));
     session.services.extensions = Arc::new(builder.build());
 
@@ -10533,7 +10596,9 @@ async fn task_finish_emits_thread_idle_lifecycle_after_active_turn_clears() {
         expected_thread_id: ThreadId,
     }
 
-    impl atlas_engine_extension_api::ThreadLifecycleContributor<crate::config::Config> for ThreadIdleRecorder {
+    impl atlas_engine_extension_api::ThreadLifecycleContributor<crate::config::Config>
+        for ThreadIdleRecorder
+    {
         fn on_thread_idle<'a>(
             &'a self,
             input: atlas_engine_extension_api::ThreadIdleInput<'a>,
@@ -10552,7 +10617,8 @@ async fn task_finish_emits_thread_idle_lifecycle_after_active_turn_clears() {
     let (mut session, turn_context) = make_session_and_context().await;
     let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
     let (idle_tx, idle_rx) = async_channel::bounded(1);
-    let mut builder = atlas_engine_extension_api::ExtensionRegistryBuilder::<crate::config::Config>::new();
+    let mut builder =
+        atlas_engine_extension_api::ExtensionRegistryBuilder::<crate::config::Config>::new();
     builder.thread_lifecycle_contributor(Arc::new(ThreadIdleRecorder {
         calls: Arc::clone(&calls),
         idle_tx,
@@ -10579,7 +10645,9 @@ async fn thread_idle_lifecycle_waits_for_trigger_turn_mailbox_work() {
         calls: Arc<std::sync::atomic::AtomicUsize>,
     }
 
-    impl atlas_engine_extension_api::ThreadLifecycleContributor<crate::config::Config> for ThreadIdleRecorder {
+    impl atlas_engine_extension_api::ThreadLifecycleContributor<crate::config::Config>
+        for ThreadIdleRecorder
+    {
         fn on_thread_idle<'a>(
             &'a self,
             _input: atlas_engine_extension_api::ThreadIdleInput<'a>,
@@ -10592,7 +10660,8 @@ async fn thread_idle_lifecycle_waits_for_trigger_turn_mailbox_work() {
 
     let (mut session, _turn_context) = make_session_and_context().await;
     let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
-    let mut builder = atlas_engine_extension_api::ExtensionRegistryBuilder::<crate::config::Config>::new();
+    let mut builder =
+        atlas_engine_extension_api::ExtensionRegistryBuilder::<crate::config::Config>::new();
     builder.thread_lifecycle_contributor(Arc::new(ThreadIdleRecorder {
         calls: Arc::clone(&calls),
     }));
@@ -10910,7 +10979,9 @@ async fn tool_calls_reopen_mailbox_delivery_for_current_turn() {
     let mut ctx = HandleOutputCtx {
         sess: Arc::clone(&sess),
         turn_context: Arc::clone(&tc),
-        turn_store: Arc::new(atlas_engine_extension_api::ExtensionData::new(tc.sub_id.clone())),
+        turn_store: Arc::new(atlas_engine_extension_api::ExtensionData::new(
+            tc.sub_id.clone(),
+        )),
         tool_runtime: test_tool_runtime(Arc::clone(&sess), Arc::clone(&tc)),
         cancellation_token: CancellationToken::new(),
     };
@@ -11481,9 +11552,10 @@ async fn session_start_hooks_only_load_from_trusted_project_layers() -> std::io:
         config_layer_stack: Some(config.config_layer_stack.clone()),
         ..atlas_engine_hooks::HooksConfig::default()
     });
-    let expected_source_path = atlas_engine_utils_absolute_path::AbsolutePathBuf::from_absolute_path(
-        nested_dot_atlas_engine.join("hooks.json"),
-    )?;
+    let expected_source_path =
+        atlas_engine_utils_absolute_path::AbsolutePathBuf::from_absolute_path(
+            nested_dot_atlas_engine.join("hooks.json"),
+        )?;
     assert_eq!(
         hook_list
             .hooks

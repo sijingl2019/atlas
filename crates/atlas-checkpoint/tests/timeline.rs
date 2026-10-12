@@ -323,7 +323,9 @@ fn touch(store: &mut Store, session_id: &str, turn_seq: i64, path: &str) {
 }
 
 fn commit(store: &Store, session_id: &str, sha: &str, files: &[String]) {
-    store.consume_touches(session_id, sha, files, Utc::now()).expect("touches consumed");
+    store
+        .consume_touches(session_id, sha, files, Utc::now())
+        .expect("touches consumed");
     store
         .upsert_checkpoint(CheckpointInput {
             session_id,
@@ -350,11 +352,23 @@ fn a_later_turn_editing_the_same_file_does_not_pull_earlier_checkpoints_into_it(
     let files = vec!["app.js".to_string()];
 
     touch(&mut store, &session_id, 1, "app.js");
-    commit(&store, &session_id, "1111111111111111111111111111111111111111", &files);
+    commit(
+        &store,
+        &session_id,
+        "1111111111111111111111111111111111111111",
+        &files,
+    );
     touch(&mut store, &session_id, 2, "app.js");
-    commit(&store, &session_id, "2222222222222222222222222222222222222222", &files);
+    commit(
+        &store,
+        &session_id,
+        "2222222222222222222222222222222222222222",
+        &files,
+    );
 
-    let detail = timeline::detail(&store, &session_id, no_subjects).unwrap().unwrap();
+    let detail = timeline::detail(&store, &session_id, no_subjects)
+        .unwrap()
+        .unwrap();
     let turn_of = |sha: &str| {
         detail
             .entries

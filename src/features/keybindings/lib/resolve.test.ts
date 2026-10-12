@@ -62,3 +62,74 @@ describe("findConflicts", () => {
     expect(others.map((b) => b.actionId)).toEqual(["terminal.closeTab"]);
   });
 });
+
+describe("presets in resolution", () => {
+  const based = (basedOn: string, bindings: KeybindingProfile["bindings"] = {}) => ({
+    ...profile(bindings),
+    basedOn,
+  });
+
+  it("layers the preset over the defaults", () => {
+    const r = resolveProfile(based("vscode"));
+    const palette = r.byAction.get("nav.commandPalette")!;
+    expect(palette.map((b) => b.serialized)).toEqual(["cmd+shift+p", "f1"]);
+    expect(palette[0]!.source).toBe("preset");
+    expect(r.perAction.get("nav.commandPalette")!.overridden).toBe(false);
+    // Not in the preset: the registry default.
+    expect(r.byAction.get("tabs.close")![0]!.source).toBe("default");
+    expect(r.preset?.id).toBe("vscode");
+  });
+
+  it("an override beats the preset, and a preset null unbinds", () => {
+    const r = resolveProfile(based("jetbrains", { "nav.commandPalette": ["cmd+k"] }));
+    expect(r.byAction.get("nav.commandPalette")!.map((b) => b.serialized)).toEqual(["cmd+k"]);
+    expect(r.byAction.get("nav.commandPalette")![0]!.source).toBe("user");
+    expect(r.byAction.get("tabs.focus1")).toEqual([]);
+  });
+
+  it("an unknown preset resolves as the defaults and is reported", () => {
+    const r = resolveProfile(based("emacs"));
+    expect(r.preset).toBeNull();
+    expect(r.unknownPresetId).toBe("emacs");
+    expect(r.byAction.get("nav.commandPalette")![0]!.serialized).toBe("cmd+k");
+  });
+});
+
+describe("findConflicts across platforms", () => {
+  it("off macOS, cmd+x and ctrl+x on two global actions are a hard conflict", () => {
+    const r = resolveProfile(profile({ "panels.right": ["ctrl+b"] }));
+    expect(findConflicts(r.list, true).get("cmd+b")).toBeUndefined();
+    expect(findConflicts(r.list, false).get("cmd+b")!.kind).toBe("hard");
+  });
+  it("one action bound twice to the same effective chord is not a conflict", () => {
+    const r = resolveProfile(profile({ "panels.left": ["cmd+b", "ctrl+b"] }));
+    expect(findConflicts(r.list, false).get("cmd+b")).toBeUndefined();
+  });
+});
+
+describe("findConflicts — the model picker's chords", () => {
+  // The open picker's ⌘1–⌘9 deliberately shadow the global tab chords; the
+  // two live in different `when` contexts, so the overlap is soft (by design,
+  // quiet in the editor), never a hard "this can never fire".
+  it("reads modelPicker.jumpN vs tabs.focusN as a soft, cross-context overlap", () => {
+    const conflicts = findConflicts(resolveProfile(undefined).list, true);
+    for (let n = 1; n <= 9; n++) {
+      const c = conflicts.get(`cmd+${n}`)!;
+      expect(c.kind).toBe("soft");
+      expect(c.bindings.map((b) => b.actionId).sort()).toEqual([
+        `modelPicker.jump${n}`,
+        `tabs.focus${n}`,
+      ]);
+    }
+  });
+
+  it("is hard once two picker actions share a chord", () => {
+    const r = resolveProfile(profile({ "modelPicker.toggleFavorite": ["cmd+1"] }));
+    expect(findConflicts(r.list, true).get("cmd+1")!.kind).toBe("hard");
+  });
+
+  it("gives the favorite toggle a chord nothing else uses", () => {
+    const conflicts = findConflicts(resolveProfile(undefined).list, true);
+    expect(conflicts.get("cmd+shift+s")).toBeUndefined();
+  });
+});

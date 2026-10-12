@@ -29,6 +29,7 @@ import {
   type FacetKey,
   type FacetSelection,
 } from "../lib/board";
+import { boardKey } from "../lib/board-key";
 import type { BoardSession } from "../types";
 import { AgentGlyph } from "./agent-glyph";
 
@@ -136,7 +137,7 @@ export function TimelineResults({
               const session = sessions[v.index];
               return (
                 <div
-                  key={session.id}
+                  key={boardKey(session)}
                   style={{
                     position: "absolute",
                     top: 0,

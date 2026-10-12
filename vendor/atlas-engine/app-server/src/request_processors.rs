@@ -14,8 +14,6 @@ use crate::outgoing_message::ThreadScopedOutgoingMessageSender;
 use crate::skills_watcher::SkillsWatcher;
 use crate::thread_status::ThreadWatchManager;
 use crate::thread_status::resolve_thread_status;
-use chrono::Duration as ChronoDuration;
-use chrono::SecondsFormat;
 use atlas_engine_analytics::AnalyticsEventsClient;
 use atlas_engine_analytics::AnalyticsJsonRpcError;
 use atlas_engine_analytics::InputError;
@@ -40,6 +38,7 @@ use atlas_engine_app_server_protocol::AppsListResponse;
 use atlas_engine_app_server_protocol::AppsReadParams;
 use atlas_engine_app_server_protocol::AppsReadResponse;
 use atlas_engine_app_server_protocol::AskForApproval;
+use atlas_engine_app_server_protocol::AtlasEngineErrorInfo;
 use atlas_engine_app_server_protocol::AuthMode;
 use atlas_engine_app_server_protocol::CancelLoginAccountParams;
 use atlas_engine_app_server_protocol::CancelLoginAccountResponse;
@@ -47,7 +46,6 @@ use atlas_engine_app_server_protocol::CancelLoginAccountStatus;
 use atlas_engine_app_server_protocol::ClientInfo;
 use atlas_engine_app_server_protocol::ClientRequest;
 use atlas_engine_app_server_protocol::ClientResponsePayload;
-use atlas_engine_app_server_protocol::AtlasEngineErrorInfo;
 use atlas_engine_app_server_protocol::CollaborationModeListParams;
 use atlas_engine_app_server_protocol::CollaborationModeListResponse;
 use atlas_engine_app_server_protocol::CommandExecParams;
@@ -313,10 +311,10 @@ use atlas_engine_app_server_protocol::WorkspaceMessage;
 use atlas_engine_app_server_protocol::WorkspaceMessageType;
 use atlas_engine_arg0::Arg0DispatchPaths;
 use atlas_engine_backend_client::AddCreditsNudgeCreditType as BackendAddCreditsNudgeCreditType;
-use atlas_engine_backend_client::Client as BackendClient;
 use atlas_engine_backend_client::AtlasEngineWorkspaceMessage as BackendWorkspaceMessage;
 use atlas_engine_backend_client::AtlasEngineWorkspaceMessageType as BackendWorkspaceMessageType;
 use atlas_engine_backend_client::AtlasEngineWorkspaceMessagesResponse as BackendWorkspaceMessagesResponse;
+use atlas_engine_backend_client::Client as BackendClient;
 use atlas_engine_backend_client::ConsumeRateLimitResetCreditCode as BackendConsumeRateLimitResetCreditCode;
 use atlas_engine_backend_client::RateLimitResetCreditDetails as BackendRateLimitResetCreditDetails;
 use atlas_engine_backend_client::RateLimitResetCreditsDetails as BackendRateLimitResetCreditsDetails;
@@ -401,9 +399,9 @@ use atlas_engine_feedback::FeedbackAttachmentPath;
 use atlas_engine_feedback::FeedbackUploadOptions;
 use atlas_engine_git_utils::git_diff_to_remote;
 use atlas_engine_git_utils::resolve_root_git_project_for_trust;
-use atlas_engine_login::AuthManager;
 use atlas_engine_login::ATLAS_AGENT_OPEN_APP_URL;
 use atlas_engine_login::AtlasEngineAuth;
+use atlas_engine_login::AuthManager;
 use atlas_engine_login::LoginSuccessPage;
 use atlas_engine_login::LoginSuccessPageBrand;
 use atlas_engine_login::ServerOptions as LoginServerOptions;
@@ -499,6 +497,8 @@ use atlas_engine_thread_store::ThreadStore;
 use atlas_engine_thread_store::ThreadStoreError;
 use atlas_engine_utils_absolute_path::AbsolutePathBuf;
 use atlas_engine_utils_pty::DEFAULT_OUTPUT_BYTES_CAP;
+use chrono::Duration as ChronoDuration;
+use chrono::SecondsFormat;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -685,7 +685,10 @@ pub(crate) use self::thread_summary::thread_settings_from_core_snapshot;
 pub(crate) fn build_legacy_api_turns_from_rollout_items(items: &[RolloutItem]) -> Vec<Turn> {
     let mut builder = ThreadHistoryBuilder::new();
     for item in items {
-        if is_persisted_rollout_item(item, atlas_engine_protocol::protocol::ThreadHistoryMode::Legacy) {
+        if is_persisted_rollout_item(
+            item,
+            atlas_engine_protocol::protocol::ThreadHistoryMode::Legacy,
+        ) {
             builder.handle_rollout_item(item);
         }
     }

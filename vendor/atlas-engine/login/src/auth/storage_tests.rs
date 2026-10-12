@@ -2,12 +2,12 @@
 use super::*;
 use crate::token_data::IdTokenInfo;
 use anyhow::Context;
-use base64::Engine;
 use atlas_engine_secrets::LocalSecretsNamespace;
 use atlas_engine_secrets::SecretScope;
 use atlas_engine_secrets::SecretsBackendKind;
 use atlas_engine_secrets::SecretsManager;
 use atlas_engine_secrets::compute_keyring_account;
+use base64::Engine;
 use pretty_assertions::assert_eq;
 use serde_json::json;
 use tempfile::tempdir;
@@ -388,7 +388,9 @@ fn assert_keyring_saved_auth_and_removed_fallback(
 }
 
 fn encrypted_auth_file(atlas_agent_home: &Path) -> PathBuf {
-    atlas_agent_home.join("secrets").join("atlas_engine_auth.age")
+    atlas_agent_home
+        .join("secrets")
+        .join("atlas_engine_auth.age")
 }
 
 fn id_token_with_prefix(prefix: &str) -> IdTokenInfo {
@@ -742,7 +744,11 @@ fn auto_auth_storage_save_prefers_keyring() -> anyhow::Result<()> {
     let expected = auth_with_prefix("to-save");
     storage.save(&expected)?;
 
-    assert_keyring_saved_auth_and_removed_fallback(&mock_keyring, atlas_agent_home.path(), &expected)?;
+    assert_keyring_saved_auth_and_removed_fallback(
+        &mock_keyring,
+        atlas_agent_home.path(),
+        &expected,
+    )?;
     Ok(())
 }
 

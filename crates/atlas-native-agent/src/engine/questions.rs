@@ -163,7 +163,12 @@ fn strings(value: Option<&JsonValue>) -> Vec<String> {
 mod tests {
     use super::*;
 
-    fn question(id: &str, header: &str, text: &str, labels: &[&str]) -> v2::ToolRequestUserInputQuestion {
+    fn question(
+        id: &str,
+        header: &str,
+        text: &str,
+        labels: &[&str],
+    ) -> v2::ToolRequestUserInputQuestion {
         v2::ToolRequestUserInputQuestion {
             id: id.to_string(),
             header: header.to_string(),
@@ -229,7 +234,10 @@ mod tests {
         // `elicitationQuestionForm` recognises, so this renders as the card.
         let other = &schema["properties"]["which_comment__other"];
         assert_eq!(other["type"], "string");
-        assert_eq!(other["_meta"][CUSTOM_ANSWER_META_KEY]["questionId"], "which_comment");
+        assert_eq!(
+            other["_meta"][CUSTOM_ANSWER_META_KEY]["questionId"],
+            "which_comment"
+        );
     }
 
     #[test]
@@ -266,8 +274,11 @@ mod tests {
     #[test]
     fn typed_other_text_replaces_the_pick() {
         let p = params(vec![question("q", "H", "Which?", &["A", "B"])]);
-        let response =
-            answers(&p, &accept(json!({ "q": "A", "q__other": "  neither, use C  " }))).expect("answered");
+        let response = answers(
+            &p,
+            &accept(json!({ "q": "A", "q__other": "  neither, use C  " })),
+        )
+        .expect("answered");
         assert_eq!(response.answers["q"].answers, ["neither, use C"]);
     }
 
@@ -292,7 +303,8 @@ mod tests {
             question("a", "A", "First?", &["x", "y"]),
             question("b", "B", "Second?", &["x", "y"]),
         ]);
-        let response = answers(&p, &accept(json!({ "a": "x", "b__other": "   " }))).expect("answered");
+        let response =
+            answers(&p, &accept(json!({ "a": "x", "b__other": "   " }))).expect("answered");
         assert!(response.answers.contains_key("a"));
         assert!(!response.answers.contains_key("b"));
     }
@@ -300,7 +312,10 @@ mod tests {
     #[test]
     fn declining_or_cancelling_is_an_error_never_an_empty_answer() {
         let p = params(vec![question("q", "H", "Which?", &["A", "B"])]);
-        for action in [acp::ElicitationAction::Decline, acp::ElicitationAction::Cancel] {
+        for action in [
+            acp::ElicitationAction::Decline,
+            acp::ElicitationAction::Cancel,
+        ] {
             let response = acp::CreateElicitationResponse::new(action);
             assert_eq!(answers(&p, &response).unwrap_err(), DISMISSED);
         }

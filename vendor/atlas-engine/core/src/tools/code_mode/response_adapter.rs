@@ -35,14 +35,15 @@ impl IntoProtocol<FunctionCallOutputContentItem>
             atlas_engine_code_mode::FunctionCallOutputContentItem::InputText { text } => {
                 FunctionCallOutputContentItem::InputText { text }
             }
-            atlas_engine_code_mode::FunctionCallOutputContentItem::InputImage { image_url, detail } => {
-                FunctionCallOutputContentItem::InputImage {
-                    image_url,
-                    detail: detail
-                        .map(IntoProtocol::into_protocol)
-                        .or(Some(DEFAULT_IMAGE_DETAIL)),
-                }
-            }
+            atlas_engine_code_mode::FunctionCallOutputContentItem::InputImage {
+                image_url,
+                detail,
+            } => FunctionCallOutputContentItem::InputImage {
+                image_url,
+                detail: detail
+                    .map(IntoProtocol::into_protocol)
+                    .or(Some(DEFAULT_IMAGE_DETAIL)),
+            },
             atlas_engine_code_mode::FunctionCallOutputContentItem::InputAudio { audio_url } => {
                 FunctionCallOutputContentItem::InputAudio { audio_url }
             }

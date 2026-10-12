@@ -151,7 +151,10 @@ async fn test_queue() -> anyhow::Result<(Arc<dyn QueueStore>, TempDir)> {
 }
 
 fn loaded_thread_queue(test: &TestAtlasEngine) -> anyhow::Result<Arc<dyn QueueStore>> {
-    let runtime = test.atlas_engine.state_db().context("state runtime unavailable")?;
+    let runtime = test
+        .atlas_engine
+        .state_db()
+        .context("state runtime unavailable")?;
     Ok(Arc::new(LocalQueueStore::new(runtime)))
 }
 
@@ -343,7 +346,9 @@ async fn starting_a_selected_item_while_active_leaves_it_queued() -> anyhow::Res
         },
     ]])
     .await;
-    let test = test_atlas_engine().build_with_streaming_server(&server).await?;
+    let test = test_atlas_engine()
+        .build_with_streaming_server(&server)
+        .await?;
     let thread_id = test.session_configured.thread_id;
     let service = QueuedItemService::new(
         loaded_thread_queue(&test)?,
@@ -540,7 +545,8 @@ async fn rejected_queue_messages_are_consumed_without_retrying_or_blocking_follo
         })
         .collect::<anyhow::Result<Vec<_>>>()?;
     assert_eq!(vec!["A", "C"], prompts);
-    let hook_log = std::fs::read_to_string(test.atlas_agent_home_path().join("queue_prompt_hook.log"))?;
+    let hook_log =
+        std::fs::read_to_string(test.atlas_agent_home_path().join("queue_prompt_hook.log"))?;
     assert_eq!(
         vec!["A", "blocked", "C"],
         hook_log.lines().collect::<Vec<_>>()
@@ -571,7 +577,11 @@ async fn explicitly_started_rejected_queue_messages_are_consumed() -> anyhow::Re
     let rejected = queue.enqueue(thread_id, user_input("blocked")).await?;
     let submission = tokio::time::timeout(
         Duration::from_secs(10),
-        queue.start(test.atlas_engine.as_ref(), Some(rejected.id), /*trace*/ None),
+        queue.start(
+            test.atlas_engine.as_ref(),
+            Some(rejected.id),
+            /*trace*/ None,
+        ),
     )
     .await?
     .expect("explicitly started input should be submitted");
@@ -581,7 +591,8 @@ async fn explicitly_started_rejected_queue_messages_are_consumed() -> anyhow::Re
     })
     .await;
     assert!(queue.list(thread_id).await?.is_empty());
-    let hook_log = std::fs::read_to_string(test.atlas_agent_home_path().join("queue_prompt_hook.log"))?;
+    let hook_log =
+        std::fs::read_to_string(test.atlas_agent_home_path().join("queue_prompt_hook.log"))?;
     assert_eq!(vec!["blocked"], hook_log.lines().collect::<Vec<_>>());
     assert!(responses.requests().is_empty());
     Ok(())

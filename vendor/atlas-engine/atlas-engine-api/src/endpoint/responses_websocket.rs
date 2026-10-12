@@ -162,11 +162,13 @@ const PREVIOUS_RESPONSE_NOT_FOUND_CODE: &str = "previous_response_not_found";
 const PREVIOUS_RESPONSE_NOT_FOUND_MESSAGE: &str =
     "Previous response was not found. Retrying the full request.";
 const RESPONSES_WEBSOCKET_TIMING_KIND: &str = "responsesapi.websocket_timing";
-const RESPONSES_WEBSOCKET_TIMING_EVENT_TARGET: &str = "atlas_engine_api::responses_websocket_timing";
+const RESPONSES_WEBSOCKET_TIMING_EVENT_TARGET: &str =
+    "atlas_engine_api::responses_websocket_timing";
 const SESSION_ID_CLIENT_METADATA_KEY: &str = "session_id";
 const THREAD_ID_CLIENT_METADATA_KEY: &str = "thread_id";
 const TURN_ID_CLIENT_METADATA_KEY: &str = "turn_id";
-const WS_STREAM_REQUEST_START_MS_CLIENT_METADATA_KEY: &str = "x-atlas-engine-ws-stream-request-start-ms";
+const WS_STREAM_REQUEST_START_MS_CLIENT_METADATA_KEY: &str =
+    "x-atlas-engine-ws-stream-request-start-ms";
 
 struct ResponsesWebsocketTimingLogContext {
     model: String,

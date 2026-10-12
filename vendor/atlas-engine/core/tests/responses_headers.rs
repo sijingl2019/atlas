@@ -357,10 +357,11 @@ async fn responses_respects_model_info_overrides_from_config() {
     let config = Arc::new(config);
 
     let thread_id = ThreadId::new();
-    let auth_mode =
-        atlas_engine_core::test_support::auth_manager_from_auth(AtlasEngineAuth::from_api_key("Test API Key"))
-            .auth_mode()
-            .map(TelemetryAuthMode::from);
+    let auth_mode = atlas_engine_core::test_support::auth_manager_from_auth(
+        AtlasEngineAuth::from_api_key("Test API Key"),
+    )
+    .auth_mode()
+    .map(TelemetryAuthMode::from);
     let session_source =
         SessionSource::SubAgent(SubAgentSource::Other("override-check".to_string()));
     let model_info =
@@ -457,7 +458,10 @@ async fn responses_stream_includes_turn_metadata_header_for_git_workspace_e2e() 
         responses::ev_completed("resp-1"),
     ]);
 
-    let test = test_atlas_engine().build(&server).await.expect("build test atlas-agent");
+    let test = test_atlas_engine()
+        .build(&server)
+        .await
+        .expect("build test atlas-agent");
     let cwd = test.cwd_path();
 
     let first_request = responses::mount_sse_once(&server, response_body.clone()).await;
@@ -468,8 +472,8 @@ async fn responses_stream_includes_turn_metadata_header_for_git_workspace_e2e() 
     let initial_header = initial_request
         .header("x-atlas-engine-turn-metadata")
         .expect("x-atlas-engine-turn-metadata header should be present");
-    let initial_parsed: serde_json::Value =
-        serde_json::from_str(&initial_header).expect("x-atlas-engine-turn-metadata should be valid JSON");
+    let initial_parsed: serde_json::Value = serde_json::from_str(&initial_header)
+        .expect("x-atlas-engine-turn-metadata should be valid JSON");
     let initial_turn_id = initial_parsed
         .get("turn_id")
         .and_then(serde_json::Value::as_str)

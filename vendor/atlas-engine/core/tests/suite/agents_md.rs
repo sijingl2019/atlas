@@ -150,7 +150,10 @@ fn assert_single_instruction_fragment(request: &responses::ResponsesRequest, exp
     assert_eq!(instruction_fragments(request), vec![expected.to_string()]);
 }
 
-async fn submit_thread_turn(thread: &Arc<atlas_engine_core::AtlasEngineThread>, prompt: &str) -> Result<()> {
+async fn submit_thread_turn(
+    thread: &Arc<atlas_engine_core::AtlasEngineThread>,
+    prompt: &str,
+) -> Result<()> {
     thread
         .start_or_steer_turn(TurnInputRequest::user_input(vec![UserInput::Text {
             text: prompt.to_string(),
@@ -182,8 +185,8 @@ fn request_body_contains(request: &wiremock::Request, text: &str) -> bool {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn agents_override_is_preferred_over_agents_md() -> Result<()> {
-    let instructions =
-        agents_instructions(test_atlas_engine().with_workspace_setup(|cwd, fs| async move {
+    let instructions = agents_instructions(test_atlas_engine().with_workspace_setup(
+        |cwd, fs| async move {
             let agents_md = cwd.join("AGENTS.md");
             let override_md = cwd.join("AGENTS.override.md");
             let agents_md_uri = PathUri::from_host_native_path(&agents_md)?;
@@ -197,8 +200,9 @@ async fn agents_override_is_preferred_over_agents_md() -> Result<()> {
             )
             .await?;
             Ok::<(), anyhow::Error>(())
-        }))
-        .await?;
+        },
+    ))
+    .await?;
 
     assert!(
         instructions.contains("override doc"),
@@ -405,18 +409,19 @@ async fn selected_environment_sources_match_model_visible_instructions() -> Resu
     let global_agents = home.path().join("AGENTS.md");
     std::fs::write(&global_agents, "global doc")?;
 
-    let mut builder = test_atlas_engine()
-        .with_home(home)
-        .with_workspace_setup(|cwd, fs| async move {
-            let agents_md_uri = PathUri::from_host_native_path(cwd.join("AGENTS.md"))?;
-            fs.write_file(
-                &agents_md_uri,
-                b"project doc".to_vec(),
-                /*sandbox*/ None,
-            )
-            .await?;
-            Ok::<(), anyhow::Error>(())
-        });
+    let mut builder =
+        test_atlas_engine()
+            .with_home(home)
+            .with_workspace_setup(|cwd, fs| async move {
+                let agents_md_uri = PathUri::from_host_native_path(cwd.join("AGENTS.md"))?;
+                fs.write_file(
+                    &agents_md_uri,
+                    b"project doc".to_vec(),
+                    /*sandbox*/ None,
+                )
+                .await?;
+                Ok::<(), anyhow::Error>(())
+            });
     let test = builder.build_with_auto_env(&server).await?;
     let project_agents = test.config.cwd.join("AGENTS.md");
     let global_agents = global_agents.abs();
@@ -553,7 +558,10 @@ async fn fresh_thread_composes_global_before_project_and_reports_sources() -> Re
     ];
 
     // Confirm the thread records both creation-time sources in composition order.
-    assert_eq!(test.atlas_engine.instruction_sources().await, creation_sources);
+    assert_eq!(
+        test.atlas_engine.instruction_sources().await,
+        creation_sources
+    );
 
     // Materialize the initial snapshot, then rewrite both selected files in place before another
     // ordinary turn.

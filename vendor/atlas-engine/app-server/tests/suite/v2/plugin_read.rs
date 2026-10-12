@@ -7,13 +7,6 @@ use app_test_support::ChatGptAuthFixture;
 use app_test_support::TestAppServer;
 use app_test_support::to_response;
 use app_test_support::write_chatgpt_auth;
-use axum::Json;
-use axum::Router;
-use axum::extract::State;
-use axum::http::HeaderMap;
-use axum::http::StatusCode;
-use axum::http::header::AUTHORIZATION;
-use axum::routing::post;
 use atlas_engine_app_server_protocol::AppInfo;
 use atlas_engine_app_server_protocol::AppMetadata;
 use atlas_engine_app_server_protocol::AppTemplateSummary;
@@ -43,6 +36,13 @@ use atlas_engine_app_server_protocol::ScheduledTaskWeekday;
 use atlas_engine_app_server_protocol::SkillInterface;
 use atlas_engine_config::types::AuthCredentialsStoreMode;
 use atlas_engine_utils_absolute_path::AbsolutePathBuf;
+use axum::Json;
+use axum::Router;
+use axum::extract::State;
+use axum::http::HeaderMap;
+use axum::http::StatusCode;
+use axum::http::header::AUTHORIZATION;
+use axum::routing::post;
 use pretty_assertions::assert_eq;
 use serde_json::json;
 use tempfile::TempDir;
@@ -926,7 +926,10 @@ remote_plugin = true
 #[tokio::test]
 async fn plugin_read_rejects_invalid_remote_plugin_name() -> Result<()> {
     let atlas_agent_home = TempDir::new()?;
-    write_remote_plugin_catalog_config(atlas_agent_home.path(), "https://example.invalid/backend-api/")?;
+    write_remote_plugin_catalog_config(
+        atlas_agent_home.path(),
+        "https://example.invalid/backend-api/",
+    )?;
     let mut mcp = TestAppServer::builder()
         .with_atlas_agent_home(atlas_agent_home.path())
         .without_auto_env()
@@ -1616,7 +1619,10 @@ enabled = false
 
     assert_eq!(response.plugin.marketplace_name, "atlas-engine-curated");
     assert_eq!(response.plugin.marketplace_path, Some(marketplace_path));
-    assert_eq!(response.plugin.summary.id, "demo-plugin@atlas-engine-curated");
+    assert_eq!(
+        response.plugin.summary.id,
+        "demo-plugin@atlas-engine-curated"
+    );
     assert_eq!(response.plugin.summary.name, "demo-plugin");
     assert_eq!(
         response.plugin.description.as_deref(),
@@ -1692,15 +1698,18 @@ enabled = false
         response.plugin.hooks,
         vec![
             atlas_engine_app_server_protocol::PluginHookSummary {
-                key: "demo-plugin@atlas-engine-curated:hooks/hooks.json:pre_tool_use:0:0".to_string(),
+                key: "demo-plugin@atlas-engine-curated:hooks/hooks.json:pre_tool_use:0:0"
+                    .to_string(),
                 event_name: HookEventName::PreToolUse,
             },
             atlas_engine_app_server_protocol::PluginHookSummary {
-                key: "demo-plugin@atlas-engine-curated:hooks/hooks.json:pre_tool_use:0:1".to_string(),
+                key: "demo-plugin@atlas-engine-curated:hooks/hooks.json:pre_tool_use:0:1"
+                    .to_string(),
                 event_name: HookEventName::PreToolUse,
             },
             atlas_engine_app_server_protocol::PluginHookSummary {
-                key: "demo-plugin@atlas-engine-curated:hooks/hooks.json:session_start:0:0".to_string(),
+                key: "demo-plugin@atlas-engine-curated:hooks/hooks.json:session_start:0:0"
+                    .to_string(),
                 event_name: HookEventName::SessionStart,
             },
         ]
@@ -2350,7 +2359,10 @@ async fn batch_apps(
     }
 }
 
-fn write_connectors_config(atlas_agent_home: &std::path::Path, base_url: &str) -> std::io::Result<()> {
+fn write_connectors_config(
+    atlas_agent_home: &std::path::Path,
+    base_url: &str,
+) -> std::io::Result<()> {
     std::fs::write(
         atlas_agent_home.join("config.toml"),
         format!(

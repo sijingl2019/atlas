@@ -266,12 +266,18 @@ pub fn sessions(store: &Store, workspace_id: &str) -> Result<Vec<SessionSummary>
 
     let mut by_session: HashMap<String, Vec<Checkpoint>> = HashMap::new();
     for checkpoint in store.checkpoints_for_project(workspace_id)? {
-        by_session.entry(checkpoint.session_id.clone()).or_default().push(checkpoint);
+        by_session
+            .entry(checkpoint.session_id.clone())
+            .or_default()
+            .push(checkpoint);
     }
 
     let mut out = Vec::new();
     for session in store.sessions_for_project(workspace_id)? {
-        let checkpoints = by_session.get(&session.id).map(Vec::as_slice).unwrap_or(&[]);
+        let checkpoints = by_session
+            .get(&session.id)
+            .map(Vec::as_slice)
+            .unwrap_or(&[]);
         out.push(summarize(
             &session,
             checkpoints,
@@ -356,8 +362,10 @@ fn summarize(
     }
 
     // Distinct paths, not touch events: editing one file four times is one file.
-    let mut files: Vec<&str> =
-        checkpoints.iter().flat_map(|c| c.files_touched.iter().map(String::as_str)).collect();
+    let mut files: Vec<&str> = checkpoints
+        .iter()
+        .flat_map(|c| c.files_touched.iter().map(String::as_str))
+        .collect();
     files.sort_unstable();
     files.dedup();
 
@@ -467,7 +475,9 @@ pub fn detail(
     let mut counts = EntryCounts::default();
 
     for message in store.messages_for_session(session_id)? {
-        let Some(entry) = message_entry(store, &message)? else { continue };
+        let Some(entry) = message_entry(store, &message)? else {
+            continue;
+        };
         match entry.kind {
             EntryKind::Prompt => counts.prompts += 1,
             EntryKind::Response => counts.responses += 1,
@@ -492,18 +502,21 @@ pub fn detail(
     let checkpoints = store.checkpoints_for_session(session_id)?;
     for checkpoint in &checkpoints {
         counts.checkpoints += 1;
-        let turn = consuming.get(&checkpoint.commit_sha).copied().unwrap_or_else(|| {
-            // Nothing consumed (a permissive link, or rows from before
-            // consumption was tracked): the last turn that touched one of its
-            // files before the commit was seen.
-            touches
-                .iter()
-                .filter(|t| t.created_at <= checkpoint.created_at)
-                .filter(|t| checkpoint.files_touched.contains(&t.path))
-                .map(|t| t.turn_seq)
-                .max()
-                .unwrap_or(-1)
-        });
+        let turn = consuming
+            .get(&checkpoint.commit_sha)
+            .copied()
+            .unwrap_or_else(|| {
+                // Nothing consumed (a permissive link, or rows from before
+                // consumption was tracked): the last turn that touched one of its
+                // files before the commit was seen.
+                touches
+                    .iter()
+                    .filter(|t| t.created_at <= checkpoint.created_at)
+                    .filter(|t| checkpoint.files_touched.contains(&t.path))
+                    .map(|t| t.turn_seq)
+                    .max()
+                    .unwrap_or(-1)
+            });
         entries.push(checkpoint_entry(checkpoint, turn, &subject_for));
     }
 
@@ -512,7 +525,10 @@ pub fn detail(
     let tools = store
         .tool_call_counts(session_id)?
         .into_iter()
-        .map(|(name, count)| ToolTally { tool_name: name.as_str().to_string(), count })
+        .map(|(name, count)| ToolTally {
+            tool_name: name.as_str().to_string(),
+            count,
+        })
         .collect();
 
     // One Session, so the per-Session counts are two queries rather than the
@@ -527,7 +543,12 @@ pub fn detail(
             store.message_active_seconds_for(session_id, IDLE_CAP_SECONDS)?,
         ),
     );
-    Ok(Some(SessionDetail { summary, entries, counts, tools }))
+    Ok(Some(SessionDetail {
+        summary,
+        entries,
+        counts,
+        tools,
+    }))
 }
 
 /// Timeline order: by turn, then by when it happened.
@@ -606,7 +627,9 @@ pub fn anchors(store: &Store, session_id: &str) -> Result<Vec<AnchorEntry>> {
         if rewound.contains(&m.turn_seq) {
             continue;
         }
-        let Some(kind) = entry_kind_for(m.role, m.mode) else { continue };
+        let Some(kind) = entry_kind_for(m.role, m.mode) else {
+            continue;
+        };
         out.push((
             m.turn_seq,
             m.seq,
@@ -649,7 +672,10 @@ fn message_entry(store: &Store, message: &Message) -> Result<Option<TimelineEntr
     let text = if inline {
         // Falls back to the preview when the blob is gone: a Session whose blob
         // store was pruned should still render, with less.
-        store.message_body(message).ok().filter(|body| !body.is_empty())
+        store
+            .message_body(message)
+            .ok()
+            .filter(|body| !body.is_empty())
     } else {
         None
     };
@@ -682,8 +708,11 @@ fn tool_call_entry(
     entry.tool_name = Some(call.tool_name.as_str().to_string());
     entry.tool_title = call.title.clone();
     entry.tool_status = Some(call.status);
-    entry.paths =
-        touches.iter().filter(|t| t.tool_call_id == call.id).map(|t| t.path.clone()).collect();
+    entry.paths = touches
+        .iter()
+        .filter(|t| t.tool_call_id == call.id)
+        .map(|t| t.path.clone())
+        .collect();
     entry.arguments = call.arguments.clone();
     entry.arguments_ref = call.arguments_ref.clone();
     entry.result_ref = call.result_ref.clone();
@@ -738,8 +767,12 @@ mod tests {
             source: Source::Acp,
             native_session_id: "native-1".into(),
         };
-        let session_id = capture.ensure_session(&key, None, None, None, None).unwrap();
-        capture.record_prompt(&key, "index the project", 1, None, None, None).unwrap();
+        let session_id = capture
+            .ensure_session(&key, None, None, None, None)
+            .unwrap();
+        capture
+            .record_prompt(&key, "index the project", 1, None, None, None)
+            .unwrap();
         let turn = |native: &str, role: Role, mode: Mode, body: &str| TurnContent {
             turn_seq: 1,
             native_message_id: Some(native.into()),
@@ -748,10 +781,30 @@ mod tests {
             body: body.into(),
             created_at: None,
         };
-        capture.record_turn(&session_id, turn("th-1", Role::Assistant, Mode::Thinking, "hmm")).unwrap();
-        capture.record_turn(&session_id, turn("tool-1", Role::Assistant, Mode::Tool, "ran")).unwrap();
-        capture.record_turn(&session_id, turn("sys-1", Role::System, Mode::Text, "plumbing")).unwrap();
-        capture.record_turn(&session_id, turn("m-1", Role::Assistant, Mode::Text, "done")).unwrap();
+        capture
+            .record_turn(
+                &session_id,
+                turn("th-1", Role::Assistant, Mode::Thinking, "hmm"),
+            )
+            .unwrap();
+        capture
+            .record_turn(
+                &session_id,
+                turn("tool-1", Role::Assistant, Mode::Tool, "ran"),
+            )
+            .unwrap();
+        capture
+            .record_turn(
+                &session_id,
+                turn("sys-1", Role::System, Mode::Text, "plumbing"),
+            )
+            .unwrap();
+        capture
+            .record_turn(
+                &session_id,
+                turn("m-1", Role::Assistant, Mode::Text, "done"),
+            )
+            .unwrap();
         let locations = serde_json::Value::Null;
         capture
             .record_tool_call(
@@ -774,10 +827,19 @@ mod tests {
         let kinds: Vec<EntryKind> = got.iter().map(|e| e.kind).collect();
         assert_eq!(
             kinds,
-            vec![EntryKind::Prompt, EntryKind::Thinking, EntryKind::Response, EntryKind::ToolCall],
+            vec![
+                EntryKind::Prompt,
+                EntryKind::Thinking,
+                EntryKind::Response,
+                EntryKind::ToolCall
+            ],
             "{got:?}"
         );
-        assert!(got[0].native_id.as_deref().unwrap().starts_with("prompt-1-"));
+        assert!(got[0]
+            .native_id
+            .as_deref()
+            .unwrap()
+            .starts_with("prompt-1-"));
         assert_eq!(got[1].native_id.as_deref(), Some("th-1"));
         assert_eq!(got[2].native_id.as_deref(), Some("m-1"));
         assert_eq!(got[3].native_id.as_deref(), Some("call-1"));
@@ -798,8 +860,14 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let mut store = Store::open(dir.path().join(".atlas")).unwrap();
         let mut capture = Capture::new(&mut store, ProjectMode::Local);
-        let key = SessionKey { workspace_id: "ws".into(), source: Source::Native, native_session_id: "native-1".into() };
-        let session_id = capture.ensure_session(&key, None, None, None, None).unwrap();
+        let key = SessionKey {
+            workspace_id: "ws".into(),
+            source: Source::Native,
+            native_session_id: "native-1".into(),
+        };
+        let session_id = capture
+            .ensure_session(&key, None, None, None, None)
+            .unwrap();
         let reply = |turn: i64, native: &str, body: &str| TurnContent {
             turn_seq: turn,
             native_message_id: Some(native.into()),
@@ -808,26 +876,56 @@ mod tests {
             body: body.into(),
             created_at: None,
         };
-        for (turn, prompt, native, body) in [(1, "one", "a1", "first"), (2, "two", "a2old", "tried")] {
-            capture.record_prompt(&key, prompt, turn, None, None, None).unwrap();
-            capture.record_turn(&session_id, reply(turn, native, body)).unwrap();
+        for (turn, prompt, native, body) in
+            [(1, "one", "a1", "first"), (2, "two", "a2old", "tried")]
+        {
+            capture
+                .record_prompt(&key, prompt, turn, None, None, None)
+                .unwrap();
+            capture
+                .record_turn(&session_id, reply(turn, native, body))
+                .unwrap();
             capture.finish_turn(&session_id, turn).unwrap();
         }
         // The retry: turn 2 is taken back, and its prompt re-sent as turn 3.
         capture.rewind_turns(&session_id, 1).unwrap();
-        capture.record_prompt(&key, "two", 3, None, None, None).unwrap();
-        capture.record_turn(&session_id, reply(3, "a2", "retried")).unwrap();
+        capture
+            .record_prompt(&key, "two", 3, None, None, None)
+            .unwrap();
+        capture
+            .record_turn(&session_id, reply(3, "a2", "retried"))
+            .unwrap();
         capture.finish_turn(&session_id, 3).unwrap();
 
-        let turns: Vec<i64> = anchors(&store, &session_id).unwrap().iter().map(|e| e.turn_seq).collect();
-        assert_eq!(turns, [1, 1, 3, 3], "turn 2's prompt and reply are gone from the anchors");
-        assert_eq!(store.rewound_turns(&session_id).unwrap(), [2].into_iter().collect());
-        assert_eq!(store.turn_state(&session_id, 2).unwrap(), Some(TurnState::Rewound));
-        assert!(!store.messages_for_session(&session_id).unwrap().is_empty(), "the rows are kept");
+        let turns: Vec<i64> = anchors(&store, &session_id)
+            .unwrap()
+            .iter()
+            .map(|e| e.turn_seq)
+            .collect();
+        assert_eq!(
+            turns,
+            [1, 1, 3, 3],
+            "turn 2's prompt and reply are gone from the anchors"
+        );
+        assert_eq!(
+            store.rewound_turns(&session_id).unwrap(),
+            [2].into_iter().collect()
+        );
+        assert_eq!(
+            store.turn_state(&session_id, 2).unwrap(),
+            Some(TurnState::Rewound)
+        );
+        assert!(
+            !store.messages_for_session(&session_id).unwrap().is_empty(),
+            "the rows are kept"
+        );
 
         // A second rewind takes the latest live turn, never turn 2 again.
         assert_eq!(store.mark_turns_rewound(&session_id, 1).unwrap(), 1);
-        assert_eq!(store.rewound_turns(&session_id).unwrap(), [2, 3].into_iter().collect());
+        assert_eq!(
+            store.rewound_turns(&session_id).unwrap(),
+            [2, 3].into_iter().collect()
+        );
         assert_eq!(store.mark_turns_rewound(&session_id, 0).unwrap(), 0);
     }
 

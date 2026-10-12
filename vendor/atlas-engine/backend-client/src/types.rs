@@ -578,30 +578,31 @@ Second line"
 
     #[test]
     fn workspace_messages_response_deserializes_messages() {
-        let response: AtlasEngineWorkspaceMessagesResponse = serde_json::from_value(serde_json::json!({
-            "messages": [
-                {
-                    "message_id": "headline-id",
-                    "message_type": "headline",
-                    "message_body": "Headline body",
-                    "created_at": "2026-06-14T00:00:00Z",
-                    "archived_at": null
-                },
-                {
-                    "message_id": "announcement-id",
-                    "message_type": "announcement",
-                    "message_body": "Announcement body",
-                    "created_at": "2026-06-14T01:00:00Z",
-                    "archived_at": null
-                },
-                {
-                    "message_id": "unknown-id",
-                    "message_type": "unknown",
-                    "message_body": "Unknown body"
-                }
-            ]
-        }))
-        .expect("workspace messages response should deserialize");
+        let response: AtlasEngineWorkspaceMessagesResponse =
+            serde_json::from_value(serde_json::json!({
+                "messages": [
+                    {
+                        "message_id": "headline-id",
+                        "message_type": "headline",
+                        "message_body": "Headline body",
+                        "created_at": "2026-06-14T00:00:00Z",
+                        "archived_at": null
+                    },
+                    {
+                        "message_id": "announcement-id",
+                        "message_type": "announcement",
+                        "message_body": "Announcement body",
+                        "created_at": "2026-06-14T01:00:00Z",
+                        "archived_at": null
+                    },
+                    {
+                        "message_id": "unknown-id",
+                        "message_type": "unknown",
+                        "message_body": "Unknown body"
+                    }
+                ]
+            }))
+            .expect("workspace messages response should deserialize");
 
         assert_eq!(
             response,

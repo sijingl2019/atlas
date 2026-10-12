@@ -360,7 +360,7 @@ const PEERS: { actor: string; state: SpaceAwarenessState }[] = [
   {
     actor: "usr_priya",
     state: {
-      name: "Priya Raman",
+      name: "Priya Raghunathan",
       cursor: { x: 120, y: -40 },
       selection: [SPACE_NODES.long],
       viewport: { x: 420, y: 300, zoom: 0.8 },
@@ -370,7 +370,7 @@ const PEERS: { actor: string; state: SpaceAwarenessState }[] = [
   {
     actor: "usr_sam",
     state: {
-      name: "Sam Okafor",
+      name: "Sam Oyelaran",
       cursor: null,
       selection: [],
       viewport: { x: 0, y: 0, zoom: 1 },

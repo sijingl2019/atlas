@@ -105,8 +105,9 @@ async fn emits_warning_when_resumed_model_differs() {
         AtlasEngineAuth::from_api_key("test"),
         config.model_provider.clone(),
     );
-    let auth_manager =
-        atlas_engine_core::test_support::auth_manager_from_auth(AtlasEngineAuth::from_api_key("test"));
+    let auth_manager = atlas_engine_core::test_support::auth_manager_from_auth(
+        AtlasEngineAuth::from_api_key("test"),
+    );
 
     // Act: resume the conversation.
     let NewThread {

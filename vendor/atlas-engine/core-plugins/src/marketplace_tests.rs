@@ -79,8 +79,11 @@ fn find_marketplace_plugin_finds_repo_marketplace_plugin() {
     assert_eq!(
         resolved,
         ResolvedMarketplacePlugin {
-            plugin_id: PluginId::new("local-plugin".to_string(), "atlas-engine-curated".to_string())
-                .unwrap(),
+            plugin_id: PluginId::new(
+                "local-plugin".to_string(),
+                "atlas-engine-curated".to_string()
+            )
+            .unwrap(),
             source: MarketplacePluginSource::Local {
                 path: AbsolutePathBuf::try_from(repo_root.join("plugin-1")).unwrap(),
             },
@@ -206,8 +209,11 @@ fn find_marketplace_plugin_supports_git_subdir_sources() {
     assert_eq!(
         resolved,
         ResolvedMarketplacePlugin {
-            plugin_id: PluginId::new("remote-plugin".to_string(), "atlas-engine-curated".to_string())
-                .unwrap(),
+            plugin_id: PluginId::new(
+                "remote-plugin".to_string(),
+                "atlas-engine-curated".to_string()
+            )
+            .unwrap(),
             source: MarketplacePluginSource::Git {
                 url: "https://github.com/openai/joey_marketplace3.git".to_string(),
                 path: Some("plugins/toolkit".to_string()),
@@ -2243,7 +2249,10 @@ fn find_marketplace_plugin_allows_missing_products_field() {
     )
     .unwrap();
 
-    assert_eq!(resolved.plugin_id.as_key(), "default-plugin@atlas-engine-curated");
+    assert_eq!(
+        resolved.plugin_id.as_key(),
+        "default-plugin@atlas-engine-curated"
+    );
 }
 
 #[test]

@@ -267,10 +267,13 @@ pub enum ExecPolicyUpdateError {
     #[error("failed to join blocking rules update task: {source}")]
     JoinBlockingTask { source: tokio::task::JoinError },
 
-    #[error("failed to update in-memory rules: {source}")]
+    // Not named `source`: `#[from]` on such a field expands to
+    // `Self::AddRule { source: source }`, which clippy 1.99 rejects. `#[from]`
+    // still makes it the error's source.
+    #[error("failed to update in-memory rules: {rule_error}")]
     AddRule {
         #[from]
-        source: ExecPolicyRuleError,
+        rule_error: ExecPolicyRuleError,
     },
 }
 
@@ -447,7 +450,7 @@ impl ExecPolicyManager {
                 .acquire()
                 .await
                 .map_err(|_| ExecPolicyUpdateError::AddRule {
-                    source: ExecPolicyRuleError::InvalidRule(
+                    rule_error: ExecPolicyRuleError::InvalidRule(
                         "exec policy update semaphore closed".to_string(),
                     ),
                 })?;
@@ -500,7 +503,7 @@ impl ExecPolicyManager {
                 .acquire()
                 .await
                 .map_err(|_| ExecPolicyUpdateError::AddRule {
-                    source: ExecPolicyRuleError::InvalidRule(
+                    rule_error: ExecPolicyRuleError::InvalidRule(
                         "exec policy update semaphore closed".to_string(),
                     ),
                 })?;
@@ -699,7 +702,9 @@ fn dangerous_command_match_for_origin(
         ExecPolicyCommandOrigin::Generic => dangerous_command_match(command),
         #[cfg(windows)]
         ExecPolicyCommandOrigin::PowerShell => {
-            atlas_engine_shell_command::is_dangerous_command::dangerous_powershell_words_match(command)
+            atlas_engine_shell_command::is_dangerous_command::dangerous_powershell_words_match(
+                command,
+            )
         }
     }
 }
@@ -839,7 +844,9 @@ fn profile_has_managed_filesystem_restrictions(permission_profile: &PermissionPr
 }
 
 pub(crate) fn default_policy_path(atlas_agent_home: &Path) -> PathBuf {
-    atlas_agent_home.join(RULES_DIR_NAME).join(DEFAULT_POLICY_FILE)
+    atlas_agent_home
+        .join(RULES_DIR_NAME)
+        .join(DEFAULT_POLICY_FILE)
 }
 
 fn commands_for_exec_policy(command: &[String]) -> ExecPolicyCommands {
@@ -856,7 +863,9 @@ fn commands_for_exec_policy(command: &[String]) -> ExecPolicyCommands {
     #[cfg(windows)]
     {
         if let Some(commands) =
-            atlas_engine_shell_command::powershell::parse_powershell_command_into_plain_commands(command)
+            atlas_engine_shell_command::powershell::parse_powershell_command_into_plain_commands(
+                command,
+            )
             && !commands.is_empty()
         {
             return ExecPolicyCommands {

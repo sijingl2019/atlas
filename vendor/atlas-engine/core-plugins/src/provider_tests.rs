@@ -345,7 +345,11 @@ async fn root_agent_plugin_manifest_is_not_an_executor_plugin() {
 async fn unavailable_environment_does_not_fall_back_to_host_filesystem() {
     let temp_dir = tempdir().expect("tempdir");
     let plugin_root = temp_dir.path().join("host-plugin");
-    write_manifest(&plugin_root, ".atlas-agent-plugin/plugin.json", MANIFEST_CONTENTS);
+    write_manifest(
+        &plugin_root,
+        ".atlas-agent-plugin/plugin.json",
+        MANIFEST_CONTENTS,
+    );
     let provider =
         ExecutorPluginProvider::new(Arc::new(environment_manager_without_environments()));
 

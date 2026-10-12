@@ -26,6 +26,7 @@
 //                in the system environment (the plan's BYOK-maps-to-env
 //                contract), and Atlas holds no agent tokens.
 
+import { resolveAgentSignIn } from "@/features/notifications/lib/agent-notifier";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Dialog } from "@base-ui/react/dialog";
 import {
@@ -302,6 +303,8 @@ function AgentOAuthModal({
   const finish = (docked: boolean) => {
     setPhase({ kind: "done", docked });
     takeSignInCallback(request.requestId)?.onSignedIn?.();
+    // Closes the agent's sign-in notification episode (toast, center item).
+    resolveAgentSignIn(request.agentType);
     // Brief success frame before closing, matching the dialogs this replaces.
     window.setTimeout(onClose, 700);
   };

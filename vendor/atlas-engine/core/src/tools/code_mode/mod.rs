@@ -54,7 +54,8 @@ pub(crate) use wait_handler::CodeModeWaitHandler;
 
 pub(crate) const PUBLIC_TOOL_NAME: &str = atlas_engine_code_mode::PUBLIC_TOOL_NAME;
 pub(crate) const WAIT_TOOL_NAME: &str = atlas_engine_code_mode::WAIT_TOOL_NAME;
-pub(crate) const DEFAULT_WAIT_YIELD_TIME_MS: u64 = atlas_engine_code_mode::DEFAULT_WAIT_YIELD_TIME_MS;
+pub(crate) const DEFAULT_WAIT_YIELD_TIME_MS: u64 =
+    atlas_engine_code_mode::DEFAULT_WAIT_YIELD_TIME_MS;
 
 /// Returns true for the code-mode `exec` tool in the default namespace.
 pub(crate) fn is_exec_tool_name(tool_name: &ToolName) -> bool {

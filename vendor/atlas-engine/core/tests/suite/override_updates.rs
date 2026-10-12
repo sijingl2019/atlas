@@ -47,7 +47,10 @@ async fn thread_settings_update_without_user_turn_does_not_record_permissions_up
     .await?;
 
     test.atlas_engine.submit(Op::Shutdown).await?;
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::ShutdownComplete)).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::ShutdownComplete)
+    })
+    .await;
 
     let rollout_path = test.atlas_engine.rollout_path().expect("rollout path");
     assert!(
@@ -77,7 +80,10 @@ async fn thread_settings_update_without_user_turn_does_not_record_environment_up
     .await?;
 
     test.atlas_engine.submit(Op::Shutdown).await?;
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::ShutdownComplete)).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::ShutdownComplete)
+    })
+    .await;
 
     let rollout_path = test.atlas_engine.rollout_path().expect("rollout path");
     assert!(
@@ -108,7 +114,10 @@ async fn thread_settings_update_without_user_turn_does_not_record_collaboration_
     .await?;
 
     test.atlas_engine.submit(Op::Shutdown).await?;
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::ShutdownComplete)).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::ShutdownComplete)
+    })
+    .await;
 
     let rollout_path = test.atlas_engine.rollout_path().expect("rollout path");
     assert!(

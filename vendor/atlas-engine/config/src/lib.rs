@@ -36,6 +36,11 @@ pub mod types;
 
 pub const CONFIG_TOML_FILE: &str = "config.toml";
 
+pub use atlas_engine_protocol::config_types::ProfileV2Name;
+pub use atlas_engine_protocol::config_types::ProfileV2NameParseError;
+pub use atlas_engine_protocol::config_types::ToolExposureSurface;
+pub use atlas_engine_utils_absolute_path::AbsolutePathBuf;
+pub use atlas_engine_utils_absolute_path::AbsolutePathBufGuard;
 pub use auth_policy::ManagedAuthPolicy;
 pub use cloud_config_bundle::CloudConfigBundle;
 pub use cloud_config_bundle::CloudConfigBundleLayers;
@@ -49,11 +54,6 @@ pub use cloud_config_layers::CloudConfigFragment;
 pub use cloud_config_layers::CloudConfigFragmentSource;
 pub use cloud_config_layers::CloudConfigLayerError;
 pub use cloud_config_layers::cloud_config_layers_from_fragments;
-pub use atlas_engine_protocol::config_types::ProfileV2Name;
-pub use atlas_engine_protocol::config_types::ProfileV2NameParseError;
-pub use atlas_engine_protocol::config_types::ToolExposureSurface;
-pub use atlas_engine_utils_absolute_path::AbsolutePathBuf;
-pub use atlas_engine_utils_absolute_path::AbsolutePathBufGuard;
 pub use config_layer_source::ConfigLayer;
 pub use config_layer_source::ConfigLayerMetadata;
 pub use config_layer_source::ConfigLayerSource;

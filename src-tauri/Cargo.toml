@@ -1,6 +1,6 @@
 [package]
 name = "atlas"
-version = "0.3.3"
+version = "0.4.0"
 edition = "2021"
 
 [lib]
@@ -32,6 +32,9 @@ default = []
 # Native document conversion for knowledge-base indexing.
 markitdown = "=0.1.11"
 atlas-process = { path = "../crates/atlas-process" }
+# Whose data this process owns — the released app's or the dev profile's.
+# Fixed from the bundle identifier at the top of `run()`.
+atlas-profile = { path = "../crates/atlas-profile" }
 # Devtools intentionally NOT enabled here. Release builds ship without
 # right-click → Inspect Element / Cmd+Option+I; `tauri dev` still auto-
 # enables devtools because the Tauri runtime turns them on for debug
@@ -135,9 +138,13 @@ atlas-embed = { path = "../crates/atlas-embed" }
 # layer owns the per-project engine registry + background indexer
 # (`commands::memory_indexer`); the crate itself stays Tauri-free.
 atlas-memory = { path = "../crates/atlas-memory" }
-# Deterministic codebase scanner (tree-sitter). Feeds the Memory-Chat RAG
-# with up-to-date source structure. Drives `commands::codebase_index`.
+# CLAUDE.md + .claude/rules mirrored into AGENTS.md (commands::instruction_sync).
+atlas-instruction-sync = { path = "../crates/atlas-instruction-sync" }
+# The per-project code index (tree-sitter → SQLite + FTS5), updated per file
+# from the watchers. Drives `commands::code_index` and the atlas_code symbol tools.
 atlas-codeindex = { path = "../crates/atlas-codeindex" }
+# The sparse n-gram grep prefilter for large git projects (Phase 5).
+atlas-grepindex = { path = "../crates/atlas-grepindex" }
 # Structured side-by-side git diff engine (vendors delta's word-diff). Drives
 # `commands::gitdiff` (diff viewer + editor gutter).
 atlas-gitdiff = { path = "../crates/atlas-gitdiff" }
@@ -153,6 +160,9 @@ atlas-git = { path = "../crates/atlas-git" }
 # (from ATL-83 on) commit linkage. Tauri-free, so its whole surface is
 # testable against a real database and a real git repository.
 atlas-checkpoint = { path = "../crates/atlas-checkpoint" }
+# In-process code search (ripgrep engine): the `atlas_code` tool server and
+# the project search overlay (`commands::code_server`). Tauri-free.
+atlas-search = { path = "../crates/atlas-search" }
 dirs = "6"
 # `canonicalize` without Windows' `\\?\` verbatim prefix, which would otherwise
 # leak into workspace paths, capture ids and asset scopes. Already in the
@@ -237,12 +247,60 @@ tempfile = "3"
 # relaunches from (and only upgrades) the MSI's `InstallLocation`. See
 # `crate::commands::updater`. Already in the tree transitively.
 winreg = "0.55"
+# Native toasts (`crate::notifier::toast`). 0.61 is the version
+# `tauri-winrt-notification` already resolves, so no second `windows` major.
+windows = { version = "0.61", features = [
+  "Data_Xml_Dom",
+  "Foundation",
+  "Foundation_Collections",
+  "UI_Notifications",
+] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+# Native notifications over the freedesktop D-Bus interface
+# (`crate::notifier::freedesktop`). 5.14 is the zbus `notify-rust` already
+# resolves (the lockfile also holds a 4.x for other crates), default features
+# (async-io), so no new resolution.
+zbus = "5"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # Native NSWindow access for the titlebar double-click "zoom" (AppKit
 # performZoom:), which Tauri's cross-platform maximize API doesn't cover.
 # Already in the tree transitively; pinned here for the direct msg_send.
 objc2 = "0.6"
+# Native system notifications (`crate::notifier::macos`): UNUserNotificationCenter.
+# All three are already in the lockfile (objc2 0.6 / block2 0.6 / foundation 0.3);
+# no second objc2 major.
+objc2-foundation = { version = "0.3", default-features = false, features = [
+  "std",
+  "NSArray",
+  "NSBundle",
+  "NSDictionary",
+  "NSError",
+  "NSObject",
+  "NSSet",
+  "NSString",
+  "NSURL",
+] }
+objc2-user-notifications = { version = "0.3", default-features = false, features = [
+  "std",
+  "bitflags",
+  "block2",
+  "NSString_UserNotifications",
+  "UNError",
+  "UNNotification",
+  "UNNotificationAction",
+  "UNNotificationAttachment",
+  "UNNotificationCategory",
+  "UNNotificationContent",
+  "UNNotificationRequest",
+  "UNNotificationResponse",
+  "UNNotificationSettings",
+  "UNNotificationSound",
+  "UNNotificationTrigger",
+  "UNUserNotificationCenter",
+] }
+block2 = "0.6"
 # Turn on atlas-embed's Metal backend so the on-device embedder runs on the
 # Apple-Silicon GPU. Feature is additive over the base path dep in `[dependencies]`.
 atlas-embed = { path = "../crates/atlas-embed", features = ["metal"] }

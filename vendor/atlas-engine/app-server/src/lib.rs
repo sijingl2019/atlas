@@ -358,7 +358,10 @@ fn project_config_warning(config: &Config) -> Option<ConfigWarningNotification> 
     let mut disabled_folders = Vec::new();
 
     for layer in config.config_layer_stack.all_layers_low_to_high() {
-        let ConfigLayerSource::Project { dot_atlas_agent_folder } = &layer.name else {
+        let ConfigLayerSource::Project {
+            dot_atlas_agent_folder,
+        } = &layer.name
+        else {
             continue;
         };
         let Some(disabled_reason) = &layer.disabled_reason else {
@@ -506,10 +509,11 @@ pub async fn run_main_with_transport_options(
             let discovered_thread_config_loader = configured_thread_config_loader(&config);
             config_manager
                 .replace_thread_config_loader(Arc::clone(&discovered_thread_config_loader));
-            let auth_manager =
-                AuthManager::shared_from_config(&config, /*enable_atlas_engine_api_key_env*/ false)
-                    .await
-                    .map_err(std::io::Error::other)?;
+            let auth_manager = AuthManager::shared_from_config(
+                &config, /*enable_atlas_engine_api_key_env*/ false,
+            )
+            .await
+            .map_err(std::io::Error::other)?;
             config_manager.replace_cloud_config_bundle_loader(
                 auth_manager,
                 config.chatgpt_base_url.clone(),

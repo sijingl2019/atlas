@@ -4,7 +4,6 @@
 // Rust; this store is view state + orchestration only.
 
 import { create } from "zustand";
-import { toast } from "sonner";
 import { createSelectors } from "@/lib/create-selectors";
 import {
   models,
@@ -57,21 +56,13 @@ export const useModelsStore = createSelectors(
         );
         unlistens.push(
           await listenModelDone((d) => {
-            const model = get().list.find((entry) => entry.id === d.id);
+            // The outcome is announced by the notification pipeline (App.tsx),
+            // which stores cannot call — this only settles the table.
             set((s) => {
               const next = { ...s.downloading };
               delete next[d.id];
               return { downloading: next };
             });
-            if (model) {
-              if (d.success) {
-                toast.success(`${model.name} downloaded`);
-              } else {
-                toast.error(`${model.name} download failed`, {
-                  description: d.error ?? undefined,
-                });
-              }
-            }
             void get().actions.refresh();
           }),
         );

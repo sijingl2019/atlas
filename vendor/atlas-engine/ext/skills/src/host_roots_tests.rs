@@ -616,7 +616,11 @@ async fn resolved_config_and_repo_roots_preserve_order_and_dedupe_paths_not_name
     );
     let user_skill = write_skill(&user_skills, "user-duplicate", "duplicate-skill");
     let home_skill = write_skill(&home_folder.join(".agents/skills"), "home", "home-skill");
-    let system_skill = write_skill(&atlas_agent_home.join("skills/.system"), "system", "system-skill");
+    let system_skill = write_skill(
+        &atlas_agent_home.join("skills/.system"),
+        "system",
+        "system-skill",
+    );
     let admin_skill = write_skill(&system_folder.join("skills"), "admin", "admin-skill");
     let repo_agent_skill = write_skill(
         &repository.join(".agents/skills"),

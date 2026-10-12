@@ -5,10 +5,6 @@ use super::*;
 use crate::CompactedItem;
 use crate::RolloutItem;
 use crate::RolloutLine;
-use chrono::DateTime;
-use chrono::NaiveDateTime;
-use chrono::Timelike;
-use chrono::Utc;
 use atlas_engine_protocol::ThreadId;
 use atlas_engine_protocol::protocol::GitInfo;
 use atlas_engine_protocol::protocol::SessionMeta;
@@ -18,6 +14,10 @@ use atlas_engine_protocol::protocol::ThreadHistoryMode;
 use atlas_engine_state::BackfillStatus;
 use atlas_engine_state::ThreadMetadataBuilder;
 use atlas_engine_utils_absolute_path::test_support::PathExt;
+use chrono::DateTime;
+use chrono::NaiveDateTime;
+use chrono::Timelike;
+use chrono::Utc;
 use pretty_assertions::assert_eq;
 use std::fs::File;
 use std::io::Write;
@@ -257,7 +257,8 @@ async fn backfill_sessions_resumes_from_watermark_and_marks_complete() {
     )
     .await
     .expect("initialize runtime");
-    let first_watermark = backfill_watermark_for_path(atlas_agent_home.as_path(), first_path.as_path());
+    let first_watermark =
+        backfill_watermark_for_path(atlas_agent_home.as_path(), first_path.as_path());
     runtime.mark_backfill_running().await.expect("mark running");
     runtime
         .checkpoint_backfill(first_watermark.as_str())
@@ -268,7 +269,12 @@ async fn backfill_sessions_resumes_from_watermark_and_marks_complete() {
     ))
     .await;
 
-    backfill_sessions(runtime.as_ref(), atlas_agent_home.as_path(), "test-provider").await;
+    backfill_sessions(
+        runtime.as_ref(),
+        atlas_agent_home.as_path(),
+        "test-provider",
+    )
+    .await;
 
     let first_id = ThreadId::from_string(&first_uuid.to_string()).expect("first thread id");
     let second_id = ThreadId::from_string(&second_uuid.to_string()).expect("second thread id");
@@ -338,7 +344,12 @@ async fn backfill_sessions_preserves_existing_git_branch_and_fills_missing_git_f
         .await
         .expect("existing metadata upsert");
 
-    backfill_sessions(runtime.as_ref(), atlas_agent_home.as_path(), "test-provider").await;
+    backfill_sessions(
+        runtime.as_ref(),
+        atlas_agent_home.as_path(),
+        "test-provider",
+    )
+    .await;
 
     let persisted = runtime
         .get_thread(thread_id)
@@ -390,7 +401,12 @@ async fn backfill_sessions_preserves_existing_paginated_memory_mode() {
             .expect("disable memory mode")
     );
 
-    backfill_sessions(runtime.as_ref(), atlas_agent_home.as_path(), "test-provider").await;
+    backfill_sessions(
+        runtime.as_ref(),
+        atlas_agent_home.as_path(),
+        "test-provider",
+    )
+    .await;
 
     assert_eq!(
         runtime
@@ -425,7 +441,12 @@ async fn backfill_sessions_normalizes_cwd_before_upsert() {
     .await
     .expect("initialize runtime");
 
-    backfill_sessions(runtime.as_ref(), atlas_agent_home.as_path(), "test-provider").await;
+    backfill_sessions(
+        runtime.as_ref(),
+        atlas_agent_home.as_path(),
+        "test-provider",
+    )
+    .await;
 
     let thread_id = ThreadId::from_string(&thread_uuid.to_string()).expect("thread id");
     let stored = runtime

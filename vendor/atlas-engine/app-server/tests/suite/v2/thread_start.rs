@@ -888,7 +888,11 @@ async fn thread_start_tracks_thread_initialized_analytics() -> Result<()> {
     let server = create_mock_responses_server_repeating_assistant("Done").await;
 
     let atlas_agent_home = TempDir::new()?;
-    create_config_toml_with_chatgpt_base_url(atlas_agent_home.path(), &server.uri(), &server.uri())?;
+    create_config_toml_with_chatgpt_base_url(
+        atlas_agent_home.path(),
+        &server.uri(),
+        &server.uri(),
+    )?;
     mount_analytics_capture(&server, atlas_agent_home.path()).await?;
 
     let mut mcp = TestAppServer::builder()
@@ -936,7 +940,11 @@ async fn thread_start_respects_project_config_from_cwd() -> Result<()> {
 model_reasoning_effort = "high"
 "#,
     )?;
-    set_project_trust_level(atlas_agent_home.path(), workspace.path(), TrustLevel::Trusted)?;
+    set_project_trust_level(
+        atlas_agent_home.path(),
+        workspace.path(),
+        TrustLevel::Trusted,
+    )?;
 
     let mut mcp = TestAppServer::builder()
         .with_atlas_agent_home(atlas_agent_home.path())
@@ -1690,7 +1698,11 @@ async fn thread_start_skips_trust_write_when_project_is_already_trusted() -> Res
 model_reasoning_effort = "high"
 "#,
     )?;
-    set_project_trust_level(atlas_agent_home.path(), workspace.path(), TrustLevel::Trusted)?;
+    set_project_trust_level(
+        atlas_agent_home.path(),
+        workspace.path(),
+        TrustLevel::Trusted,
+    )?;
     let config_before = std::fs::read_to_string(atlas_agent_home.path().join("config.toml"))?;
 
     let mut mcp = TestAppServer::builder()
@@ -1723,7 +1735,12 @@ fn create_config_toml_without_approval_policy(
     atlas_agent_home: &Path,
     server_uri: &str,
 ) -> std::io::Result<()> {
-    create_config_toml(atlas_agent_home, server_uri, "sandbox_mode = \"read-only\"", "")
+    create_config_toml(
+        atlas_agent_home,
+        server_uri,
+        "sandbox_mode = \"read-only\"",
+        "",
+    )
 }
 
 fn create_config_toml(

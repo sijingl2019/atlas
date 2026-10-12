@@ -1193,18 +1193,19 @@ impl UnifiedExecProcessManager {
             } else {
                 None
             };
-        let spawn_result = atlas_engine_sandboxing::spawn_process(atlas_engine_sandboxing::SpawnRequest {
-            command: &request.command,
-            cwd: native_cwd.as_path(),
-            env: &request.env,
-            arg0: &request.arg0,
-            sandbox: request.sandbox,
-            windows_sandbox,
-            tty,
-            stdin_open: tty,
-            inherited_fds: &inherited_fds,
-        })
-        .await;
+        let spawn_result =
+            atlas_engine_sandboxing::spawn_process(atlas_engine_sandboxing::SpawnRequest {
+                command: &request.command,
+                cwd: native_cwd.as_path(),
+                env: &request.env,
+                arg0: &request.arg0,
+                sandbox: request.sandbox,
+                windows_sandbox,
+                tty,
+                stdin_open: tty,
+                inherited_fds: &inherited_fds,
+            })
+            .await;
         spawn_lifecycle.after_spawn();
         let spawned =
             spawn_result.map_err(|err| UnifiedExecError::create_process(err.to_string()))?;

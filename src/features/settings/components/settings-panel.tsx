@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { getVersion } from "@tauri-apps/api/app";
 import { toast } from "sonner";
 import { ScrollArea } from "@/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { isMac } from "@/lib/platform";
+import { isLinux, isMac, isWindows } from "@/lib/platform";
 import { Hint } from "@/ui/tooltip";
 import {
   Settings,
@@ -40,11 +41,15 @@ import { setEnabled as setTelemetryEnabled } from "@/features/telemetry/posthog-
 import { useFeedbackStore } from "@/features/feedback/stores/feedback-store";
 import { updater } from "@/features/updater/lib/updater-api";
 import { useUpdaterStore } from "@/features/updater/stores/updater-store";
-import { isLinux, isWindows } from "@/lib/platform";
+import { useAppProfile } from "@/lib/app-profile";
 import { useSettingsNav, type SettingsSection } from "../stores/settings-nav-store";
 import { openConfigFile } from "../lib/atlas-config-api";
-import { useSettingsStore } from "@/features/settings/stores/settings-store";
 import type { AppSettings } from "../lib/app-settings";
+import { useSettingsStore } from "@/features/settings/stores/settings-store";
+import { NotificationsSettings } from "./notifications-settings";
+import { SectionTitle, SettingRow, Toggle } from "./settings-controls";
+
+export { Toggle };
 import { useAgentRegistryStore } from "@/features/agents/stores/agent-registry-store";
 
 const SECTIONS: Array<{
@@ -74,6 +79,11 @@ export function SettingsPanel({ initialSection }: { initialSection?: string } = 
   // sidebar's Skills button), whether this panel is fresh or already mounted.
   const navSection = useSettingsNav((s) => s.section);
   const clearNav = useSettingsNav((s) => s.clear);
+  const setShown = useSettingsNav((s) => s.setShown);
+  useEffect(() => {
+    setShown(activeSection);
+    return () => setShown(null);
+  }, [activeSection, setShown]);
   useEffect(() => {
     if (navSection) {
       setActiveSection(navSection);
@@ -254,6 +264,10 @@ function GeneralSettings() {
   const [cli, setCli] = useState<CliStatus | null>(null);
   const [installing, setInstalling] = useState(false);
   const [resettingConfig, setResettingConfig] = useState(false);
+  // `.atlas` in the released app, `.atlas-dev` in a dev-profile build, which
+  // also keeps it out of git through `.git/info/exclude` rather than editing
+  // the project's own `.gitignore`.
+  const { dev: devProfile, dirName: atlasDir, productName } = useAppProfile();
 
   const recreateConfigDefaults = async () => {
     setResettingConfig(true);
@@ -492,78 +506,26 @@ function GeneralSettings() {
           )}
         </select>
       </SettingRow>
-      <SectionTitle
-        title="Terminal notifications"
-        subtitle="Be told when a command finishes or wants input, wherever you are in Atlas"
-      />
       <SettingRow
-        label="Terminal notifications"
-        description="A command that fails, runs longer than the threshold, or asks for input raises an item in the notification center, a toast when its terminal is off screen, and a macOS notification when Atlas is in the background. Nothing fires while you are looking at that terminal."
+        label="Keep awake while an agent is working"
+        description={
+          isWindows
+            ? "Keep-awake is currently not supported on Windows."
+            : `Keeps your ${isMac ? "Mac" : "computer"} from sleeping while an agent is working. The display can still turn off.`
+        }
       >
         <Toggle
-          checked={settings.terminalNotifications}
-          onChange={(next) => updateSettings({ terminalNotifications: next })}
+          checked={!isWindows && settings.keepAwakeWhileRunning}
+          disabled={isWindows}
+          onChange={(next) => updateSettings({ keepAwakeWhileRunning: next })}
         />
       </SettingRow>
-      <SettingRow
-        label="Notify on success after"
-        description="A command that succeeds faster than this stays quiet. Failures always notify (below)."
-      >
-        <select
-          value={String(settings.terminalNotifyMinDurationMs)}
-          disabled={!settings.terminalNotifications}
-          onChange={(e) => updateSettings({ terminalNotifyMinDurationMs: Number(e.target.value) })}
-          className="h-7 rounded-md border border-[var(--border)] bg-[var(--card)] px-2 text-xs text-[var(--foreground)] outline-none disabled:opacity-40"
-        >
-          <option value="5000">5 seconds</option>
-          <option value="10000">10 seconds</option>
-          <option value="30000">30 seconds</option>
-          <option value="60000">1 minute</option>
-          <option value="300000">5 minutes</option>
-        </select>
-      </SettingRow>
-      <SettingRow
-        label="Notify on failure"
-        description="A non-zero exit code notifies regardless of how long the command ran. Ctrl-C is not a failure."
-      >
-        <Toggle
-          checked={settings.terminalNotifyOnFailure}
-          disabled={!settings.terminalNotifications}
-          onChange={(next) => updateSettings({ terminalNotifyOnFailure: next })}
-        />
-      </SettingRow>
-      <SettingRow
-        label="Notify when input is needed"
-        description="A password prompt, a terminal bell, or a program's own notification (OSC 9 / 777) while the terminal is not on screen."
-      >
-        <Toggle
-          checked={settings.terminalNotifyOnAttention}
-          disabled={!settings.terminalNotifications}
-          onChange={(next) => updateSettings({ terminalNotifyOnAttention: next })}
-        />
-      </SettingRow>
-      <SettingRow
-        label="macOS notifications"
-        description="Also raise a system notification when the Atlas window is not focused."
-      >
-        <Toggle
-          checked={settings.terminalNotifyNative}
-          disabled={!settings.terminalNotifications}
-          onChange={(next) => updateSettings({ terminalNotifyNative: next })}
-        />
-      </SettingRow>
-      <SettingRow label="Sound" description="Play a short chime with terminal notifications.">
-        <Toggle
-          checked={settings.terminalNotifySound}
-          disabled={!settings.terminalNotifications}
-          onChange={(next) => updateSettings({ terminalNotifySound: next })}
-        />
-      </SettingRow>
+      <NotificationsSettings />
 
-      <SectionTitle title="Behaviour" subtitle="Files, logs and the editor" />
+      <SectionTitle title="Behavior" subtitle="Files, logs and the editor" />
       <SettingRow
         label="Chat Sync"
-        description="Keep your organisations in sync with your Atlas account. Off by default, so a fresh Atlas stays entirely on this machine. While it is off, account-only surfaces (members, team chat, AI grants, capture to cloud) stay off and nothing is uploaded. Turn it on to link your organisations; anything already synced is left untouched."
+        description="Keep your organizations in sync with your Atlas account. Off by default, so a fresh Atlas stays entirely on this machine. While it is off, account-only surfaces (members, team chat, AI grants, capture to cloud) stay off and nothing is uploaded. Turn it on to link your organizations; anything already synced is left untouched."
       >
         <Toggle
           checked={settings.personalSync}
@@ -571,8 +533,12 @@ function GeneralSettings() {
         />
       </SettingRow>
       <SettingRow
-        label="Auto-add .atlas to .gitignore"
-        description="When you open a git-tracked project, Atlas adds `.atlas/` to the project's .gitignore (creating one if needed). Atlas keeps its caches and state in `.atlas/` — keeping it out of version control is almost always what you want. No-op on non-git projects."
+        label={devProfile ? `Keep ${atlasDir} out of git` : `Auto-add ${atlasDir} to .gitignore`}
+        description={
+          devProfile
+            ? `When you open a git-tracked project, ${productName} lists \`${atlasDir}/\` in the repository's local .git/info/exclude, so it stays out of version control without editing the project's .gitignore. ${productName} keeps its caches and state in \`${atlasDir}/\`. No-op on non-git projects.`
+            : `When you open a git-tracked project, Atlas adds \`${atlasDir}/\` to the project's .gitignore (creating one if needed). Atlas keeps its caches and state in \`${atlasDir}/\` — keeping it out of version control is almost always what you want. No-op on non-git projects.`
+        }
       >
         <Toggle
           checked={settings.autoAddAtlasGitignore}
@@ -581,7 +547,7 @@ function GeneralSettings() {
       </SettingRow>
       <SettingRow
         label="Show hidden files"
-        description="Show dotfiles and dot-directories (e.g. `.git`, `.atlas`, `.env`) in the file tree. Default ON so nothing is silently hidden. Turn off for a cleaner tree that only lists your project's visible files."
+        description={`Show dotfiles and dot-directories (e.g. \`.git\`, \`${atlasDir}\`, \`.env\`) in the file tree. Default ON so nothing is silently hidden. Turn off for a cleaner tree that only lists your project's visible files.`}
       >
         <Toggle
           checked={settings.showHiddenFiles}
@@ -595,6 +561,15 @@ function GeneralSettings() {
         <Toggle
           checked={settings.gitBlameInline}
           onChange={(next) => updateSettings({ gitBlameInline: next })}
+        />
+      </SettingRow>
+      <SettingRow
+        label="Auto-fetch from remote"
+        description="Quietly run `git fetch` for the open project when it opens, when Atlas regains focus, and every few minutes, so the Pull badge shows what the remote has. It only updates remote-tracking branches — it never pulls, merges, or touches your files."
+      >
+        <Toggle
+          checked={settings.gitAutoFetch}
+          onChange={(next) => updateSettings({ gitAutoFetch: next })}
         />
       </SettingRow>
       <SettingRow
@@ -657,6 +632,42 @@ function GeneralSettings() {
         />
       </SettingRow>
       <SettingRow
+        label="Switching agents in a chat"
+        description="What picking another agent does once a chat has a conversation. Start over switches in place with a clean chat. New tab keeps the conversation on screen and opens the new agent beside it. Hand off switches in place and attaches the conversation to your next message, so the new agent picks up where the last one stopped. Every conversation stays in your history."
+      >
+        <select
+          value={settings.agentSwitchBehavior}
+          onChange={(e) =>
+            updateSettings({
+              agentSwitchBehavior: e.target.value as AppSettings["agentSwitchBehavior"],
+            })
+          }
+          className="h-7 rounded-md border border-[var(--border)] bg-[var(--card)] px-2 text-xs text-[var(--foreground)] outline-none"
+        >
+          <option value="reset">Start over</option>
+          <option value="new-tab">New tab</option>
+          <option value="handoff">Hand off</option>
+        </select>
+      </SettingRow>
+      <SettingRow
+        label="Save to memory before switching agents"
+        description="Before you switch agents in a chat that has a conversation, the agent you are leaving is sent /remember, so it saves its decisions and findings to shared memory, and the switch waits for it. Only for agents that offer /remember. Costs one turn per switch; you can switch right away from the notice."
+      >
+        <Toggle
+          checked={settings.rememberBeforeSwitch}
+          onChange={(next) => updateSettings({ rememberBeforeSwitch: next })}
+        />
+      </SettingRow>
+      <SettingRow
+        label="Mirror CLAUDE.md and .claude/rules into AGENTS.md"
+        description="For agents that read AGENTS.md. When on, Atlas keeps a marked block in the active project's AGENTS.md with CLAUDE.md and every .claude/rules file, rewritten as they change, and creates AGENTS.md if there is none. Your own text outside the block is never changed. Turning it off removes the block. Hooks and permission lists are not instructions and are not copied."
+      >
+        <Toggle
+          checked={settings.instructionSync}
+          onChange={(next) => updateSettings({ instructionSync: next })}
+        />
+      </SettingRow>
+      <SettingRow
         label="Let Atlas Agent navigate the app"
         description="Atlas Agent can open files at a line, switch tabs and panels, fill in a chat message and type a command into a terminal for you to run. It never switches projects, sends a message for you or presses Enter. Each action shows in the chat and the Logs panel."
       >
@@ -666,12 +677,21 @@ function GeneralSettings() {
         />
       </SettingRow>
       <SettingRow
-        label="Let Atlas Agent act in your organisation"
-        description="In a Project bound to the cloud, Atlas Agent can read your organisation's recorded sessions, comments, members and conversations, and act there as you. Anything that reaches another person asks you first. Each action shows in the chat and the Logs panel."
+        label="Let Atlas Agent act in your organization"
+        description="In a Project bound to the cloud, Atlas Agent can read your organization's recorded sessions, comments, members and conversations, and act there as you. Anything that reaches another person asks you first. Each action shows in the chat and the Logs panel."
       >
         <Toggle
           checked={settings.agentOrgAccess}
           onChange={(next) => updateSettings({ agentOrgAccess: next })}
+        />
+      </SettingRow>
+      <SettingRow
+        label="Let agents search code with Atlas"
+        description="Agents get Atlas's code tools for this project: grep and find-files, symbols, callers and callees, and search by meaning. All in-process, respecting .gitignore and never reading secret files such as .env. Off: they search with their own tools instead."
+      >
+        <Toggle
+          checked={settings.agentCodeTools}
+          onChange={(next) => updateSettings({ agentCodeTools: next })}
         />
       </SettingRow>
       <SettingRow
@@ -774,6 +794,10 @@ function UpdatesSettings() {
   const progress = useUpdaterStore.use.progress();
   const { beginApply, setError } = useUpdaterStore.use.actions();
   const [checking, setChecking] = useState(false);
+  // A dev-profile build (`bun run dev:app`) never fetches or installs a
+  // release: the backend refuses both, since the release would replace the
+  // installed Atlas. Say so instead of offering a button that can only fail.
+  const { dev: devProfile, productName } = useAppProfile();
 
   const downloading = phase === "downloading";
   const ready = phase === "ready" || phase === "applying";
@@ -801,7 +825,9 @@ function UpdatesSettings() {
 
   // The "Check for updates" row swaps its control based on the live phase:
   // downloading → progress; ready → Restart button; else → Check now.
-  const control = ready ? (
+  const control = devProfile ? (
+    <span className="text-xs text-muted-foreground">Off in {productName}</span>
+  ) : ready ? (
     <button
       type="button"
       onClick={restart}
@@ -850,8 +876,8 @@ function UpdatesSettings() {
         />
       </SettingRow>
       <SettingRow
-        label="Sync the Atlas Agent's plugin catalogue"
-        description="Let the agent engine fetch OpenAI's curated plugin catalogue (github.com/openai/plugins) when it starts. Off by default — it is a network request at every launch. Applies the next time the agent starts."
+        label="Keep Atlas Agent's plugin catalog up to date"
+        description="Let Atlas Agent download the latest curated plugin catalog when it starts. Off by default — it is a network request at every launch. Applies the next time the agent starts."
       >
         <Toggle
           checked={settings.curatedPluginSync}
@@ -861,9 +887,11 @@ function UpdatesSettings() {
       <SettingRow
         label={ready ? `Update ready${version ? ` (${version})` : ""}` : "Check for updates"}
         description={
-          ready
-            ? "A new version has been downloaded and verified. Restart now, or it'll be applied automatically the next time you quit Atlas."
-            : "Check now regardless of the automatic-update setting. Newer versions download in the background; you'll be prompted to restart when ready."
+          devProfile
+            ? "This is a source build (bun run dev:app). It never downloads or installs a release, because that would replace your installed Atlas — update the installed app from itself."
+            : ready
+              ? "A new version has been downloaded and verified. Restart now, or it'll be applied automatically the next time you quit Atlas."
+              : "Check now regardless of the automatic-update setting. Newer versions download in the background; you'll be prompted to restart when ready."
         }
       >
         {control}
@@ -873,6 +901,19 @@ function UpdatesSettings() {
 }
 
 function AboutSettings() {
+  // Read from the bundle, not hardcoded: `bun run bump` doesn't touch this file.
+  const [version, setVersion] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    void getVersion()
+      .then((v) => {
+        if (live) setVersion(v);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, []);
   return (
     <div className="space-y-4">
       <SectionTitle title="About" subtitle="Atlas IDE" />
@@ -881,23 +922,16 @@ function AboutSettings() {
           <AtlasIcon size={40} className="rounded-xl" />
           <div>
             <p className="text-sm font-semibold text-foreground">Atlas</p>
-            <p className="text-2xs text-muted-foreground">v0.3.3 — The second brain IDE</p>
+            <p className="text-2xs text-muted-foreground">
+              {version ? `v${version} — ` : ""}Multiplayer AI development
+            </p>
           </div>
         </div>
         <p className="text-xs text-secondary-foreground leading-relaxed pt-2">
-          Built with Tauri, React, and Rust. An everything app for agentic development — from code
-          analysis to task management, research, and AI orchestration.
+          Built with Tauri, React, and Rust. Atlas records the work your team's coding agents do,
+          links it to the commits it produced, and shares it with the whole team.
         </p>
       </div>
-    </div>
-  );
-}
-
-function SectionTitle({ title, subtitle }: { title: string; subtitle: string }) {
-  return (
-    <div>
-      <h2 className="text-sm font-semibold text-foreground">{title}</h2>
-      <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>
     </div>
   );
 }
@@ -933,80 +967,5 @@ function CommitInput({
         else if (e.key === "Escape") setDraft(value);
       }}
     />
-  );
-}
-
-function SettingRow({
-  label,
-  description,
-  children,
-}: {
-  label: string;
-  description: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex items-start justify-between gap-4">
-      <div>
-        <p className="text-sm font-medium text-foreground">{label}</p>
-        <p className="text-2xs text-muted-foreground mt-0.5">{description}</p>
-      </div>
-      <div className="shrink-0">{children}</div>
-    </div>
-  );
-}
-
-/**
- * Toggle — controlled OR uncontrolled. If `checked` is provided the parent
- * owns the state and `onChange` is fired on click; otherwise we keep
- * internal state seeded by `defaultChecked` (original behavior).
- */
-export function Toggle({
-  defaultChecked = false,
-  checked,
-  onChange,
-  disabled = false,
-}: {
-  defaultChecked?: boolean;
-  checked?: boolean;
-  onChange?: (next: boolean) => void;
-  /** For a sub-setting whose parent is off — dimmed and inert, but still
-   *  showing its own stored value rather than lying about it. */
-  disabled?: boolean;
-}) {
-  const [internal, setInternal] = useState(defaultChecked);
-  const isControlled = checked !== undefined;
-  const value = isControlled ? checked : internal;
-  const apply = (next: boolean) => {
-    if (disabled) return;
-    if (!isControlled) setInternal(next);
-    onChange?.(next);
-  };
-  // shadcn/Radix switch proportions: the track has a 2px transparent
-  // border so its inner content area is exactly the thumb's size,
-  // making the thumb fill vertically and animate translate-x-0 → -x-4
-  // edge to edge. The thumb flips color when ON because Atlas's accent
-  // is pure white — a white-on-white thumb would disappear.
-  return (
-    <button
-      onClick={() => apply(!value)}
-      role="switch"
-      aria-checked={value}
-      disabled={disabled}
-      className={cn(
-        "relative inline-flex h-5 w-9 shrink-0 items-center",
-        "rounded-full border-2 border-transparent transition-colors",
-        disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer",
-        value ? "bg-[var(--primary)]" : "bg-[var(--card)]",
-      )}
-    >
-      <span
-        className={cn(
-          "pointer-events-none block h-4 w-4 rounded-full shadow-sm",
-          "transition-transform duration-150",
-          value ? "translate-x-4 bg-[var(--background)]" : "translate-x-0 bg-card-foreground",
-        )}
-      />
-    </button>
   );
 }

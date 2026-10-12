@@ -1090,7 +1090,9 @@ mod tests {
         let subscriber = tracing_subscriber::registry().with(
             tracing_opentelemetry::layer()
                 .with_tracer(tracer)
-                .with_filter(filter_fn(atlas_engine_otel::OtelProvider::trace_export_filter)),
+                .with_filter(filter_fn(
+                    atlas_engine_otel::OtelProvider::trace_export_filter,
+                )),
         );
         let _subscriber_guard = tracing::subscriber::set_default(subscriber);
         tracing::callsite::rebuild_interest_cache();

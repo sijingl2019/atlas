@@ -272,12 +272,16 @@ async fn cold_root_resume_restores_agent_identity_and_role_on_followup() -> Resu
             .into_iter()
             .find_map(|request| {
                 let body = request.body_json();
-                if body["client_metadata"]["x-atlas-engine-parent-thread-id"] != json!(root_thread_id) {
+                if body["client_metadata"]["x-atlas-engine-parent-thread-id"]
+                    != json!(root_thread_id)
+                {
                     return None;
                 }
                 body["client_metadata"]["thread_id"]
                     .as_str()
-                    .and_then(|thread_id| atlas_engine_protocol::ThreadId::from_string(thread_id).ok())
+                    .and_then(|thread_id| {
+                        atlas_engine_protocol::ThreadId::from_string(thread_id).ok()
+                    })
             })
         {
             break thread_id;

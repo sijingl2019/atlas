@@ -16,6 +16,7 @@ import {
   Pencil,
   Play,
   Power,
+  PowerOff,
   RefreshCw,
   RotateCcw,
   StepForward,
@@ -199,7 +200,8 @@ export function IntegrationPanel({ integrationId }: { integrationId: string }) {
           <Pencil size={14} />
         </button>
         <button
-          className={cn(iconButton, item.enabled && "text-success")}
+          // Shows the action: red PowerOff to disable, green Power to enable.
+          className={cn(iconButton, item.enabled ? "text-error" : "text-success")}
           title={item.enabled ? "Disable" : "Enable"}
           onClick={() =>
             integrationsApi
@@ -207,7 +209,7 @@ export function IntegrationPanel({ integrationId }: { integrationId: string }) {
               .catch((e) => toast.error(String(e)))
           }
         >
-          <Power size={14} />
+          {item.enabled ? <PowerOff size={14} /> : <Power size={14} />}
         </button>
       </div>
 

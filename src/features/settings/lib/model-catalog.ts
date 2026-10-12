@@ -33,6 +33,7 @@ const PREFERRED: Record<string, string[]> = {
   cohere: ["command-a-03-2025"],
   empero: ["glm-5.3-flash"],
   orcarouter: ["orcarouter/auto"],
+  cheaperinference: ["gpt-5.4-mini", "gpt-5.4", "claude-sonnet-5"],
 };
 
 const MAX_MODELS = 18;

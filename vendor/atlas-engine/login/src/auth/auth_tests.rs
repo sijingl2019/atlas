@@ -9,11 +9,11 @@ use atlas_engine_protocol::auth::KnownPlan as InternalKnownPlan;
 use atlas_engine_protocol::auth::PlanType as InternalPlanType;
 use atlas_engine_protocol::protocol::SessionSource;
 
-use base64::Engine;
 use atlas_engine_protocol::config_types::ForcedLoginMethod;
 use atlas_engine_protocol::config_types::ModelProviderAuthInfo;
 use atlas_engine_protocol::shell_environment::OPENAI_FEDERATION_RULE_ID_ENV_VAR;
 use atlas_engine_protocol::shell_environment::OPENAI_IDENTITY_TOKEN_FILE_ENV_VAR;
+use base64::Engine;
 use pretty_assertions::assert_eq;
 use serde::Serialize;
 use serde_json::json;
@@ -193,8 +193,10 @@ async fn agent_identity_jwt_uses_explicit_staging_endpoint_overrides() -> anyhow
     )
     .await;
     let authapi_base_url = format!("{}/api/accounts/", authapi_server.uri());
-    let _authapi_guard =
-        EnvVarGuard::set("ATLAS_AGENT_AGENT_IDENTITY_AUTHAPI_BASE_URL", &authapi_base_url);
+    let _authapi_guard = EnvVarGuard::set(
+        "ATLAS_AGENT_AGENT_IDENTITY_AUTHAPI_BASE_URL",
+        &authapi_base_url,
+    );
     let jwks_base_url = format!("{}/api/atlas-agent/", jwks_server.uri());
     let _jwks_guard = EnvVarGuard::set("ATLAS_AGENT_AGENT_IDENTITY_JWKS_BASE_URL", &jwks_base_url);
 
@@ -235,8 +237,10 @@ async fn agent_identity_jwt_supports_existing_staging_launcher() -> anyhow::Resu
     )
     .await;
     let authapi_base_url = format!("{}/api/accounts", authapi_server.uri());
-    let _authapi_guard =
-        EnvVarGuard::set("ATLAS_AGENT_AGENT_IDENTITY_AUTHAPI_BASE_URL", &authapi_base_url);
+    let _authapi_guard = EnvVarGuard::set(
+        "ATLAS_AGENT_AGENT_IDENTITY_AUTHAPI_BASE_URL",
+        &authapi_base_url,
+    );
     let jwks_base_url = format!("{}/api/atlas-agent", jwks_server.uri());
     let _jwks_guard = EnvVarGuard::set("ATLAS_AGENT_AGENT_IDENTITY_JWKS_BASE_URL", &jwks_base_url);
 
@@ -1290,7 +1294,10 @@ impl ExternalAuth for StaticExternalAuth {
         Box::pin(async { Ok(self.0.clone()) })
     }
 
-    fn refresh(&self, _context: ExternalAuthRefreshContext) -> ExternalAuthFuture<'_, AtlasEngineAuth> {
+    fn refresh(
+        &self,
+        _context: ExternalAuthRefreshContext,
+    ) -> ExternalAuthFuture<'_, AtlasEngineAuth> {
         Box::pin(async { Ok(self.0.clone()) })
     }
 }
@@ -1312,7 +1319,10 @@ impl ExternalAuth for FailingExternalAuth {
         })
     }
 
-    fn refresh(&self, _context: ExternalAuthRefreshContext) -> ExternalAuthFuture<'_, AtlasEngineAuth> {
+    fn refresh(
+        &self,
+        _context: ExternalAuthRefreshContext,
+    ) -> ExternalAuthFuture<'_, AtlasEngineAuth> {
         Box::pin(async { Err(std::io::Error::other("external auth failed")) })
     }
 
@@ -1452,9 +1462,12 @@ async fn workload_identity_auth_is_immutable_and_process_local() {
         chatgpt_account_id: Some("workspace-one".to_string()),
     })
     .expect("fake access token");
-    let auth =
-        AtlasEngineAuth::from_external_chatgpt_tokens(&access_token, "workspace-one", Some("enterprise"))
-            .expect("external ChatGPT auth");
+    let auth = AtlasEngineAuth::from_external_chatgpt_tokens(
+        &access_token,
+        "workspace-one",
+        Some("enterprise"),
+    )
+    .expect("external ChatGPT auth");
 
     manager
         .install_external_auth(Arc::new(StaticExternalAuth(auth.clone())))
@@ -1817,9 +1830,10 @@ async fn shared_from_config_prefers_workload_identity_to_explicit_access_token()
     let _rule_guard = EnvVarGuard::set(OPENAI_FEDERATION_RULE_ID_ENV_VAR, "rule-one");
     let _assertion_file_guard = EnvVarGuard::remove(OPENAI_IDENTITY_TOKEN_FILE_ENV_VAR);
 
-    let error = AuthManager::shared_from_config(&config, /*enable_atlas_engine_api_key_env*/ false)
-        .await
-        .expect_err("partial workload identity config should fail closed");
+    let error =
+        AuthManager::shared_from_config(&config, /*enable_atlas_engine_api_key_env*/ false)
+            .await
+            .expect_err("partial workload identity config should fail closed");
 
     assert!(
         error
@@ -1958,8 +1972,10 @@ async fn auth_manager_rejects_env_personal_access_token_workspace_mismatch() {
         .mount(&server)
         .await;
     let _authapi_guard = EnvVarGuard::set("ATLAS_AGENT_AUTHAPI_BASE_URL", &server.uri());
-    let _access_token_guard =
-        EnvVarGuard::set(ATLAS_AGENT_ACCESS_TOKEN_ENV_VAR, "at-env-workspace-mismatch");
+    let _access_token_guard = EnvVarGuard::set(
+        ATLAS_AGENT_ACCESS_TOKEN_ENV_VAR,
+        "at-env-workspace-mismatch",
+    );
 
     let manager = AuthManager::new(
         atlas_agent_home.path().to_path_buf(),
@@ -2044,8 +2060,10 @@ async fn personal_access_token_does_not_offer_unauthorized_recovery() {
         .mount(&server)
         .await;
     let _authapi_guard = EnvVarGuard::set("ATLAS_AGENT_AUTHAPI_BASE_URL", &server.uri());
-    let _access_token_guard =
-        EnvVarGuard::set(ATLAS_AGENT_ACCESS_TOKEN_ENV_VAR, "at-no-unauthorized-recovery");
+    let _access_token_guard = EnvVarGuard::set(
+        ATLAS_AGENT_ACCESS_TOKEN_ENV_VAR,
+        "at-no-unauthorized-recovery",
+    );
     let manager = Arc::new(
         AuthManager::new(
             atlas_agent_home.path().to_path_buf(),
@@ -2146,10 +2164,11 @@ async fn auth_manager_rejects_disallowed_stored_and_external_auth() {
     )
     .await;
     config.managed_auth_policy.allowed_login_methods = Some(vec![ForcedLoginMethod::Chatgpt]);
-    let manager =
-        AuthManager::shared_from_auth_config(config, /*enable_atlas_engine_api_key_env*/ false)
-            .await
-            .expect("auth manager");
+    let manager = AuthManager::shared_from_auth_config(
+        config, /*enable_atlas_engine_api_key_env*/ false,
+    )
+    .await
+    .expect("auth manager");
 
     assert_eq!(manager.auth().await, None);
     assert!(
@@ -2177,10 +2196,11 @@ async fn api_only_policy_rejects_access_tokens_before_hydration() {
     )
     .await;
     config.managed_auth_policy.allowed_login_methods = Some(vec![ForcedLoginMethod::Api]);
-    let manager =
-        AuthManager::shared_from_auth_config(config, /*enable_atlas_engine_api_key_env*/ false)
-            .await
-            .expect("auth manager");
+    let manager = AuthManager::shared_from_auth_config(
+        config, /*enable_atlas_engine_api_key_env*/ false,
+    )
+    .await
+    .expect("auth manager");
 
     assert_eq!(manager.auth().await, None);
     assert!(
@@ -2212,10 +2232,11 @@ async fn workspace_policy_rejects_agent_identity_before_hydration() {
     .await;
     config.managed_auth_policy.allowed_chatgpt_workspaces =
         Some(vec![WORKSPACE_ID_ALLOWED.to_string()]);
-    let manager =
-        AuthManager::shared_from_auth_config(config, /*enable_atlas_engine_api_key_env*/ false)
-            .await
-            .expect("auth manager");
+    let manager = AuthManager::shared_from_auth_config(
+        config, /*enable_atlas_engine_api_key_env*/ false,
+    )
+    .await
+    .expect("auth manager");
 
     assert_eq!(manager.auth().await, None);
     drop(access_token_guard);
@@ -2247,10 +2268,11 @@ async fn workspace_policy_rejects_agent_identity_before_hydration() {
         .await;
         config.managed_auth_policy.allowed_chatgpt_workspaces =
             Some(vec![WORKSPACE_ID_ALLOWED.to_string()]);
-        let manager =
-            AuthManager::shared_from_auth_config(config, /*enable_atlas_engine_api_key_env*/ false)
-                .await
-                .expect("auth manager");
+        let manager = AuthManager::shared_from_auth_config(
+            config, /*enable_atlas_engine_api_key_env*/ false,
+        )
+        .await
+        .expect("auth manager");
         assert_eq!(manager.auth().await, None);
     }
 
@@ -2285,10 +2307,11 @@ async fn workspace_policy_checks_the_selected_request_account() {
         Some(vec![WORKSPACE_ID_ALLOWED.to_string()]),
     )
     .await;
-    let manager =
-        AuthManager::shared_from_auth_config(config, /*enable_atlas_engine_api_key_env*/ false)
-            .await
-            .expect("auth manager");
+    let manager = AuthManager::shared_from_auth_config(
+        config, /*enable_atlas_engine_api_key_env*/ false,
+    )
+    .await
+    .expect("auth manager");
 
     assert_eq!(manager.auth().await, None);
 }
@@ -2566,8 +2589,8 @@ async fn enforce_login_restrictions_blocks_env_api_key_when_chatgpt_required() {
 }
 
 fn agent_identity_record(account_id: &str) -> AgentIdentityAuthRecord {
-    let key_material =
-        atlas_engine_agent_identity::generate_agent_key_material().expect("generate agent key material");
+    let key_material = atlas_engine_agent_identity::generate_agent_key_material()
+        .expect("generate agent key material");
     AgentIdentityAuthRecord {
         agent_runtime_id: "agent-runtime-id".to_string(),
         agent_private_key: key_material.private_key_pkcs8_base64,

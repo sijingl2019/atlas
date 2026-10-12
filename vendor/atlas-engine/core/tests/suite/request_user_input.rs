@@ -198,8 +198,14 @@ async fn request_user_input_round_trip_for_mode(mode: ModeKind) -> anyhow::Resul
         })
         .await?;
 
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TokenCount(_))).await;
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TokenCount(_))
+    })
+    .await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let req = second_mock.single_request();
     let output_text = call_output(&req, call_id);
@@ -317,7 +323,10 @@ async fn request_user_input_interrupt_emits_deferred_token_count() -> anyhow::Re
             .map(|info| info.total_token_usage.total_tokens),
         Some(77)
     );
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TurnAborted(_))).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TurnAborted(_))
+    })
+    .await;
 
     assert_eq!(request.call_id, call_id);
     Ok(())
@@ -392,7 +401,10 @@ where
         )
         .await?;
 
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let req = second_mock.single_request();
     let (output, success) = call_output_content_and_success(&req, &call_id);

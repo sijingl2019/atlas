@@ -1,13 +1,16 @@
 // Modified by Atlas from upstream OpenAI Codex (Apache-2.0). See CONTEXT.md.
 use super::*;
-use base64::Engine;
 use atlas_engine_protocol::protocol::RateLimitReachedType;
+use base64::Engine;
 use pretty_assertions::assert_eq;
 
 #[test]
 fn map_api_error_maps_server_overloaded() {
     let err = map_api_error(ApiError::ServerOverloaded);
-    assert!(matches!(err.details(), AtlasEngineErrorDetails::ServerOverloaded));
+    assert!(matches!(
+        err.details(),
+        AtlasEngineErrorDetails::ServerOverloaded
+    ));
 }
 
 #[test]
@@ -40,7 +43,10 @@ fn map_api_error_maps_server_overloaded_from_503_body() {
         body: Some(body),
     }));
 
-    assert!(matches!(err.details(), AtlasEngineErrorDetails::ServerOverloaded));
+    assert!(matches!(
+        err.details(),
+        AtlasEngineErrorDetails::ServerOverloaded
+    ));
 }
 
 #[test]
@@ -241,8 +247,10 @@ fn map_api_error_does_not_fallback_limit_name_to_limit_id() {
 
 #[test]
 fn map_api_error_copies_rate_limit_reached_type_to_usage_limit_snapshot() {
-    for (active_limit, expected_limit_id) in [(None, "atlas_engine"), (Some("atlas_engine_other"), "atlas_engine_other")]
-    {
+    for (active_limit, expected_limit_id) in [
+        (None, "atlas_engine"),
+        (Some("atlas_engine_other"), "atlas_engine_other"),
+    ] {
         let mut headers = HeaderMap::new();
         if let Some(active_limit) = active_limit {
             headers.insert(

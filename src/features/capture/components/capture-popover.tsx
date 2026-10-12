@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import {
+  ArrowLeftRight,
   ArrowUpRight,
   Check,
   ChevronDown,
@@ -39,6 +40,7 @@ import type {
   Binding,
   CaptureHealth,
   ConnectOptions,
+  ConnectPick,
   ConnectResult,
   Detection,
   ImportPreview,
@@ -153,14 +155,42 @@ type View =
     }
   /** Bound Cloud Project whose history import awaits approval. */
   | { kind: "import-confirm"; preview: ImportPreview }
-  /** Local→Cloud promotion: pick the destination. */
-  | { kind: "promote-form" }
-  /** Local→Cloud promotion: the disclosure. */
+  /** Local→Cloud promotion: pick the destination — a new Project, or an
+   *  existing one. The tab is part of the view so a failed Continue lands
+   *  back where the pick was made. */
+  | { kind: "promote-form"; tab: PromoteTab }
+  /** Local→Cloud promotion onto a NEW Project: the disclosure. */
   | {
       kind: "promote-confirm";
       draft: CloudDraft;
       preview: PromotionPreview;
+    }
+  /** Local→Cloud promotion onto an EXISTING Project: the disclosure. */
+  | {
+      kind: "promote-connect-confirm";
+      pick: ConnectPick;
+      preview: PromotionPreview;
+    }
+  /** Cloud→Cloud: pick a different Project in the same Organisation. */
+  | { kind: "switch-form" }
+  /** Cloud→Cloud: the disclosure — everything is re-sent, comments stay. */
+  | {
+      kind: "switch-confirm";
+      pick: ConnectPick;
+      preview: PromotionPreview;
     };
+
+type PromoteTab = "create" | "connect";
+
+/**
+ * Why the server bound nothing, as one sentence the developer can act on.
+ * Shared by the unbound Connect tab and the promote-onto-existing confirm.
+ */
+function connectRefusal(candidates: unknown[]): string {
+  return candidates.length > 0
+    ? `${candidates.length} Projects share this repository’s root commit. Pick the right one — repositories created from the same template look identical here.`
+    : "The server did not recognize this pick. Reopen this tab to refresh the Project list.";
+}
 
 export function CapturePopover({ projectPath, health, onChanged, onClose }: Props) {
   const signedIn = useAuthStore.use.snapshot().status === "signed-in";
@@ -250,6 +280,23 @@ export function CapturePopover({ projectPath, health, onChanged, onClose }: Prop
     }
   }, [projectPath]);
 
+  /**
+   * The promote disclosure's numbers. Read-only — a failure lands in the error
+   * strip and leaves the form where it was, so nothing is lost but a click.
+   */
+  const loadPromotionPreview = async (): Promise<PromotionPreview | null> => {
+    setBusy(true);
+    setError(null);
+    try {
+      return await invoke<PromotionPreview>("capture_promotion_preview", { projectPath });
+    } catch (e) {
+      setError(String(e));
+      return null;
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const run = async (action: () => Promise<unknown>) => {
     setBusy(true);
     setError(null);
@@ -274,11 +321,11 @@ export function CapturePopover({ projectPath, health, onChanged, onClose }: Prop
   // developer fixes elsewhere, so it is stated first, and the account-shaped
   // reasons only surface once it is resolved.
   const cloudReason = !gitAvailable
-    ? "Install git to share with an Organisation"
+    ? "Install git to share with an Organization"
     : !signedIn
-      ? "Sign in to share with an Organisation"
+      ? "Sign in to share with an Organization"
       : cloudOrgs.length === 0
-        ? `“${activeOrg?.name ?? "This Organisation"}” is local-only — sync it to use Cloud`
+        ? `“${activeOrg?.name ?? "This Organization"}” is local-only — sync it to use Cloud`
         : null;
 
   // See `loaded`: rendering before the first read flashes the wrong state.
@@ -323,7 +370,8 @@ export function CapturePopover({ projectPath, health, onChanged, onClose }: Prop
               onReviewImport={() =>
                 importPreview && setView({ kind: "import-confirm", preview: importPreview })
               }
-              onPromote={() => setView({ kind: "promote-form" })}
+              onPromote={() => setView({ kind: "promote-form", tab: "create" })}
+              onSwitch={() => setView({ kind: "switch-form" })}
             />
           ) : (
             <UnboundState
@@ -393,36 +441,100 @@ export function CapturePopover({ projectPath, health, onChanged, onClose }: Prop
             projectPath={projectPath}
             detection={detection}
             cloudOrgs={cloudOrgs}
+            cloudReason={cloudReason}
+            tab={view.tab}
+            onTabChange={(tab) => setView({ kind: "promote-form", tab })}
             busy={busy}
+            run={run}
             onCancel={() => setView({ kind: "main" })}
             onContinue={async (draft) => {
-              setBusy(true);
-              setError(null);
-              try {
-                const preview = await invoke<PromotionPreview>("capture_promotion_preview", {
+              const preview = await loadPromotionPreview();
+              if (preview) setView({ kind: "promote-confirm", draft, preview });
+            }}
+            onConnectContinue={async (pick) => {
+              const preview = await loadPromotionPreview();
+              if (preview) setView({ kind: "promote-connect-confirm", pick, preview });
+            }}
+          />
+        )}
+
+        {view.kind === "promote-connect-confirm" && (
+          <DisclosureStep
+            title={`Publish this Project's history to “${view.pick.slug}”?`}
+            lines={promotionLines(view.preview)}
+            confirmLabel="Connect and sync"
+            busy={busy}
+            onCancel={() => setView({ kind: "promote-form", tab: "connect" })}
+            onConfirm={async () => {
+              // The binding already exists (this is a Local Project), so unlike
+              // the unbound Connect tab there is no enable step first.
+              const ok = await run(async () => {
+                const result = await invoke<ConnectResult>("capture_connect", {
                   projectPath,
+                  orgId: view.pick.orgId,
+                  slug: view.pick.slug,
+                  workspaceId: view.pick.workspaceId,
                 });
-                setView({ kind: "promote-confirm", draft, preview });
-              } catch (e) {
-                setError(String(e));
-              } finally {
-                setBusy(false);
-              }
+                // A refusal is not a failure, but it does need a new pick —
+                // thrown so the error strip carries it back to the Connect tab.
+                if (!result.matched) throw new Error(connectRefusal(result.candidates));
+              });
+              setView(ok ? { kind: "main" } : { kind: "promote-form", tab: "connect" });
+            }}
+          />
+        )}
+
+        {view.kind === "switch-form" && binding && (
+          <SwitchForm
+            projectPath={projectPath}
+            binding={binding}
+            cloudOrgs={cloudOrgs}
+            cloudReason={cloudReason}
+            busy={busy}
+            run={run}
+            onCancel={() => setView({ kind: "main" })}
+            onContinue={async (pick) => {
+              const preview = await loadPromotionPreview();
+              if (preview) setView({ kind: "switch-confirm", pick, preview });
+            }}
+          />
+        )}
+
+        {view.kind === "switch-confirm" && (
+          <DisclosureStep
+            title={`Move this Project's sync to “${view.pick.slug}”?`}
+            lines={[
+              ...promotionLines(view.preview).map((line, i) =>
+                i === 0 ? `${line} re-sent to the new Project` : line,
+              ),
+              // The server keeps one object per Project and has no move.
+              `“${binding?.slug ?? "the current Project"}” keeps its copy; comments stay there`,
+            ]}
+            confirmLabel="Move sync"
+            busy={busy}
+            onCancel={() => setView({ kind: "switch-form" })}
+            onConfirm={async () => {
+              const ok = await run(async () => {
+                const result = await invoke<ConnectResult>("capture_switch_project", {
+                  projectPath,
+                  orgId: view.pick.orgId,
+                  slug: view.pick.slug,
+                  workspaceId: view.pick.workspaceId,
+                });
+                if (!result.matched) throw new Error(connectRefusal(result.candidates));
+              });
+              setView(ok ? { kind: "main" } : { kind: "switch-form" });
             }}
           />
         )}
 
         {view.kind === "promote-confirm" && (
           <DisclosureStep
-            title="Publish this Project to your Organisation?"
-            lines={[
-              `${view.preview.sessionCount} session${view.preview.sessionCount === 1 ? "" : "s"}`,
-              dateRange(view.preview.earliest, view.preview.latest),
-              `${view.preview.secretsRedacted} secret${view.preview.secretsRedacted === 1 ? "" : "s"} redacted before storage`,
-            ].filter((line): line is string => line !== null)}
+            title="Publish this Project to your Organization?"
+            lines={promotionLines(view.preview)}
             confirmLabel="Promote to Cloud"
             busy={busy}
-            onCancel={() => setView({ kind: "main" })}
+            onCancel={() => setView({ kind: "promote-form", tab: "create" })}
             onConfirm={async () => {
               const ok = await run(() =>
                 invoke("capture_promote", {
@@ -459,6 +571,15 @@ function disclosureLines(preview: ImportPreview): string[] {
   ].filter((line): line is string => line !== null);
 }
 
+/** What promotion publishes — the same three lines whether the destination is new or existing. */
+function promotionLines(preview: PromotionPreview): string[] {
+  return [
+    `${preview.sessionCount} session${preview.sessionCount === 1 ? "" : "s"}`,
+    dateRange(preview.earliest, preview.latest),
+    `${preview.secretsRedacted} secret${preview.secretsRedacted === 1 ? "" : "s"} redacted before storage`,
+  ].filter((line): line is string => line !== null);
+}
+
 /**
  * The bulk-disclosure step: real numbers, then a genuine choice.
  *
@@ -490,7 +611,7 @@ function DisclosureStep({
         ))}
       </ul>
       <p className="text-2xs text-[var(--muted-foreground)]">
-        This makes the above visible to your Organisation. Nothing is sent until you confirm.
+        This makes the above visible to your Organization. Nothing is sent until you confirm.
       </p>
       <div className="flex justify-end gap-2 pt-0.5">
         <GhostButton label="Cancel" onClick={onCancel} disabled={busy} />
@@ -771,6 +892,7 @@ function BoundState({
   run,
   onReviewImport,
   onPromote,
+  onSwitch,
 }: {
   projectPath: string;
   binding: Binding;
@@ -786,6 +908,8 @@ function BoundState({
   run: (action: () => Promise<unknown>) => Promise<boolean>;
   onReviewImport: () => void;
   onPromote: () => void;
+  /** Cloud only: sync this Project to a different Cloud Project. */
+  onSwitch: () => void;
 }) {
   const orgName =
     binding.orgId != null
@@ -902,6 +1026,33 @@ function BoundState({
             >
               <ArrowUpRight size={11} />
               Sync
+            </button>
+          ))}
+
+        {/* The Cloud counterpart of Sync: the destination is a choice, not a
+         *  fact, and the way to change it lives beside the label that states
+         *  it. Same availability rule as Sync — it needs the server. */}
+        {binding.mode === "cloud" &&
+          (cloudReason ? (
+            <button
+              type="button"
+              disabled
+              title={cloudReason}
+              className="inline-flex cursor-not-allowed items-center gap-1.5 rounded-full border border-[var(--atlas-element-selected)] bg-[var(--atlas-element-hover)] px-2.5 py-1 text-xs text-[var(--muted-foreground)] opacity-40"
+            >
+              <ArrowLeftRight size={11} />
+              Change
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={onSwitch}
+              title="Sync to a different Project"
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-[var(--atlas-element-selected)] bg-[var(--atlas-element-hover)] px-2.5 py-1 text-xs text-[var(--secondary-foreground)] transition-colors hover:bg-[var(--atlas-element-selected)] hover:text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <ArrowLeftRight size={11} />
+              Change
             </button>
           ))}
 
@@ -1051,7 +1202,7 @@ function UnboundState({
              *  where it read as Local being the thing that was broken. */}
             <p className={HINT}>
               {mode === "cloud"
-                ? "Shared with your Organisation."
+                ? "Shared with your Organization."
                 : "This machine only — no account needed."}
             </p>
           </div>
@@ -1154,18 +1305,20 @@ function Tabs({
   onTabChange,
   connectDisabled,
   connectReason,
+  label = "Set up session capture",
 }: {
-  tab: "create" | "connect";
-  onTabChange: (tab: "create" | "connect") => void;
+  tab: PromoteTab;
+  onTabChange: (tab: PromoteTab) => void;
   connectDisabled: boolean;
   /** Shown on hover, so the disabled tab explains itself in place. */
   connectReason: string | null;
+  label?: string;
 }) {
   // Pills rather than a segmented control: these are two *ways in*, not two
   // views of one thing, and the pill row is the same shape the feedback panel
   // uses for its categories.
   return (
-    <div role="tablist" aria-label="Set up session capture" className="flex gap-1">
+    <div role="tablist" aria-label={label} className="flex gap-1">
       {(
         [
           ["create", "Create"],
@@ -1261,6 +1414,7 @@ function CloudFields({
   onGitUrlChange,
   restricted,
   onRestrictedChange,
+  onConnectInstead,
 }: {
   cloudOrgs: Array<Organisation & { remoteId: string }>;
   slug: string;
@@ -1271,6 +1425,7 @@ function CloudFields({
   onGitUrlChange: (url: string) => void;
   restricted: boolean;
   onRestrictedChange: (restricted: boolean) => void;
+  onConnectInstead?: () => void;
 }) {
   return (
     <div className={cn(GROUP, "space-y-2")}>
@@ -1280,7 +1435,7 @@ function CloudFields({
        *  someone else's timeline. */}
       <div className="flex items-center gap-2">
         <span className="w-[70px] shrink-0 text-xs text-[var(--muted-foreground)]">
-          Organisation
+          Organization
         </span>
         <span className="truncate text-xs text-[var(--secondary-foreground)]">
           {cloudOrgs[0]?.name ?? "—"}
@@ -1299,7 +1454,7 @@ function CloudFields({
         />
       </label>
 
-      <SlugStatus state={slugState} />
+      <SlugStatus state={slugState} onConnectInstead={onConnectInstead} />
 
       {/* A URL and nothing more — it is what lets a teammate's desktop find
        *  this Project from their own checkout's origin. Prefilled from the
@@ -1328,7 +1483,7 @@ function CloudFields({
             Restrict to named members
           </span>
           <span className="block text-2xs text-[var(--muted-foreground)]">
-            Otherwise every member of the Organisation can read it and push to it. You can change
+            Otherwise every member of the Organization can read it and push to it. You can change
             this later.
           </span>
         </span>
@@ -1337,7 +1492,14 @@ function CloudFields({
   );
 }
 
-function SlugStatus({ state }: { state: SlugState }) {
+function SlugStatus({
+  state,
+  onConnectInstead,
+}: {
+  state: SlugState;
+  /** Promote only: a taken Slug is usually the Project you meant to join. */
+  onConnectInstead?: () => void;
+}) {
   if (state.kind === "idle") return null;
   return (
     <p className="flex items-center gap-1 pl-[78px] text-2xs">
@@ -1357,8 +1519,17 @@ function SlugStatus({ state }: { state: SlugState }) {
         <>
           <X size={10} className="text-[var(--atlas-status-error-foreground)]" />
           <span className="text-[var(--atlas-status-error-foreground)]">
-            taken in this Organisation
+            taken in this Organization
           </span>
+          {onConnectInstead && (
+            <button
+              type="button"
+              onClick={onConnectInstead}
+              className="cursor-pointer text-[var(--secondary-foreground)] underline underline-offset-2 transition-colors duration-150 hover:text-[var(--foreground)]"
+            >
+              connect to it instead
+            </button>
+          )}
         </>
       )}
       {state.kind === "unknown" && (
@@ -1393,6 +1564,8 @@ function ConnectTab({
   busy,
   run,
   onCancel,
+  onContinue,
+  excludeId = null,
 }: {
   projectPath: string;
   cloudOrgs: Array<Organisation & { remoteId: string }>;
@@ -1400,6 +1573,15 @@ function ConnectTab({
   busy: boolean;
   run: (action: () => Promise<unknown>) => Promise<boolean>;
   onCancel: () => void;
+  /**
+   * Promote mode. When set, the button hands the pick up instead of
+   * connecting — a Local Project has history to disclose first, and the
+   * disclosure step owns every mutation. Absent, the pick connects at once
+   * (an unbound Project has nothing to disclose).
+   */
+  onContinue?: (pick: ConnectPick) => void;
+  /** Hide this Project from the list — the one already synced to. */
+  excludeId?: string | null;
 }) {
   const [orgId, setOrgId] = useState<string>(cloudOrgs[0]?.remoteId ?? "");
   const [options, setOptions] = useState<ConnectOptions | null | undefined>(undefined);
@@ -1427,14 +1609,14 @@ function ConnectTab({
       .then((result) => {
         if (mine !== seq.current) return;
         setOptions(result);
-        setSelected(result.preselected);
+        setSelected(result.preselected === excludeId ? null : result.preselected);
       })
       .catch((e: unknown) => {
         if (mine !== seq.current) return;
         setOptions(null);
         setListError(String(e));
       });
-  }, [projectPath, orgId, cloudReason]);
+  }, [projectPath, orgId, cloudReason, excludeId]);
 
   if (cloudReason) {
     return (
@@ -1445,24 +1627,27 @@ function ConnectTab({
     );
   }
 
-  const project = options?.workspaces.find((w) => w.id === selected);
+  const workspaces = options?.workspaces.filter((w) => w.id !== excludeId) ?? [];
+  const project = workspaces.find((w) => w.id === selected);
 
   return (
     <div className="space-y-2">
       {options === undefined ? (
         <p className="flex items-center gap-1.5 py-2 text-xs text-[var(--muted-foreground)]">
           <Loader2 size={11} className="animate-spin" />
-          Fetching this Organisation's Projects…
+          Fetching this Organization's Projects…
         </p>
       ) : options === null ? (
         <p className="rounded-lg bg-[var(--atlas-status-warning-background)] px-2.5 py-1.5 text-xs text-[var(--atlas-status-warning-foreground)]">
           {listError
-            ? `Could not list this Organisation's Projects: ${listError}`
+            ? `Could not list this Organization's Projects: ${listError}`
             : "Could not reach the server. Check the connection and reopen this tab."}
         </p>
-      ) : options.workspaces.length === 0 ? (
+      ) : workspaces.length === 0 ? (
         <p className={cn(GROUP, "text-xs text-[var(--muted-foreground)]")}>
-          This Organisation has no Projects yet. Create one from the Create tab instead.
+          {excludeId
+            ? "This Organization has no other Projects to sync to."
+            : "This Organization has no Projects yet. Create one from the Create tab instead."}
         </p>
       ) : (
         <>
@@ -1493,7 +1678,7 @@ function ConnectTab({
               <ChevronDown size={11} className="shrink-0 text-[var(--muted-foreground)]" />
             </DropdownMenuTrigger>
             <DropdownMenuContent className="max-h-[220px] w-(--anchor-width)">
-              {options.workspaces.map((remote) => (
+              {workspaces.map((remote) => (
                 <DropdownMenuItem
                   key={remote.id}
                   onClick={() => setSelected(remote.id)}
@@ -1537,6 +1722,10 @@ function ConnectTab({
           disabled={!project}
           onClick={() => {
             if (!project) return;
+            if (onContinue) {
+              onContinue({ orgId, slug: project.slug, workspaceId: project.id });
+              return;
+            }
             setRefused(null);
             void run(async () => {
               // Connect needs a binding row to attach the Cloud identity to.
@@ -1548,16 +1737,59 @@ function ConnectTab({
                 workspaceId: project.id,
               });
               if (result.matched) return;
-              setRefused(
-                result.candidates.length > 0
-                  ? `${result.candidates.length} Projects share this repository’s root commit. Pick the right one — repositories created from the same template look identical here.`
-                  : "The server did not recognise this pick. Reopen this tab to refresh the Project list.",
-              );
+              setRefused(connectRefusal(result.candidates));
             });
           }}
-          label="Connect"
+          label={onContinue ? "Continue" : "Connect"}
         />
       </div>
+    </div>
+  );
+}
+
+/**
+ * Cloud→Cloud step one: which other Project this one should sync to.
+ *
+ * The Connect picker in its no-mutation mode, minus the Project already synced
+ * to. Nothing here changes anything — the disclosure step owns the move.
+ */
+function SwitchForm({
+  projectPath,
+  binding,
+  cloudOrgs,
+  cloudReason,
+  busy,
+  run,
+  onCancel,
+  onContinue,
+}: {
+  projectPath: string;
+  binding: Binding;
+  cloudOrgs: Array<Organisation & { remoteId: string }>;
+  cloudReason: string | null;
+  busy: boolean;
+  run: (action: () => Promise<unknown>) => Promise<boolean>;
+  onCancel: () => void;
+  onContinue: (pick: ConnectPick) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <p className="text-sm font-medium text-[var(--foreground)]">Change Project</p>
+      <p className="text-xs text-[var(--muted-foreground)]">
+        Currently syncing to{" "}
+        <span className="font-mono text-[var(--secondary-foreground)]">{binding.slug ?? "—"}</span>.
+        Everything captured here will be re-sent to the Project you pick.
+      </p>
+      <ConnectTab
+        projectPath={projectPath}
+        cloudOrgs={cloudOrgs}
+        cloudReason={cloudReason}
+        busy={busy}
+        run={run}
+        onCancel={onCancel}
+        onContinue={onContinue}
+        excludeId={binding.remoteWorkspaceId}
+      />
     </div>
   );
 }
@@ -1567,16 +1799,28 @@ function PromoteForm({
   projectPath,
   detection,
   cloudOrgs,
+  cloudReason,
+  tab,
+  onTabChange,
   busy,
+  run,
   onCancel,
   onContinue,
+  onConnectContinue,
 }: {
   projectPath: string;
   detection: Detection | null;
   cloudOrgs: Array<Organisation & { remoteId: string }>;
+  cloudReason: string | null;
+  tab: PromoteTab;
+  onTabChange: (tab: PromoteTab) => void;
   busy: boolean;
+  run: (action: () => Promise<unknown>) => Promise<boolean>;
   onCancel: () => void;
+  /** Create: a new Project under this Slug. */
   onContinue: (draft: CloudDraft) => void;
+  /** Connect: an existing Project the Organisation already has. */
+  onConnectContinue: (pick: ConnectPick) => void;
 }) {
   const [orgId, setOrgId] = useState<string>(cloudOrgs[0]?.remoteId ?? "");
   const [slug, setSlug] = useState(detection?.suggestedSlug ?? "");
@@ -1593,34 +1837,65 @@ function PromoteForm({
     slugState.kind !== "taken" &&
     slugState.kind !== "checking";
 
+  // Same rule as the unbound form: Connect has nothing to show without the
+  // Organisation's Project list, so it is disabled with the reason rather
+  // than opened onto an error.
+  const connectDisabled = !!cloudReason;
+  const activeTab = connectDisabled ? "create" : tab;
+
   return (
     <div className="space-y-2">
       <p className="text-sm font-medium text-[var(--foreground)]">Promote to Cloud</p>
       <p className="text-xs text-[var(--muted-foreground)]">
-        Everything captured here joins your Organisation's timeline. You'll see exactly what before
-        anything is sent.
+        {activeTab === "create"
+          ? "Everything captured here joins your Organization's timeline. You'll see exactly what before anything is sent."
+          : "Attach this Project's history to a Project your Organization already has. You'll see exactly what before anything is sent."}
       </p>
-      <CloudFields
-        cloudOrgs={cloudOrgs}
-        slug={slug}
-        onSlugChange={setSlug}
-        slugState={slugState}
-        gitUrl={gitUrl}
-        onGitUrlChange={setGitUrl}
-        restricted={restricted}
-        onRestrictedChange={setRestricted}
+      <Tabs
+        tab={activeTab}
+        onTabChange={onTabChange}
+        connectDisabled={connectDisabled}
+        connectReason={cloudReason}
+        label="Promote to Cloud"
       />
-      <div className="flex justify-end gap-2 pt-1">
-        <GhostButton label="Cancel" onClick={onCancel} disabled={busy} />
-        <PrimaryButton
-          busy={busy}
-          disabled={!ready}
-          onClick={() =>
-            onContinue({ orgId, slug: slug.trim(), gitUrl: gitUrl.trim(), restricted })
-          }
-          label="Continue"
-        />
-      </div>
+      {activeTab === "create" ? (
+        <div key="create" className="atlas-fade-in space-y-2">
+          <CloudFields
+            cloudOrgs={cloudOrgs}
+            slug={slug}
+            onSlugChange={setSlug}
+            slugState={slugState}
+            gitUrl={gitUrl}
+            onGitUrlChange={setGitUrl}
+            restricted={restricted}
+            onRestrictedChange={setRestricted}
+            onConnectInstead={connectDisabled ? undefined : () => onTabChange("connect")}
+          />
+          <div className="flex justify-end gap-2 pt-1">
+            <GhostButton label="Cancel" onClick={onCancel} disabled={busy} />
+            <PrimaryButton
+              busy={busy}
+              disabled={!ready}
+              onClick={() =>
+                onContinue({ orgId, slug: slug.trim(), gitUrl: gitUrl.trim(), restricted })
+              }
+              label="Continue"
+            />
+          </div>
+        </div>
+      ) : (
+        <div key="connect" className="atlas-fade-in">
+          <ConnectTab
+            projectPath={projectPath}
+            cloudOrgs={cloudOrgs}
+            cloudReason={cloudReason}
+            busy={busy}
+            run={run}
+            onCancel={onCancel}
+            onContinue={onConnectContinue}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -1937,7 +2212,7 @@ function GitMissingBanner() {
       />
       <p className="min-w-0 text-xs text-[var(--secondary-foreground)]">
         Git is not installed on this machine. Sessions are still recorded, but they cannot be linked
-        to commits and cannot be shared with an Organisation.
+        to commits and cannot be shared with an Organization.
       </p>
     </div>
   );
@@ -1956,7 +2231,7 @@ function GitInitOffer({ busy, onGitInit }: { busy: boolean; onGitInit: () => voi
       <GitBranch size={12} className="mt-0.5 shrink-0 text-[var(--muted-foreground)]" />
       <div className="min-w-0">
         <p className="text-xs text-[var(--secondary-foreground)]">
-          Sessions are recorded here already. Initialise git to also link them to the commits they
+          Sessions are recorded here already. Initialize git to also link them to the commits they
           produce.
         </p>
         <button
@@ -1965,7 +2240,7 @@ function GitInitOffer({ busy, onGitInit }: { busy: boolean; onGitInit: () => voi
           onClick={onGitInit}
           className="mt-1 cursor-pointer text-xs text-[var(--foreground)] underline underline-offset-2 transition-colors duration-150 hover:no-underline disabled:cursor-not-allowed disabled:opacity-40"
         >
-          Initialise git
+          Initialize git
         </button>
       </div>
     </div>

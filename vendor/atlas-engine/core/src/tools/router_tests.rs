@@ -110,7 +110,8 @@ impl ExtensionEchoExecutor {
     async fn handle_call(
         &self,
         call: ExtensionToolCall,
-    ) -> Result<Box<dyn atlas_engine_tools::ToolOutput>, atlas_engine_tools::FunctionCallError> {
+    ) -> Result<Box<dyn atlas_engine_tools::ToolOutput>, atlas_engine_tools::FunctionCallError>
+    {
         let arguments: serde_json::Value =
             serde_json::from_str(call.function_arguments()?).expect("test arguments should parse");
         Ok(Box::new(atlas_engine_tools::JsonToolOutput::new(json!({
@@ -481,7 +482,10 @@ async fn specs_filter_deferred_dynamic_tools() -> anyhow::Result<()> {
     );
     assert_eq!(
         router.deferred_tool_namespaces(),
-        BTreeMap::from([("atlas_engine_app".to_string(), "Atlas Agent app tools.".to_string())])
+        BTreeMap::from([(
+            "atlas_engine_app".to_string(),
+            "Atlas Agent app tools.".to_string()
+        )])
     );
 
     let updated_router = test_tool_router(step_context.as_ref(), Vec::new(), Vec::new(), &[]);

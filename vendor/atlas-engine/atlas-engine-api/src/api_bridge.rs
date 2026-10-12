@@ -4,9 +4,6 @@ use crate::error::ApiError;
 use crate::rate_limits::parse_promo_message;
 use crate::rate_limits::parse_rate_limit_for_limit;
 use crate::rate_limits::parse_rate_limit_reached_type;
-use base64::Engine;
-use chrono::DateTime;
-use chrono::Utc;
 use atlas_engine_protocol::auth::PlanType;
 use atlas_engine_protocol::error::AtlasEngineErr;
 use atlas_engine_protocol::error::AtlasEngineErrorDetails;
@@ -14,6 +11,9 @@ use atlas_engine_protocol::error::ConnectionFailedError;
 use atlas_engine_protocol::error::RetryLimitReachedError;
 use atlas_engine_protocol::error::UnexpectedResponseError;
 use atlas_engine_protocol::error::UsageLimitReachedError;
+use base64::Engine;
+use chrono::DateTime;
+use chrono::Utc;
 use http::HeaderMap;
 use serde::Deserialize;
 use serde_json::Value;
@@ -153,7 +153,9 @@ pub fn map_api_error(err: ApiError) -> AtlasEngineErr {
             TransportError::Connection(source) => {
                 AtlasEngineErr::ConnectionFailed(ConnectionFailedError { source })
             }
-            TransportError::Network(msg) | TransportError::Build(msg) => AtlasEngineErr::Stream(msg),
+            TransportError::Network(msg) | TransportError::Build(msg) => {
+                AtlasEngineErr::Stream(msg)
+            }
         },
         ApiError::RateLimit(msg) => AtlasEngineErr::Stream(msg),
     }

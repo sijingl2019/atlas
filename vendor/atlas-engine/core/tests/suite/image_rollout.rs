@@ -1,7 +1,5 @@
 // Modified by Atlas from upstream OpenAI Codex (Apache-2.0). See CONTEXT.md.
 use anyhow::Context;
-use base64::Engine;
-use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use atlas_engine_core::TurnInputRequest;
 use atlas_engine_features::Feature;
 use atlas_engine_history::RolloutItem;
@@ -21,6 +19,8 @@ use atlas_engine_protocol::protocol::Op;
 use atlas_engine_protocol::protocol::ThreadSettingsOverrides;
 use atlas_engine_protocol::user_input::UserInput;
 use atlas_engine_utils_image::data_url_from_bytes;
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use core_test_support::TempDirExt;
 use core_test_support::responses;
 use core_test_support::responses::ev_assistant_message;
@@ -160,9 +160,15 @@ async fn copy_paste_local_image_persists_rollout_request_shape() -> anyhow::Resu
         )
         .await?;
 
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
     atlas_engine.submit(Op::Shutdown).await?;
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::ShutdownComplete)).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::ShutdownComplete)
+    })
+    .await;
 
     let rollout_path = atlas_engine.rollout_path().expect("rollout path");
     let rollout_text = read_rollout_text(&rollout_path).await?;
@@ -256,9 +262,15 @@ async fn drag_drop_image_persists_rollout_request_shape() -> anyhow::Result<()> 
         )
         .await?;
 
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
     atlas_engine.submit(Op::Shutdown).await?;
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::ShutdownComplete)).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::ShutdownComplete)
+    })
+    .await;
 
     let rollout_path = atlas_engine.rollout_path().expect("rollout path");
     let rollout_text = read_rollout_text(&rollout_path).await?;

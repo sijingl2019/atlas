@@ -1,8 +1,8 @@
 // Modified by Atlas from upstream OpenAI Codex (Apache-2.0). See CONTEXT.md.
-use base64::Engine as _;
-use base64::engine::general_purpose::STANDARD;
 use atlas_engine_exec_server_protocol::JSONRPCErrorError;
 use atlas_engine_utils_path_uri::PathUri;
+use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD;
 use tokio::io;
 use tokio_util::io::ReaderStream;
 

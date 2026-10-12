@@ -13,6 +13,8 @@ export interface CachedContextUsage {
   used: number;
   size: number;
   cost: number;
+  /** ISO 4217 code `cost` is in; null/absent (every legacy entry) means USD. */
+  currency?: string | null;
   /** Last-write epoch ms — drives the startup prune. Absent on legacy entries. */
   t?: number;
 }

@@ -471,9 +471,17 @@ impl AgentManager {
         server: Arc<dyn AgentServer>,
         reuse: Reuse,
     ) -> Entry {
-        let (entry, connect_task, replaced, statuses) = {
+        let (entry, connect_task, replaced, failed, statuses) = {
             let mut entries = self.lock_entries();
+            // An attempt that has already failed is never handed out again,
+            // however recently. Its waiters hear the error as the connect
+            // resolves, but `watch_connect_result` evicts it on a task of its
+            // own, so a retry arriving in between found the dead entry still
+            // in the table and was handed the old failure back without a new
+            // attempt — reading as `Disconnected` all the while.
+            let failed = entries.get(&key).and_then(take_settled_failure);
             match entries.get(&key) {
+                _ if failed.is_some() => {}
                 Some(existing) if reuse == Reuse::Existing => return existing.clone(),
                 // A restart while a *young* connect is in flight is a no-op:
                 // that attempt *is* the restart, and tearing it down would
@@ -500,9 +508,17 @@ impl AgentManager {
                 started_at: Instant::now(),
             }));
             entries.insert(key.clone(), entry.clone());
-            (entry, connect_task, replaced, statuses)
+            (entry, connect_task, replaced, failed, statuses)
         };
 
+        // The failed attempt is no longer current, so its own watcher will
+        // stay silent; this is the one place left to announce it.
+        if let Some(error) = failed {
+            self.emit(AgentManagerEvent::ConnectionFailed {
+                agent: key.clone(),
+                error,
+            });
+        }
         if let Some(replaced) = replaced {
             // The replaced connection is unreachable from the map now, so
             // anything still pinning it would keep its process alive for good.
@@ -644,14 +660,13 @@ impl AgentManager {
                 return;
             };
             // The entry may have been replaced while connecting — by a restart,
-            // or by an uninstall. Anything it says now is about a connection
-            // nobody asked for.
-            if !this.is_current(&key, &entry) {
-                return;
-            }
-
+            // by an uninstall, or by a retry that found it already failed.
+            // Anything it says now is about a connection nobody asked for.
             match result {
                 Ok(state) => {
+                    if !this.is_current(&key, &entry) {
+                        return;
+                    }
                     let mut slot = lock(&entry);
                     if matches!(&*slot, AgentConnectionEntry::Connecting { .. }) {
                         *slot = AgentConnectionEntry::Connected(state);
@@ -660,17 +675,25 @@ impl AgentManager {
                     this.emit(AgentManagerEvent::Connected { agent: key });
                 }
                 Err(error) => {
-                    let mut slot = lock(&entry);
-                    if matches!(&*slot, AgentConnectionEntry::Connecting { .. }) {
-                        *slot = AgentConnectionEntry::Error {
-                            error: error.clone(),
-                        };
+                    // Checked, marked and dropped under one `entries` guard.
+                    // Marked first and dropped after, the entry read as
+                    // `Disconnected` while a request could still be handed
+                    // it; and `open_entry` evicts a failed entry itself, so
+                    // exactly one of the two must win and announce it.
+                    {
+                        let mut entries = this.lock_entries();
+                        let current = entries
+                            .get(&key)
+                            .is_some_and(|current| Arc::ptr_eq(current, &entry));
+                        if !current {
+                            return;
+                        }
+                        take_settled_failure(&entry);
+                        // Dropped from the table, not left as a tombstone:
+                        // whoever holds this entry sees the error, and the
+                        // next request starts fresh instead of replaying it.
+                        entries.remove(&key);
                     }
-                    drop(slot);
-                    // Dropped from the table, not left as a tombstone: whoever
-                    // holds this entry sees the error, and the next request
-                    // starts fresh instead of replaying it.
-                    this.lock_entries().remove(&key);
                     this.emit(AgentManagerEvent::ConnectionFailed { agent: key, error });
                     this.emit(AgentManagerEvent::ConnectionsChanged);
                 }
@@ -1166,6 +1189,24 @@ fn cancel_connect(entry: &Entry) {
     if let AgentConnectionEntry::Connecting { cancel, .. } = &*lock(entry) {
         cancel.abort();
     }
+}
+
+/// Why `entry`'s attempt failed, if it already has — marking a `Connecting`
+/// whose future resolved with an error as the `Error` it now is, so whoever
+/// still holds the entry reads it as failed rather than in flight.
+fn take_settled_failure(entry: &Entry) -> Option<LoadError> {
+    let mut slot = lock(entry);
+    let error = match &*slot {
+        AgentConnectionEntry::Error { error } => error.clone(),
+        AgentConnectionEntry::Connecting { connect_task, .. } => {
+            connect_task.peek()?.as_ref().err()?.clone()
+        }
+        AgentConnectionEntry::Connected(_) => return None,
+    };
+    *slot = AgentConnectionEntry::Error {
+        error: error.clone(),
+    };
+    Some(error)
 }
 
 /// The one line a session start writes: which agent, and whether it

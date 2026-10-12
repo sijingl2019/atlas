@@ -3,7 +3,9 @@ import { toast } from "sonner";
 import { createSelectors } from "@/lib/create-selectors";
 import { ACTION_BY_ID, type ActionId } from "../lib/actions";
 import { loadKeybindings, saveKeybindings } from "../lib/keybindings-api";
-import { resolveProfile, type ResolvedState } from "../lib/resolve";
+import { PRESET_BY_ID, type PresetId } from "../lib/presets";
+import { importProfile as parseProfile, type ImportResult } from "../lib/profile-transfer";
+import { baseChords, resolveProfile, type ResolvedState } from "../lib/resolve";
 import {
   DEFAULT_KEYBINDINGS_FILE,
   DEFAULT_PROFILE_ID,
@@ -30,11 +32,25 @@ interface KeybindingsState {
   resolved: ResolvedState;
   /** True while the recorder popup owns the keyboard; dispatchers stay silent. */
   recording: boolean;
+  /** No keybindings.json on disk yet: the first-run keymap question is due.
+   *  False until `load()` has answered, so a returning user is never asked
+   *  while the answer is in flight. */
+  firstRun: boolean;
   actions: {
     load: () => Promise<void>;
     setRecording: (on: boolean) => void;
     setActiveProfile: (id: string) => void;
     createProfile: (name: string) => string;
+    /** New profile layered on `presetId`, made active. Reuses an untouched
+     *  profile already based on it rather than stacking "VS Code 2". */
+    createProfileFromPreset: (presetId: PresetId) => string;
+    /** Change (or clear, with null) the preset under an existing profile. */
+    setProfilePreset: (id: string, presetId: PresetId | null) => void;
+    /** Parse an exported profile and add it as a new, active profile. */
+    importProfile: (text: string) => ImportResult;
+    /** Answer the first-run question: a preset, or null for "decide later".
+     *  Either way the file is written, which is what records the answer. */
+    completeOnboarding: (presetId: PresetId | null) => Promise<void>;
     duplicateProfile: (id: string, name?: string) => string | null;
     renameProfile: (id: string, name: string) => void;
     deleteProfile: (id: string) => void;
@@ -75,14 +91,15 @@ export const useKeybindingsStore = createSelectors(
     let saveTimer: ReturnType<typeof setTimeout> | null = null;
     let inFlight: Promise<void> | null = null;
 
-    const flush = async () => {
+    const flush = async (force = false) => {
       if (inFlight) await inFlight;
       const file = get().file;
-      if (file === lastSaved) return;
+      if (file === lastSaved && !force) return;
       inFlight = (async () => {
         try {
           const normalized = await saveKeybindings(file);
           lastSaved = normalized;
+          if (get().firstRun) set({ firstRun: false });
           // Only adopt Rust's normalised copy if nothing changed meanwhile.
           if (get().file === file) {
             set({ file: normalized, resolved: resolveProfile(activeProfile(normalized)) });
@@ -118,14 +135,42 @@ export const useKeybindingsStore = createSelectors(
       });
     };
 
+    const createFromPreset = (presetId: PresetId): string => {
+      const file = get().file;
+      const reusable = file.profiles.find(
+        (p) => p.basedOn === presetId && Object.keys(p.bindings).length === 0,
+      );
+      if (reusable) {
+        if (file.activeProfileId !== reusable.id) commit({ ...file, activeProfileId: reusable.id });
+        return reusable.id;
+      }
+      const id = newProfileId(file);
+      const label = PRESET_BY_ID.get(presetId)?.label ?? presetId;
+      commit({
+        ...file,
+        activeProfileId: id,
+        profiles: [
+          ...file.profiles,
+          { id, name: uniqueName(file, label), basedOn: presetId, bindings: {} },
+        ],
+      });
+      return id;
+    };
+
     const withBinding = (
       actionId: string,
-      update: (prev: string[] | null | undefined) => string[] | null | undefined,
+      update: (
+        prev: string[] | null | undefined,
+        base: readonly string[],
+      ) => string[] | null | undefined,
     ) =>
       editActive((p) => {
         const bindings = { ...p.bindings };
+        const def = ACTION_BY_ID[actionId as ActionId];
+        const preset = (p.basedOn && PRESET_BY_ID.get(p.basedOn)) || null;
         const next = update(
           Object.prototype.hasOwnProperty.call(bindings, actionId) ? bindings[actionId] : undefined,
+          def ? baseChords(def, preset) : [],
         );
         if (next === undefined) delete bindings[actionId];
         else bindings[actionId] = next;
@@ -139,6 +184,7 @@ export const useKeybindingsStore = createSelectors(
       warnings: [],
       resolved: resolveProfile(undefined),
       recording: false,
+      firstRun: false,
       actions: {
         load: async () => {
           try {
@@ -146,6 +192,7 @@ export const useKeybindingsStore = createSelectors(
             lastSaved = result.file;
             set({
               loaded: true,
+              firstRun: !result.exists,
               file: result.file,
               path: result.path,
               warnings: result.warnings,
@@ -175,6 +222,46 @@ export const useKeybindingsStore = createSelectors(
           });
           return id;
         },
+        createProfileFromPreset: (presetId) => createFromPreset(presetId),
+        setProfilePreset: (id, presetId) => {
+          const file = get().file;
+          const target = file.profiles.find((p) => p.id === id);
+          if (!target || target.builtIn || (target.basedOn ?? null) === presetId) return;
+          commit({
+            ...file,
+            profiles: file.profiles.map((p) => {
+              if (p.id !== id) return p;
+              const { basedOn: _drop, ...rest } = p;
+              return presetId ? { ...rest, basedOn: presetId } : rest;
+            }),
+          });
+        },
+        importProfile: (text) => {
+          const result = parseProfile(text);
+          if (!result.ok) return result;
+          const file = get().file;
+          const id = newProfileId(file);
+          commit({
+            ...file,
+            activeProfileId: id,
+            profiles: [
+              ...file.profiles,
+              { ...result.profile, id, name: uniqueName(file, result.profile.name) },
+            ],
+          });
+          return result;
+        },
+        completeOnboarding: async (presetId) => {
+          if (presetId) createFromPreset(presetId);
+          if (saveTimer) {
+            clearTimeout(saveTimer);
+            saveTimer = null;
+          }
+          // Hide the question now; a failed write toasts, and the question
+          // simply comes back next launch.
+          set({ firstRun: false });
+          await flush(true);
+        },
         duplicateProfile: (sourceId, name) => {
           const file = get().file;
           const source = file.profiles.find((p) => p.id === sourceId);
@@ -188,6 +275,7 @@ export const useKeybindingsStore = createSelectors(
               {
                 id,
                 name: uniqueName(file, name?.trim() || `${source.name} copy`),
+                ...(source.basedOn ? { basedOn: source.basedOn } : {}),
                 bindings: { ...source.bindings },
               },
             ],
@@ -228,14 +316,14 @@ export const useKeybindingsStore = createSelectors(
         setBinding: (actionId, combos) =>
           withBinding(actionId, () => (combos.length ? combos : null)),
         addBinding: (actionId, combo) =>
-          withBinding(actionId, (prev) => {
-            const base = prev === undefined ? defaultsFor(actionId) : (prev ?? []);
+          withBinding(actionId, (prev, defaults) => {
+            const base = prev === undefined ? [...defaults] : (prev ?? []);
             return base.includes(combo) ? base : [...base, combo];
           }),
         removeBinding: (actionId, combo) =>
-          withBinding(actionId, (prev) => {
+          withBinding(actionId, (prev, defaults) => {
             if (combo === undefined) return null;
-            const base = prev === undefined ? defaultsFor(actionId) : (prev ?? []);
+            const base = prev === undefined ? [...defaults] : (prev ?? []);
             const next = base.filter((c) => c !== combo);
             return next.length ? next : null;
           }),
@@ -245,10 +333,6 @@ export const useKeybindingsStore = createSelectors(
     };
   }),
 );
-
-function defaultsFor(actionId: ActionId): string[] {
-  return [...(ACTION_BY_ID[actionId]?.defaults ?? [])];
-}
 
 /** Reload from disk when the window regains focus — cheap stand-in for a file
  *  watcher, so a hand edit to keybindings.json lands without a relaunch. */

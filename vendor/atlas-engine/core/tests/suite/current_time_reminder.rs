@@ -7,9 +7,6 @@ use std::time::Duration;
 
 use anyhow::Result;
 use anyhow::anyhow;
-use chrono::DateTime;
-use chrono::Local;
-use chrono::Utc;
 use atlas_engine_core::SleepFuture;
 use atlas_engine_core::TimeFuture;
 use atlas_engine_core::TimeProvider;
@@ -25,6 +22,9 @@ use atlas_engine_protocol::protocol::AtlasEngineErrorInfo;
 use atlas_engine_protocol::protocol::EventMsg;
 use atlas_engine_protocol::protocol::Op;
 use atlas_engine_protocol::user_input::UserInput;
+use chrono::DateTime;
+use chrono::Local;
+use chrono::Utc;
 use core_test_support::assert_regex_match;
 use core_test_support::responses::ResponsesRequest;
 use core_test_support::responses::ev_assistant_message;
@@ -440,8 +440,10 @@ async fn time_provider_failure_stops_before_inference() -> Result<()> {
         }]))
         .await?;
 
-    let EventMsg::Error(error) =
-        wait_for_event(&test.atlas_engine, |event| matches!(event, EventMsg::Error(_))).await
+    let EventMsg::Error(error) = wait_for_event(&test.atlas_engine, |event| {
+        matches!(event, EventMsg::Error(_))
+    })
+    .await
     else {
         unreachable!();
     };
@@ -449,7 +451,10 @@ async fn time_provider_failure_stops_before_inference() -> Result<()> {
         error.message,
         "Fatal error: failed to read current time: test clock unavailable"
     );
-    assert_eq!(error.atlas_engine_error_info, Some(AtlasEngineErrorInfo::Other));
+    assert_eq!(
+        error.atlas_engine_error_info,
+        Some(AtlasEngineErrorInfo::Other)
+    );
 
     wait_for_event(&test.atlas_engine, |event| {
         matches!(event, EventMsg::TurnComplete(_))

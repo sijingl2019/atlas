@@ -69,14 +69,21 @@ async fn atlas_engine_returns_json_result(model: String) -> anyhow::Result<()> {
             return false;
         };
 
-        format.get("name") == Some(&serde_json::Value::String("atlas_engine_output_schema".into()))
+        format.get("name")
+            == Some(&serde_json::Value::String(
+                "atlas_engine_output_schema".into(),
+            ))
             && format.get("type") == Some(&serde_json::Value::String("json_schema".into()))
             && format.get("strict") == Some(&serde_json::Value::Bool(true))
             && format.get("schema") == Some(&expected_schema)
     };
     responses::mount_sse_once_match(&server, match_json_text_param, sse1).await;
 
-    let TestAtlasEngine { atlas_engine, config, .. } = test_atlas_engine().build(&server).await?;
+    let TestAtlasEngine {
+        atlas_engine,
+        config,
+        ..
+    } = test_atlas_engine().build(&server).await?;
     let cwd = config.cwd.clone();
     let (sandbox_policy, permission_profile) =
         turn_permission_fields(PermissionProfile::Disabled, cwd.as_path());

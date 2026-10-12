@@ -107,7 +107,9 @@ pub(crate) enum ToolRuntimePayload<'a> {
     McpToolCallEnd(&'a McpToolCallEndEvent),
     CollabAgentSpawnBegin(&'a atlas_engine_protocol::protocol::CollabAgentSpawnBeginEvent),
     CollabAgentSpawnEnd(&'a atlas_engine_protocol::protocol::CollabAgentSpawnEndEvent),
-    CollabAgentInteractionBegin(&'a atlas_engine_protocol::protocol::CollabAgentInteractionBeginEvent),
+    CollabAgentInteractionBegin(
+        &'a atlas_engine_protocol::protocol::CollabAgentInteractionBeginEvent,
+    ),
     CollabAgentInteractionEnd(&'a atlas_engine_protocol::protocol::CollabAgentInteractionEndEvent),
     CollabWaitingBegin(&'a atlas_engine_protocol::protocol::CollabWaitingBeginEvent),
     CollabWaitingEnd(&'a atlas_engine_protocol::protocol::CollabWaitingEndEvent),

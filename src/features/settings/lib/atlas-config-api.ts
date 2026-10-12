@@ -48,6 +48,12 @@ export function resetConfig(): Promise<{ settings: AppSettings; generation: numb
   return invoke("reset_atlas_config");
 }
 
+/** The current config snapshot — its `status` says whether `config.toml`
+ *  failed to load at startup. */
+export function getConfigInfo(): Promise<ConfigInfo | null> {
+  return invoke<ConfigInfo | null>("get_atlas_config_info");
+}
+
 export function openConfigFile(): Promise<void> {
   return invoke("open_atlas_config");
 }

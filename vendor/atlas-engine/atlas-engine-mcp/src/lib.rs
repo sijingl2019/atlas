@@ -1,8 +1,8 @@
 // Modified by Atlas from upstream OpenAI Codex (Apache-2.0). See CONTEXT.md.
+pub use atlas_engine_rmcp_client::McpProtocolMode;
 pub use binding::McpBinding;
 pub use binding::PreparedMcpCall;
 pub use client_capabilities::client_mcp_extensions;
-pub use atlas_engine_rmcp_client::McpProtocolMode;
 pub use connection_manager::tool_is_model_visible;
 pub use elicitation::ElicitationLifecycle;
 pub use elicitation::ElicitationReviewRequest;
@@ -45,6 +45,8 @@ pub use mcp::McpConfig;
 pub use mcp::ToolPluginProvenance;
 pub use server::EffectiveMcpServer;
 
+/// Backward-compatible name for the Atlas Agent Apps runtime context key builder.
+pub use atlas_engine_connectors::connector_runtime_context_key as atlas_apps_tools_cache_key;
 pub use auth_elicitation::AtlasAppsAuthElicitation;
 pub use auth_elicitation::AtlasAppsAuthElicitationPlan;
 pub use auth_elicitation::AtlasAppsConnectorAuthFailure;
@@ -54,8 +56,6 @@ pub use auth_elicitation::auth_elicitation_id;
 pub use auth_elicitation::build_auth_elicitation;
 pub use auth_elicitation::build_auth_elicitation_plan;
 pub use auth_elicitation::connector_auth_failure_from_tool_result;
-/// Backward-compatible name for the Atlas Agent Apps runtime context key builder.
-pub use atlas_engine_connectors::connector_runtime_context_key as atlas_apps_tools_cache_key;
 pub use mcp::atlas_apps_mcp_server_config;
 pub use mcp::configured_mcp_servers;
 pub use mcp::effective_mcp_servers;
@@ -90,12 +90,12 @@ pub use mcp::McpPermissionPromptAutoApproveContext;
 pub use mcp::mcp_permission_prompt_is_auto_approved;
 pub use mcp::qualified_mcp_tool_name_prefix;
 
+pub(crate) mod atlas_apps;
 pub(crate) mod auth_elicitation;
 mod binding;
 pub(crate) mod binding_clients;
 mod catalog;
 mod client_capabilities;
-pub(crate) mod atlas_apps;
 pub(crate) mod connection_manager;
 pub(crate) mod elicitation;
 pub(crate) mod mcp;

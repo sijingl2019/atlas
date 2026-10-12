@@ -1,20 +1,20 @@
 // Modified by Atlas from upstream OpenAI Codex (Apache-2.0). See CONTEXT.md.
 use anyhow::Context;
 use anyhow::Result;
-use base64::Engine;
 use atlas_engine_config::types::AuthCredentialsStoreMode;
+use atlas_engine_login::ATLAS_AGENT_ACCESS_TOKEN_ENV_VAR;
 use atlas_engine_login::AuthDotJson;
 use atlas_engine_login::AuthKeyringBackendKind;
 use atlas_engine_login::AuthManager;
 use atlas_engine_login::CLIENT_ID;
 use atlas_engine_login::CLIENT_ID_OVERRIDE_ENV_VAR;
-use atlas_engine_login::ATLAS_AGENT_ACCESS_TOKEN_ENV_VAR;
 use atlas_engine_login::REVOKE_TOKEN_URL_OVERRIDE_ENV_VAR;
 use atlas_engine_login::logout_with_revoke;
 use atlas_engine_login::save_auth;
 use atlas_engine_login::token_data::IdTokenInfo;
 use atlas_engine_login::token_data::TokenData;
 use atlas_engine_protocol::auth::AuthMode;
+use base64::Engine;
 use core_test_support::skip_if_no_network;
 use pretty_assertions::assert_eq;
 use serde_json::Value;

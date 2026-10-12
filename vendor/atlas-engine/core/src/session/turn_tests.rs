@@ -45,7 +45,10 @@ fn post_sampling_token_estimate_is_disabled_by_always_on_sinks() {
     let feedback = atlas_engine_feedback::AtlasEngineFeedback::new();
     let subscriber = tracing_subscriber::registry()
         .with(feedback.logger_layer())
-        .with(tracing_subscriber::fmt::layer().with_filter(atlas_engine_state::log_db::default_filter()));
+        .with(
+            tracing_subscriber::fmt::layer()
+                .with_filter(atlas_engine_state::log_db::default_filter()),
+        );
 
     tracing::subscriber::with_default(subscriber, || {
         tracing::callsite::rebuild_interest_cache();

@@ -2,9 +2,10 @@
 //!
 //! Atlas previously shipped no menu, so Tauri installed its *default* menu —
 //! whose Window ▸ Close item (Cmd+W) calls `performClose:` on the key window.
-//! In the main webview that's harmless: the React hotkey handler
-//! (`useHotkeys` in `App.tsx`) catches Cmd+W and `preventDefault()`s it, so
-//! WebKit reports the key equivalent as handled and the menu never fires.
+//! In the main webview that's harmless: the keybinding dispatcher
+//! (`useActionHotkeys` in `App.tsx`) catches the close-tab chord and
+//! `preventDefault()`s it, so WebKit reports the key equivalent as handled and
+//! the menu never fires.
 //!
 //! But the embedded browser (`commands::browser`) is a *separate* native child
 //! webview loading remote pages. Those pages don't preventDefault Cmd+W, so the
@@ -17,12 +18,21 @@
 //! `atlas:close-active-tab` to the main webview, which closes the active *tab*
 //! instead of the window. The main-webview preventDefault path is unchanged, so
 //! this only takes effect when a child webview has focus.
+//!
+//! The item's accelerator follows the user's `tabs.close` binding
+//! (`keybindings_set_close_tab_accelerator`), or the embedded browser would
+//! keep closing tabs on a chord the user retired.
 
 use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
+use tauri::Manager;
 
 /// Menu item id for the Cmd+W "close tab" action. Matched in the
 /// `on_menu_event` handler in `lib.rs`.
 pub const CLOSE_TAB_ID: &str = "atlas-close-tab";
+
+/// The Close Tab item, managed so its accelerator can be re-pointed without
+/// rebuilding the whole menu. Only exists where the menu does (macOS).
+pub struct CloseTabItem(pub MenuItem<tauri::Wry>);
 
 pub fn build(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
     // App menu (first submenu → becomes the macOS application menu).
@@ -77,7 +87,10 @@ pub fn build(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
 
     // Window menu — Cmd+W is our custom "close tab" item, NOT the predefined
     // close-window (which would tear down the app from a focused child webview).
+    // Starts on the default chord; the renderer re-points it once it has read
+    // keybindings.json.
     let close_tab = MenuItem::with_id(app, CLOSE_TAB_ID, "Close Tab", true, Some("CmdOrCtrl+W"))?;
+    app.manage(CloseTabItem(close_tab.clone()));
     let window_menu = Submenu::with_items(
         app,
         "Window",

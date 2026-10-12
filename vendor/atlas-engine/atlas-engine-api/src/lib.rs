@@ -2,8 +2,8 @@
 // Atlas's Chat Completions dialect for the Atlas gateway (spec D3).
 pub mod atlas_chat;
 // Atlas's gateway error-classification arm (spec D13).
-pub mod atlas_gateway;
 pub(crate) mod api_bridge;
+pub mod atlas_gateway;
 pub(crate) mod auth;
 pub(crate) mod common;
 pub(crate) mod endpoint;
@@ -24,6 +24,14 @@ pub use atlas_engine_client::ReqwestTransport;
 pub use atlas_engine_client::TransportError;
 
 pub use crate::api_bridge::map_api_error;
+pub use crate::atlas_chat::BuiltChatRequest;
+pub use crate::atlas_chat::ChatDialect;
+pub use crate::atlas_chat::ChatRequestInput;
+pub use crate::atlas_chat::DEFAULT_MAX_OUTPUT_TOKENS;
+pub use crate::atlas_chat::GATEWAY_PROMPT_TOKEN_LIMIT;
+pub use crate::atlas_chat::GatewayPromptUsage;
+pub use crate::atlas_chat::build_chat_request;
+pub use crate::atlas_chat::gateway_prompt_usage;
 pub use crate::auth::AgentIdentityTelemetry;
 pub use crate::auth::AuthError;
 pub use crate::auth::AuthHeaderTelemetry;
@@ -88,14 +96,6 @@ pub use crate::images::ImageGenerationRequest;
 pub use crate::images::ImageQuality;
 pub use crate::images::ImageResponse;
 pub use crate::images::ImageUrl;
-pub use crate::atlas_chat::BuiltChatRequest;
-pub use crate::atlas_chat::DEFAULT_MAX_OUTPUT_TOKENS;
-pub use crate::atlas_chat::GATEWAY_PROMPT_TOKEN_LIMIT;
-pub use crate::atlas_chat::GatewayPromptUsage;
-pub use crate::atlas_chat::ChatDialect;
-pub use crate::atlas_chat::ChatRequestInput;
-pub use crate::atlas_chat::build_chat_request;
-pub use crate::atlas_chat::gateway_prompt_usage;
 pub use crate::provider::Provider;
 pub use crate::provider::RetryConfig;
 pub use crate::provider::is_azure_responses_provider;

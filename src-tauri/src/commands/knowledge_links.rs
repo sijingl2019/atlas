@@ -121,10 +121,7 @@ pub async fn knowledge_resolve_link(
             .find(|s| from_id.starts_with(&format!("{}/", s.name)));
         let (root, prefix) = source
             .map(|s| (std::path::PathBuf::from(&s.path), s.name.clone()))
-            .unwrap_or((
-                std::path::Path::new(&project_path).join(".atlas/knowledge"),
-                String::new(),
-            ));
+            .unwrap_or((knowledge_dir(&project_path), String::new()));
         let root = root.canonicalize().map_err(|e| e.to_string())?;
         fn walk(
             root: &std::path::Path,
@@ -181,6 +178,10 @@ pub async fn knowledge_resolve_link(
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+fn knowledge_dir(project_path: &str) -> std::path::PathBuf {
+    atlas_profile::dir_in(std::path::Path::new(project_path)).join("knowledge")
 }
 
 /// One-shot rebuild — walks every .md file, parses refs, builds the

@@ -420,9 +420,9 @@ impl AnalyticsEventsClient {
     }
 
     pub fn track_turn_atlas_engine_error(&self, fact: TurnAtlasEngineErrorFact) {
-        self.record_fact(AnalyticsFact::Custom(CustomAnalyticsFact::TurnAtlasEngineError(
-            Box::new(fact),
-        )));
+        self.record_fact(AnalyticsFact::Custom(
+            CustomAnalyticsFact::TurnAtlasEngineError(Box::new(fact)),
+        ));
     }
 
     pub fn track_plugin_installed(&self, plugin: PluginTelemetryMetadata) {

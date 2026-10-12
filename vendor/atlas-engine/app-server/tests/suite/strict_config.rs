@@ -14,14 +14,16 @@ foo = "bar"
 "#,
     )?;
 
-    let output = Command::new(atlas_engine_utils_cargo_bin::cargo_bin("atlas-engine-app-server")?)
-        .env("ATLAS_AGENT_HOME", atlas_agent_home.path())
-        .env(
-            "ATLAS_AGENT_APP_SERVER_MANAGED_CONFIG_PATH",
-            atlas_agent_home.path().join("managed_config.toml"),
-        )
-        .args(["--strict-config", "--listen", "off"])
-        .output()?;
+    let output = Command::new(atlas_engine_utils_cargo_bin::cargo_bin(
+        "atlas-engine-app-server",
+    )?)
+    .env("ATLAS_AGENT_HOME", atlas_agent_home.path())
+    .env(
+        "ATLAS_AGENT_APP_SERVER_MANAGED_CONFIG_PATH",
+        atlas_agent_home.path().join("managed_config.toml"),
+    )
+    .args(["--strict-config", "--listen", "off"])
+    .output()?;
 
     assert!(!output.status.success());
     let stderr = String::from_utf8(output.stderr)?;
@@ -40,16 +42,21 @@ fn managed_auth_requirements_fail_closed_for_standalone_app_server() -> Result<(
         "allowed_login_methods = [\"chatgpt\"]\nallowed_chatgpt_workspaces = []\n",
     ] {
         let atlas_agent_home = TempDir::new()?;
-        std::fs::write(atlas_agent_home.path().join("requirements.toml"), requirements)?;
+        std::fs::write(
+            atlas_agent_home.path().join("requirements.toml"),
+            requirements,
+        )?;
 
-        let output = Command::new(atlas_engine_utils_cargo_bin::cargo_bin("atlas-engine-app-server")?)
-            .env("ATLAS_AGENT_HOME", atlas_agent_home.path())
-            .env(
-                "ATLAS_AGENT_APP_SERVER_MANAGED_CONFIG_PATH",
-                atlas_agent_home.path().join("managed_config.toml"),
-            )
-            .args(["--listen", "off"])
-            .output()?;
+        let output = Command::new(atlas_engine_utils_cargo_bin::cargo_bin(
+            "atlas-engine-app-server",
+        )?)
+        .env("ATLAS_AGENT_HOME", atlas_agent_home.path())
+        .env(
+            "ATLAS_AGENT_APP_SERVER_MANAGED_CONFIG_PATH",
+            atlas_agent_home.path().join("managed_config.toml"),
+        )
+        .args(["--listen", "off"])
+        .output()?;
 
         assert!(!output.status.success());
         let stderr = String::from_utf8(output.stderr)?;

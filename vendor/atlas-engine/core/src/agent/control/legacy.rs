@@ -6,7 +6,10 @@ use atlas_engine_thread_store::PersistContext;
 impl AgentControl {
     /// Submit a shutdown request for a live agent without marking it explicitly closed in
     /// persisted spawn-edge state.
-    pub(crate) async fn shutdown_live_agent(&self, agent_id: ThreadId) -> AtlasEngineResult<String> {
+    pub(crate) async fn shutdown_live_agent(
+        &self,
+        agent_id: ThreadId,
+    ) -> AtlasEngineResult<String> {
         let state = self.upgrade()?;
         let result = if let Ok(thread) = state.get_thread(agent_id).await {
             thread
@@ -64,7 +67,8 @@ impl AgentControl {
                 }
             }
             Err(err)
-                if known_agent && matches!(err.details(), AtlasEngineErrorDetails::ThreadNotFound(_)) =>
+                if known_agent
+                    && matches!(err.details(), AtlasEngineErrorDetails::ThreadNotFound(_)) =>
             {
                 if let Some(agent_graph_store) = state.agent_graph_store()
                     && let Err(err) = agent_graph_store
@@ -89,7 +93,8 @@ impl AgentControl {
                 if known_agent
                     && matches!(
                         err.details(),
-                        AtlasEngineErrorDetails::ThreadNotFound(_) | AtlasEngineErrorDetails::InternalAgentDied
+                        AtlasEngineErrorDetails::ThreadNotFound(_)
+                            | AtlasEngineErrorDetails::InternalAgentDied
                     ) =>
             {
                 Ok(String::new())
@@ -99,7 +104,10 @@ impl AgentControl {
     }
 
     /// Shut down `agent_id` and any live descendants reachable from the in-memory spawn tree.
-    pub(crate) async fn shutdown_agent_tree(&self, agent_id: ThreadId) -> AtlasEngineResult<String> {
+    pub(crate) async fn shutdown_agent_tree(
+        &self,
+        agent_id: ThreadId,
+    ) -> AtlasEngineResult<String> {
         let descendant_ids = self.live_thread_spawn_descendants(agent_id).await?;
         let result = self.shutdown_live_agent(agent_id).await;
         for descendant_id in descendant_ids {
@@ -108,7 +116,8 @@ impl AgentControl {
                 Err(err)
                     if matches!(
                         err.details(),
-                        AtlasEngineErrorDetails::ThreadNotFound(_) | AtlasEngineErrorDetails::InternalAgentDied
+                        AtlasEngineErrorDetails::ThreadNotFound(_)
+                            | AtlasEngineErrorDetails::InternalAgentDied
                     ) => {}
                 Err(err) => return Err(err),
             }

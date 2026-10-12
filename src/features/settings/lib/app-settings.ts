@@ -69,16 +69,37 @@ export interface AppSettings {
    *  `<next_steps>` block (uses the live session context, no BYOK); "off"
    *  disables it. (Legacy "parse"/"llm" values are treated as enabled.) */
   adaptiveSuggestions: "off" | "agent";
+  /** What picking another agent does to a chat that has a conversation (see
+   *  `switch-agent.ts`): "reset" (default) switches in place and starts over,
+   *  "new-tab" keeps it and opens the new agent in a new tab, "handoff"
+   *  switches in place and attaches it to the next message. */
+  agentSwitchBehavior: "new-tab" | "handoff" | "reset";
+  /** Before switching agents on a chat with a conversation, send the agent
+   *  being left `/remember` (when it advertises it) and wait for it
+   *  (`switch-agent.ts`). OFF by default — it costs a turn. */
+  rememberBeforeSwitch: boolean;
   /** Inline Git blame in the code editor — dim author/age/summary annotation
    *  trailing the active line. Off = the CodeMirror extension isn't loaded. */
   gitBlameInline: boolean;
+  /** Background `git fetch` of the open project (on open, on window focus,
+   *  every few minutes) so the Pull badge reflects the remote. Never pulls. */
+  gitAutoFetch: boolean;
   /** Auto-update master switch. ON (default) → every startup checks PostHog
    *  remote config and prompts when a newer signed DMG is available. */
   autoUpdate: boolean;
+  /** Keep the computer awake while an Atlas agent is actively running.
+   *  Default OFF. Prevents idle system sleep; display can still turn off. */
+  keepAwakeWhileRunning: boolean;
   /** Let the Atlas Agent's engine sync OpenAI's curated plugin catalogue
    *  (github.com/openai/plugins) when it starts. OFF by default — it is a
    *  network fetch at every launch. Applies the next time the agent starts. */
   curatedPluginSync: boolean;
+  /** Mirror the active project's convention files (`CLAUDE.md`,
+   *  `.claude/rules/`) into a marked block of its `AGENTS.md`, kept current as
+   *  they change, for any agent that reads `AGENTS.md`
+   *  (`commands::instruction_sync`). OFF by default — it writes into the
+   *  repository. Switching it off takes the block back out. */
+  instructionSync: boolean;
   /** A version the user chose to "Ignore" in the update prompt; the startup
    *  check won't re-prompt for exactly this version. */
   updaterIgnoredVersion: string | null;
@@ -111,10 +132,15 @@ export interface AppSettings {
    *  (ADR-0014). Off: new sessions are not offered the tools and every call
    *  in a running one is refused. Default ON. */
   agentOrgAccess: boolean;
-  /** Terminal notifications master switch: a command finishing (failed, or
-   *  longer than `terminalNotifyMinDurationMs`) or wanting input raises an
-   *  in-app notification, a toast when the terminal is off screen, and a
-   *  native notification when Atlas is not the front app. */
+  /** Let agents search this project's code through Atlas's code tool server:
+   *  `grep` and `find_files`, in-process, respecting .gitignore and never
+   *  reading secret files (ADR-0015). Off: new sessions are not offered the
+   *  tools and every call in a running one is refused. Default ON. */
+  agentCodeTools: boolean;
+  /** "Command finished" — a successful command longer than
+   *  `terminalNotifyMinDurationMs` raises a notification. (Once the terminal
+   *  master switch; `notificationsEnabled` is the master now, and this is the
+   *  per-kind switch the catalog names for `terminal-done`.) */
   terminalNotifications: boolean;
   /** A successful command shorter than this never notifies. */
   terminalNotifyMinDurationMs: number;
@@ -122,9 +148,10 @@ export interface AppSettings {
   terminalNotifyOnFailure: boolean;
   /** Notify when a command wants input (password prompt, bell, OSC 9/777). */
   terminalNotifyOnAttention: boolean;
-  /** Also raise a macOS notification when the window is not focused. */
+  /** Legacy (pre-tier) terminal OS-banner switch. Read once by the migration
+   *  into the `notify*Native` tier keys; nothing reads it afterwards. */
   terminalNotifyNative: boolean;
-  /** Play a short chime with the notification. */
+  /** Legacy (pre-tier) terminal sound switch — migrated like the one above. */
   terminalNotifySound: boolean;
   /** Shell a new terminal launches on Windows. Ignored on macOS/Linux, which
    *  run `$SHELL`. */
@@ -139,29 +166,41 @@ export interface AppSettings {
   terminalLineHeight: number;
   /** `normal`, `bold`, or `100`–`900`. */
   terminalFontWeight: string;
+  /** Notifications master switch: off silences every kind except the
+   *  not-switchable ones (Atlas signed out). */
+  notificationsEnabled: boolean;
+  /** Per urgency tier (`NotificationTier`): allow the OS banner (still only
+   *  when away) and allow sound. Every catalog kind follows its tier. */
+  notifyNeedsYouNative: boolean;
+  notifyNeedsYouSound: boolean;
+  notifyOutcomeNative: boolean;
+  notifyOutcomeSound: boolean;
+  notifyWarningNative: boolean;
+  notifyWarningSound: boolean;
+  notifyTeamNative: boolean;
+  notifyTeamSound: boolean;
+  /** An agent turn that finished faster than this stays quiet. 0 = off.
+   *  Failures and requests for the user ignore it. */
+  notifyAgentMinDurationMs: number;
+  /** Models starred in the composer's model picker, as `agentType:modelId`. */
+  favoriteModels: string[];
+  /** Allow once / Deny on permission banners (ATL-381 reads this). */
+  notifyPermissionActions: boolean;
+  /** The legacy terminal and agent choices have been folded into the keys
+   *  above (`migrateNotificationSettings`). */
+  notificationsMigrated: boolean;
+  /** Notification kind ids switched off in Settings (one switch per kind that
+   *  is not `locked`). Unknown ids are ignored. */
+  notifyDisabledKinds: string[];
+  /** The earlier per-kind switches have been folded into `notifyDisabledKinds`
+   *  (`migrateNotificationSettings`). */
+  notifyKindsMigrated: boolean;
 }
 
-/** The terminal notifier's view of settings — flat keys on the wire (the
- *  Rust side writes top-level `[settings]` keys only), grouped here. */
-export interface TerminalNotificationPrefs {
-  enabled: boolean;
-  minDurationMs: number;
-  onFailure: boolean;
-  onAttention: boolean;
-  native: boolean;
-  sound: boolean;
-}
-
-export function terminalNotificationPrefs(s: AppSettings): TerminalNotificationPrefs {
-  return {
-    enabled: s.terminalNotifications,
-    minDurationMs: s.terminalNotifyMinDurationMs,
-    onFailure: s.terminalNotifyOnFailure,
-    onAttention: s.terminalNotifyOnAttention,
-    native: s.terminalNotifyNative,
-    sound: s.terminalNotifySound,
-  };
-}
+/** Settings keys holding a plain on/off — the tier banner and sound switches name these. */
+export type BooleanSettingKey = {
+  [K in keyof AppSettings]: AppSettings[K] extends boolean ? K : never;
+}[keyof AppSettings];
 
 export const DEFAULT_SETTINGS: AppSettings = {
   autoAddAtlasGitignore: true,
@@ -178,15 +217,21 @@ export const DEFAULT_SETTINGS: AppSettings = {
   iconTheme: "material-icon-theme",
   appIcon: DEFAULT_APP_ICON,
   adaptiveSuggestions: "agent",
+  agentSwitchBehavior: "reset",
+  rememberBeforeSwitch: false,
   gitBlameInline: true,
+  gitAutoFetch: true,
+  keepAwakeWhileRunning: false,
   autoUpdate: true,
   curatedPluginSync: false,
+  instructionSync: false,
   updaterIgnoredVersion: null,
   enterToSend: true,
   graphDefault3d: false,
   defaultAgent: NATIVE_AGENT_ID,
   agentUiNavigation: true,
   agentOrgAccess: true,
+  agentCodeTools: true,
   terminalNotifications: true,
   terminalNotifyMinDurationMs: 10_000,
   terminalNotifyOnFailure: true,
@@ -198,4 +243,19 @@ export const DEFAULT_SETTINGS: AppSettings = {
   terminalFontSize: 13,
   terminalLineHeight: 1.4,
   terminalFontWeight: "normal",
+  notificationsEnabled: true,
+  notifyNeedsYouNative: true,
+  notifyNeedsYouSound: true,
+  notifyOutcomeNative: true,
+  notifyOutcomeSound: true,
+  notifyWarningNative: false,
+  notifyWarningSound: false,
+  notifyTeamNative: true,
+  notifyTeamSound: true,
+  notifyAgentMinDurationMs: 0,
+  favoriteModels: [],
+  notifyPermissionActions: true,
+  notificationsMigrated: false,
+  notifyDisabledKinds: [],
+  notifyKindsMigrated: false,
 };

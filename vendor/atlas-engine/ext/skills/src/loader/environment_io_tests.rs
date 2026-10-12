@@ -102,7 +102,8 @@ async fn loads_nearest_plugin_namespaces_without_reading_unused_sibling_manifest
     let mut expected_manifest_reads = [&outer_root, &inner_root]
         .into_iter()
         .map(|plugin_root| {
-            PathUri::from_host_native_path(plugin_root.join(".atlas-agent-plugin/plugin.json")).unwrap()
+            PathUri::from_host_native_path(plugin_root.join(".atlas-agent-plugin/plugin.json"))
+                .unwrap()
         })
         .collect::<Vec<_>>();
     expected_manifest_reads.sort_by_key(ToString::to_string);

@@ -14,6 +14,7 @@ export const TAB_TYPES = [
   "media",
   "svg",
   "pdf",
+  "notebook",
   "unsupported",
   "usage",
   "artifacts",

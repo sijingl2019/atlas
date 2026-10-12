@@ -10,15 +10,17 @@ if [[ "$(uname -s)" == "Darwin" && -z "${SDKROOT:-}" ]]; then
 fi
 
 # A SUBSET of CI, not a replica. CI (.github/workflows/ci.yml) is the
-# authority; this is the quick local pass over the same test suites. What it
-# leaves out:
+# authority; this is the quick local pass over the same test suites. For the
+# replica — each crate from its own directory, clippy included — run
+# `bun run ci:local`. What this leaves out:
 #   - clippy. CI runs one pass per crate: `cargo clippy --locked --all-targets`,
 #     plus `-- -D warnings` for the crates flagged `clippy: true` in the
 #     matrix, and plain for the app. Run those by hand for a crate you touched.
 #   - atlas-kb-server, which is workspace-excluded and compiled at runtime by
 #     `knowledge_export`; CI tests it and builds its release profile.
 #   - Linux-only paths (the engine's bubblewrap sandbox in engine_turn.rs):
-#     a Mac run cannot exercise them. `atlas-linux ci atlas-native-agent`.
+#     a Mac run cannot exercise them. `bun run ci:local atlas-native-agent` runs
+#     that job in a Linux container.
 #   - the frontend (`bun run test` and friends).
 #
 # One real difference in what it DOES run: the atlas-* crates are tested in

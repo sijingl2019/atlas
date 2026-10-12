@@ -5,7 +5,7 @@ use rmcp::model::CallToolResult;
 use serde_json::{json, Value};
 use uuid::Uuid;
 
-use super::super::cloud::{OrgConversation, NewPage};
+use super::super::cloud::{NewPage, OrgConversation};
 use super::super::OrgScope;
 use super::diagram::diagram;
 use super::{conversation_json, is_id, resolve_conversation, tool_error, tool_json, OrgTools};
@@ -30,22 +30,40 @@ impl OrgTools {
     /// the Space's refusal, so the model can say what to do. The conversation
     /// list is chat's, so a session whose organisation chat is not on is
     /// refused before anything is created.
-    pub(super) async fn create_page(&self, scope: &OrgScope, conversation: &str, name: &str) -> CallToolResult {
+    pub(super) async fn create_page(
+        &self,
+        scope: &OrgScope,
+        conversation: &str,
+        name: &str,
+    ) -> CallToolResult {
         if name.encode_utf16().count() > PAGE_NAME_MAX {
-            return tool_error(format!("a page's `name` is at most {PAGE_NAME_MAX} characters; shorten it"));
+            return tool_error(format!(
+                "a page's `name` is at most {PAGE_NAME_MAX} characters; shorten it"
+            ));
         }
-        let conversation = match self.joined_conversation(scope, conversation, "add a page to", "created").await {
+        let conversation = match self
+            .joined_conversation(scope, conversation, "add a page to", "created")
+            .await
+        {
             Ok(one) => one,
             Err(answer) => return answer,
         };
-        let page = NewPage { org_id: &scope.org_id, conversation_id: &conversation.id, name };
+        let page = NewPage {
+            org_id: &scope.org_id,
+            conversation_id: &conversation.id,
+            name,
+        };
         let page_id = match self.cloud.create_page(page).await {
             Ok(id) => id,
             Err(e) => return tool_error(e.to_string()),
         };
         // The roster only names the people in a DM; when it cannot be read,
         // they keep their ids and the page is still reported.
-        let roster = if conversation.member_ids.is_some() { self.cloud.members(&scope.org_id).await.ok() } else { None };
+        let roster = if conversation.member_ids.is_some() {
+            self.cloud.members(&scope.org_id).await.ok()
+        } else {
+            None
+        };
         tool_json(json!({
             "page_id": page_id,
             "conversation": conversation_json(&conversation, roster.as_deref()),
@@ -65,10 +83,17 @@ impl OrgTools {
         verb: &str,
         outcome: &str,
     ) -> Result<OrgConversation, CallToolResult> {
-        let conversations = self.cloud.conversations(&scope.org_id).await.map_err(|e| tool_error(e.to_string()))?;
+        let conversations = self
+            .cloud
+            .conversations(&scope.org_id)
+            .await
+            .map_err(|e| tool_error(e.to_string()))?;
         let conversation = resolve_conversation(&conversations, query)?;
         if !conversation.caller_is_member {
-            let named = conversation.name.as_deref().map_or_else(|| conversation.id.clone(), |n| format!("#{n}"));
+            let named = conversation
+                .name
+                .as_deref()
+                .map_or_else(|| conversation.id.clone(), |n| format!("#{n}"));
             return Err(tool_error(format!(
                 "you are not a member of {named}, so you cannot {verb} its Space; ask the user to join it \
                  first. Nothing was {outcome}."
@@ -114,12 +139,17 @@ impl OrgTools {
             Ok(document) => document,
             Err(refusal) => return tool_error(format!("{refusal}. Nothing was drawn.")),
         };
-        let conversation = match self.joined_conversation(scope, conversation, "draw on", "drawn").await {
+        let conversation = match self
+            .joined_conversation(scope, conversation, "draw on", "drawn")
+            .await
+        {
             Ok(one) => one,
             Err(answer) => return answer,
         };
         let Some(window) = &self.window else {
-            return tool_error("the Atlas window is not available to draw on the page. Nothing was drawn.");
+            return tool_error(
+                "the Atlas window is not available to draw on the page. Nothing was drawn.",
+            );
         };
         let asked = UiRequest {
             request_id: Uuid::new_v4(),

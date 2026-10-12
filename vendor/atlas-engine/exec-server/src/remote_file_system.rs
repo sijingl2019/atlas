@@ -2,9 +2,9 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use atlas_engine_utils_path_uri::PathUri;
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
-use atlas_engine_utils_path_uri::PathUri;
 use tokio::io;
 use tokio::sync::Mutex;
 use tokio::sync::OnceCell;

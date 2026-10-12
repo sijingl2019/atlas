@@ -7,6 +7,8 @@ import type { KeybindingsFile } from "./types";
 export interface KeybindingsLoadResult {
   file: KeybindingsFile;
   path: string;
+  /** False until the file has been written once — the first-run signal. */
+  exists: boolean;
   warnings: string[];
 }
 
@@ -20,4 +22,9 @@ export function saveKeybindings(file: KeybindingsFile): Promise<KeybindingsFile>
 
 export function openKeybindingsFile(): Promise<void> {
   return invoke("keybindings_open");
+}
+
+/** Re-point the native Close Tab menu item (macOS); `null` leaves it unbound. */
+export function setCloseTabAccelerator(accelerator: string | null): Promise<void> {
+  return invoke("keybindings_set_close_tab_accelerator", { accelerator });
 }

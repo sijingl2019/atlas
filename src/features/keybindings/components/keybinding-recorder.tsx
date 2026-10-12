@@ -3,7 +3,14 @@ import { Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { KbdKeys } from "@/ui/kbd";
 import { ACTION_BY_ID, type ActionId } from "../lib/actions";
-import { type Combo, comboFromEvent, displayKeys, serializeCombo } from "../lib/combo";
+import {
+  type Combo,
+  comboFromEvent,
+  displayKeys,
+  modifiersFromEvent,
+  serializeCombo,
+} from "../lib/combo";
+import { reservedReason } from "../lib/reserved";
 import { bindingsForCombo } from "../lib/resolve";
 import { useKeybindingsStore } from "../stores/keybindings-store";
 
@@ -68,15 +75,7 @@ export function KeybindingRecorder({
         setCombo(next);
         setHeld([]);
       } else {
-        setHeld(
-          displayKeys({
-            code: "",
-            meta: e.metaKey,
-            ctrl: e.ctrlKey && !e.metaKey,
-            shift: e.shiftKey,
-            alt: e.altKey,
-          }).slice(0, -1),
-        );
+        setHeld(displayKeys({ code: "", ...modifiersFromEvent(e) }).slice(0, -1));
       }
     };
     const onKeyUp = () => setHeld([]);
@@ -97,6 +96,7 @@ export function KeybindingRecorder({
   };
 
   const same = combo ? bindingsForCombo(resolved.list, combo, actionId) : [];
+  const reserved = combo ? reservedReason(combo) : null;
   const hard = same.filter(
     (b) => b.when === def.when || b.when === "global" || def.when === "global",
   );
@@ -173,7 +173,11 @@ export function KeybindingRecorder({
               {combo ? <KbdKeys keys={displayKeys(combo)} /> : null}
             </div>
             <div className="flex h-4 items-center justify-center text-xs">
-              {combo && same.length > 0 ? (
+              {reserved ? (
+                <span className="text-[var(--atlas-status-warning-foreground)]">
+                  {reserved} Atlas may never see it.
+                </span>
+              ) : combo && same.length > 0 ? (
                 <button
                   type="button"
                   onClick={() => onShowSame(combo)}

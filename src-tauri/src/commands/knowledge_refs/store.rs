@@ -43,9 +43,7 @@ CREATE TABLE IF NOT EXISTS meta (
 const BACKFILL_VERSION_KEY: &str = "backfill_version";
 
 pub fn db_path(project_path: &str) -> PathBuf {
-    Path::new(project_path)
-        .join(".atlas")
-        .join("knowledge-refs.db")
+    atlas_profile::dir_in(Path::new(project_path)).join("knowledge-refs.db")
 }
 
 /// One (note, kind) a session referenced.

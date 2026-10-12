@@ -195,11 +195,7 @@ function invokedCommands(): Map<string, string[]> {
  * remove the entry when the command is removed, and never add one for a new
  * command.
  */
-const KNOWN_UNCALLED = new Set([
-  // Superseded by `bootstrap_app_state`, which folds the same snapshot into
-  // the boot round-trip; nothing invokes the standalone command any more.
-  "get_atlas_config_info",
-]);
+const KNOWN_UNCALLED = new Set<string>([]);
 
 /**
  * Every command name the frontend mentions as a string literal, on any line

@@ -37,7 +37,13 @@ fn main() {
     }
 
     for req in server.incoming_requests() {
-        let mut path = req.url().split('?').next().unwrap_or("").trim_start_matches('/').to_string();
+        let mut path = req
+            .url()
+            .split('?')
+            .next()
+            .unwrap_or("")
+            .trim_start_matches('/')
+            .to_string();
         if path.is_empty() || path.ends_with('/') {
             path.push_str("index.html");
         }
@@ -46,7 +52,10 @@ fn main() {
                 let bytes = file.contents();
                 Response::new(
                     tiny_http::StatusCode(200),
-                    vec![Header::from_bytes(&b"Content-Type"[..], guess_mime(&path).as_bytes()).unwrap()],
+                    vec![
+                        Header::from_bytes(&b"Content-Type"[..], guess_mime(&path).as_bytes())
+                            .unwrap(),
+                    ],
                     Cursor::new(bytes.to_vec()),
                     Some(bytes.len()),
                     None,

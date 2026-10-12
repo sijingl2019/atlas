@@ -298,7 +298,8 @@ pub(crate) async fn apply_bespoke_event_handling(
             } else {
                 assessment.turn_id.clone()
             };
-            if assessment.status == atlas_engine_protocol::protocol::GuardianAssessmentStatus::InProgress
+            if assessment.status
+                == atlas_engine_protocol::protocol::GuardianAssessmentStatus::InProgress
                 && let Some((target_item_id, completion_item)) = pending_command_execution.as_ref()
             {
                 start_command_execution_item(
@@ -947,7 +948,9 @@ pub(crate) async fn apply_bespoke_event_handling(
 
             let turn_error = TurnError {
                 message: ev.message,
-                atlas_engine_error_info: ev.atlas_engine_error_info.map(V2AtlasEngineErrorInfo::from),
+                atlas_engine_error_info: ev
+                    .atlas_engine_error_info
+                    .map(V2AtlasEngineErrorInfo::from),
                 additional_details: None,
                 retry_delay_ms: None,
             };
@@ -965,7 +968,9 @@ pub(crate) async fn apply_bespoke_event_handling(
             // but we notify the client.
             let turn_error = TurnError {
                 message: ev.message,
-                atlas_engine_error_info: ev.atlas_engine_error_info.map(V2AtlasEngineErrorInfo::from),
+                atlas_engine_error_info: ev
+                    .atlas_engine_error_info
+                    .map(V2AtlasEngineErrorInfo::from),
                 additional_details: ev.additional_details,
                 // The only site with a wait to report: this is the notice that
                 // announces a retry, so it is the one a client can count down.
@@ -2116,7 +2121,6 @@ mod tests {
     use anyhow::Result;
     use anyhow::anyhow;
     use anyhow::bail;
-    use chrono::Utc;
     use atlas_engine_app_server_protocol::AutoReviewDecisionSource;
     use atlas_engine_app_server_protocol::GuardianApprovalReviewStatus;
     use atlas_engine_app_server_protocol::JSONRPCErrorError;
@@ -2159,6 +2163,7 @@ mod tests {
     use atlas_engine_utils_absolute_path::AbsolutePathBuf;
     use atlas_engine_utils_absolute_path::test_support::PathBufExt;
     use atlas_engine_utils_absolute_path::test_support::test_path_buf;
+    use chrono::Utc;
     use core_test_support::load_default_config_for_test;
     use pretty_assertions::assert_eq;
     use serde_json::json;
@@ -2455,7 +2460,9 @@ mod tests {
                 completed_at_ms: Some(1_042),
                 status: atlas_engine_protocol::protocol::GuardianAssessmentStatus::Denied,
                 risk_level: Some(atlas_engine_protocol::protocol::GuardianRiskLevel::High),
-                user_authorization: Some(atlas_engine_protocol::protocol::GuardianUserAuthorization::Low),
+                user_authorization: Some(
+                    atlas_engine_protocol::protocol::GuardianUserAuthorization::Low,
+                ),
                 rationale: Some("too risky".to_string()),
                 decision_source: Some(
                     atlas_engine_protocol::protocol::GuardianAssessmentDecisionSource::Agent,

@@ -1,106 +1,70 @@
 /**
- * The terminal notifier's decision rules — a pure module with no store or
- * Tauri imports, so it is unit-testable in plain node and cannot drift into
- * side effects. `terminal-notifier.ts` supplies the environment and delivers.
+ * The terminal notifier's rules — a pure module with no store or Tauri
+ * imports, so it is unit-testable in plain node and cannot drift into side
+ * effects. It classifies a parser event into a notification-catalog kind
+ * (`classifyTerminalEvent`); the shared `decideNotification` picks the channels.
+ * `terminal-notifier.ts` supplies the environment and delivers.
  */
-import type { NotificationKind } from "@/features/notifications/stores/notifications-store";
-import type { TerminalNotificationPrefs } from "@/features/settings/lib/app-settings";
+import type { NotificationTarget } from "@/features/notifications/lib/catalog";
+import {
+  decideNotification,
+  type NotificationDecision,
+  type NotificationEnv,
+  type NotificationEvent,
+} from "@/features/notifications/lib/decide";
+import { prefsFromSettings } from "@/features/notifications/lib/prefs";
+import type { AppSettings } from "@/features/settings/lib/app-settings";
 import type { TerminalEvent } from "./block-parser";
 import { formatDuration } from "./format-duration";
 
-// ── Pure decision ──────────────────────────────────────────────────────────
+export type TerminalCtx = Omit<Extract<NotificationTarget, { type: "terminal" }>, "type">;
 
-export interface TerminalCtx {
-  terminalId: string;
-  tabId: string;
-  projectId?: string;
-  projectName?: string;
-  orgId?: string;
-}
-
-export interface NotifierEnv {
-  /** The terminal's pane is on screen in the active project. */
-  terminalVisible: boolean;
-  windowFocused: boolean;
-  /** ms since the last discrete input. */
-  interactedWithinMs: number;
-  /** The owning project is the active one. */
-  projectActive: boolean;
-}
-
-export type TerminalNotificationKind = Extract<
-  NotificationKind,
-  "terminal-done" | "terminal-failed" | "terminal-attention"
->;
-
-export interface Decision {
-  kind: TerminalNotificationKind;
-  title: string;
-  body: string;
-  persistMs: number;
-  channels: { store: boolean; toast: boolean; native: boolean; sound: boolean };
-  dedupeKey: string;
-}
+export type TerminalNotificationKind = "terminal-done" | "terminal-failed" | "terminal-attention";
 
 /** Ctrl-C: the user ended it; nothing to announce. */
 const EXIT_INTERRUPT = 130;
-/** "Looking at it" — inside this window a visible, focused terminal is quiet. */
-const RECENT_INTERACTION_MS = 30_000;
-const ATTENTION_PERSIST_MS = 15_000;
-const DONE_PERSIST_MS = 5_000;
 
 function basename(p: string): string {
   return p.split("/").filter(Boolean).pop() ?? p;
 }
 
-function where(ctx: TerminalCtx, cwd: string, env: NotifierEnv): string {
+function where(ctx: TerminalCtx, cwd: string, projectActive: boolean): string {
   const dir = basename(cwd);
   // Name the project only when it is not the one on screen — mirrors the
   // chat's background toast.
-  return !env.projectActive && ctx.projectName ? `${dir} — ${ctx.projectName}` : dir;
+  return !projectActive && ctx.projectName ? `${dir} — ${ctx.projectName}` : dir;
 }
 
-export function decideTerminalNotification(
+/** Parser event → catalog event, or null when it is not notification-worthy
+ *  at all (independent of environment and channel prefs). */
+export function classifyTerminalEvent(
   e: TerminalEvent,
   ctx: TerminalCtx,
-  env: NotifierEnv,
-  prefs: TerminalNotificationPrefs,
-): Decision | null {
-  if (!prefs.enabled) return null;
-  const suppressed =
-    env.terminalVisible && env.windowFocused && env.interactedWithinMs < RECENT_INTERACTION_MS;
-  const channels = (kind: TerminalNotificationKind) => ({
-    store: kind !== "terminal-done" || !suppressed,
-    toast: !env.terminalVisible,
-    native: !env.windowFocused && prefs.native,
-    sound:
-      prefs.sound &&
-      ((!env.windowFocused && prefs.native) ||
-        (kind === "terminal-attention" && !env.terminalVisible)),
-  });
+  projectActive: boolean,
+  minDurationMs: number,
+): NotificationEvent | null {
+  const target: NotificationTarget = { type: "terminal", ...ctx };
 
   if (e.type === "commandFinished") {
     if (e.exitCode === EXIT_INTERRUPT) return null;
+    // A command that took the alternate screen (vim, htop) is a session.
     if (e.usedAltScreen) return null;
     const failed = e.exitCode != null && e.exitCode !== 0;
-    if (failed && prefs.onFailure) {
+    if (failed) {
       return {
         kind: "terminal-failed",
         title: `${e.command} failed (exit ${e.exitCode})`,
-        body: where(ctx, e.cwd, env),
-        persistMs: DONE_PERSIST_MS,
-        channels: channels("terminal-failed"),
+        body: where(ctx, e.cwd, projectActive),
+        target,
         dedupeKey: `${ctx.terminalId}:${e.blockId}:failed`,
       };
     }
-    if (!failed && e.durationMs >= prefs.minDurationMs) {
-      if (suppressed) return null;
+    if (e.durationMs >= minDurationMs) {
       return {
         kind: "terminal-done",
         title: `${e.command} finished in ${formatDuration(e.durationMs)}`,
-        body: where(ctx, e.cwd, env),
-        persistMs: DONE_PERSIST_MS,
-        channels: channels("terminal-done"),
+        body: where(ctx, e.cwd, projectActive),
+        target,
         dedupeKey: `${ctx.terminalId}:${e.blockId}:done`,
       };
     }
@@ -108,7 +72,6 @@ export function decideTerminalNotification(
   }
 
   if (e.type === "attention") {
-    if (!prefs.onAttention) return null;
     const title =
       e.kind === "password"
         ? `${e.command} needs a password`
@@ -120,16 +83,32 @@ export function decideTerminalNotification(
     const body =
       e.kind === "notify" && e.body
         ? e.body
-        : `${e.command} in ${where(ctx, "", env) || "terminal"}`;
+        : `${e.command} in ${where(ctx, "", projectActive) || "terminal"}`;
     return {
       kind: "terminal-attention",
       title,
       body,
-      persistMs: ATTENTION_PERSIST_MS,
-      channels: channels("terminal-attention"),
+      target,
       dedupeKey: `${ctx.terminalId}:${e.blockId ?? "x"}:${e.kind}:${e.body ?? ""}`,
     };
   }
 
   return null;
+}
+
+/** Classify + decide — the whole terminal rule set as one pure call. */
+export function decideTerminalNotification(
+  e: TerminalEvent,
+  ctx: TerminalCtx,
+  env: NotificationEnv,
+  settings: AppSettings,
+): NotificationDecision | null {
+  if (!settings.notificationsEnabled) return null;
+  const event = classifyTerminalEvent(
+    e,
+    ctx,
+    env.projectActive,
+    settings.terminalNotifyMinDurationMs,
+  );
+  return event ? decideNotification(event, env, prefsFromSettings(settings)) : null;
 }

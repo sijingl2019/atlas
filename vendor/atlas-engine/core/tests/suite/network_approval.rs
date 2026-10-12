@@ -715,7 +715,9 @@ async fn background_network_approval_uses_active_turn_after_original_turn_comple
         1,
         "approved network access must not terminate the background process"
     );
-    test.atlas_engine.submit(Op::CleanBackgroundTerminals).await?;
+    test.atlas_engine
+        .submit(Op::CleanBackgroundTerminals)
+        .await?;
 
     Ok(())
 }
@@ -1363,10 +1365,17 @@ async fn ambiguous_unattributed_network_request_is_not_assigned_to_active_calls(
         matches!(event, EventMsg::TurnAborted(_))
     })
     .await;
-    test.atlas_engine.submit(Op::CleanBackgroundTerminals).await?;
+    test.atlas_engine
+        .submit(Op::CleanBackgroundTerminals)
+        .await?;
     tokio::time::timeout(Duration::from_secs(10), async {
         loop {
-            if test.atlas_engine.list_background_terminals().await.is_empty() {
+            if test
+                .atlas_engine
+                .list_background_terminals()
+                .await
+                .is_empty()
+            {
                 break;
             }
             tokio::time::sleep(Duration::from_millis(10)).await;
@@ -1912,7 +1921,9 @@ async fn approved_network_host_for_one_environment_still_prompts_in_another() ->
     Ok(())
 }
 
-async fn managed_network_unified_exec_test(server: &wiremock::MockServer) -> Result<TestAtlasEngine> {
+async fn managed_network_unified_exec_test(
+    server: &wiremock::MockServer,
+) -> Result<TestAtlasEngine> {
     managed_network_unified_exec_test_with_features(server, &[]).await
 }
 

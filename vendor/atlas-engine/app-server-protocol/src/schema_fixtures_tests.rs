@@ -108,7 +108,9 @@ fn write_schema_fixtures_from_env() -> Result<()> {
         "0" => false,
         "1" => true,
         value => {
-            anyhow::bail!("ATLAS_AGENT_APP_SERVER_SCHEMA_EXPERIMENTAL must be 0 or 1, got {value:?}")
+            anyhow::bail!(
+                "ATLAS_AGENT_APP_SERVER_SCHEMA_EXPERIMENTAL must be 0 or 1, got {value:?}"
+            )
         }
     };
 
@@ -211,21 +213,22 @@ Run `just write-app-server-schema` to overwrite with your changes.\n\n{diff}",
 }
 
 fn schema_root() -> Result<PathBuf> {
-    let typescript_index = atlas_engine_utils_cargo_bin::find_resource!("schema/typescript/index.ts")
-        .context("resolve TypeScript schema index.ts")?;
+    let typescript_index =
+        atlas_engine_utils_cargo_bin::find_resource!("schema/typescript/index.ts")
+            .context("resolve TypeScript schema index.ts")?;
     let schema_root = typescript_index
         .parent()
         .and_then(|p| p.parent())
         .context("derive schema root from schema/typescript/index.ts")?
         .to_path_buf();
 
-    let json_bundle =
-        atlas_engine_utils_cargo_bin::find_resource!("schema/json/atlas_engine_app_server_protocol.schemas.json")
-            .context("resolve JSON schema bundle")?;
-    let json_root = json_bundle
-        .parent()
-        .and_then(|p| p.parent())
-        .context("derive schema root from schema/json/atlas_engine_app_server_protocol.schemas.json")?;
+    let json_bundle = atlas_engine_utils_cargo_bin::find_resource!(
+        "schema/json/atlas_engine_app_server_protocol.schemas.json"
+    )
+    .context("resolve JSON schema bundle")?;
+    let json_root = json_bundle.parent().and_then(|p| p.parent()).context(
+        "derive schema root from schema/json/atlas_engine_app_server_protocol.schemas.json",
+    )?;
     anyhow::ensure!(
         schema_root == json_root,
         "schema roots disagree: typescript={} json={}",

@@ -66,8 +66,13 @@ fn snapshot_collects_metrics_without_shutdown() -> Result<()> {
 #[test]
 fn observable_gauge_is_collected_on_every_delta_snapshot() -> Result<()> {
     let exporter = InMemoryMetricExporter::default();
-    let config = MetricsConfig::in_memory("test", "atlas-engine-cli", env!("CARGO_PKG_VERSION"), exporter)
-        .with_runtime_reader();
+    let config = MetricsConfig::in_memory(
+        "test",
+        "atlas-engine-cli",
+        env!("CARGO_PKG_VERSION"),
+        exporter,
+    )
+    .with_runtime_reader();
     let metrics = MetricsClient::new(config)?;
     metrics.register_observable_gauge_with_description(
         "atlas_agent.active",
@@ -98,9 +103,14 @@ fn observable_gauge_is_collected_on_every_delta_snapshot() -> Result<()> {
 #[test]
 fn manager_snapshot_metrics_collects_without_shutdown() -> Result<()> {
     let exporter = InMemoryMetricExporter::default();
-    let config = MetricsConfig::in_memory("test", "atlas-engine-cli", env!("CARGO_PKG_VERSION"), exporter)
-        .with_tag("service", "atlas-engine-cli")?
-        .with_runtime_reader();
+    let config = MetricsConfig::in_memory(
+        "test",
+        "atlas-engine-cli",
+        env!("CARGO_PKG_VERSION"),
+        exporter,
+    )
+    .with_tag("service", "atlas-engine-cli")?
+    .with_runtime_reader();
     let metrics = MetricsClient::new(config)?;
     let manager = SessionTelemetry::new(
         ThreadId::new(),

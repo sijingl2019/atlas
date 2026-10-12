@@ -50,7 +50,8 @@ pub(crate) struct Session {
     pub(super) multi_agent_version: OnceLock<MultiAgentVersion>,
     /// Owns invalidation and serializes refreshes without blocking captured calls.
     pub(super) mcp_refresh: McpRefresh,
-    pub(super) mcp_elicitation_reviewer_handle: OnceLock<atlas_engine_mcp::ElicitationReviewerHandle>,
+    pub(super) mcp_elicitation_reviewer_handle:
+        OnceLock<atlas_engine_mcp::ElicitationReviewerHandle>,
     pub(super) mcp_elicitation_lifecycle_handle: OnceLock<atlas_engine_mcp::ElicitationLifecycle>,
     pub(super) mcp_prewarm_tx: async_channel::Sender<()>,
     pub(super) mcp_prewarm_shutdown: CancellationToken,

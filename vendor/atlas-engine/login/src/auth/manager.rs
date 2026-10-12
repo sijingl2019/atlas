@@ -257,7 +257,10 @@ pub trait ExternalAuth: Send + Sync {
     fn resolve(&self) -> ExternalAuthFuture<'_, AtlasEngineAuth>;
 
     /// Refreshes auth and makes the returned value current for future `resolve()` calls.
-    fn refresh(&self, context: ExternalAuthRefreshContext) -> ExternalAuthFuture<'_, AtlasEngineAuth>;
+    fn refresh(
+        &self,
+        context: ExternalAuthRefreshContext,
+    ) -> ExternalAuthFuture<'_, AtlasEngineAuth>;
 
     /// Maps a provider error into the retry policy used by external-auth reload and recovery.
     fn classify_error(&self, error: std::io::Error) -> RefreshTokenError {
@@ -1217,7 +1220,9 @@ fn validate_auth_restrictions(
     };
     if matches!(
         auth,
-        AtlasEngineAuth::ApiKey(_) | AtlasEngineAuth::Headers(_) | AtlasEngineAuth::BedrockApiKey(_)
+        AtlasEngineAuth::ApiKey(_)
+            | AtlasEngineAuth::Headers(_)
+            | AtlasEngineAuth::BedrockApiKey(_)
     ) {
         return Ok(());
     }
@@ -1313,7 +1318,9 @@ async fn enforce_login_restrictions_with_agent_identity_authapi_base_url(
 
     if let Some(expected_account_ids) = config.forced_chatgpt_workspace_id.as_deref() {
         let chatgpt_account_id = match &auth {
-            AtlasEngineAuth::ApiKey(_) | AtlasEngineAuth::Headers(_) | AtlasEngineAuth::BedrockApiKey(_) => {
+            AtlasEngineAuth::ApiKey(_)
+            | AtlasEngineAuth::Headers(_)
+            | AtlasEngineAuth::BedrockApiKey(_) => {
                 return Ok(());
             }
             AtlasEngineAuth::AgentIdentity(_) | AtlasEngineAuth::PersonalAccessToken(_) => {
@@ -1823,7 +1830,9 @@ impl UnauthorizedRecoveryStepResult {
 impl UnauthorizedRecovery {
     fn new(manager: Arc<AuthManager>) -> Self {
         let cached_auth = manager.auth_cached();
-        let expected_account_id = cached_auth.as_ref().and_then(AtlasEngineAuth::get_account_id);
+        let expected_account_id = cached_auth
+            .as_ref()
+            .and_then(AtlasEngineAuth::get_account_id);
         let mode = if manager.has_external_auth() {
             UnauthorizedRecoveryMode::External
         } else {
@@ -2039,7 +2048,10 @@ impl Debug for AuthManager {
         f.debug_struct("AuthManager")
             .field("atlas_agent_home", &self.atlas_agent_home)
             .field("inner", &self.inner)
-            .field("enable_atlas_engine_api_key_env", &self.enable_atlas_engine_api_key_env)
+            .field(
+                "enable_atlas_engine_api_key_env",
+                &self.enable_atlas_engine_api_key_env,
+            )
             .field(
                 "auth_credentials_store_mode",
                 &self.auth_credentials_store_mode,
@@ -2096,7 +2108,10 @@ impl AuthManager {
         .await
     }
 
-    async fn new_from_auth_config(auth_config: AuthConfig, enable_atlas_engine_api_key_env: bool) -> Self {
+    async fn new_from_auth_config(
+        auth_config: AuthConfig,
+        enable_atlas_engine_api_key_env: bool,
+    ) -> Self {
         let managed_auth = auth_config
             .load_auth(enable_atlas_engine_api_key_env)
             .await
@@ -2169,7 +2184,10 @@ impl AuthManager {
     }
 
     /// Create an AuthManager with a specific AtlasEngineAuth and atlas-agent home, for testing only.
-    pub fn from_auth_for_testing_with_home(auth: AtlasEngineAuth, atlas_agent_home: PathBuf) -> Arc<Self> {
+    pub fn from_auth_for_testing_with_home(
+        auth: AtlasEngineAuth,
+        atlas_agent_home: PathBuf,
+    ) -> Arc<Self> {
         let cached = CachedAuth {
             auth: Some(auth),
             permanent_refresh_failure: None,
@@ -2275,7 +2293,10 @@ impl AuthManager {
         self.auth_change_tx.subscribe()
     }
 
-    pub fn refresh_failure_for_auth(&self, auth: &AtlasEngineAuth) -> Option<RefreshTokenFailedError> {
+    pub fn refresh_failure_for_auth(
+        &self,
+        auth: &AtlasEngineAuth,
+    ) -> Option<RefreshTokenFailedError> {
         self.inner.read().ok().and_then(|cached| {
             cached
                 .permanent_refresh_failure
@@ -2313,7 +2334,9 @@ impl AuthManager {
         let Some(auth) = self.auth().await else {
             return Ok(None);
         };
-        if policy == AgentIdentityAuthPolicy::ChatGptAuth && matches!(auth, AtlasEngineAuth::Chatgpt(_)) {
+        if policy == AgentIdentityAuthPolicy::ChatGptAuth
+            && matches!(auth, AtlasEngineAuth::Chatgpt(_))
+        {
             let _bootstrap_permit = self
                 .agent_identity_lock
                 .acquire()
@@ -2656,7 +2679,8 @@ impl AuthManager {
         config: &impl AuthManagerConfig,
         enable_atlas_engine_api_key_env: bool,
     ) -> Result<Arc<Self>, AuthManagerInitializationError> {
-        Self::shared_from_auth_config(auth_config_from(config), enable_atlas_engine_api_key_env).await
+        Self::shared_from_auth_config(auth_config_from(config), enable_atlas_engine_api_key_env)
+            .await
     }
 
     /// Activates workload identity against an auth config resolved before full runtime config.
@@ -2665,7 +2689,8 @@ impl AuthManager {
         enable_atlas_engine_api_key_env: bool,
     ) -> Result<Arc<Self>, AuthManagerInitializationError> {
         let external_auth = WorkloadIdentityExternalAuth::from_process_config(&auth_config)?;
-        let mut manager = Self::new_from_auth_config(auth_config, enable_atlas_engine_api_key_env).await;
+        let mut manager =
+            Self::new_from_auth_config(auth_config, enable_atlas_engine_api_key_env).await;
         manager.workload_identity_selected = external_auth.is_some();
         let manager = Arc::new(manager);
         if let Some(external_auth) = external_auth {
@@ -2849,7 +2874,9 @@ impl AuthManager {
 
     /// Returns the precise kind of credentials backing the current authentication.
     pub fn get_api_auth_mode(&self) -> Option<AuthMode> {
-        self.auth_cached().as_ref().map(AtlasEngineAuth::api_auth_mode)
+        self.auth_cached()
+            .as_ref()
+            .map(AtlasEngineAuth::api_auth_mode)
     }
 
     /// Returns the effective backend auth mode for the current authentication.

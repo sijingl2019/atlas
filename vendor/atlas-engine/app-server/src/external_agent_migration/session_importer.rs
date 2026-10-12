@@ -5,8 +5,6 @@ use std::io::ErrorKind;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use chrono::DateTime;
-use chrono::Utc;
 use atlas_engine_arg0::Arg0DispatchPaths;
 use atlas_engine_core::ThreadManager;
 use atlas_engine_core::config::ConfigOverrides;
@@ -42,6 +40,8 @@ use atlas_engine_thread_store::ThreadMetadataPatch;
 use atlas_engine_thread_store::ThreadPersistenceMetadata;
 use atlas_engine_thread_store::ThreadStore;
 use atlas_engine_thread_store::UpdateThreadMetadataParams;
+use chrono::DateTime;
+use chrono::Utc;
 use futures::StreamExt;
 use tokio::sync::Semaphore;
 
@@ -246,7 +246,9 @@ impl ExternalAgentSessionImporter {
             .into_iter()
             .map(|completed_import| completed_import.import)
             .collect();
-        if let Err(err) = record_completed_session_imports(&self.atlas_agent_home, completed_imports) {
+        if let Err(err) =
+            record_completed_session_imports(&self.atlas_agent_home, completed_imports)
+        {
             record_import_error(
                 &mut item_result,
                 "session_ledger_update",
@@ -371,7 +373,11 @@ impl ExternalAgentSessionImporter {
     ) -> Result<Option<PendingSessionImport>, SessionImportStepFailure> {
         let atlas_agent_home = self.atlas_agent_home.clone();
         tokio::task::spawn_blocking(move || {
-            prepare_validated_session_import_with_metadata_mode(&atlas_agent_home, session, metadata_mode)
+            prepare_validated_session_import_with_metadata_mode(
+                &atlas_agent_home,
+                session,
+                metadata_mode,
+            )
         })
         .await
         .map_err(|err| {
@@ -404,7 +410,10 @@ impl ExternalAgentSessionImporter {
                 /*request_overrides*/ None,
                 ConfigOverrides {
                     cwd: Some(cwd),
-                    atlas_engine_linux_sandbox_exe: self.arg0_paths.atlas_engine_linux_sandbox_exe.clone(),
+                    atlas_engine_linux_sandbox_exe: self
+                        .arg0_paths
+                        .atlas_engine_linux_sandbox_exe
+                        .clone(),
                     main_execve_wrapper_exe: self.arg0_paths.main_execve_wrapper_exe.clone(),
                     ..Default::default()
                 },

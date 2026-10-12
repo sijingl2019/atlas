@@ -101,7 +101,8 @@ impl ToolContributor for MemoriesExtension {
         &self,
         _session_store: &ExtensionData,
         thread_store: &ExtensionData,
-    ) -> Vec<Arc<dyn atlas_engine_extension_api::ToolExecutor<atlas_engine_extension_api::ToolCall>>> {
+    ) -> Vec<Arc<dyn atlas_engine_extension_api::ToolExecutor<atlas_engine_extension_api::ToolCall>>>
+    {
         let Some(config) = thread_store.get::<MemoriesExtensionConfig>() else {
             return Vec::new();
         };

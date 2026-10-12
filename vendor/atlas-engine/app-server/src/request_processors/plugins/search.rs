@@ -62,8 +62,8 @@ impl PluginRequestProcessor {
             .plugins_manager()
             .set_auth_mode(auth_mode);
         let remote_plugin_enabled = config.features.enabled(Feature::RemotePlugin);
-        let use_remote_global_catalog =
-            remote_plugin_enabled && auth_mode.is_some_and(DomainAuthMode::uses_atlas_engine_backend);
+        let use_remote_global_catalog = remote_plugin_enabled
+            && auth_mode.is_some_and(DomainAuthMode::uses_atlas_engine_backend);
         let remote_scope = if remote_plugin_enabled {
             Some(scope.map(|scope| match scope {
                 PluginSearchScope::Global => RemotePluginScope::Global,

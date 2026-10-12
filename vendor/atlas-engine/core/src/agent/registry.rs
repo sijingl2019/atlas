@@ -85,9 +85,9 @@ impl AgentRegistry {
     ) -> Result<SpawnReservation> {
         if let Some(max_threads) = max_threads {
             if !self.try_increment_spawned(max_threads) {
-                return Err(AtlasEngineErr::new(AtlasEngineErrorDetails::AgentLimitReached {
-                    max_threads,
-                }));
+                return Err(AtlasEngineErr::new(
+                    AtlasEngineErrorDetails::AgentLimitReached { max_threads },
+                ));
             }
         } else {
             self.total_count.fetch_add(1, Ordering::AcqRel);

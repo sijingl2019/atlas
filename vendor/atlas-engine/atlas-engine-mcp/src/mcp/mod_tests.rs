@@ -301,7 +301,10 @@ fn atlas_apps_server_config_forwards_thread_originator_header() {
                 http_headers,
                 &Some(HashMap::from([
                     ("originator".to_string(), "thread_originator".to_string()),
-                    ("X-OpenAI-Product-Sku".to_string(), "atlas-agent".to_string()),
+                    (
+                        "X-OpenAI-Product-Sku".to_string(),
+                        "atlas-agent".to_string()
+                    ),
                 ]))
             );
             assert!(env_http_headers.is_none());
@@ -312,7 +315,9 @@ fn atlas_apps_server_config_forwards_thread_originator_header() {
 
 #[test]
 fn atlas_apps_server_config_sets_product_sku_header() {
-    for (configured_product_sku, expected_product_sku) in [(None, "atlas-agent"), (Some("tpp"), "tpp")] {
+    for (configured_product_sku, expected_product_sku) in
+        [(None, "atlas-agent"), (Some("tpp"), "tpp")]
+    {
         let config = atlas_apps_mcp_server_config(
             "https://chatgpt.com",
             configured_product_sku,

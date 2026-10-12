@@ -9,8 +9,6 @@ use std::sync::OnceLock;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 
-use chrono::DateTime;
-use chrono::Utc;
 use atlas_engine_protocol::ThreadId;
 use atlas_engine_protocol::models::PermissionProfile;
 use atlas_engine_protocol::protocol::AskForApproval;
@@ -21,6 +19,8 @@ use atlas_engine_protocol::protocol::ThreadHistoryMode;
 use atlas_engine_protocol::protocol::ThreadMemoryMode;
 use atlas_engine_rollout::RolloutItem;
 use atlas_engine_rollout::persisted_rollout_items;
+use chrono::DateTime;
+use chrono::Utc;
 
 use crate::AppendThreadItemsParams;
 use crate::ArchiveThreadParams;
@@ -230,7 +230,9 @@ mod tests {
                 allowed_sources: Vec::new(),
                 model_providers: None,
                 cwd_filters: None,
-                section: Some(Some(atlas_engine_state::PINNED_THREAD_SECTION_ID.to_string())),
+                section: Some(Some(
+                    atlas_engine_state::PINNED_THREAD_SECTION_ID.to_string(),
+                )),
                 archived: false,
                 search_term: None,
                 relation_filter: Some(ThreadRelationFilter::DescendantsOf(parent_thread_id)),
@@ -1053,11 +1055,8 @@ fn stored_thread_from_state(
             .and_then(|metadata| metadata.advance_recency_at.or(metadata.updated_at))
             .unwrap_or_else(Utc::now),
         archived_at: None,
-        section: state
-            .sections
-            .get(&thread_id)
-            .cloned()
-            .map(|id| atlas_engine_state::ThreadSection {
+        section: state.sections.get(&thread_id).cloned().map(|id| {
+            atlas_engine_state::ThreadSection {
                 name: if id == atlas_engine_state::PINNED_THREAD_SECTION_ID {
                     atlas_engine_state::PINNED_THREAD_SECTION_NAME.to_string()
                 } else {
@@ -1065,7 +1064,8 @@ fn stored_thread_from_state(
                 },
                 id,
                 appearance: None,
-            }),
+            }
+        }),
         section_position: state.section_positions.get(&thread_id).copied(),
         section_entered_at: state.section_entered_at.get(&thread_id).copied(),
         cwd: metadata
@@ -1108,7 +1108,9 @@ fn history_mode_from_state(
         .unwrap_or_default()
 }
 
-fn git_info_from_patch(patch: &ThreadMetadataPatch) -> Option<atlas_engine_protocol::protocol::GitInfo> {
+fn git_info_from_patch(
+    patch: &ThreadMetadataPatch,
+) -> Option<atlas_engine_protocol::protocol::GitInfo> {
     let git_info = patch.git_info.as_ref()?;
     let sha = git_info.sha.clone().flatten();
     let branch = git_info.branch.clone().flatten();

@@ -208,10 +208,13 @@ impl ExecutorFileSystem for SyntheticFileSystem {
 
 #[tokio::test]
 async fn skill_loading_and_reads_use_the_supplied_executor_file_system() {
-    let test_root =
-        std::env::temp_dir().join(format!("atlas-engine-executor-skill-fs-{}", std::process::id()));
-    let project_folder = AbsolutePathBuf::from_absolute_path_checked(test_root.join(".atlas-agent"))
-        .expect("absolute project folder");
+    let test_root = std::env::temp_dir().join(format!(
+        "atlas-engine-executor-skill-fs-{}",
+        std::process::id()
+    ));
+    let project_folder =
+        AbsolutePathBuf::from_absolute_path_checked(test_root.join(".atlas-agent"))
+            .expect("absolute project folder");
     let alias_root = project_folder.join("skills");
     let canonical_root = AbsolutePathBuf::from_absolute_path_checked(test_root.join("canonical"))
         .expect("absolute path");

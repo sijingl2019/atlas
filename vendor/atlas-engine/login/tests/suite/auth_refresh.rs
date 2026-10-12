@@ -1,9 +1,6 @@
 // Modified by Atlas from upstream OpenAI Codex (Apache-2.0). See CONTEXT.md.
 use anyhow::Context;
 use anyhow::Result;
-use base64::Engine;
-use chrono::Duration;
-use chrono::Utc;
 use atlas_engine_config::types::AuthCredentialsStoreMode;
 use atlas_engine_http_client::HttpClientFactory;
 use atlas_engine_http_client::OutboundProxyPolicy;
@@ -20,6 +17,9 @@ use atlas_engine_login::token_data::IdTokenInfo;
 use atlas_engine_login::token_data::TokenData;
 use atlas_engine_protocol::auth::AuthMode;
 use atlas_engine_protocol::auth::RefreshTokenFailedReason;
+use base64::Engine;
+use chrono::Duration;
+use chrono::Utc;
 use core_test_support::skip_if_no_network;
 use pretty_assertions::assert_eq;
 use serde::Serialize;

@@ -3017,9 +3017,9 @@ mod tests {
                 cwd,
                 runtime_workspace_roots: Vec::new(),
                 instruction_sources: vec![
-                    atlas_engine_utils_path_uri::LegacyAppPathString::from_abs_path(&absolute_path(
-                        "/tmp/AGENTS.md",
-                    )),
+                    atlas_engine_utils_path_uri::LegacyAppPathString::from_abs_path(
+                        &absolute_path("/tmp/AGENTS.md"),
+                    ),
                 ],
                 approval_policy: v2::AskForApproval::OnRequest,
                 approvals_reviewer: v2::ApprovalsReviewer::User,
@@ -3758,14 +3758,16 @@ mod tests {
                 atlas_engine_responses_as_items: None,
                 atlas_engine_response_item_prefix: None,
                 atlas_engine_response_handoff_mode: Some(AtlasEngineResponseHandoffMode::BemTags),
-                atlas_engine_response_handoff_channel_prefixes: Some(std::collections::BTreeMap::from([
-                    ("analysis".to_string(), vec!["[THINKING]".to_string()]),
-                    (
-                        "commentary".to_string(),
-                        vec!["[PROGRESS]".to_string(), "[UPDATE]".to_string()],
-                    ),
-                    ("final".to_string(), vec!["[DONE]".to_string()]),
-                ])),
+                atlas_engine_response_handoff_channel_prefixes: Some(
+                    std::collections::BTreeMap::from([
+                        ("analysis".to_string(), vec!["[THINKING]".to_string()]),
+                        (
+                            "commentary".to_string(),
+                            vec!["[PROGRESS]".to_string(), "[UPDATE]".to_string()],
+                        ),
+                        ("final".to_string(), vec!["[DONE]".to_string()]),
+                    ]),
+                ),
                 thread_id: "thr_123".to_string(),
                 model: Some("realtime-treatment-model".to_string()),
                 output_modality: RealtimeOutputModality::Audio,

@@ -137,7 +137,10 @@ async fn skill_world_state_fragments(
 #[tokio::test]
 async fn installed_extension_uses_host_service_snapshot() -> TestResult {
     let atlas_agent_home = test_atlas_agent_home();
-    let skill_path = atlas_agent_home.join("skills").join("demo").join("SKILL.md");
+    let skill_path = atlas_agent_home
+        .join("skills")
+        .join("demo")
+        .join("SKILL.md");
     std::fs::create_dir_all(
         skill_path
             .parent()
@@ -249,7 +252,8 @@ async fn host_world_state_records_catalog_metrics_on_publish_and_change() -> Tes
         })
         .await;
 
-    let skill_path = AbsolutePathBuf::try_from(test_atlas_agent_home().join("skills/demo/SKILL.md"))?;
+    let skill_path =
+        AbsolutePathBuf::try_from(test_atlas_agent_home().join("skills/demo/SKILL.md"))?;
     let mut outcome = SkillLoadOutcome::default();
     outcome.skills.push(SkillMetadata {
         name: "demo".to_string(),
@@ -367,7 +371,8 @@ async fn persisted_host_snapshot_deduplicates_warning_after_reinitialization() -
     let registry = builder.build();
     let session_store = ExtensionData::new("session");
     let config = default_config();
-    let skill_path = AbsolutePathBuf::try_from(test_atlas_agent_home().join("skills/demo/SKILL.md"))?;
+    let skill_path =
+        AbsolutePathBuf::try_from(test_atlas_agent_home().join("skills/demo/SKILL.md"))?;
     let mut outcome = SkillLoadOutcome::default();
     outcome.skills.push(SkillMetadata {
         name: "demo".to_string(),

@@ -1,10 +1,10 @@
 // Modified by Atlas from upstream OpenAI Codex (Apache-2.0). See CONTEXT.md.
 use super::*;
+use atlas_engine_protocol::config_types::MultiAgentMode;
 #[cfg(test)]
 use chrono::DateTime;
 #[cfg(test)]
 use chrono::Utc;
-use atlas_engine_protocol::config_types::MultiAgentMode;
 
 #[cfg(test)]
 pub(crate) async fn read_summary_from_rollout(
@@ -212,11 +212,12 @@ pub(crate) fn thread_settings_from_core_snapshot(
         personality,
         collaboration_mode,
     } = snapshot;
-    let sandbox_policy = atlas_engine_sandboxing::compatibility_sandbox_policy_for_permission_profile(
-        &permission_profile,
-        cwd.as_path(),
-    )
-    .into();
+    let sandbox_policy =
+        atlas_engine_sandboxing::compatibility_sandbox_policy_for_permission_profile(
+            &permission_profile,
+            cwd.as_path(),
+        )
+        .into();
     ThreadSettings {
         sandbox_policy,
         cwd,

@@ -557,7 +557,10 @@ mod tests {
             })
         }
 
-        fn handle(&self, _invocation: ToolInvocation) -> atlas_engine_tools::ToolExecutorFuture<'_> {
+        fn handle(
+            &self,
+            _invocation: ToolInvocation,
+        ) -> atlas_engine_tools::ToolExecutorFuture<'_> {
             Box::pin(async {
                 Ok(
                     Box::new(FunctionToolOutput::from_text("ok".to_string(), Some(true)))

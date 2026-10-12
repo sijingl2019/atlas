@@ -2,19 +2,20 @@
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 
-use axum::http::HeaderValue;
 use atlas_engine_analytics::AppServerRpcTransport;
 use atlas_engine_login::default_client::SetOriginatorError;
 use atlas_engine_login::default_client::USER_AGENT_SUFFIX;
 use atlas_engine_login::default_client::get_atlas_engine_user_agent;
 use atlas_engine_login::default_client::set_default_client_residency_requirement;
 use atlas_engine_login::default_client::set_default_originator;
+use axum::http::HeaderValue;
 
 use super::*;
 use crate::message_processor::ConnectionSessionState;
 use crate::message_processor::InitializedConnectionSessionState;
 
-const NON_ORIGINATING_CLIENT_NAMES: &[&str] = &["atlas_engine_app_server_daemon", "atlas-engine-backend"];
+const NON_ORIGINATING_CLIENT_NAMES: &[&str] =
+    &["atlas_engine_app_server_daemon", "atlas-engine-backend"];
 
 #[derive(Clone)]
 pub(crate) struct InitializeRequestProcessor {

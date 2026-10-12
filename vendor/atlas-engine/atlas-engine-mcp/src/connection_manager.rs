@@ -268,9 +268,10 @@ impl McpConnectionSet {
             .filter(|auth| auth.uses_atlas_engine_backend())
             .map(atlas_engine_model_provider::auth_provider_from_auth);
         let atlas_apps_auth_provider = atlas_apps_auth_manager.and_then(|auth_manager| {
-            auth.filter(|auth| auth.uses_atlas_engine_backend()).map(|auth| {
-                atlas_engine_model_provider::auth_provider_from_auth_manager(auth_manager, auth)
-            })
+            auth.filter(|auth| auth.uses_atlas_engine_backend())
+                .map(|auth| {
+                    atlas_engine_model_provider::auth_provider_from_auth_manager(auth_manager, auth)
+                })
         });
         for (server_name, server) in mcp_servers
             .into_iter()

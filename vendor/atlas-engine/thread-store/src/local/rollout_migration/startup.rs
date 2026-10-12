@@ -14,12 +14,12 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::time::SystemTime;
 
-use chrono::NaiveDateTime;
 use atlas_engine_protocol::ThreadId;
 use atlas_engine_protocol::protocol::ThreadHistoryMode;
 use atlas_engine_rollout::StateDbHandle;
 use atlas_engine_state::RolloutMigrationCursor;
 use atlas_engine_state::RolloutMigrationSkippedRollout;
+use chrono::NaiveDateTime;
 
 use super::LocalThreadStore;
 use super::RolloutMigrationMode;
@@ -228,7 +228,10 @@ async fn revalidate_skipped_rollouts(
     let mut unchanged_skips = HashSet::new();
     let mut invalidated_skip = false;
     for skipped_rollout in skipped_rollouts {
-        let path = store.config.atlas_agent_home.join(&skipped_rollout.rollout_path);
+        let path = store
+            .config
+            .atlas_agent_home
+            .join(&skipped_rollout.rollout_path);
         let fingerprint = match rollout_fingerprint(&path).await {
             Ok(fingerprint) => fingerprint,
             Err(_) => {
@@ -272,8 +275,13 @@ fn startup_state_db(store: &LocalThreadStore) -> ThreadStoreResult<&StateDbHandl
 }
 
 async fn find_all_rollout_paths(store: &LocalThreadStore) -> ThreadStoreResult<Vec<PathBuf>> {
-    let mut paths =
-        find_rollout_paths(&store.config.atlas_agent_home.join(atlas_engine_rollout::SESSIONS_SUBDIR)).await?;
+    let mut paths = find_rollout_paths(
+        &store
+            .config
+            .atlas_agent_home
+            .join(atlas_engine_rollout::SESSIONS_SUBDIR),
+    )
+    .await?;
     paths.extend(
         find_rollout_paths(
             &store

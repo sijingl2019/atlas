@@ -471,7 +471,11 @@ pub(crate) mod test_support {
         let key = SessionKey {
             workspace_id: crate::commands::capture::project_id_for(std::path::Path::new(project)),
             // As live capture files it: the native agent under its own source.
-            source: if agent == atlas_native_agent::ATLAS_AGENT_ID { Source::Native } else { Source::Acp },
+            source: if agent == atlas_native_agent::ATLAS_AGENT_ID {
+                Source::Native
+            } else {
+                Source::Acp
+            },
             native_session_id: native_id.into(),
         };
         let (mut turn, mut row) = (0i64, String::new());
@@ -634,7 +638,12 @@ mod tests {
                 (A.0, A.1, "The lockfile was stale; regenerated it."),
             ],
         );
-        record_session(&p, "atlas-agent-now", "atlas-agent", &[(U.0, U.1, "what next")]);
+        record_session(
+            &p,
+            "atlas-agent-now",
+            "atlas-agent",
+            &[(U.0, U.1, "what next")],
+        );
 
         assert_eq!(
             build_session_handoff(&p, "atlas-agent-now", &no_transcripts()),

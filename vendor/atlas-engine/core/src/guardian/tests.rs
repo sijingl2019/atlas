@@ -120,15 +120,20 @@ impl atlas_engine_extension_api::ContextContributor for GuardianMemoryContextPro
         &'a self,
         _session_store: &'a atlas_engine_extension_api::ExtensionData,
         thread_store: &'a atlas_engine_extension_api::ExtensionData,
-    ) -> atlas_engine_extension_api::ExtensionFuture<'a, Vec<atlas_engine_extension_api::PromptFragment>> {
+    ) -> atlas_engine_extension_api::ExtensionFuture<
+        'a,
+        Vec<atlas_engine_extension_api::PromptFragment>,
+    > {
         Box::pin(async move {
             if thread_store
                 .get::<GuardianMemoryContextEnabled>()
                 .is_some_and(|enabled| enabled.0)
             {
-                vec![atlas_engine_extension_api::PromptFragment::developer_policy(
-                    GUARDIAN_MEMORY_CONTEXT_PROBE,
-                )]
+                vec![
+                    atlas_engine_extension_api::PromptFragment::developer_policy(
+                        GUARDIAN_MEMORY_CONTEXT_PROBE,
+                    ),
+                ]
             } else {
                 Vec::new()
             }
@@ -609,9 +614,9 @@ async fn build_guardian_prompt_includes_parent_turn_denied_reads() -> anyhow::Re
             },
             FileSystemSandboxEntry {
                 path: FileSystemPath::Special {
-                    value: atlas_engine_protocol::permissions::FileSystemSpecialPath::project_roots(Some(
-                        "private".to_string(),
-                    )),
+                    value: atlas_engine_protocol::permissions::FileSystemSpecialPath::project_roots(
+                        Some("private".to_string()),
+                    ),
                 },
                 access: FileSystemAccessMode::Deny,
                 missing_path_behavior: None,

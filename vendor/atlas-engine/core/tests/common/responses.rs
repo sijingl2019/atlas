@@ -7,10 +7,10 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use anyhow::Result;
-use base64::Engine;
 use atlas_engine_protocol::models::ContentItem;
 use atlas_engine_protocol::models::ResponseItem;
 use atlas_engine_protocol::openai_models::ModelsResponse;
+use base64::Engine;
 use futures::SinkExt;
 use futures::StreamExt;
 use serde_json::Value;

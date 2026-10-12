@@ -1,9 +1,9 @@
 // Modified by Atlas from upstream OpenAI Codex (Apache-2.0). See CONTEXT.md.
-use axum::http::HeaderMap;
-use axum::http::HeaderValue;
 use atlas_engine_api::SharedAuthProvider;
 use atlas_engine_login::AuthManager;
 use atlas_engine_login::UnauthorizedRecovery;
+use axum::http::HeaderMap;
+use axum::http::HeaderValue;
 use std::io;
 use std::io::ErrorKind;
 use std::sync::Arc;

@@ -234,7 +234,9 @@ async fn auto_compaction_remote_emits_started_and_completed_items() -> Result<()
     );
     assert_eq!(
         compact_metadata["window_id"].as_str(),
-        compact_requests[0].header("x-atlas-engine-window-id").as_deref()
+        compact_requests[0]
+            .header("x-atlas-engine-window-id")
+            .as_deref()
     );
 
     Ok(())

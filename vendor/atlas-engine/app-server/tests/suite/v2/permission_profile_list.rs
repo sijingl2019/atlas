@@ -112,7 +112,11 @@ description = "Project-scoped profile."
 ":workspace_roots" = "write"
 "#,
     )?;
-    set_project_trust_level(atlas_agent_home.path(), workspace.path(), TrustLevel::Trusted)?;
+    set_project_trust_level(
+        atlas_agent_home.path(),
+        workspace.path(),
+        TrustLevel::Trusted,
+    )?;
 
     let mut mcp = TestAppServer::builder()
         .with_atlas_agent_home(atlas_agent_home.path())
@@ -192,7 +196,11 @@ description = "Project-scoped profile."
 ":workspace_roots" = "write"
 "#,
     )?;
-    set_project_trust_level(atlas_agent_home.path(), workspace.path(), TrustLevel::Trusted)?;
+    set_project_trust_level(
+        atlas_agent_home.path(),
+        workspace.path(),
+        TrustLevel::Trusted,
+    )?;
 
     let mut mcp = TestAppServer::builder()
         .with_atlas_agent_home(atlas_agent_home.path())

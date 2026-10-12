@@ -117,7 +117,7 @@ job carries a `cwd`** so multiple open projects stay isolated.
 | Trigger | Job |
 |---|---|
 | Project opened (first `engine_for`) | one cold `IndexCorpus{cwd}` + one `Compact{cwd}` (global promotion) |
-| Watched file changes (`*.md`, `CLAUDE.md`, `AGENTS.md`, `codebase-index/docs.json`), debounced ~2s | `IndexCorpus{cwd}` |
+| Watched file changes (`*.md`, `CLAUDE.md`, `AGENTS.md`), debounced ~2s | `IndexCorpus{cwd}` |
 | A chat turn finishes | `IndexCorpus{cwd}` (always) + `ExtractSession{cwd,writer,turns}` (the extractor's gated pass) |
 | A session ends | `SessionEnded{cwd,writer}` (the extractor's one end-of-session pass) |
 | An extractor pass stored entries | `IndexCorpus{cwd}` + `Compact{cwd}` |
@@ -168,7 +168,8 @@ Left behind by older versions and no longer read (safe to delete): `graph/`
 (the grafeo store), `.shared-memory-imported`, `.consolidation_state.json`,
 `.consolidation_lock`.
 
-Global, under `~/.atlas/memory/` (override `ATLAS_GLOBAL_MEMORY_DIR`):
+Global, under `~/.atlas/memory/` (`~/.atlas-dev/memory/` for the dev profile, see
+`atlas-profile`; override `ATLAS_GLOBAL_MEMORY_DIR`):
 
 | File | What |
 |---|---|

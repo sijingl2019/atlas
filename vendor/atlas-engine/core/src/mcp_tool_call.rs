@@ -742,7 +742,9 @@ async fn refresh_atlas_apps_after_connector_auth(sess: &Arc<Session>, turn_conte
             );
         }
         Err(err) => {
-            tracing::warn!("failed to refresh Atlas Agent Apps tools after connector auth: {err:#}");
+            tracing::warn!(
+                "failed to refresh Atlas Agent Apps tools after connector auth: {err:#}"
+            );
         }
     }
 }
@@ -773,7 +775,10 @@ async fn augment_mcp_tool_request_meta_with_sandbox_state(
     let permission_profile = prepared_call.config().permission_profile.clone();
     let sandbox_state = serde_json::to_value(SandboxState {
         permission_profile,
-        atlas_engine_linux_sandbox_exe: prepared_call.config().atlas_engine_linux_sandbox_exe.clone(),
+        atlas_engine_linux_sandbox_exe: prepared_call
+            .config()
+            .atlas_engine_linux_sandbox_exe
+            .clone(),
         sandbox_cwd,
         use_legacy_landlock: prepared_call.config().use_legacy_landlock,
     })?;
@@ -2021,7 +2026,8 @@ async fn maybe_persist_mcp_tool_approval(
             remember_mcp_tool_approval(sess, key).await;
             return;
         };
-        persist_atlas_engine_app_tool_approval(&turn_context.config, &connector_id, &tool_name).await
+        persist_atlas_engine_app_tool_approval(&turn_context.config, &connector_id, &tool_name)
+            .await
     } else {
         persist_non_app_mcp_tool_approval(sess, &turn_context.config, &key.server, &tool_name).await
     };
@@ -2160,8 +2166,9 @@ fn user_mcp_server_is_configured(config: &Config, server: &str) -> anyhow::Resul
     else {
         return Ok(false);
     };
-    let servers =
-        HashMap::<String, atlas_engine_config::types::McpServerConfig>::deserialize(mcp_servers_toml)?;
+    let servers = HashMap::<String, atlas_engine_config::types::McpServerConfig>::deserialize(
+        mcp_servers_toml,
+    )?;
     Ok(servers.contains_key(server))
 }
 
@@ -2183,7 +2190,10 @@ fn project_mcp_tool_approval_config_folder(
                 .and_then(|table| table.get("mcp_servers"))
                 .cloned()
                 .and_then(|value| {
-                    HashMap::<String, atlas_engine_config::types::McpServerConfig>::deserialize(value).ok()
+                    HashMap::<String, atlas_engine_config::types::McpServerConfig>::deserialize(
+                        value,
+                    )
+                    .ok()
                 })?;
             if servers.contains_key(server) {
                 layer.config_folder()

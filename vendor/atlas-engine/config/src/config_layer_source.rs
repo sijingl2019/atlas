@@ -19,7 +19,9 @@ pub enum ConfigLayerSource {
         profile: Option<String>,
     },
     /// Configuration loaded from a project's `.atlas_engine` directory.
-    Project { dot_atlas_agent_folder: AbsolutePathBuf },
+    Project {
+        dot_atlas_agent_folder: AbsolutePathBuf,
+    },
     /// Overrides supplied for the current session.
     SessionFlags,
     /// Legacy managed configuration loaded from a file.
@@ -93,7 +95,9 @@ pub fn format_config_layer_source(source: &ConfigLayerSource, config_toml_file: 
         ConfigLayerSource::User { file, .. } => {
             format!("user ({})", file.as_path().display())
         }
-        ConfigLayerSource::Project { dot_atlas_agent_folder } => {
+        ConfigLayerSource::Project {
+            dot_atlas_agent_folder,
+        } => {
             format!(
                 "project ({}/{config_toml_file})",
                 dot_atlas_agent_folder.as_path().display()

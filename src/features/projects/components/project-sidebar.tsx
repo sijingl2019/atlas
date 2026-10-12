@@ -39,6 +39,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { copyText } from "@/lib/clipboard";
+import { UiScaleControl } from "@/features/settings/components/ui-scale-control";
 import { getVersion } from "@tauri-apps/api/app";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { GithubIcon } from "@/components/github-icon";
@@ -383,12 +384,9 @@ const ProjectRow = memo(function ProjectRow({
                   if (ws.pinned) unpin(ws.id);
                   else pin(ws.id);
                 }}
-                className={cn(
-                  "flex size-5 items-center justify-center rounded text-[var(--muted-foreground)] hover:bg-[var(--card)] hover:text-[var(--foreground)] cursor-pointer",
-                  ws.pinned
-                    ? "opacity-100"
-                    : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
-                )}
+                // Hover-only even when pinned: the "Pinned" section already
+                // says so, and a resting PinOff sat on top of the +N/−M pill.
+                className="flex size-5 items-center justify-center rounded text-[var(--muted-foreground)] opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:bg-[var(--card)] hover:text-[var(--foreground)] cursor-pointer"
               >
                 {ws.pinned ? <PinOff size={11} /> : <Pin size={11} />}
               </button>
@@ -1589,10 +1587,14 @@ export function ProjectSidebar() {
           </nav>
         </RailScroll>
 
-        {/* Card footer: help on the left, version on the right. Outside the
-            scroller so it stays put, inside the card so it belongs to it. */}
+        {/* Card footer: help and interface scale on the left, version on the
+            right. Outside the scroller so it stays put, inside the card so it
+            belongs to it. */}
         <div className="relative z-panel flex h-[30px] shrink-0 items-center justify-between px-2">
-          <HelpMenu />
+          <div className="flex items-center gap-1">
+            <HelpMenu />
+            <UiScaleControl />
+          </div>
           <AppVersion />
         </div>
       </div>

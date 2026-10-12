@@ -10,8 +10,6 @@ use app_test_support::ChatGptAuthFixture;
 use app_test_support::TestAppServer;
 use app_test_support::to_response;
 use app_test_support::write_chatgpt_auth;
-use chrono::Duration as ChronoDuration;
-use chrono::Utc;
 use atlas_engine_app_server_protocol::HookMetadata;
 use atlas_engine_app_server_protocol::HookTrustStatus;
 use atlas_engine_app_server_protocol::HooksListParams;
@@ -38,6 +36,8 @@ use atlas_engine_login::AuthKeyringBackendKind;
 use atlas_engine_login::login_with_api_key;
 use atlas_engine_protocol::config_types::TrustLevel;
 use atlas_engine_utils_absolute_path::AbsolutePathBuf;
+use chrono::Duration as ChronoDuration;
+use chrono::Utc;
 use flate2::Compression;
 use flate2::write::GzEncoder;
 use pretty_assertions::assert_eq;
@@ -394,7 +394,10 @@ enabled = true
 
     // Keep the ChatGPT remote snapshot cached while changing auth to exercise endpoint-level
     // filtering even when the account-change cache refresh cannot run.
-    std::fs::write(atlas_agent_home.path().join("config.toml"), "invalid config")?;
+    std::fs::write(
+        atlas_agent_home.path().join("config.toml"),
+        "invalid config",
+    )?;
     let request_id = app_server
         .send_login_account_api_key_request("sk-test-key")
         .await?;
@@ -943,7 +946,9 @@ async fn plugin_list_accepts_omitted_cwds() -> Result<()> {
     std::fs::create_dir_all(atlas_agent_home.path().join(".agents/plugins"))?;
     write_plugins_enabled_config(atlas_agent_home.path())?;
     std::fs::write(
-        atlas_agent_home.path().join(".agents/plugins/marketplace.json"),
+        atlas_agent_home
+            .path()
+            .join(".agents/plugins/marketplace.json"),
         r#"{
   "name": "atlas-engine-curated",
   "plugins": [
@@ -1263,7 +1268,10 @@ enabled = false
         Some("ChatGPT Official")
     );
     assert_eq!(marketplace.plugins.len(), 3);
-    assert_eq!(marketplace.plugins[0].id, "enabled-plugin@atlas-engine-curated");
+    assert_eq!(
+        marketplace.plugins[0].id,
+        "enabled-plugin@atlas-engine-curated"
+    );
     assert_eq!(marketplace.plugins[0].name, "enabled-plugin");
     assert_eq!(marketplace.plugins[0].installed, true);
     assert_eq!(marketplace.plugins[0].enabled, true);
@@ -1275,7 +1283,10 @@ enabled = false
         marketplace.plugins[0].auth_policy,
         PluginAuthPolicy::OnInstall
     );
-    assert_eq!(marketplace.plugins[1].id, "disabled-plugin@atlas-engine-curated");
+    assert_eq!(
+        marketplace.plugins[1].id,
+        "disabled-plugin@atlas-engine-curated"
+    );
     assert_eq!(marketplace.plugins[1].name, "disabled-plugin");
     assert_eq!(marketplace.plugins[1].installed, true);
     assert_eq!(marketplace.plugins[1].enabled, false);
@@ -1311,7 +1322,9 @@ async fn plugin_list_uses_home_config_for_enabled_state() -> Result<()> {
     std::fs::create_dir_all(atlas_agent_home.path().join(".agents/plugins"))?;
     write_installed_plugin(&atlas_agent_home, "atlas-engine-curated", "shared-plugin")?;
     std::fs::write(
-        atlas_agent_home.path().join(".agents/plugins/marketplace.json"),
+        atlas_agent_home
+            .path()
+            .join(".agents/plugins/marketplace.json"),
         r#"{
   "name": "atlas-engine-curated",
   "plugins": [
@@ -1633,7 +1646,9 @@ async fn plugin_list_returns_installed_git_source_interface_from_cache() -> Resu
 }}"#
         ),
     )?;
-    let cached_plugin_root = atlas_agent_home.path().join("plugins/cache/debug/toolkit/local");
+    let cached_plugin_root = atlas_agent_home
+        .path()
+        .join("plugins/cache/debug/toolkit/local");
     std::fs::create_dir_all(cached_plugin_root.join(".atlas-agent-plugin"))?;
     std::fs::write(
         cached_plugin_root.join(".atlas-agent-plugin/plugin.json"),
@@ -1805,8 +1820,18 @@ async fn plugin_list_sync_upgrades_and_removes_remote_installed_plugin_bundles()
             .chatgpt_account_id("account-123"),
         AuthCredentialsStoreMode::File,
     )?;
-    write_installed_plugin_with_version(&atlas_agent_home, "openai-curated-remote", "linear", "1.0.0")?;
-    write_installed_plugin_with_version(&atlas_agent_home, "openai-curated-remote", "stale", "1.0.0")?;
+    write_installed_plugin_with_version(
+        &atlas_agent_home,
+        "openai-curated-remote",
+        "linear",
+        "1.0.0",
+    )?;
+    write_installed_plugin_with_version(
+        &atlas_agent_home,
+        "openai-curated-remote",
+        "stale",
+        "1.0.0",
+    )?;
 
     let bundle_url = mount_remote_plugin_bundle(
         &server,
@@ -1907,7 +1932,12 @@ async fn plugin_list_includes_remote_marketplaces_when_remote_plugin_enabled() -
             .chatgpt_account_id("account-123"),
         AuthCredentialsStoreMode::File,
     )?;
-    write_installed_plugin_with_version(&atlas_agent_home, "openai-curated-remote", "linear", "1.2.3")?;
+    write_installed_plugin_with_version(
+        &atlas_agent_home,
+        "openai-curated-remote",
+        "linear",
+        "1.2.3",
+    )?;
 
     let global_directory_body = r#"{
   "plugins": [
@@ -2122,9 +2152,10 @@ async fn plugin_list_includes_remote_marketplaces_when_remote_plugin_enabled() -
             "project management".to_string()
         ]
     );
-    let cache_files = std::fs::read_dir(atlas_agent_home.path().join("cache/remote_plugin_catalog"))?
-        .map(|entry| entry.map(|entry| entry.path()))
-        .collect::<Result<Vec<_>, _>>()?;
+    let cache_files =
+        std::fs::read_dir(atlas_agent_home.path().join("cache/remote_plugin_catalog"))?
+            .map(|entry| entry.map(|entry| entry.path()))
+            .collect::<Result<Vec<_>, _>>()?;
     assert_eq!(cache_files.len(), 1);
     let cached_catalog: serde_json::Value =
         serde_json::from_slice(&std::fs::read(&cache_files[0])?)?;
@@ -2324,8 +2355,11 @@ async fn plugin_list_honors_global_remote_catalog_cache_ttl() -> Result<()> {
     );
 
     wait_for_remote_plugin_request_count(&server, "/ps/plugins/list", /*expected_count*/ 1).await?;
-    wait_for_cached_remote_catalog_plugin_ids(atlas_agent_home.path(), &[refreshed_remote_plugin_id])
-        .await?;
+    wait_for_cached_remote_catalog_plugin_ids(
+        atlas_agent_home.path(),
+        &[refreshed_remote_plugin_id],
+    )
+    .await?;
     sleep(Duration::from_millis(100)).await;
     wait_for_remote_plugin_request_count(&server, "/ps/plugins/list", /*expected_count*/ 1).await?;
 
@@ -2443,8 +2477,11 @@ async fn app_server_startup_refreshes_cached_remote_catalog_without_blocking_plu
         "linear@openai-curated-remote"
     );
 
-    wait_for_cached_remote_catalog_plugin_ids(atlas_agent_home.path(), &[refreshed_remote_plugin_id])
-        .await?;
+    wait_for_cached_remote_catalog_plugin_ids(
+        atlas_agent_home.path(),
+        &[refreshed_remote_plugin_id],
+    )
+    .await?;
     let request_id = app_server
         .send_plugin_list_request(PluginListParams {
             cwds: None,
@@ -2685,8 +2722,11 @@ async fn plugin_list_force_refetch_bypasses_fresh_global_remote_catalog_cache() 
         "notion@openai-curated-remote"
     );
     wait_for_remote_plugin_request_count(&server, "/ps/plugins/list", /*expected_count*/ 1).await?;
-    wait_for_cached_remote_catalog_plugin_ids(atlas_agent_home.path(), &[refreshed_remote_plugin_id])
-        .await?;
+    wait_for_cached_remote_catalog_plugin_ids(
+        atlas_agent_home.path(),
+        &[refreshed_remote_plugin_id],
+    )
+    .await?;
 
     server.reset().await;
     mount_remote_installed_plugins(&server, "GLOBAL", empty_remote_installed_plugins_body()).await;
@@ -2981,8 +3021,8 @@ async fn plugin_list_includes_api_curated_marketplace_for_api_auth_when_remote_p
 }
 
 #[tokio::test]
-async fn plugin_list_includes_api_curated_marketplace_for_bedrock_without_atlas_engine_auth() -> Result<()>
-{
+async fn plugin_list_includes_api_curated_marketplace_for_bedrock_without_atlas_engine_auth()
+-> Result<()> {
     let atlas_agent_home = TempDir::new()?;
     std::fs::write(
         atlas_agent_home.path().join("config.toml"),
@@ -3515,11 +3555,9 @@ plugin_sharing = false
             .collect::<Vec<_>>(),
         vec![("private-linear@created-by-me-remote", true, true)]
     );
-    wait_for_path_exists(
-        &atlas_agent_home.path().join(
-            "plugins/cache/created-by-me-remote/private-linear/1.2.3/.atlas-agent-plugin/plugin.json",
-        ),
-    )
+    wait_for_path_exists(&atlas_agent_home.path().join(
+        "plugins/cache/created-by-me-remote/private-linear/1.2.3/.atlas-agent-plugin/plugin.json",
+    ))
     .await?;
     wait_for_remote_installed_snapshot_request(&server).await?;
     Ok(())
@@ -3601,9 +3639,9 @@ trusted_hash = "sha256:unrelated"
         );
     }
     wait_for_path_exists(
-        &atlas_agent_home
-            .path()
-            .join("plugins/cache/workspace-directory/no-hooks/1.2.3/.atlas-agent-plugin/plugin.json"),
+        &atlas_agent_home.path().join(
+            "plugins/cache/workspace-directory/no-hooks/1.2.3/.atlas-agent-plugin/plugin.json",
+        ),
     )
     .await?;
     let config: toml::Value = toml::from_str(&std::fs::read_to_string(
@@ -4552,7 +4590,10 @@ remote_plugin = true
 async fn plugin_list_omits_featured_plugin_ids_without_chatgpt_auth() -> Result<()> {
     let atlas_agent_home = TempDir::new()?;
     let server = MockServer::start().await;
-    write_plugin_sync_config(atlas_agent_home.path(), &format!("{}/backend-api/", server.uri()))?;
+    write_plugin_sync_config(
+        atlas_agent_home.path(),
+        &format!("{}/backend-api/", server.uri()),
+    )?;
     write_openai_api_curated_marketplace(atlas_agent_home.path(), &["linear", "gmail"])?;
 
     Mock::given(method("GET"))
@@ -4590,7 +4631,10 @@ async fn plugin_list_omits_featured_plugin_ids_without_chatgpt_auth() -> Result<
 async fn plugin_list_uses_warmed_featured_plugin_ids_cache_on_first_request() -> Result<()> {
     let atlas_agent_home = TempDir::new()?;
     let server = MockServer::start().await;
-    write_plugin_sync_config(atlas_agent_home.path(), &format!("{}/backend-api/", server.uri()))?;
+    write_plugin_sync_config(
+        atlas_agent_home.path(),
+        &format!("{}/backend-api/", server.uri()),
+    )?;
     write_openai_curated_marketplace(atlas_agent_home.path(), &["linear", "gmail"])?;
     write_remote_plugin_test_auth(atlas_agent_home.path())?;
 
@@ -5284,7 +5328,10 @@ fn write_installed_plugin_with_version(
     Ok(())
 }
 
-fn write_plugin_sync_config(atlas_agent_home: &std::path::Path, base_url: &str) -> std::io::Result<()> {
+fn write_plugin_sync_config(
+    atlas_agent_home: &std::path::Path,
+    base_url: &str,
+) -> std::io::Result<()> {
     std::fs::write(
         atlas_agent_home.join("config.toml"),
         format!(

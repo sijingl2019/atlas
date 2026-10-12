@@ -528,7 +528,10 @@ async fn assert_no_proxy_subprocess(no_proxy: &str, expect_proxy: bool, proxy_tl
                 .iter()
                 .map(|byte| format!("{byte:02x}"))
                 .collect::<String>();
-            command.env("ATLAS_AGENT_WEBSOCKET_NO_PROXY_PROBE_CA_DER", certificate_hex);
+            command.env(
+                "ATLAS_AGENT_WEBSOCKET_NO_PROXY_PROBE_CA_DER",
+                certificate_hex,
+            );
         }
         command
             .output()

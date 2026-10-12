@@ -312,7 +312,11 @@ async fn plugin_search_stitches_local_results_into_the_first_remote_page() -> Re
         "marketplace.json",
         &local_plugins,
     )?;
-    write_remote_plugin_search_config(atlas_agent_home.path(), &server, /*remote_plugin*/ true)?;
+    write_remote_plugin_search_config(
+        atlas_agent_home.path(),
+        &server,
+        /*remote_plugin*/ true,
+    )?;
     write_chatgpt_search_auth(atlas_agent_home.path())?;
 
     Mock::given(method("GET"))
@@ -608,7 +612,11 @@ async fn plugin_search_deduplicates_shared_remote_identities_while_ignoring_loca
     )?;
     write_installed_plugin(atlas_agent_home.path(), "openai-curated", "calendar")?;
     write_installed_plugin(atlas_agent_home.path(), "personal-tools", "local-planner")?;
-    write_installed_plugin(atlas_agent_home.path(), "personal-tools", "calendar-local-only")?;
+    write_installed_plugin(
+        atlas_agent_home.path(),
+        "personal-tools",
+        "calendar-local-only",
+    )?;
     std::fs::write(
         atlas_agent_home.path().join("config.toml"),
         format!(
@@ -747,7 +755,10 @@ fn write_local_marketplace(
     )?;
 
     for plugin in plugins {
-        let plugin_manifest = root.join("plugins").join(plugin.name).join(".atlas-agent-plugin");
+        let plugin_manifest = root
+            .join("plugins")
+            .join(plugin.name)
+            .join(".atlas-agent-plugin");
         std::fs::create_dir_all(&plugin_manifest)?;
         std::fs::write(
             plugin_manifest.join("plugin.json"),

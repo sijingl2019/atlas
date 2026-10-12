@@ -14,6 +14,10 @@ import {
   type SettingsPatch,
 } from "@/features/settings/lib/atlas-config-api";
 import { DEFAULT_SETTINGS, type AppSettings } from "@/features/settings/lib/app-settings";
+import {
+  migrateNotificationSettings,
+  readLegacyAgentPrefs,
+} from "@/features/settings/lib/notification-settings-migration";
 
 // Re-exported because most of the app reaches for `AppSettings` through the
 // store it reads settings from; the definition itself lives one directory over
@@ -126,6 +130,11 @@ function applySettingsSideEffects(next: AppSettings, previous: AppSettings): voi
   // once the appearance it resolves to is known; only a new icon theme has to
   // be applied from here.
   if (next.iconTheme !== previous.iconTheme) applyIcons(next.iconTheme, next.themeMode);
+  // Agents are offered the code tools when a session opens, so an empty chat
+  // opened while they were off is rebound to get them.
+  if (next.agentCodeTools && !previous.agentCodeTools) {
+    void import("@/features/chat/lib/rebind-empty-chats").then((m) => m.rebindEmptyChats());
+  }
 }
 
 /** How many times a settings write adopts the latest generation and retries
@@ -245,6 +254,15 @@ export const useSettingsStore = createSelectors(
         // The icon catalog is only listed here; no icon is fetched until a
         // row asks for one (decision 12).
         applyIcons(settings.iconTheme, settings.themeMode);
+
+        // Fold the pre-tier terminal + agent notification choices into the
+        // tier settings, once (the flag it sets is persisted with the patch).
+        // Not while the file is unreadable: those are defaults, not choices.
+        const migration =
+          !payload.configStatus || payload.configStatus.status === "ok"
+            ? migrateNotificationSettings(settings, readLegacyAgentPrefs())
+            : null;
+        if (migration) get().actions.updateSettings(migration);
       },
     },
   })),

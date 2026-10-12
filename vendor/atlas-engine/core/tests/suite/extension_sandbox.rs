@@ -71,7 +71,8 @@ async fn extension_tool_receives_turn_environment_sandbox() -> Result<()> {
 
     let server = responses::start_mock_server().await;
     let auth = AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing();
-    let extensions = image_generation_extensions(&auth, |config| Some(config.atlas_agent_home.clone()));
+    let extensions =
+        image_generation_extensions(&auth, |config| Some(config.atlas_agent_home.clone()));
     let mut builder = test_atlas_engine()
         .with_auth(auth)
         .with_extensions(extensions)
@@ -310,7 +311,13 @@ async fn extension_tool_uses_granted_turn_permissions_without_local_persistence(
             "image_url": TINY_PNG_DATA_URL,
         }])
     );
-    assert!(!test.config.atlas_agent_home.join("generated_images").exists());
+    assert!(
+        !test
+            .config
+            .atlas_agent_home
+            .join("generated_images")
+            .exists()
+    );
 
     Ok(())
 }

@@ -458,7 +458,6 @@ pub fn permission_tool_call(call: &ThreadToolCall) -> serde_json::Value {
     out
 }
 
-
 /// The protocol's own stop-reason token.
 ///
 /// Serialised rather than matched so the wire keeps whatever the schema calls
@@ -564,17 +563,23 @@ mod permission_tests {
     use super::*;
 
     fn call(update: acp::ToolCall) -> ThreadToolCall {
-        ThreadToolCall::from_acp(update, atlas_acp_thread::ToolCallStatus::InProgress).expect("a call")
+        ThreadToolCall::from_acp(update, atlas_acp_thread::ToolCallStatus::InProgress)
+            .expect("a call")
     }
 
     #[test]
     fn a_plain_approval_keeps_its_shape_and_names_its_tool() {
         let wire = permission_tool_call(&call(
-            acp::ToolCall::new("call-1", "git push").kind(acp::ToolKind::Execute).raw_input(serde_json::json!({ "command": "git push" })),
+            acp::ToolCall::new("call-1", "git push")
+                .kind(acp::ToolKind::Execute)
+                .raw_input(serde_json::json!({ "command": "git push" })),
         ));
         assert_eq!(wire["title"], "git push");
         assert_eq!(wire["rawInput"]["command"], "git push");
-        assert_eq!(wire["toolName"], "git push", "falls back to the title, as a row does");
+        assert_eq!(
+            wire["toolName"], "git push",
+            "falls back to the title, as a row does"
+        );
         assert!(wire.get("content").is_none(), "no text, no content");
     }
 
@@ -582,8 +587,15 @@ mod permission_tests {
     fn an_outward_actions_card_carries_its_text_in_full_and_the_tool_behind_its_title() {
         let body = "Renamed the keys.\n".repeat(500);
         let mut meta = acp::Meta::new();
-        meta.insert("tool_name".into(), serde_json::json!("atlas_org.org_comment_reply"));
-        let text = |t: &str| acp::ToolCallContent::Content(acp::Content::new(acp::ContentBlock::Text(acp::TextContent::new(t.to_string()))));
+        meta.insert(
+            "tool_name".into(),
+            serde_json::json!("atlas_org.org_comment_reply"),
+        );
+        let text = |t: &str| {
+            acp::ToolCallContent::Content(acp::Content::new(acp::ContentBlock::Text(
+                acp::TextContent::new(t.to_string()),
+            )))
+        };
         let wire = permission_tool_call(&call(
             acp::ToolCall::new("call-1", "Reply on Sam Lee's comment")
                 .kind(acp::ToolKind::Other)
@@ -592,6 +604,9 @@ mod permission_tests {
         ));
         assert_eq!(wire["title"], "Reply on Sam Lee's comment");
         assert_eq!(wire["toolName"], "atlas_org.org_comment_reply");
-        assert_eq!(wire["content"], serde_json::json!(["Sam Lee, on their comment", body]));
+        assert_eq!(
+            wire["content"],
+            serde_json::json!(["Sam Lee, on their comment", body])
+        );
     }
 }

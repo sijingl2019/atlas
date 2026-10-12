@@ -361,7 +361,9 @@ fn connect_file_system(websocket_url: &str) -> Result<Arc<dyn ExecutorFileSystem
 
 // Only the Unix stream tests above need this sandbox builder.
 #[cfg(unix)]
-fn read_only_sandbox(path: std::path::PathBuf) -> atlas_engine_exec_server::FileSystemSandboxContext {
+fn read_only_sandbox(
+    path: std::path::PathBuf,
+) -> atlas_engine_exec_server::FileSystemSandboxContext {
     use atlas_engine_exec_server::FileSystemSandboxContext;
     use atlas_engine_protocol::models::PermissionProfile;
     use atlas_engine_protocol::permissions::FileSystemAccessMode;

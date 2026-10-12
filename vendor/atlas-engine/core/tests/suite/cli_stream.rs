@@ -74,7 +74,10 @@ fn personal_access_token_exec_command(server: &MockServer, home: &TempDir) -> Co
     cmd.arg("exec")
         .arg("--skip-git-repo-check")
         .arg("-c")
-        .arg(format!("openai_base_url=\"{}/api/atlas-agent\"", server.uri()))
+        .arg(format!(
+            "openai_base_url=\"{}/api/atlas-agent\"",
+            server.uri()
+        ))
         .arg("-c")
         .arg(format!("chatgpt_base_url=\"{}/backend-api\"", server.uri()))
         .arg("-C")
@@ -613,7 +616,10 @@ async fn integration_creates_and_checks_session_file() -> anyhow::Result<()> {
         .env("OPENAI_API_KEY", "dummy");
 
     let output2 = run_cli_command(&mut cmd2).unwrap();
-    assert!(output2.status.success(), "resume atlas-engine-cli run failed");
+    assert!(
+        output2.status.success(),
+        "resume atlas-engine-cli run failed"
+    );
     assert_eq!(resp_mock.requests().len(), 2);
 
     // Find the new session file containing the resumed marker.

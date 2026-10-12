@@ -438,11 +438,26 @@ mod tests {
     fn every_commentable_entry_kind_maps_to_an_anchor() {
         // The viewer's three text kinds are one table on the wire. Losing that
         // mapping would put a comment button on a row that cannot carry one.
-        assert_eq!(AnchorKind::for_entry_kind("prompt"), Some(AnchorKind::Message));
-        assert_eq!(AnchorKind::for_entry_kind("response"), Some(AnchorKind::Message));
-        assert_eq!(AnchorKind::for_entry_kind("thinking"), Some(AnchorKind::Message));
-        assert_eq!(AnchorKind::for_entry_kind("tool_call"), Some(AnchorKind::ToolCall));
-        assert_eq!(AnchorKind::for_entry_kind("checkpoint"), Some(AnchorKind::Checkpoint));
+        assert_eq!(
+            AnchorKind::for_entry_kind("prompt"),
+            Some(AnchorKind::Message)
+        );
+        assert_eq!(
+            AnchorKind::for_entry_kind("response"),
+            Some(AnchorKind::Message)
+        );
+        assert_eq!(
+            AnchorKind::for_entry_kind("thinking"),
+            Some(AnchorKind::Message)
+        );
+        assert_eq!(
+            AnchorKind::for_entry_kind("tool_call"),
+            Some(AnchorKind::ToolCall)
+        );
+        assert_eq!(
+            AnchorKind::for_entry_kind("checkpoint"),
+            Some(AnchorKind::Checkpoint)
+        );
         assert_eq!(AnchorKind::for_entry_kind("nonsense"), None);
     }
 
@@ -505,7 +520,10 @@ mod tests {
     fn an_inbox_kind_this_build_does_not_know_reads_as_the_weakest() {
         let kind: InboxKind = serde_json::from_value(serde_json::json!("artifact_nudge")).unwrap();
         assert_eq!(kind, InboxKind::SessionComment);
-        assert_eq!(serde_json::to_value(InboxKind::Mention).unwrap(), serde_json::json!("artifact_mention"));
+        assert_eq!(
+            serde_json::to_value(InboxKind::Mention).unwrap(),
+            serde_json::json!("artifact_mention")
+        );
     }
 
     #[test]

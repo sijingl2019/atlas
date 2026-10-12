@@ -1916,7 +1916,8 @@ async fn webrtc_v1_ignores_atlas_engine_response_handoff_mode() -> Result<()> {
             "v=offer\r\n",
             /*client_managed_handoffs*/ None,
             /*atlas_engine_responses_as_items*/ None,
-            /*atlas_engine_response_handoff_mode*/ Some(AtlasEngineResponseHandoffMode::BemTags),
+            /*atlas_engine_response_handoff_mode*/
+            Some(AtlasEngineResponseHandoffMode::BemTags),
             /*delegation_ack_filler*/ None,
             RealtimeConversationVersion::V1,
         )

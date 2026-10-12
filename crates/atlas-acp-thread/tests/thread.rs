@@ -467,7 +467,9 @@ async fn reraising_a_card_resolves_the_one_showing_and_announces_the_new_one() {
     while let Ok(event) = events.try_recv() {
         match event {
             AcpThreadEvent::ToolAuthorizationReceived(id) => order.push(format!("resolved {id}")),
-            AcpThreadEvent::ToolAuthorizationRequested { id, .. } => order.push(format!("requested {id}")),
+            AcpThreadEvent::ToolAuthorizationRequested { id, .. } => {
+                order.push(format!("requested {id}"))
+            }
             _ => {}
         }
     }
@@ -481,8 +483,15 @@ async fn reraising_a_card_resolves_the_one_showing_and_announces_the_new_one() {
             acp::PermissionOptionKind::AllowOnce,
         ),
     );
-    assert!(matches!(second.await, RequestPermissionOutcome::Selected(_)));
-    assert_eq!(status_of(&thread, "t1"), "In Progress", "the status it had before the first card");
+    assert!(matches!(
+        second.await,
+        RequestPermissionOutcome::Selected(_)
+    ));
+    assert_eq!(
+        status_of(&thread, "t1"),
+        "In Progress",
+        "the status it had before the first card"
+    );
 }
 
 /// Adapted from `test_cancel_tool_call_authorization_resolves_permission_request`.

@@ -509,7 +509,9 @@ async fn capability_sections_render_in_order_with_host_repo_and_plugin_skills() 
         ),
     )?;
     let host_skill_path = dunce::canonicalize(host_skill_path)?;
-    let plugin_root = atlas_agent_home.path().join("plugins/cache/test/sample/local");
+    let plugin_root = atlas_agent_home
+        .path()
+        .join("plugins/cache/test/sample/local");
     std::fs::create_dir_all(plugin_root.join(".atlas-agent-plugin"))?;
     std::fs::write(
         plugin_root.join(".atlas-agent-plugin/plugin.json"),
@@ -749,7 +751,9 @@ async fn explicit_skill_prompt_precedes_plugin_instructions() -> Result<()> {
     .await;
 
     let atlas_agent_home = Arc::new(TempDir::new()?);
-    let plugin_root = atlas_agent_home.path().join("plugins/cache/test/sample/local");
+    let plugin_root = atlas_agent_home
+        .path()
+        .join("plugins/cache/test/sample/local");
     let skill_dir = plugin_root.join("skills/sample-search");
     std::fs::create_dir_all(plugin_root.join(".atlas-agent-plugin"))?;
     std::fs::create_dir_all(&skill_dir)?;
@@ -1751,7 +1755,10 @@ async fn production_turn_uses_provider_host_catalog_and_core_snapshot_injection(
     let atlas_agent_home = Arc::new(TempDir::new()?);
     let skill_name = "snapshot-backed";
     let snapshot_description = "This description comes from Core's host skills snapshot.";
-    write_host_skills(atlas_agent_home.path(), &[(skill_name, snapshot_description)])?;
+    write_host_skills(
+        atlas_agent_home.path(),
+        &[(skill_name, snapshot_description)],
+    )?;
     let skill_path = atlas_agent_home
         .path()
         .join("skills")
@@ -1817,8 +1824,12 @@ async fn production_turn_uses_provider_host_catalog_and_core_snapshot_injection(
     let user_text = request.message_input_texts("user").join("\n");
     assert!(user_text.contains(&snapshot_contents));
     assert!(!user_text.contains(provider_contents));
-    let app_mentioned_events =
-        wait_for_analytics_events(&server, "atlas_engine_app_mentioned", /*expected_count*/ 1).await;
+    let app_mentioned_events = wait_for_analytics_events(
+        &server,
+        "atlas_engine_app_mentioned",
+        /*expected_count*/ 1,
+    )
+    .await;
     let app_mentioned_event = &app_mentioned_events[0];
     assert_eq!(
         app_mentioned_event["event_params"]["connector_id"],
@@ -1939,8 +1950,11 @@ async fn production_turn_warns_and_omits_unreadable_host_skill() -> Result<()> {
     )?;
     let missing_skill_path =
         dunce::canonicalize(atlas_agent_home.path().join("skills/missing-host/SKILL.md"))?;
-    let available_skill_path =
-        dunce::canonicalize(atlas_agent_home.path().join("skills/available-host/SKILL.md"))?;
+    let available_skill_path = dunce::canonicalize(
+        atlas_agent_home
+            .path()
+            .join("skills/available-host/SKILL.md"),
+    )?;
     let available_skill_contents = std::fs::read_to_string(&available_skill_path)?;
     let (extensions, _) =
         catalog_extensions(SkillCatalog::default(), /*include_host_provider*/ true);

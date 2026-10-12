@@ -503,7 +503,7 @@ impl Respond for AtlasAppsJsonRpcResponder {
                     .as_ref()
                     .is_some_and(|remaining| {
                         remaining
-                            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |remaining| {
+                            .try_update(Ordering::SeqCst, Ordering::SeqCst, |remaining| {
                                 remaining.checked_sub(1)
                             })
                             .is_ok()

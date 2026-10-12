@@ -6,18 +6,18 @@ use crate::cache::ModelsCache;
 use crate::cache::ModelsCacheEntry;
 use crate::cache::ModelsCacheError;
 use crate::cache::ModelsCacheFuture;
-use chrono::Utc;
 use atlas_engine_http_client::HttpClientFactory;
 use atlas_engine_http_client::OutboundProxyPolicy;
+use atlas_engine_login::AtlasEngineAuth;
 use atlas_engine_login::AuthCredentialsStoreMode;
 use atlas_engine_login::AuthKeyringBackendKind;
 use atlas_engine_login::AuthManager;
-use atlas_engine_login::AtlasEngineAuth;
 use atlas_engine_login::ExternalAuth;
 use atlas_engine_login::ExternalAuthRefreshContext;
 use atlas_engine_login::TokenData;
 use atlas_engine_protocol::auth::AuthMode;
 use atlas_engine_protocol::openai_models::ModelsResponse;
+use chrono::Utc;
 use pretty_assertions::assert_eq;
 use serde_json::json;
 use std::collections::VecDeque;
@@ -310,7 +310,10 @@ where
     F: FnOnce(&mut ModelsCacheEntry),
 {
     let client_version = crate::client_version_to_whole();
-    let cache = FileModelsCache::new(atlas_agent_home.join(MODEL_CACHE_FILE), DEFAULT_MODEL_CACHE_TTL);
+    let cache = FileModelsCache::new(
+        atlas_agent_home.join(MODEL_CACHE_FILE),
+        DEFAULT_MODEL_CACHE_TTL,
+    );
     let mut entry = cache
         .load(&client_version)
         .await
@@ -532,9 +535,9 @@ async fn injected_cache_ttl_refresh_preserves_cached_payload() {
     let manager = OpenAiModelsManager::new_with_cache(
         cache.clone(),
         TestModelsEndpoint::new(Vec::new()),
-        Some(AuthManager::from_auth_for_testing(AtlasEngineAuth::from_api_key(
-            "test-api-key",
-        ))),
+        Some(AuthManager::from_auth_for_testing(
+            AtlasEngineAuth::from_api_key("test-api-key"),
+        )),
     );
 
     manager
@@ -872,8 +875,10 @@ async fn refresh_available_models_uses_cached_remote_only_catalog_for_chatgpt_au
     )];
     let atlas_agent_home = tempdir().expect("temp dir");
     let fetch_endpoint = TestModelsEndpoint::new(vec![remote_models.clone()]);
-    let fetch_manager =
-        openai_manager_for_tests(atlas_agent_home.path().to_path_buf(), fetch_endpoint.clone());
+    let fetch_manager = openai_manager_for_tests(
+        atlas_agent_home.path().to_path_buf(),
+        fetch_endpoint.clone(),
+    );
 
     fetch_manager
         .refresh_available_models(
@@ -884,8 +889,10 @@ async fn refresh_available_models_uses_cached_remote_only_catalog_for_chatgpt_au
         .expect("initial refresh succeeds");
 
     let cache_endpoint = TestModelsEndpoint::new(Vec::new());
-    let cache_manager =
-        openai_manager_for_tests(atlas_agent_home.path().to_path_buf(), cache_endpoint.clone());
+    let cache_manager = openai_manager_for_tests(
+        atlas_agent_home.path().to_path_buf(),
+        cache_endpoint.clone(),
+    );
 
     cache_manager
         .refresh_available_models(
@@ -997,9 +1004,9 @@ async fn refresh_available_models_keeps_merging_for_api_auth() {
     let manager = openai_manager_for_tests_with_auth(
         atlas_agent_home.path().to_path_buf(),
         endpoint.clone(),
-        Some(AuthManager::from_auth_for_testing(AtlasEngineAuth::from_api_key(
-            "test-api-key",
-        ))),
+        Some(AuthManager::from_auth_for_testing(
+            AtlasEngineAuth::from_api_key("test-api-key"),
+        )),
     );
     let mut expected = load_remote_models_from_file().expect("bundled models should parse");
     expected.extend(remote_models);
@@ -1279,8 +1286,9 @@ impl ModelsEndpointClient for TestAuthAwareModelsEndpoint {
 async fn refresh_available_models_skips_network_when_external_api_key_overrides_chatgpt_auth() {
     let dynamic_slug = "dynamic-model-only-for-test-external-api-key";
     let atlas_agent_home = tempdir().expect("temp dir");
-    let auth_manager =
-        AuthManager::from_auth_for_testing(AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing());
+    let auth_manager = AuthManager::from_auth_for_testing(
+        AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing(),
+    );
     auth_manager
         .set_external_auth(Arc::new(TestExternalApiKeyAuth))
         .await
@@ -1322,8 +1330,9 @@ async fn refresh_available_models_skips_network_when_external_api_key_overrides_
 async fn refresh_available_models_uses_cached_chatgpt_when_external_api_key_is_unresolved() {
     let dynamic_slug = "dynamic-model-only-for-test-unresolved-external-api-key";
     let atlas_agent_home = tempdir().expect("temp dir");
-    let auth_manager =
-        AuthManager::from_auth_for_testing(AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing());
+    let auth_manager = AuthManager::from_auth_for_testing(
+        AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing(),
+    );
     auth_manager
         .set_external_auth(Arc::new(TestUnresolvedExternalApiKeyAuth))
         .await
@@ -1418,8 +1427,9 @@ fn build_available_models_picks_default_after_hiding_hidden_models() {
 
 #[tokio::test]
 async fn static_manager_reads_latest_auth_mode() {
-    let auth_manager =
-        AuthManager::from_auth_for_testing(AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing());
+    let auth_manager = AuthManager::from_auth_for_testing(
+        AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing(),
+    );
     let chatgpt_only_model = {
         let mut model = remote_model("chatgpt-only", "ChatGPT Only", /*priority*/ 0);
         model.supported_in_api = false;

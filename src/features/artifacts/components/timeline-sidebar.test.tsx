@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { BoardSession } from "../types";
+import { boardKey } from "../lib/board-key";
 import { TimelineSidebar } from "./timeline-sidebar";
 
 // The sidebar's import graph reaches `settings-store`, which subscribes to
@@ -104,7 +105,7 @@ describe("TimelineSidebar", () => {
         ]}
         loading={false}
         filtered={false}
-        openId={null}
+        openKey={null}
         period="day"
         onOpen={() => {}}
       />,
@@ -135,7 +136,7 @@ describe("TimelineSidebar", () => {
         ]}
         loading={false}
         filtered={false}
-        openId={null}
+        openKey={null}
         period="day"
         onOpen={() => {}}
       />,
@@ -145,7 +146,7 @@ describe("TimelineSidebar", () => {
     // The icon carries the state, so it is what the assertion reads — a
     // synced row must be distinguishable without opening it.
     expect(screen.getByLabelText("This machine only")).toBeTruthy();
-    expect(screen.getByLabelText("Shared with your Organisation")).toBeTruthy();
+    expect(screen.getByLabelText("Shared with your Organization")).toBeTruthy();
   });
 
   it("says whose work each row is, and never prints a raw id", () => {
@@ -168,7 +169,7 @@ describe("TimelineSidebar", () => {
         ]}
         loading={false}
         filtered={false}
-        openId={null}
+        openKey={null}
         period="day"
         onOpen={() => {}}
       />,
@@ -185,7 +186,7 @@ describe("TimelineSidebar", () => {
         sessions={[session({ id: "a", title: "Alpha" }), session({ id: "b", title: "Beta" })]}
         loading={false}
         filtered={false}
-        openId="b"
+        openKey={boardKey({ id: "b", projectPath: "/tmp/atlas", remoteProjectId: null })}
         period="day"
         onOpen={onOpen}
       />,
@@ -199,6 +200,33 @@ describe("TimelineSidebar", () => {
     expect(onOpen).toHaveBeenCalledWith("a", "/tmp/atlas", null);
   });
 
+  it("shows one Session held by two Projects as two rows and selects only the open one", () => {
+    // A Project whose sync moved leaves its copy in the old Project; the same
+    // Session id is then on the board once per Project.
+    const onOpen = vi.fn();
+    const inA = session({ id: "s", title: "In A", projectPath: "", remoteProjectId: "ws_a" });
+    const inB = session({
+      id: "s",
+      title: "In B",
+      projectPath: "/tmp/atlas",
+      remoteProjectId: "ws_b",
+    });
+    render(
+      <TimelineSidebar
+        sessions={[inB, inA]}
+        loading={false}
+        filtered={false}
+        openKey={boardKey(inA)}
+        period="day"
+        onOpen={onOpen}
+      />,
+    );
+    expect(screen.getByText("In A").closest("button")!.getAttribute("data-selected")).toBe("true");
+    expect(screen.getByText("In B").closest("button")!.getAttribute("data-selected")).toBeNull();
+    fireEvent.click(screen.getByText("In B"));
+    expect(onOpen).toHaveBeenCalledWith("s", "/tmp/atlas", "ws_b");
+  });
+
   it("folds three identical imported titles into one row that expands", () => {
     render(
       <TimelineSidebar
@@ -207,7 +235,7 @@ describe("TimelineSidebar", () => {
         )}
         loading={false}
         filtered={false}
-        openId={null}
+        openKey={null}
         period="day"
         onOpen={() => {}}
       />,
@@ -228,7 +256,7 @@ describe("TimelineSidebar", () => {
         )}
         loading={false}
         filtered={false}
-        openId={null}
+        openKey={null}
         period="day"
         onOpen={() => {}}
       />,
@@ -248,7 +276,7 @@ describe("TimelineSidebar", () => {
         sessions={[]}
         loading={false}
         filtered
-        openId={null}
+        openKey={null}
         period="day"
         onOpen={() => {}}
       />,

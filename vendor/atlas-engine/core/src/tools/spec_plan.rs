@@ -407,9 +407,10 @@ pub(crate) fn finalize_tool_router(
                 let owner = tool.runtime.mcp_server_name();
                 match namespace_owners.get(namespace_name) {
                     Some(existing_owner) if existing_owner != &owner => {
-                        return Err(
-                            AtlasEngineErrorDetails::ToolCollision(namespace_name.to_string()).into()
-                        );
+                        return Err(AtlasEngineErrorDetails::ToolCollision(
+                            namespace_name.to_string(),
+                        )
+                        .into());
                     }
                     Some(_) => {}
                     None => {
@@ -691,9 +692,9 @@ fn is_hidden_by_code_mode_only(
     let tool_mode = effective_tool_mode(turn_context);
     tool_mode == ToolMode::CodeModeOnly
         && exposure.is_available_in_code_mode()
-        && atlas_engine_code_mode::is_code_mode_nested_tool(&atlas_engine_tools::code_mode_name_for_tool_name(
-            tool_name,
-        ))
+        && atlas_engine_code_mode::is_code_mode_nested_tool(
+            &atlas_engine_tools::code_mode_name_for_tool_name(tool_name),
+        )
 }
 
 fn is_excluded_from_code_mode(turn_context: &TurnContext, tool_name: &ToolName) -> bool {

@@ -140,12 +140,16 @@ impl ExternalAgentSource {
         limits: ExternalAgentSessionImportLimits,
     ) -> io::Result<Vec<ExternalAgentSessionMigration>> {
         match self {
-            Self::Cla => {
-                detect_recent_cla_sessions_with_limits(external_agent_home, atlas_agent_home, limits)
-            }
-            Self::Cur => {
-                detect_recent_cur_sessions_with_limits(external_agent_home, atlas_agent_home, limits)
-            }
+            Self::Cla => detect_recent_cla_sessions_with_limits(
+                external_agent_home,
+                atlas_agent_home,
+                limits,
+            ),
+            Self::Cur => detect_recent_cur_sessions_with_limits(
+                external_agent_home,
+                atlas_agent_home,
+                limits,
+            ),
         }
     }
 

@@ -30,8 +30,6 @@ use crate::transport::remote_control::enroll::preview_remote_control_response_bo
 use crate::transport::remote_control::enroll::update_persisted_remote_control_enrollment;
 use crate::transport::remote_control::server_api::enroll_remote_control_server;
 use crate::transport::remote_control::server_api::refresh_remote_control_server;
-use axum::http::HeaderValue;
-use base64::Engine;
 use atlas_engine_app_server_protocol::RemoteControlConnectionStatus;
 use atlas_engine_app_server_protocol::RemoteControlStatusChangedNotification;
 use atlas_engine_core::util::backoff;
@@ -39,6 +37,8 @@ use atlas_engine_login::AuthManager;
 use atlas_engine_login::UnauthorizedRecovery;
 use atlas_engine_state::StateRuntime;
 use atlas_engine_utils_rustls_provider::ensure_rustls_crypto_provider;
+use axum::http::HeaderValue;
+use base64::Engine;
 use futures::SinkExt;
 use futures::StreamExt;
 use futures::stream::SplitSink;
@@ -1821,7 +1821,6 @@ mod tests {
     use crate::transport::remote_control::auth::mark_recovery_auth_change_seen;
     use crate::transport::remote_control::protocol::StreamId;
     use crate::transport::remote_control::protocol::normalize_remote_control_url;
-    use chrono::Utc;
     use atlas_engine_app_server_protocol::ConfigWarningNotification;
     use atlas_engine_app_server_protocol::JSONRPCMessage;
     use atlas_engine_app_server_protocol::JSONRPCNotification;
@@ -1829,15 +1828,16 @@ mod tests {
     use atlas_engine_app_server_protocol::ServerNotificationEnvelope;
     use atlas_engine_config::types::AuthCredentialsStoreMode;
     use atlas_engine_core::test_support::auth_manager_from_auth;
+    use atlas_engine_login::AtlasEngineAuth;
     use atlas_engine_login::AuthDotJson;
     use atlas_engine_login::AuthKeyringBackendKind;
-    use atlas_engine_login::AtlasEngineAuth;
     use atlas_engine_login::save_auth;
     use atlas_engine_login::token_data::TokenData;
     use atlas_engine_login::token_data::parse_chatgpt_jwt_claims;
     use atlas_engine_protocol::auth::AuthMode;
     use atlas_engine_state::StateRuntime;
     use atlas_engine_utils_absolute_path::test_support::PathExt;
+    use chrono::Utc;
     use futures::StreamExt;
     use pretty_assertions::assert_eq;
     use std::sync::Arc;
@@ -1995,7 +1995,9 @@ mod tests {
         );
     }
 
-    pub(super) async fn remote_control_state_runtime(atlas_agent_home: &TempDir) -> Arc<StateRuntime> {
+    pub(super) async fn remote_control_state_runtime(
+        atlas_agent_home: &TempDir,
+    ) -> Arc<StateRuntime> {
         StateRuntime::init(
             atlas_engine_state::SqliteConfig::new_for_testing(atlas_agent_home.path().abs()),
             "test-provider".to_string(),

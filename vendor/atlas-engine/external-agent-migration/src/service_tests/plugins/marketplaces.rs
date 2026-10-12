@@ -98,7 +98,8 @@ async fn import_plugins_supports_external_agent_plugin_marketplace_layout() {
     let plugin_root = marketplace_root.join("plugins").join("cloudflare");
     fs::create_dir_all(marketplace_root.join(EXTERNAL_AGENT_PLUGIN_MANIFEST_DIR))
         .expect("create marketplace manifest dir");
-    fs::create_dir_all(plugin_root.join(".atlas-agent-plugin")).expect("create plugin manifest dir");
+    fs::create_dir_all(plugin_root.join(".atlas-agent-plugin"))
+        .expect("create plugin manifest dir");
     fs::create_dir_all(&atlas_agent_home).expect("create atlas-agent home");
 
     fs::write(
@@ -266,9 +267,10 @@ source = {configured_marketplace_root:?}
             raw_errors: Vec::new(),
         }
     );
-    let config: TomlValue =
-        toml::from_str(&fs::read_to_string(atlas_agent_home.join("config.toml")).expect("read config"))
-            .expect("parse config");
+    let config: TomlValue = toml::from_str(
+        &fs::read_to_string(atlas_agent_home.join("config.toml")).expect("read config"),
+    )
+    .expect("parse config");
     let expected: TomlValue = toml::from_str(&format!(
         r#"[marketplaces.my-plugins]
 source_type = "local"
@@ -289,7 +291,8 @@ async fn detect_home_supports_relative_external_agent_plugin_marketplace_path() 
     let plugin_root = marketplace_root.join("plugins").join("cloudflare");
     fs::create_dir_all(marketplace_root.join(EXTERNAL_AGENT_PLUGIN_MANIFEST_DIR))
         .expect("create marketplace manifest dir");
-    fs::create_dir_all(plugin_root.join(".atlas-agent-plugin")).expect("create plugin manifest dir");
+    fs::create_dir_all(plugin_root.join(".atlas-agent-plugin"))
+        .expect("create plugin manifest dir");
     fs::create_dir_all(&atlas_agent_home).expect("create atlas-agent home");
 
     fs::write(
@@ -411,7 +414,8 @@ async fn import_plugins_supports_relative_external_agent_plugin_marketplace_path
     let plugin_root = marketplace_root.join("plugins").join("cloudflare");
     fs::create_dir_all(marketplace_root.join(EXTERNAL_AGENT_PLUGIN_MANIFEST_DIR))
         .expect("create marketplace manifest dir");
-    fs::create_dir_all(plugin_root.join(".atlas-agent-plugin")).expect("create plugin manifest dir");
+    fs::create_dir_all(plugin_root.join(".atlas-agent-plugin"))
+        .expect("create plugin manifest dir");
     fs::create_dir_all(&atlas_agent_home).expect("create atlas-agent home");
 
     fs::write(
@@ -541,7 +545,8 @@ async fn detect_repo_supports_project_relative_external_agent_plugin_marketplace
     fs::create_dir_all(repo_root.join(EXTERNAL_AGENT_DIR)).expect("create repo external agent dir");
     fs::create_dir_all(marketplace_root.join(EXTERNAL_AGENT_PLUGIN_MANIFEST_DIR))
         .expect("create marketplace manifest dir");
-    fs::create_dir_all(plugin_root.join(".atlas-agent-plugin")).expect("create plugin manifest dir");
+    fs::create_dir_all(plugin_root.join(".atlas-agent-plugin"))
+        .expect("create plugin manifest dir");
     fs::create_dir_all(&atlas_agent_home).expect("create atlas-agent home");
 
     fs::write(
@@ -624,7 +629,8 @@ async fn import_plugins_supports_project_relative_external_agent_plugin_marketpl
     fs::create_dir_all(repo_root.join(EXTERNAL_AGENT_DIR)).expect("create repo external agent dir");
     fs::create_dir_all(marketplace_root.join(EXTERNAL_AGENT_PLUGIN_MANIFEST_DIR))
         .expect("create marketplace manifest dir");
-    fs::create_dir_all(plugin_root.join(".atlas-agent-plugin")).expect("create plugin manifest dir");
+    fs::create_dir_all(plugin_root.join(".atlas-agent-plugin"))
+        .expect("create plugin manifest dir");
     fs::create_dir_all(&atlas_agent_home).expect("create atlas-agent home");
 
     fs::write(

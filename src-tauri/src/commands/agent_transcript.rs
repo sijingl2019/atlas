@@ -586,7 +586,14 @@ mod tests {
         // chunks persisted every assistant reply cut off after a few words —
         // which is exactly how a reopened native-agent session painted.
         let st = TranscriptState::new(tmp());
-        st.note_prompt("s", "/w", "atlas-agent", "explain this", Vec::new(), "t0".into());
+        st.note_prompt(
+            "s",
+            "/w",
+            "atlas-agent",
+            "explain this",
+            Vec::new(),
+            "t0".into(),
+        );
         st.note_message("s", "assistant", "The", None, Some("m1"), "t1".into());
         st.note_text_chunk("s", "m1", " whole", "t2".into());
         st.note_text_chunk("s", "m1", " answer.", "t3".into());

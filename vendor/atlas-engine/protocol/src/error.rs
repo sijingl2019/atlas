@@ -11,14 +11,14 @@ use crate::protocol::ErrorEvent;
 use crate::protocol::RateLimitReachedType;
 use crate::protocol::RateLimitSnapshot;
 use crate::protocol::TruncationPolicy;
-use chrono::DateTime;
-use chrono::Datelike;
-use chrono::Local;
-use chrono::Utc;
 use atlas_engine_async_utils::CancelErr;
 use atlas_engine_http_client::HttpError;
 use atlas_engine_utils_string::truncate_middle_chars;
 use atlas_engine_utils_string::truncate_middle_with_token_budget;
+use chrono::DateTime;
+use chrono::Datelike;
+use chrono::Local;
+use chrono::Utc;
 use http::StatusCode;
 use serde_json;
 use std::fmt;
@@ -397,7 +397,8 @@ impl AtlasEngineErr {
             | AtlasEngineErrorDetails::Json(_)
             | AtlasEngineErrorDetails::TokioJoin(_) => true,
             #[cfg(target_os = "linux")]
-            AtlasEngineErrorDetails::LandlockRuleset(_) | AtlasEngineErrorDetails::LandlockPathFd(_) => false,
+            AtlasEngineErrorDetails::LandlockRuleset(_)
+            | AtlasEngineErrorDetails::LandlockPathFd(_) => false,
         }
     }
 
@@ -420,19 +421,27 @@ impl AtlasEngineErr {
     /// Translate core error to client-facing protocol error.
     pub fn to_atlas_engine_protocol_error(&self) -> AtlasEngineErrorInfo {
         match &self.details {
-            AtlasEngineErrorDetails::ContextWindowExceeded => AtlasEngineErrorInfo::ContextWindowExceeded,
-            AtlasEngineErrorDetails::SessionBudgetExceeded => AtlasEngineErrorInfo::SessionBudgetExceeded,
+            AtlasEngineErrorDetails::ContextWindowExceeded => {
+                AtlasEngineErrorInfo::ContextWindowExceeded
+            }
+            AtlasEngineErrorDetails::SessionBudgetExceeded => {
+                AtlasEngineErrorInfo::SessionBudgetExceeded
+            }
             AtlasEngineErrorDetails::UsageLimitReached(_)
             | AtlasEngineErrorDetails::QuotaExceeded
             | AtlasEngineErrorDetails::UsageNotIncluded => AtlasEngineErrorInfo::UsageLimitExceeded,
             AtlasEngineErrorDetails::ServerOverloaded => AtlasEngineErrorInfo::ServerOverloaded,
             AtlasEngineErrorDetails::CyberPolicy { .. } => AtlasEngineErrorInfo::CyberPolicy,
-            AtlasEngineErrorDetails::RetryLimit(_) => AtlasEngineErrorInfo::ResponseTooManyFailedAttempts {
-                http_status_code: self.http_status_code_value(),
-            },
-            AtlasEngineErrorDetails::ConnectionFailed(_) => AtlasEngineErrorInfo::HttpConnectionFailed {
-                http_status_code: self.http_status_code_value(),
-            },
+            AtlasEngineErrorDetails::RetryLimit(_) => {
+                AtlasEngineErrorInfo::ResponseTooManyFailedAttempts {
+                    http_status_code: self.http_status_code_value(),
+                }
+            }
+            AtlasEngineErrorDetails::ConnectionFailed(_) => {
+                AtlasEngineErrorInfo::HttpConnectionFailed {
+                    http_status_code: self.http_status_code_value(),
+                }
+            }
             AtlasEngineErrorDetails::ResponseStreamFailed(_) => {
                 AtlasEngineErrorInfo::ResponseStreamConnectionFailed {
                     http_status_code: self.http_status_code_value(),
@@ -441,7 +450,9 @@ impl AtlasEngineErr {
             AtlasEngineErrorDetails::RefreshTokenFailed(_) => AtlasEngineErrorInfo::Unauthorized,
             AtlasEngineErrorDetails::SessionConfiguredNotFirstEvent
             | AtlasEngineErrorDetails::InternalServerError
-            | AtlasEngineErrorDetails::InternalAgentDied => AtlasEngineErrorInfo::InternalServerError,
+            | AtlasEngineErrorDetails::InternalAgentDied => {
+                AtlasEngineErrorInfo::InternalServerError
+            }
             AtlasEngineErrorDetails::UnsupportedOperation(_)
             | AtlasEngineErrorDetails::ThreadNotFound(_)
             | AtlasEngineErrorDetails::AgentLimitReached { .. } => AtlasEngineErrorInfo::BadRequest,

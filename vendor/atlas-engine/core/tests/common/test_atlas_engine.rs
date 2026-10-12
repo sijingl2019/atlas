@@ -204,8 +204,9 @@ pub async fn test_env() -> Result<TestEnv> {
     match test_environment() {
         remote_env @ (TestEnvironment::Docker { .. } | TestEnvironment::WineExec) => {
             let websocket_url = remote_exec_server_url()?;
-            let environment =
-                atlas_engine_exec_server::Environment::create_for_tests(Some(websocket_url.clone()))?;
+            let environment = atlas_engine_exec_server::Environment::create_for_tests(Some(
+                websocket_url.clone(),
+            ))?;
             let cwd = remote_env
                 .remote_cwd(&remote_test_instance_id())?
                 .context("remote test environment should define a cwd")?;
@@ -447,7 +448,10 @@ impl TestAtlasEngineBuilder {
         }
     }
 
-    pub async fn build(&mut self, server: &wiremock::MockServer) -> anyhow::Result<TestAtlasEngine> {
+    pub async fn build(
+        &mut self,
+        server: &wiremock::MockServer,
+    ) -> anyhow::Result<TestAtlasEngine> {
         let home = match self.home.clone() {
             Some(home) => home,
             None => Arc::new(TempDir::new()?),
@@ -658,10 +662,9 @@ impl TestAtlasEngineBuilder {
                 ))
             });
         let auth_manager = atlas_engine_core::test_support::auth_manager_from_auth(auth.clone());
-        let models_manager = self
-            .models_manager
-            .clone()
-            .unwrap_or_else(|| atlas_engine_core::build_models_manager(&config, auth_manager.clone()));
+        let models_manager = self.models_manager.clone().unwrap_or_else(|| {
+            atlas_engine_core::build_models_manager(&config, auth_manager.clone())
+        });
         let thread_manager = ThreadManager::new(
             &config,
             auth_manager.clone(),
@@ -678,10 +681,9 @@ impl TestAtlasEngineBuilder {
             /*attestation_provider*/ None,
             /*external_time_provider*/ self.external_time_provider.clone(),
         );
-        let code_mode_host_program = self
-            .code_mode_host_program
-            .take()
-            .or_else(|| atlas_engine_utils_cargo_bin::cargo_bin("atlas-engine-code-mode-host").ok());
+        let code_mode_host_program = self.code_mode_host_program.take().or_else(|| {
+            atlas_engine_utils_cargo_bin::cargo_bin("atlas-engine-code-mode-host").ok()
+        });
         let thread_manager = if config.features.enabled(Feature::CodeModeHost)
             && let Some(code_mode_host_program) = code_mode_host_program
         {
@@ -884,7 +886,10 @@ impl TestAtlasEngine {
             }]))
             .await?;
 
-        wait_for_event(&self.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+        wait_for_event(&self.atlas_engine, |ev| {
+            matches!(ev, EventMsg::TurnComplete(_))
+        })
+        .await;
         Ok(())
     }
 

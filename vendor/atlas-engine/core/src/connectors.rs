@@ -29,8 +29,8 @@ use atlas_engine_config::types::ApprovalsReviewer;
 use atlas_engine_config::types::ToolSuggestDiscoverableType;
 use atlas_engine_core_plugins::PluginsManager;
 use atlas_engine_features::Feature;
-use atlas_engine_login::AuthManager;
 use atlas_engine_login::AtlasEngineAuth;
+use atlas_engine_login::AuthManager;
 use atlas_engine_mcp::ATLAS_APPS_MCP_SERVER_NAME;
 use atlas_engine_mcp::MCP_TOOL_ATLAS_APPS_META_KEY;
 use atlas_engine_mcp::McpRuntime;
@@ -125,10 +125,10 @@ pub async fn list_cached_accessible_connectors_from_mcp_tools(
             .await
             .ok()?;
     let auth = auth_manager.auth().await;
-    if !config
-        .features
-        .apps_enabled_for_auth(auth.as_ref().is_some_and(AtlasEngineAuth::uses_atlas_engine_backend))
-    {
+    if !config.features.apps_enabled_for_auth(
+        auth.as_ref()
+            .is_some_and(AtlasEngineAuth::uses_atlas_engine_backend),
+    ) {
         return Some(Vec::new());
     }
     let cache_key = accessible_connectors_cache_key(config, auth.as_ref());
@@ -216,10 +216,10 @@ pub async fn list_accessible_connectors_from_mcp_tools_with_mcp_manager(
     let auth_manager =
         AuthManager::shared_from_config(config, /*enable_atlas_engine_api_key_env*/ false).await?;
     let auth = auth_manager.auth().await;
-    if !config
-        .features
-        .apps_enabled_for_auth(auth.as_ref().is_some_and(AtlasEngineAuth::uses_atlas_engine_backend))
-    {
+    if !config.features.apps_enabled_for_auth(
+        auth.as_ref()
+            .is_some_and(AtlasEngineAuth::uses_atlas_engine_backend),
+    ) {
         return Ok(AccessibleConnectorsStatus {
             connectors: Vec::new(),
             atlas_apps_ready: true,
@@ -437,7 +437,8 @@ async fn cached_directory_connectors_for_tool_suggest_with_auth(
         Some(auth)
     } else {
         let Ok(auth_manager) =
-            AuthManager::shared_from_config(config, /*enable_atlas_engine_api_key_env*/ false).await
+            AuthManager::shared_from_config(config, /*enable_atlas_engine_api_key_env*/ false)
+                .await
         else {
             return Vec::new();
         };
@@ -480,12 +481,14 @@ fn collect_accessible_connectors_from_mcp_tools<'a>(
             return None;
         }
         let connector_id = tool.connector_id.as_deref()?;
-        Some(atlas_engine_connectors::accessible::AccessibleConnectorTool {
-            connector_id: connector_id.to_string(),
-            connector_name: tool.connector_name.clone(),
-            connector_description: tool.namespace_description.clone(),
-            plugin_display_names: tool.plugin_display_names.clone(),
-        })
+        Some(
+            atlas_engine_connectors::accessible::AccessibleConnectorTool {
+                connector_id: connector_id.to_string(),
+                connector_name: tool.connector_name.clone(),
+                connector_description: tool.namespace_description.clone(),
+                plugin_display_names: tool.plugin_display_names.clone(),
+            },
+        )
     });
     atlas_engine_connectors::accessible::collect_accessible_connectors(tools)
 }

@@ -218,7 +218,9 @@ pub(crate) fn hook_scope_label(scope: HookScope) -> &'static str {
     }
 }
 
-pub(crate) fn hook_source_label(source: atlas_engine_protocol::protocol::HookSource) -> &'static str {
+pub(crate) fn hook_source_label(
+    source: atlas_engine_protocol::protocol::HookSource,
+) -> &'static str {
     match source {
         atlas_engine_protocol::protocol::HookSource::System => "system",
         atlas_engine_protocol::protocol::HookSource::User => "user",
@@ -231,7 +233,9 @@ pub(crate) fn hook_source_label(source: atlas_engine_protocol::protocol::HookSou
         atlas_engine_protocol::protocol::HookSource::LegacyManagedConfigFile => {
             "legacy_managed_config_file"
         }
-        atlas_engine_protocol::protocol::HookSource::LegacyManagedConfigMdm => "legacy_managed_config_mdm",
+        atlas_engine_protocol::protocol::HookSource::LegacyManagedConfigMdm => {
+            "legacy_managed_config_mdm"
+        }
         atlas_engine_protocol::protocol::HookSource::Unknown => "unknown",
     }
 }

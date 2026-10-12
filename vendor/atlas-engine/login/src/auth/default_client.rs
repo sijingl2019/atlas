@@ -39,7 +39,8 @@ use crate::outbound_proxy::AuthRouteConfig;
 /// Parenthesis will be added by Atlas Agent. This should only specify what goes inside of the parenthesis.
 pub static USER_AGENT_SUFFIX: LazyLock<Mutex<Option<String>>> = LazyLock::new(|| Mutex::new(None));
 pub const DEFAULT_ORIGINATOR: &str = "atlas_agent";
-pub const ATLAS_AGENT_INTERNAL_ORIGINATOR_OVERRIDE_ENV_VAR: &str = "ATLAS_AGENT_INTERNAL_ORIGINATOR_OVERRIDE";
+pub const ATLAS_AGENT_INTERNAL_ORIGINATOR_OVERRIDE_ENV_VAR: &str =
+    "ATLAS_AGENT_INTERNAL_ORIGINATOR_OVERRIDE";
 pub const RESIDENCY_HEADER_NAME: &str = "x-atlas-agent-residency";
 
 pub use atlas_engine_config::ResidencyRequirement;

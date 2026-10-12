@@ -57,10 +57,10 @@ pub use raw_event::RawTraceEventContext;
 pub use raw_event::RawTraceEventPayload;
 /// Replay a raw trace bundle and write/read its reduced `RolloutTrace`.
 pub use reducer::replay_bundle;
-/// Raw payload captured when a child agent reports completion to its parent.
-pub use thread::AgentResultTracePayload;
 /// Environment variable that enables local trace-bundle recording.
 pub use thread::ATLAS_AGENT_ROLLOUT_TRACE_ROOT_ENV;
+/// Raw payload captured when a child agent reports completion to its parent.
+pub use thread::AgentResultTracePayload;
 /// Raw metadata captured when a thread starts.
 pub use thread::ThreadStartedTraceMetadata;
 /// No-op-capable handle for recording one thread in a rollout bundle.

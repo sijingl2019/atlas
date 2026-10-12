@@ -427,12 +427,15 @@ async fn a_new_version_is_announced_and_the_connection_kept() {
 
     // Announced, not acted on: the host owns the sessions on this connection
     // and restarts it once the agent is idle. Dropping it here stranded them.
-    assert_eq!(manager.connection_status(&key), AgentConnectionStatus::Connected);
+    assert_eq!(
+        manager.connection_status(&key),
+        AgentConnectionStatus::Connected
+    );
 
     // The restart the host performs starts the new binary.
     manager.drop_connection(&key);
-    settle(manager
-        .request_connection(key, server.clone())).await
+    settle(manager.request_connection(key, server.clone()))
+        .await
         .expect("reconnected on the new version");
     assert_eq!(attempts.load(Ordering::SeqCst), 2);
 }

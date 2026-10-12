@@ -243,7 +243,10 @@ mod tests {
         assert_eq!(rollout.status, RolloutStatus::Completed);
         assert_eq!(rollout.root_thread_id, "thread-root");
         assert_eq!(rollout.threads["thread-root"].agent_path, "/root");
-        assert_eq!(rollout.atlas_engine_turns["turn-1"].thread_id, "thread-root");
+        assert_eq!(
+            rollout.atlas_engine_turns["turn-1"].thread_id,
+            "thread-root"
+        );
         assert_eq!(
             rollout.atlas_engine_turns["turn-1"].execution.status,
             ExecutionStatus::Completed,

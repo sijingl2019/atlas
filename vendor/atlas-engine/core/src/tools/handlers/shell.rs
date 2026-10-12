@@ -245,7 +245,9 @@ async fn run_exec_like(args: RunExecLikeArgs) -> Result<FunctionToolOutput, Func
         .await?;
     Ok(FunctionToolOutput {
         body: vec![
-            atlas_engine_protocol::models::FunctionCallOutputContentItem::InputText { text: content },
+            atlas_engine_protocol::models::FunctionCallOutputContentItem::InputText {
+                text: content,
+            },
         ],
         success: Some(true),
         post_tool_use_response,

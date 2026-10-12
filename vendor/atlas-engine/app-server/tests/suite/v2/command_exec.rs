@@ -3,8 +3,6 @@ use anyhow::Context;
 use anyhow::Result;
 use app_test_support::TestAppServer;
 use app_test_support::create_mock_responses_server_sequence_unchecked;
-use base64::Engine;
-use base64::engine::general_purpose::STANDARD;
 use atlas_engine_app_server_protocol::CommandExecOutputDeltaNotification;
 use atlas_engine_app_server_protocol::CommandExecOutputStream;
 use atlas_engine_app_server_protocol::CommandExecParams;
@@ -21,6 +19,8 @@ use atlas_engine_core::exec_env::ATLAS_AGENT_APPLY_PATCH_PRESERVE_LINE_ENDINGS_E
 use atlas_engine_exec_server::ATLAS_AGENT_EXEC_SERVER_URL_ENV_VAR;
 use atlas_engine_protocol::models::BUILT_IN_PERMISSION_PROFILE_READ_ONLY;
 use atlas_engine_protocol::shell_environment::OPENAI_FEDERATION_RULE_ID_ENV_VAR;
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD;
 use pretty_assertions::assert_eq;
 use std::collections::HashMap;
 use std::path::Path;
@@ -192,7 +192,10 @@ async fn command_exec_env_overrides_merge_with_server_environment_and_support_un
         response,
         CommandExecResponse {
             exit_code: 0,
-            stdout: format!("request|added|unset|{}||", atlas_agent_home.path().display()),
+            stdout: format!(
+                "request|added|unset|{}||",
+                atlas_agent_home.path().display()
+            ),
             stderr: String::new(),
         }
     );
@@ -244,7 +247,10 @@ async fn assert_command_exec_apply_patch_rollout(
     let mut mcp = TestAppServer::builder()
         .with_atlas_agent_home(atlas_agent_home.path())
         .without_auto_env()
-        .with_env_overrides(&[(ATLAS_AGENT_APPLY_PATCH_PRESERVE_LINE_ENDINGS_ENV_VAR, Some("1"))])
+        .with_env_overrides(&[(
+            ATLAS_AGENT_APPLY_PATCH_PRESERVE_LINE_ENDINGS_ENV_VAR,
+            Some("1"),
+        )])
         .build_initialized_with_timeout(DEFAULT_READ_TIMEOUT)
         .await?;
 

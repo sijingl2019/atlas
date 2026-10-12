@@ -391,19 +391,20 @@ impl ExternalAgentConfigRequestProcessor {
             .into_iter()
             .map(protocol_import_history)
             .collect::<Result<Vec<_>, _>>()?;
-        let connectors = read_imported_connector_candidates(self.migration_service.atlas_agent_home())
-            .map_err(|err| {
-                internal_error(format!(
-                    "failed to read imported connector candidates: {err}"
-                ))
-            })?
-            .into_iter()
-            .map(|candidate| ExternalAgentImportedConnectorCandidate {
-                name: candidate.name,
-                session_count: candidate.session_count,
-                source: ExternalAgentImportedConnectorSource::RemoteMcpServersConfig,
-            })
-            .collect();
+        let connectors =
+            read_imported_connector_candidates(self.migration_service.atlas_agent_home())
+                .map_err(|err| {
+                    internal_error(format!(
+                        "failed to read imported connector candidates: {err}"
+                    ))
+                })?
+                .into_iter()
+                .map(|candidate| ExternalAgentImportedConnectorCandidate {
+                    name: candidate.name,
+                    session_count: candidate.session_count,
+                    source: ExternalAgentImportedConnectorSource::RemoteMcpServersConfig,
+                })
+                .collect();
 
         Ok(ExternalAgentConfigImportHistoriesReadResponse { data, connectors })
     }

@@ -94,7 +94,8 @@ async fn resolve(
                 // rollout for the same thread. Filesystem fallback remains available when SQLite
                 // has no row or identifies the thread as legacy.
                 if let Some(path) =
-                    atlas_engine_rollout::existing_rollout_path(metadata.rollout_path.as_path()).await
+                    atlas_engine_rollout::existing_rollout_path(metadata.rollout_path.as_path())
+                        .await
                 {
                     let belongs_to_thread =
                         match atlas_engine_rollout::read_session_meta_line(path.as_path()).await {

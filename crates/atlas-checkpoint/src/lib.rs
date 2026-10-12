@@ -49,37 +49,42 @@
 //! no mock traits, no assertions on internal call ordering. What is asserted is
 //! what ends up in the store.
 
-pub mod blobs;
 pub mod artifacts;
 pub mod binding;
+pub mod blobs;
 pub mod capture;
 pub mod checkpoint;
+mod error;
 pub mod git;
 pub mod health;
 pub mod import;
-mod error;
 mod lock;
 pub mod model;
 mod schema;
 pub mod sketch;
 mod store;
 pub mod sync;
-pub mod title;
 pub mod timeline;
+pub mod title;
 pub mod tools;
 
+pub use binding::{bind, detect, disable, enable, refresh_detection};
 pub use blobs::{BlobStore, PREVIEW_BYTES, SPILL_THRESHOLD_BYTES};
 pub use capture::{
     hash_written_content, Capture, FileWrite, SessionKey, ToolCallContent, TurnContent,
 };
+pub use checkpoint::{
+    link_commits, reconcile_rewrites, walk_new_commits, ReconcileOutcome, WalkOutcome,
+};
 pub use error::{Error, Result};
-pub use checkpoint::{link_commits, reconcile_rewrites, walk_new_commits, ReconcileOutcome, WalkOutcome};
-pub use binding::{bind, detect, disable, enable, refresh_detection};
 pub use health::{evaluate as evaluate_health, CaptureHealth, HealthState, HostSignals};
-pub use import::{import_all, preview as import_preview, ImportOutcome, ImportPreview, TranscriptSource};
+pub use import::{
+    import_all, preview as import_preview, ImportOutcome, ImportPreview, TranscriptSource,
+};
 pub use model::{
-    AgentEdit, Binding, Checkpoint, LinkState, ProjectDetection, FileTouch, Message, Mode, Role, Session, Source, SyncState, TokenTotals, ToolCall,
-    ToolStatus, TurnMessages, TurnState, UsageDeltaRow, ProjectMode,
+    AgentEdit, Binding, Checkpoint, FileTouch, LinkState, Message, Mode, ProjectDetection,
+    ProjectMode, Role, Session, Source, SyncState, TokenTotals, ToolCall, ToolStatus, TurnMessages,
+    TurnState, UsageDeltaRow,
 };
 pub use schema::{REQUIRED_INDEXES, SCHEMA_VERSION};
 pub use store::{CheckpointInput, MessageInput, Store};
@@ -90,15 +95,16 @@ pub use sync::{
 };
 pub use timeline::{
     anchors as session_anchors, detail as session_detail, recent_checkpoints, session_summary,
-    sessions as session_summaries, AnchorEntry, CheckpointRow,
-    EntryCounts, EntryKind, SessionDetail, SessionSummary, TimelineEntry, ToolTally,
+    sessions as session_summaries, AnchorEntry, CheckpointRow, EntryCounts, EntryKind,
+    SessionDetail, SessionSummary, TimelineEntry, ToolTally,
 };
 pub use tools::{canonical_name, ResolvedPath, ToolName};
 
-/// The per-project state directory Atlas already uses, under a Project root.
+/// The per-project state directory Atlas already uses, under a Project root:
+/// `.atlas`, or `.atlas-dev` under the dev profile (`atlas-profile`).
 ///
 /// Auto-gitignored, and a dozen features already write here — this crate is the
 /// first to put a database in it.
 pub fn atlas_dir(project_root: impl AsRef<std::path::Path>) -> std::path::PathBuf {
-    project_root.as_ref().join(".atlas")
+    atlas_profile::dir_in(project_root)
 }

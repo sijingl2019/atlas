@@ -21,7 +21,7 @@ import { ProfileBar } from "./profile-bar";
  */
 export function KeybindingsEditor() {
   const resolved = useKeybindingsStore.use.resolved();
-  const warnings = useKeybindingsStore.use.warnings();
+  const fileWarnings = useKeybindingsStore.use.warnings();
   const [search, setSearch] = useState<SearchState>({
     query: "",
     recordKeys: false,
@@ -32,6 +32,12 @@ export function KeybindingsEditor() {
   const [recorder, setRecorder] = useState<{ id: ActionId; mode: RecorderMode } | null>(null);
 
   const conflicts = useMemo(() => findConflicts(resolved.list), [resolved]);
+  const warnings = resolved.unknownPresetId
+    ? [
+        ...fileWarnings,
+        `This profile's preset “${resolved.unknownPresetId}” isn't in this version of Atlas; its keys come from Atlas's defaults.`,
+      ]
+    : fileWarnings;
 
   const rows: TableRow[] = useMemo(
     () =>
@@ -43,6 +49,10 @@ export function KeybindingsEditor() {
           id,
           bindings: resolved.byAction.get(id) ?? [],
           overridden: state?.overridden ?? false,
+          presetLabel:
+            !state?.overridden && resolved.preset && id in resolved.preset.bindings
+              ? resolved.preset.label
+              : null,
           invalid: state?.invalid ?? [],
         };
       }),

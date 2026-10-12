@@ -24,8 +24,8 @@ use crate::windows_proxy_ingress::WindowsProxyRoute;
 use crate::windows_proxy_ingress::WindowsRouteService;
 use anyhow::Context;
 use anyhow::Result;
-use clap::Parser;
 use atlas_engine_utils_absolute_path::AbsolutePathBuf;
+use clap::Parser;
 use serde::Deserialize;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -47,7 +47,10 @@ const WINDOWS_MANAGED_HTTP_PROXY_PORTS: RangeInclusive<u16> = 3128..=3159;
 const WINDOWS_MANAGED_SOCKS_PROXY_PORTS: RangeInclusive<u16> = 8081..=8112;
 
 #[derive(Debug, Clone, Parser)]
-#[command(name = "atlas-engine-network-proxy", about = "Atlas Agent network sandbox proxy")]
+#[command(
+    name = "atlas-engine-network-proxy",
+    about = "Atlas Agent network sandbox proxy"
+)]
 pub struct Args {}
 
 #[derive(Debug)]
@@ -699,7 +702,9 @@ fn set_env_keys(env: &mut HashMap<String, String>, keys: &[&str], value: &str) {
 
 #[cfg(target_os = "macos")]
 fn atlas_engine_proxy_git_ssh_command(socks_addr: SocketAddr) -> String {
-    format!("{ATLAS_AGENT_PROXY_GIT_SSH_COMMAND_PREFIX}{socks_addr}{ATLAS_AGENT_PROXY_GIT_SSH_COMMAND_SUFFIX}")
+    format!(
+        "{ATLAS_AGENT_PROXY_GIT_SSH_COMMAND_PREFIX}{socks_addr}{ATLAS_AGENT_PROXY_GIT_SSH_COMMAND_SUFFIX}"
+    )
 }
 
 #[cfg(target_os = "macos")]
@@ -2661,7 +2666,10 @@ mod tests {
         let mut env = HashMap::new();
         env.insert(
             GIT_SSH_COMMAND_ENV_KEY.to_string(),
-            atlas_engine_proxy_git_ssh_command(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8081)),
+            atlas_engine_proxy_git_ssh_command(SocketAddr::new(
+                IpAddr::V4(Ipv4Addr::LOCALHOST),
+                8081,
+            )),
         );
 
         apply_proxy_env_overrides(

@@ -309,7 +309,8 @@ async fn import_repo_hooks_preserves_disabled_atlas_engine_hooks_feature() {
         }]
     );
     assert_eq!(
-        fs::read_to_string(repo_root.join(".atlas-agent").join("config.toml")).expect("read config"),
+        fs::read_to_string(repo_root.join(".atlas-agent").join("config.toml"))
+            .expect("read config"),
         "[features]\natlas_engine_hooks = false\n"
     );
     let hooks: JsonValue = serde_json::from_str(
@@ -463,7 +464,8 @@ async fn import_repo_mcp_uses_home_settings_toggles_when_repo_settings_missing()
         }]
     );
     let config: TomlValue = toml::from_str(
-        &fs::read_to_string(repo_root.join(".atlas-agent").join("config.toml")).expect("read config"),
+        &fs::read_to_string(repo_root.join(".atlas-agent").join("config.toml"))
+            .expect("read config"),
     )
     .expect("parse config");
     let expected: TomlValue = toml::from_str(
@@ -523,7 +525,8 @@ async fn import_repo_mcp_uses_local_settings_toggles_over_project_settings() {
         .await;
 
     let config: TomlValue = toml::from_str(
-        &fs::read_to_string(repo_root.join(".atlas-agent").join("config.toml")).expect("read config"),
+        &fs::read_to_string(repo_root.join(".atlas-agent").join("config.toml"))
+            .expect("read config"),
     )
     .expect("parse config");
     let expected: TomlValue = toml::from_str(
@@ -570,7 +573,8 @@ async fn import_repo_mcp_ignores_invalid_home_settings_when_repo_settings_missin
         .await;
 
     let config: TomlValue = toml::from_str(
-        &fs::read_to_string(repo_root.join(".atlas-agent").join("config.toml")).expect("read config"),
+        &fs::read_to_string(repo_root.join(".atlas-agent").join("config.toml"))
+            .expect("read config"),
     )
     .expect("parse config");
     let expected: TomlValue = toml::from_str(

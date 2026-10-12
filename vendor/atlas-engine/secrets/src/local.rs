@@ -20,9 +20,9 @@ use age::secrecy::ExposeSecret;
 use age::secrecy::SecretString;
 use anyhow::Context;
 use anyhow::Result;
+use atlas_engine_keyring_store::KeyringStore;
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
-use atlas_engine_keyring_store::KeyringStore;
 use rand::TryRngCore;
 use rand::rngs::OsRng;
 use serde::Deserialize;
@@ -556,7 +556,13 @@ mod tests {
                 .join("mcp_oauth.age")
                 .exists()
         );
-        assert!(!atlas_agent_home.path().join("secrets").join("local.age").exists());
+        assert!(
+            !atlas_agent_home
+                .path()
+                .join("secrets")
+                .join("local.age")
+                .exists()
+        );
         Ok(())
     }
 

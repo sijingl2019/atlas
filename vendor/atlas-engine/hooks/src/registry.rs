@@ -63,7 +63,10 @@ impl Hooks {
     pub fn new(
         config: HooksConfig,
         thread_id: ThreadId,
-    ) -> anyhow::Result<(Self, Receiver<atlas_engine_protocol::protocol::HookCompletedEvent>)> {
+    ) -> anyhow::Result<(
+        Self,
+        Receiver<atlas_engine_protocol::protocol::HookCompletedEvent>,
+    )> {
         let (result_sender, result_receiver) = async_channel::unbounded();
         let hooks = Self::from_config(config, |shell| {
             CommandHookRuntime::new(shell, thread_id, result_sender)

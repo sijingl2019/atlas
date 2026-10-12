@@ -243,7 +243,7 @@ export type BindFailureAction =
  *  `crates/atlas-native-agent/src/engine/catalog_cache.rs`. Matched on prose
  *  for the same reason `AUTH_TOKENS` is: the failure arrives as an `anyhow`
  *  string with no `kind`, and the alternative — a new `ErrorClass` variant —
- *  means changing a FROZEN wire taxonomy (`atlas-agent-wire::error`) and its
+ *  means changing an additive-only wire taxonomy (`atlas-agent-wire::error`) and its
  *  contract test to silence a toast. `agent-signin.test.ts` guards the parity.
  */
 const NO_MODELS_TOKENS = ["has no models to offer"];

@@ -1,8 +1,6 @@
 // Modified by Atlas from upstream OpenAI Codex (Apache-2.0). See CONTEXT.md.
 use anyhow::Context;
 use anyhow::Result;
-use base64::Engine;
-use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use atlas_engine_config::test_support::CloudConfigBundleFixture;
 use atlas_engine_core::TurnInputRequest;
 use atlas_engine_features::Feature;
@@ -27,6 +25,8 @@ use atlas_engine_protocol::protocol::TurnEnvironmentSelection;
 use atlas_engine_protocol::protocol::TurnEnvironmentSelections;
 use atlas_engine_protocol::user_input::UserInput;
 use atlas_engine_utils_path_uri::PathUri;
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use core_test_support::managed_network_requirements_loader;
 use core_test_support::responses::ev_apply_patch_custom_tool_call;
 use core_test_support::responses::ev_assistant_message;
@@ -699,7 +699,8 @@ timeout = 900
                     TurnEnvironmentSelections::new(
                         test.config.cwd.clone(),
                         vec![TurnEnvironmentSelection {
-                            environment_id: atlas_engine_exec_server::REMOTE_ENVIRONMENT_ID.to_string(),
+                            environment_id: atlas_engine_exec_server::REMOTE_ENVIRONMENT_ID
+                                .to_string(),
                             cwd: cwd.clone(),
                             workspace_roots: vec![
                                 cwd,

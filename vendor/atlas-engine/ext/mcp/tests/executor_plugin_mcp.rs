@@ -214,7 +214,10 @@ async fn raw_selected_plugin_contributions(
 ) -> Result<Vec<McpServerContribution>, Box<dyn std::error::Error>> {
     let mut builder = ExtensionRegistryBuilder::new();
     let environment_manager = Arc::new(EnvironmentManager::default_for_tests());
-    atlas_engine_mcp_extension::install_executor_plugins(&mut builder, Arc::clone(&environment_manager));
+    atlas_engine_mcp_extension::install_executor_plugins(
+        &mut builder,
+        Arc::clone(&environment_manager),
+    );
     let registry = builder.build();
     let thread_init = ExtensionDataInit::new();
     let selected_capability_roots = vec![SelectedCapabilityRoot {

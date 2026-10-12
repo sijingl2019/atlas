@@ -2,8 +2,6 @@
 // Modified by Atlas from upstream OpenAI Codex (Apache-2.0). See CONTEXT.md.
 
 use anyhow::Result;
-use base64::Engine;
-use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use atlas_engine_config::types::McpServerConfig;
 use atlas_engine_config::types::McpServerTransportConfig;
 use atlas_engine_core::StartThreadOptions;
@@ -56,6 +54,8 @@ use atlas_engine_tools::ToolOutput;
 use atlas_engine_tools::ToolPayload;
 use atlas_engine_tools::ToolSpec;
 use atlas_engine_web_search_extension::install as install_web_search_extension;
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use core_test_support::apps_test_server::AppsTestServer;
 use core_test_support::apps_test_server::AppsTestToolLoading;
 use core_test_support::apps_test_server::DIRECT_CALENDAR_APP_ONLY_TOOL;
@@ -238,11 +238,13 @@ async fn run_code_mode_turn_with_model_and_config(
     model: &'static str,
     configure: impl FnOnce(&mut Config) + Send + 'static,
 ) -> Result<(TestAtlasEngine, ResponseMock)> {
-    let builder = test_atlas_engine().with_model(model).with_config(move |config| {
-        let _ = config.features.enable(Feature::CodeMode);
-        let _ = config.features.enable(Feature::ExecutedToolCallMetadata);
-        configure(config);
-    });
+    let builder = test_atlas_engine()
+        .with_model(model)
+        .with_config(move |config| {
+            let _ = config.features.enable(Feature::CodeMode);
+            let _ = config.features.enable(Feature::ExecutedToolCallMetadata);
+            configure(config);
+        });
     run_code_mode_turn_with_builder(server, prompt, code, builder).await
 }
 
@@ -628,53 +630,55 @@ async fn run_code_mode_turn_with_rmcp_config(
     non_prefixed_mcp_tool_names: bool,
 ) -> Result<(TestAtlasEngine, ResponseMock)> {
     let rmcp_test_server_bin = stdio_server_bin()?;
-    let mut builder = test_atlas_engine().with_model(model).with_config(move |config| {
-        let _ = if code_mode_only {
-            config.features.enable(Feature::CodeModeOnly)
-        } else {
-            config.features.enable(Feature::CodeMode)
-        };
-        if non_prefixed_mcp_tool_names {
-            let _ = config.features.enable(Feature::NonPrefixedMcpToolNames);
-        }
+    let mut builder = test_atlas_engine()
+        .with_model(model)
+        .with_config(move |config| {
+            let _ = if code_mode_only {
+                config.features.enable(Feature::CodeModeOnly)
+            } else {
+                config.features.enable(Feature::CodeMode)
+            };
+            if non_prefixed_mcp_tool_names {
+                let _ = config.features.enable(Feature::NonPrefixedMcpToolNames);
+            }
 
-        let mut servers = config.mcp_servers.get().clone();
-        servers.insert(
-            "rmcp".to_string(),
-            McpServerConfig {
-                auth: Default::default(),
-                transport: McpServerTransportConfig::Stdio {
-                    command: rmcp_test_server_bin,
-                    args: Vec::new(),
-                    env: Some(HashMap::from([(
-                        "MCP_TEST_VALUE".to_string(),
-                        "propagated-env".to_string(),
-                    )])),
-                    env_vars: Vec::new(),
-                    cwd: None,
+            let mut servers = config.mcp_servers.get().clone();
+            servers.insert(
+                "rmcp".to_string(),
+                McpServerConfig {
+                    auth: Default::default(),
+                    transport: McpServerTransportConfig::Stdio {
+                        command: rmcp_test_server_bin,
+                        args: Vec::new(),
+                        env: Some(HashMap::from([(
+                            "MCP_TEST_VALUE".to_string(),
+                            "propagated-env".to_string(),
+                        )])),
+                        env_vars: Vec::new(),
+                        cwd: None,
+                    },
+                    environment_id: "local".to_string(),
+                    enabled: true,
+                    required: false,
+                    supports_parallel_tool_calls: false,
+                    omit_tools_from: None,
+                    disabled_reason: None,
+                    startup_timeout_sec: Some(Duration::from_secs(10)),
+                    tool_timeout_sec: None,
+                    default_tools_approval_mode: None,
+                    enabled_tools: None,
+                    disabled_tools: None,
+                    scopes: None,
+                    oauth: None,
+                    oauth_resource: None,
+                    tools: HashMap::new(),
                 },
-                environment_id: "local".to_string(),
-                enabled: true,
-                required: false,
-                supports_parallel_tool_calls: false,
-                omit_tools_from: None,
-                disabled_reason: None,
-                startup_timeout_sec: Some(Duration::from_secs(10)),
-                tool_timeout_sec: None,
-                default_tools_approval_mode: None,
-                enabled_tools: None,
-                disabled_tools: None,
-                scopes: None,
-                oauth: None,
-                oauth_resource: None,
-                tools: HashMap::new(),
-            },
-        );
-        config
-            .mcp_servers
-            .set(servers)
-            .expect("test mcp servers should accept any configuration");
-    });
+            );
+            config
+                .mcp_servers
+                .set(servers)
+                .expect("test mcp servers should accept any configuration");
+        });
     let test = builder.build(server).await?;
     wait_for_mcp_server(&test.atlas_engine, "rmcp").await?;
 
@@ -772,11 +776,15 @@ async fn code_mode_exec_holds_captured_result_during_elicitation() -> Result<()>
     .await;
 
     assert_eq!(
-        test.atlas_engine.increment_out_of_band_elicitation_count().await?,
+        test.atlas_engine
+            .increment_out_of_band_elicitation_count()
+            .await?,
         1
     );
     assert_eq!(
-        test.atlas_engine.increment_out_of_band_elicitation_count().await?,
+        test.atlas_engine
+            .increment_out_of_band_elicitation_count()
+            .await?,
         2
     );
     let release_elicitation = async {
@@ -793,7 +801,9 @@ async fn code_mode_exec_holds_captured_result_during_elicitation() -> Result<()>
             "captured exec result should not return during an elicitation"
         );
         assert_eq!(
-            test.atlas_engine.decrement_out_of_band_elicitation_count().await?,
+            test.atlas_engine
+                .decrement_out_of_band_elicitation_count()
+                .await?,
             1
         );
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -802,7 +812,9 @@ async fn code_mode_exec_holds_captured_result_during_elicitation() -> Result<()>
             "captured exec result should wait for every elicitation"
         );
         assert_eq!(
-            test.atlas_engine.decrement_out_of_band_elicitation_count().await?,
+            test.atlas_engine
+                .decrement_out_of_band_elicitation_count()
+                .await?,
             0
         );
         Ok::<(), anyhow::Error>(())
@@ -3264,7 +3276,8 @@ struct InterruptedNestedToolObserver {
 impl ToolLifecycleContributor for InterruptedNestedToolObserver {
     fn on_tool_start<'a>(&'a self, input: ToolStartInput<'a>) -> ToolLifecycleFuture<'a> {
         Box::pin(async move {
-            let atlas_engine_extension_api::ToolCallSource::CodeMode { cell_id, .. } = input.source else {
+            let atlas_engine_extension_api::ToolCallSource::CodeMode { cell_id, .. } = input.source
+            else {
                 return;
             };
             if input.tool_name.name != "test_sync_tool" {
@@ -5278,10 +5291,12 @@ text(JSON.stringify({
                     text_elements: Vec::new(),
                 }])
                 .with_thread_settings(ThreadSettingsOverrides {
-                    environments: Some(atlas_engine_protocol::protocol::TurnEnvironmentSelections::new(
-                        cwd,
-                        Vec::new(),
-                    )),
+                    environments: Some(
+                        atlas_engine_protocol::protocol::TurnEnvironmentSelections::new(
+                            cwd,
+                            Vec::new(),
+                        ),
+                    ),
                     approval_policy: Some(AskForApproval::Never),
                     sandbox_policy: Some(sandbox_policy),
                     permission_profile,
@@ -5498,10 +5513,12 @@ text(
                 text_elements: Vec::new(),
             }])
             .with_thread_settings(ThreadSettingsOverrides {
-                environments: Some(atlas_engine_protocol::protocol::TurnEnvironmentSelections::new(
-                    cwd,
-                    Vec::new(),
-                )),
+                environments: Some(
+                    atlas_engine_protocol::protocol::TurnEnvironmentSelections::new(
+                        cwd,
+                        Vec::new(),
+                    ),
+                ),
                 approval_policy: Some(AskForApproval::Never),
                 sandbox_policy: Some(sandbox_policy),
                 permission_profile,
@@ -5562,7 +5579,9 @@ text(
     )?;
     assert_eq!(
         parsed.get("name"),
-        Some(&Value::String("atlas_engine_app__hidden_dynamic_tool".to_string()))
+        Some(&Value::String(
+            "atlas_engine_app__hidden_dynamic_tool".to_string()
+        ))
     );
     assert_eq!(
         parsed.get("out"),

@@ -2,8 +2,6 @@
 // Modified by Atlas from upstream OpenAI Codex (Apache-2.0). See CONTEXT.md.
 
 use anyhow::Context;
-use base64::Engine;
-use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use atlas_engine_core::TurnInputRequest;
 use atlas_engine_exec_server::CreateDirectoryOptions;
 use atlas_engine_exec_server::LOCAL_ENVIRONMENT_ID;
@@ -36,6 +34,8 @@ use atlas_engine_protocol::protocol::ThreadSettingsOverrides;
 use atlas_engine_protocol::protocol::TurnEnvironmentSelection;
 use atlas_engine_protocol::user_input::UserInput;
 use atlas_engine_utils_path_uri::PathUri;
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use core_test_support::PathExt;
 use core_test_support::is_remote_test_environment;
 use core_test_support::responses;
@@ -86,7 +86,11 @@ enum ImageBudgetPolicy {
     UnifiedResponsesLiteWithoutOriginalSupport,
 }
 
-fn disabled_user_turn(test: &TestAtlasEngine, items: Vec<UserInput>, model: String) -> TurnInputRequest {
+fn disabled_user_turn(
+    test: &TestAtlasEngine,
+    items: Vec<UserInput>,
+    model: String,
+) -> TurnInputRequest {
     let (sandbox_policy, permission_profile) =
         turn_permission_fields(PermissionProfile::Disabled, test.config.cwd.as_path());
     TurnInputRequest::user_input(items).with_thread_settings(ThreadSettingsOverrides {
@@ -162,7 +166,10 @@ fn png_bytes(width: u32, height: u32, rgba: [u8; 4]) -> anyhow::Result<Vec<u8>> 
     Ok(cursor.into_inner())
 }
 
-async fn create_workspace_directory(test: &TestAtlasEngine, rel_path: &str) -> anyhow::Result<PathBuf> {
+async fn create_workspace_directory(
+    test: &TestAtlasEngine,
+    rel_path: &str,
+) -> anyhow::Result<PathBuf> {
     let abs_path = test.config.cwd.join(rel_path);
     let abs_path_uri = PathUri::from_host_native_path(&abs_path)?;
     test.fs()
@@ -480,13 +487,19 @@ async fn view_image_tool_attaches_local_image() -> anyhow::Result<()> {
         atlas_engine,
         |event| match event {
             EventMsg::ItemStarted(event) => {
-                if matches!(&event.item, atlas_engine_protocol::items::TurnItem::ImageView(_)) {
+                if matches!(
+                    &event.item,
+                    atlas_engine_protocol::items::TurnItem::ImageView(_)
+                ) {
                     item_started = Some(event.item.clone());
                 }
                 false
             }
             EventMsg::ItemCompleted(event) => {
-                if matches!(&event.item, atlas_engine_protocol::items::TurnItem::ImageView(_)) {
+                if matches!(
+                    &event.item,
+                    atlas_engine_protocol::items::TurnItem::ImageView(_)
+                ) {
                     item_completed = Some(event.item.clone());
                 }
                 false
@@ -930,9 +943,11 @@ async fn view_image_unified_budget_hides_detail_but_accepts_legacy_hints() -> an
     skip_if_no_network!(Ok(()));
 
     let server = start_mock_server().await;
-    let mut builder = test_atlas_engine().with_model("gpt-5.4").with_config(|config| {
-        let _ = config.features.enable(Feature::UnifiedImageBudget);
-    });
+    let mut builder = test_atlas_engine()
+        .with_model("gpt-5.4")
+        .with_config(|config| {
+            let _ = config.features.enable(Feature::UnifiedImageBudget);
+        });
     let test = builder.build_with_auto_env(&server).await?;
     let rel_path = "assets/unified-example.png";
     write_workspace_png(

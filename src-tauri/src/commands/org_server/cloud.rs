@@ -25,8 +25,10 @@
 use std::future::Future;
 use std::pin::Pin;
 
-use atlas_artifacts::{AnchorKind, Comment, EntryPayload, InboxPage, SessionBoardPage, SessionDetailPage};
-use atlas_comms::wire::{SessionReference, ConversationKind};
+use atlas_artifacts::{
+    AnchorKind, Comment, EntryPayload, InboxPage, SessionBoardPage, SessionDetailPage,
+};
+use atlas_comms::wire::{ConversationKind, SessionReference};
 use atlas_comms::CommsError;
 
 use super::OrgScope;
@@ -69,17 +71,17 @@ impl std::fmt::Display for CloudError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::SignedOut(reason) => write!(f, "not signed in to Atlas ({reason}); ask the user to sign in"),
-            Self::Forbidden(reason) => write!(f, "the organisation refused this ({reason})"),
+            Self::Forbidden(reason) => write!(f, "the organization refused this ({reason})"),
             Self::NotFound(reason) => write!(f, "not found ({reason})"),
-            Self::Unavailable(reason) => write!(f, "the organisation could not be reached ({reason}); try again later"),
+            Self::Unavailable(reason) => write!(f, "the organization could not be reached ({reason}); try again later"),
             Self::ChatElsewhere { grant_org, chat_org: Some(chat_org) } => write!(
                 f,
-                "chat is connected to organisation {chat_org}, but this session acts in organisation {grant_org} \
+                "chat is connected to organization {chat_org}, but this session acts in organization {grant_org} \
                  (the one its project is bound to); ask the user to switch chat to {grant_org}"
             ),
             Self::ChatElsewhere { grant_org, chat_org: None } => write!(
                 f,
-                "chat is not connected to an organisation, and this session acts in organisation {grant_org}; \
+                "chat is not connected to an organization, and this session acts in organization {grant_org}; \
                  ask the user to open chat in {grant_org}"
             ),
         }
@@ -104,7 +106,9 @@ impl From<AuthFailure> for CloudError {
     fn from(failure: AuthFailure) -> Self {
         match failure {
             AuthFailure::NoCredential => Self::SignedOut("no account is signed in".into()),
-            AuthFailure::Rejected => Self::SignedOut("the server no longer accepts the sign-in".into()),
+            AuthFailure::Rejected => {
+                Self::SignedOut("the server no longer accepts the sign-in".into())
+            }
             AuthFailure::Denied => Self::Forbidden("this account may not read that".into()),
             AuthFailure::Indeterminate { reason, .. } => Self::Unavailable(reason),
         }
@@ -118,7 +122,9 @@ impl From<CommsError> for CloudError {
             CommsError::Unauthorized => Self::SignedOut("chat refused the sign-in".into()),
             CommsError::Forbidden => Self::Forbidden("not a member".into()),
             CommsError::NotFound => Self::NotFound("chat has no such thing".into()),
-            CommsError::Refused { code, message, .. } => Self::Forbidden(format!("{code}: {message}")),
+            CommsError::Refused { code, message, .. } => {
+                Self::Forbidden(format!("{code}: {message}"))
+            }
             other => Self::Unavailable(other.to_string()),
         }
     }
@@ -312,7 +318,10 @@ pub trait OrganisationCloud: Send + Sync {
     /// The recorded session a running chat is written into — the **current**
     /// one — or `None` while it is not recorded in the Workspace yet (no
     /// prompt captured, or not synced to the server).
-    fn current_session<'a>(&'a self, query: CurrentSessionQuery<'a>) -> CloudFuture<'a, Option<RecordedSession>>;
+    fn current_session<'a>(
+        &'a self,
+        query: CurrentSessionQuery<'a>,
+    ) -> CloudFuture<'a, Option<RecordedSession>>;
 
     /// The organisation's roster.
     fn members<'a>(&'a self, org_id: &'a str) -> CloudFuture<'a, Vec<Member>>;
@@ -323,15 +332,23 @@ pub trait OrganisationCloud: Send + Sync {
     fn conversations<'a>(&'a self, org_id: &'a str) -> CloudFuture<'a, Vec<OrgConversation>>;
 
     /// Every comment on a recorded session, roots and replies, oldest first.
-    fn comments<'a>(&'a self, org_id: &'a str, workspace_id: &'a str, session_id: &'a str)
-        -> CloudFuture<'a, Vec<Comment>>;
+    fn comments<'a>(
+        &'a self,
+        org_id: &'a str,
+        workspace_id: &'a str,
+        session_id: &'a str,
+    ) -> CloudFuture<'a, Vec<Comment>>;
 
     /// Resolves (`resolved: true`) or unresolves a thread's root comment on a
     /// recorded session, as the caller, and answers the comment as the server
     /// now holds it (`resolved_at`/`resolved_by` set, or cleared). The server
     /// lets anyone who can read the Workspace do this, on roots only; the tool
     /// refuses a reply before it gets here.
-    fn set_resolved<'a>(&'a self, comment: CommentRef<'a>, resolved: bool) -> CloudFuture<'a, Comment>;
+    fn set_resolved<'a>(
+        &'a self,
+        comment: CommentRef<'a>,
+        resolved: bool,
+    ) -> CloudFuture<'a, Comment>;
 
     /// Posts a reply on a thread as the caller, and answers the comment as the
     /// server stored it. An **outward action** (ADR-0014): the server tells
@@ -342,7 +359,11 @@ pub trait OrganisationCloud: Send + Sync {
     /// One page of the recorded sessions on `org_id`'s board, most recently
     /// active first, narrowed to one Workspace and, when asked, the server's
     /// keyword search.
-    fn board_page<'a>(&'a self, org_id: &'a str, query: BoardQuery<'a>) -> CloudFuture<'a, SessionBoardPage>;
+    fn board_page<'a>(
+        &'a self,
+        org_id: &'a str,
+        query: BoardQuery<'a>,
+    ) -> CloudFuture<'a, SessionBoardPage>;
 
     /// One page of a recorded session's summary and entries, in the server's
     /// order, with the cursor to the next.
@@ -366,7 +387,11 @@ pub trait OrganisationCloud: Send + Sync {
     /// whether it was just created (the server answers an existing DM rather
     /// than a second one). Refused with [`CloudError::ChatElsewhere`] while
     /// chat is not connected to `org_id`.
-    fn dm_with<'a>(&'a self, org_id: &'a str, user_id: &'a str) -> CloudFuture<'a, (OrgConversation, bool)>;
+    fn dm_with<'a>(
+        &'a self,
+        org_id: &'a str,
+        user_id: &'a str,
+    ) -> CloudFuture<'a, (OrgConversation, bool)>;
 
     /// The Workspaces a chat message in `org_id` may reference, by id: the
     /// ones the organisation owns that are visible to all of it and not

@@ -14,7 +14,9 @@ const DEFAULT_TIMEOUT: Duration = Duration::from_secs(10);
 #[tokio::test]
 async fn marketplace_add_local_directory_source() -> Result<()> {
     let atlas_agent_home = TempDir::new()?;
-    let source = atlas_agent_home.path().join("alice@example.com/marketplace");
+    let source = atlas_agent_home
+        .path()
+        .join("alice@example.com/marketplace");
     std::fs::create_dir_all(source.join(".agents/plugins"))?;
     std::fs::create_dir_all(source.join("plugins/sample/.atlas-agent-plugin"))?;
     std::fs::write(

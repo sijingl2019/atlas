@@ -180,7 +180,10 @@ enabled = true
 #[test]
 fn path_rule_disables_selected_path() {
     let atlas_agent_home = TempDir::new().expect("temp dir");
-    let path = atlas_agent_home.path().join("disable-by-path/SKILL.md").abs();
+    let path = atlas_agent_home
+        .path()
+        .join("disable-by-path/SKILL.md")
+        .abs();
     let rules = SkillConfigRules {
         entries: vec![SkillConfigRule {
             selector: SkillConfigRuleSelector::Path(path.clone()),
@@ -197,7 +200,10 @@ fn path_rule_disables_selected_path() {
 #[test]
 fn later_name_rule_reenables_path_disabled_skill() {
     let atlas_agent_home = TempDir::new().expect("temp dir");
-    let path = atlas_agent_home.path().join("reenable-by-name/SKILL.md").abs();
+    let path = atlas_agent_home
+        .path()
+        .join("reenable-by-name/SKILL.md")
+        .abs();
     let rules = SkillConfigRules {
         entries: vec![
             SkillConfigRule {

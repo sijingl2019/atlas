@@ -27,10 +27,14 @@ use crate::tools::registry::CoreToolRuntime;
 use crate::tools::registry::ToolExecutor;
 use crate::turn_metadata::McpTurnMetadataContext;
 
-pub(crate) struct ExtensionToolAdapter(Arc<dyn atlas_engine_tools::ToolExecutor<ExtensionToolCall>>);
+pub(crate) struct ExtensionToolAdapter(
+    Arc<dyn atlas_engine_tools::ToolExecutor<ExtensionToolCall>>,
+);
 
 impl ExtensionToolAdapter {
-    pub(crate) fn new(executor: Arc<dyn atlas_engine_tools::ToolExecutor<ExtensionToolCall>>) -> Self {
+    pub(crate) fn new(
+        executor: Arc<dyn atlas_engine_tools::ToolExecutor<ExtensionToolCall>>,
+    ) -> Self {
         Self(executor)
     }
 }
@@ -221,7 +225,9 @@ mod tests {
 
     struct StubExtensionExecutor;
 
-    impl atlas_engine_extension_api::ToolExecutor<atlas_engine_tools::ToolCall> for StubExtensionExecutor {
+    impl atlas_engine_extension_api::ToolExecutor<atlas_engine_tools::ToolCall>
+        for StubExtensionExecutor
+    {
         fn tool_name(&self) -> atlas_engine_tools::ToolName {
             atlas_engine_tools::ToolName::plain("extension_echo")
         }
@@ -245,12 +251,15 @@ mod tests {
             })
         }
 
-        fn handle(&self, _call: atlas_engine_tools::ToolCall) -> atlas_engine_tools::ToolExecutorFuture<'_> {
+        fn handle(
+            &self,
+            _call: atlas_engine_tools::ToolCall,
+        ) -> atlas_engine_tools::ToolExecutorFuture<'_> {
             Box::pin(async {
-                Ok(
-                    Box::new(atlas_engine_tools::JsonToolOutput::new(json!({ "ok": true })))
-                        as Box<dyn atlas_engine_tools::ToolOutput>,
-                )
+                Ok(Box::new(atlas_engine_tools::JsonToolOutput::new(
+                    json!({ "ok": true }),
+                ))
+                    as Box<dyn atlas_engine_tools::ToolOutput>)
             })
         }
     }
@@ -259,7 +268,9 @@ mod tests {
         captured_call: Arc<Mutex<Option<atlas_engine_tools::ToolCall>>>,
     }
 
-    impl atlas_engine_extension_api::ToolExecutor<atlas_engine_tools::ToolCall> for CapturingExtensionExecutor {
+    impl atlas_engine_extension_api::ToolExecutor<atlas_engine_tools::ToolCall>
+        for CapturingExtensionExecutor
+    {
         fn tool_name(&self) -> atlas_engine_tools::ToolName {
             atlas_engine_tools::ToolName::plain("extension_echo")
         }
@@ -275,7 +286,10 @@ mod tests {
             })
         }
 
-        fn handle(&self, call: atlas_engine_tools::ToolCall) -> atlas_engine_tools::ToolExecutorFuture<'_> {
+        fn handle(
+            &self,
+            call: atlas_engine_tools::ToolCall,
+        ) -> atlas_engine_tools::ToolExecutorFuture<'_> {
             Box::pin(self.handle_call(call))
         }
     }
@@ -284,7 +298,8 @@ mod tests {
         async fn handle_call(
             &self,
             call: atlas_engine_tools::ToolCall,
-        ) -> Result<Box<dyn atlas_engine_tools::ToolOutput>, atlas_engine_tools::FunctionCallError> {
+        ) -> Result<Box<dyn atlas_engine_tools::ToolOutput>, atlas_engine_tools::FunctionCallError>
+        {
             call.turn_item_emitter
                 .emit_started(ExtensionTurnItem {
                     item: ExtensionItem::WebSearch(WebSearchItem {
@@ -297,10 +312,9 @@ mod tests {
                 })
                 .await;
             *self.captured_call.lock().await = Some(call);
-            Ok(
-                Box::new(atlas_engine_tools::JsonToolOutput::new(json!({ "ok": true })))
-                    as Box<dyn atlas_engine_tools::ToolOutput>,
-            )
+            Ok(Box::new(atlas_engine_tools::JsonToolOutput::new(
+                json!({ "ok": true }),
+            )) as Box<dyn atlas_engine_tools::ToolOutput>)
         }
     }
 

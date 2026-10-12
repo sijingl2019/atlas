@@ -29,25 +29,27 @@ pub(crate) const SYSTEM_PROXY_REQUEST_URL_ENV: &str =
 pub(crate) const SYSTEM_PROXY_URL_ENV: &str = "ATLAS_AGENT_EXEC_SERVER_TEST_SYSTEM_PROXY_URL";
 
 const ATLAS_AGENT_WINDOWS_SANDBOX_ARG1: &str = "--run-as-windows-sandbox";
-const DELAYED_OUTPUT_AFTER_EXIT_CHILD_ARG: &str = "--atlas-engine-test-delayed-output-after-exit-child";
+const DELAYED_OUTPUT_AFTER_EXIT_CHILD_ARG: &str =
+    "--atlas-engine-test-delayed-output-after-exit-child";
 
 #[ctor]
 pub static TEST_BINARY_DISPATCH_GUARD: Option<TestBinaryDispatchGuard> = {
-    let guard = configure_test_binary_dispatch("atlas-engine-exec-server-tests", |exe_name, argv1| {
-        if argv1 == Some(ATLAS_AGENT_ARG0_EXEC_HELPER_ARG1) {
-            return TestBinaryDispatchMode::DispatchArg0Only;
-        }
-        if argv1 == Some(ATLAS_AGENT_FS_HELPER_ARG1) {
-            return TestBinaryDispatchMode::DispatchArg0Only;
-        }
-        if argv1 == Some(ATLAS_AGENT_WINDOWS_SANDBOX_ARG1) {
-            return TestBinaryDispatchMode::DispatchArg0Only;
-        }
-        if exe_name == ATLAS_AGENT_LINUX_SANDBOX_ARG0 {
-            return TestBinaryDispatchMode::DispatchArg0Only;
-        }
-        TestBinaryDispatchMode::InstallAliases
-    });
+    let guard =
+        configure_test_binary_dispatch("atlas-engine-exec-server-tests", |exe_name, argv1| {
+            if argv1 == Some(ATLAS_AGENT_ARG0_EXEC_HELPER_ARG1) {
+                return TestBinaryDispatchMode::DispatchArg0Only;
+            }
+            if argv1 == Some(ATLAS_AGENT_FS_HELPER_ARG1) {
+                return TestBinaryDispatchMode::DispatchArg0Only;
+            }
+            if argv1 == Some(ATLAS_AGENT_WINDOWS_SANDBOX_ARG1) {
+                return TestBinaryDispatchMode::DispatchArg0Only;
+            }
+            if exe_name == ATLAS_AGENT_LINUX_SANDBOX_ARG0 {
+                return TestBinaryDispatchMode::DispatchArg0Only;
+            }
+            TestBinaryDispatchMode::InstallAliases
+        });
     maybe_run_delayed_output_after_exit_from_test_binary();
     maybe_run_exec_server_from_test_binary(guard.as_ref());
     guard

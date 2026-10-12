@@ -8,8 +8,10 @@ import { abs } from "../project";
 let n = 0;
 const id = (p: string) => `${p}-${++n}`;
 
-/** Timestamps a scenario can space out: `t(0)`, `t(12)` = 12s later. */
-const T0 = Date.parse("2026-09-17T10:00:00Z");
+/** Timestamps a scenario can space out: `t(0)`, `t(12)` = 12s later.
+ *  Anchored a few minutes before page load, so a turn's "Worked for" and
+ *  "Working for" read as seconds rather than as days since a fixed date. */
+const T0 = Date.now() - 5 * 60_000;
 export const t = (seconds: number) => new Date(T0 + seconds * 1000).toISOString();
 
 export function user(content: string, at = t(0)): SessionMessage {

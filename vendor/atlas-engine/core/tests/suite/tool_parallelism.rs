@@ -66,7 +66,10 @@ async fn run_turn(test: &TestAtlasEngine, prompt: &str) -> anyhow::Result<()> {
         )
         .await?;
 
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     Ok(())
 }
@@ -77,7 +80,9 @@ async fn run_turn_and_measure(test: &TestAtlasEngine, prompt: &str) -> anyhow::R
     Ok(start.elapsed())
 }
 
-async fn build_atlas_engine_with_test_tool(server: &wiremock::MockServer) -> anyhow::Result<TestAtlasEngine> {
+async fn build_atlas_engine_with_test_tool(
+    server: &wiremock::MockServer,
+) -> anyhow::Result<TestAtlasEngine> {
     let mut builder = test_atlas_engine().with_model("test-gpt-5.1-codex");
     builder.build(server).await
 }
@@ -412,7 +417,10 @@ async fn shell_tools_start_before_response_completed_when_stream_delayed() -> an
     .await??;
 
     let _ = completion_gate_tx.send(());
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let mut completion_iter = completion_receivers.into_iter();
     let completed_at = completion_iter

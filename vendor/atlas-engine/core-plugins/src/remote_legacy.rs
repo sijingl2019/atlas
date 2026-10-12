@@ -139,8 +139,8 @@ pub async fn fetch_remote_featured_plugin_ids(
         .timeout(REMOTE_FEATURED_PLUGIN_FETCH_TIMEOUT);
 
     if let Some(auth) = auth.filter(|auth| auth.uses_atlas_engine_backend()) {
-        request =
-            request.headers(atlas_engine_model_provider::auth_provider_from_auth(auth).to_auth_headers());
+        request = request
+            .headers(atlas_engine_model_provider::auth_provider_from_auth(auth).to_auth_headers());
     }
 
     let response = request

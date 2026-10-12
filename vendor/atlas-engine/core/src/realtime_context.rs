@@ -2,7 +2,6 @@
 use crate::compact::content_items_to_text;
 use crate::event_mapping::is_contextual_user_message_content;
 use crate::session::session::Session;
-use chrono::Utc;
 use atlas_engine_exec_server::LOCAL_FS;
 use atlas_engine_git_utils::resolve_root_git_project_for_trust;
 use atlas_engine_protocol::models::ResponseItem;
@@ -14,6 +13,7 @@ use atlas_engine_thread_store::ThreadSortKey;
 use atlas_engine_utils_absolute_path::AbsolutePathBuf;
 use atlas_engine_utils_output_truncation::TruncationPolicy;
 use atlas_engine_utils_output_truncation::truncate_text;
+use chrono::Utc;
 use dirs::home_dir;
 use std::cmp::Reverse;
 use std::collections::HashMap;

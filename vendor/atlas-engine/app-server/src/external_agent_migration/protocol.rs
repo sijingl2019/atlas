@@ -83,11 +83,13 @@ fn protocol_migration_details(details: CoreMigrationDetails) -> MigrationDetails
         sessions: details
             .sessions
             .into_iter()
-            .map(|session| atlas_engine_app_server_protocol::SessionMigration {
-                path: session.path,
-                cwd: session.cwd,
-                title: session.title,
-            })
+            .map(
+                |session| atlas_engine_app_server_protocol::SessionMigration {
+                    path: session.path,
+                    cwd: session.cwd,
+                    title: session.title,
+                },
+            )
             .collect(),
         mcp_servers: details
             .mcp_servers

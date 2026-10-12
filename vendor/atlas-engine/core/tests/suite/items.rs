@@ -163,7 +163,8 @@ async fn assistant_message_item_is_emitted() -> anyhow::Result<()> {
     .await;
 
     assert_eq!(started.id, completed.id);
-    let Some(atlas_engine_protocol::items::AgentMessageContent::Text { text }) = completed.content.first()
+    let Some(atlas_engine_protocol::items::AgentMessageContent::Text { text }) =
+        completed.content.first()
     else {
         panic!("expected agent message text content");
     };
@@ -235,7 +236,8 @@ async fn missing_streamed_reasoning_id_is_reused_for_completion() -> anyhow::Res
     skip_if_no_network!(Ok(()));
 
     let server = start_mock_server().await;
-    let TestAtlasEngine { atlas_engine, .. } = test_atlas_engine().build_with_auto_env(&server).await?;
+    let TestAtlasEngine { atlas_engine, .. } =
+        test_atlas_engine().build_with_auto_env(&server).await?;
 
     let mut reasoning_added = ev_reasoning_item_added("unused", &[]);
     reasoning_added["item"]

@@ -63,7 +63,8 @@ fn init_params() -> InitializeRequestParams {
         Some(ElicitationCapability::new().with_form(FormElicitationCapability::new()));
     InitializeRequestParams::new(
         capabilities,
-        Implementation::new("atlas-engine-test", "0.0.0-test").with_title("Atlas Agent rmcp recovery test"),
+        Implementation::new("atlas-engine-test", "0.0.0-test")
+            .with_title("Atlas Agent rmcp recovery test"),
     )
     .with_protocol_version(ProtocolVersion::V_2025_06_18)
 }

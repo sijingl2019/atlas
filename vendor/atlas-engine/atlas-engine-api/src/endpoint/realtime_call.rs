@@ -6,11 +6,11 @@ use crate::endpoint::realtime_websocket::session_update_session_json;
 use crate::endpoint::session::EndpointSession;
 use crate::error::ApiError;
 use crate::provider::Provider;
-use bytes::Bytes;
 use atlas_engine_client::HttpTransport;
 use atlas_engine_client::Request;
 use atlas_engine_client::RequestBody;
 use atlas_engine_client::RequestTelemetry;
+use bytes::Bytes;
 use http::HeaderMap;
 use http::HeaderValue;
 use http::Method;
@@ -25,7 +25,8 @@ use tracing::instrument;
 use tracing::trace;
 
 const MULTIPART_BOUNDARY: &str = "atlas-engine-realtime-call-boundary";
-const MULTIPART_CONTENT_TYPE: &str = "multipart/form-data; boundary=atlas-engine-realtime-call-boundary";
+const MULTIPART_CONTENT_TYPE: &str =
+    "multipart/form-data; boundary=atlas-engine-realtime-call-boundary";
 
 pub struct RealtimeCallClient<T: HttpTransport> {
     session: EndpointSession<T>,

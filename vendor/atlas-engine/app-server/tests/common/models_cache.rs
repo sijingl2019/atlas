@@ -1,6 +1,4 @@
 // Modified by Atlas from upstream OpenAI Codex (Apache-2.0). See CONTEXT.md.
-use chrono::DateTime;
-use chrono::Utc;
 use atlas_engine_core::test_support::all_model_presets;
 use atlas_engine_models_manager::client_version_to_whole;
 use atlas_engine_protocol::config_types::ReasoningSummary;
@@ -11,6 +9,8 @@ use atlas_engine_protocol::openai_models::ModelPreset;
 use atlas_engine_protocol::openai_models::ModelVisibility;
 use atlas_engine_protocol::openai_models::TruncationPolicyConfig;
 use atlas_engine_protocol::openai_models::default_input_modalities;
+use chrono::DateTime;
+use chrono::Utc;
 use serde_json::json;
 use std::path::Path;
 

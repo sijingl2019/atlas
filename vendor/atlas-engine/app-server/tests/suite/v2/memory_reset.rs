@@ -2,7 +2,6 @@
 use anyhow::Result;
 use app_test_support::MockResponsesConfig;
 use app_test_support::TestAppServer;
-use chrono::Utc;
 use atlas_engine_app_server_protocol::MemoryResetResponse;
 use atlas_engine_features::Feature;
 use atlas_engine_protocol::ThreadId;
@@ -11,6 +10,7 @@ use atlas_engine_state::Stage1JobClaimOutcome;
 use atlas_engine_state::StateRuntime;
 use atlas_engine_state::ThreadMetadataBuilder;
 use atlas_engine_utils_absolute_path::test_support::PathExt;
+use chrono::Utc;
 use pretty_assertions::assert_eq;
 use std::path::Path;
 use std::sync::Arc;
@@ -71,7 +71,10 @@ async fn memory_reset_clears_memory_files_and_rows_preserves_threads() -> Result
     Ok(())
 }
 
-async fn seed_stage1_output(state_db: &Arc<StateRuntime>, atlas_agent_home: &Path) -> Result<ThreadId> {
+async fn seed_stage1_output(
+    state_db: &Arc<StateRuntime>,
+    atlas_agent_home: &Path,
+) -> Result<ThreadId> {
     let now = Utc::now();
     let thread_id = ThreadId::from_string(&Uuid::new_v4().to_string())?;
     let worker_id = ThreadId::from_string(&Uuid::new_v4().to_string())?;

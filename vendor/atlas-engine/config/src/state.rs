@@ -221,7 +221,9 @@ impl ConfigLayerEntry {
             ConfigLayerSource::System { file } => file.parent(),
             ConfigLayerSource::EnterpriseManaged { .. } => None,
             ConfigLayerSource::User { file, .. } => file.parent(),
-            ConfigLayerSource::Project { dot_atlas_agent_folder } => Some(dot_atlas_agent_folder.clone()),
+            ConfigLayerSource::Project {
+                dot_atlas_agent_folder,
+            } => Some(dot_atlas_agent_folder.clone()),
             ConfigLayerSource::SessionFlags => None,
             ConfigLayerSource::LegacyManagedConfigTomlFromFile { .. } => None,
             ConfigLayerSource::LegacyManagedConfigTomlFromMdm => None,

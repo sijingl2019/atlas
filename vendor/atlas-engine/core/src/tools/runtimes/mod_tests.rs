@@ -180,7 +180,10 @@ fn runtime_path_prepends_records_runtime_path_prepend() {
     let mut env = HashMap::from([("PATH".to_string(), "/usr/bin:/bin".to_string())]);
     let mut runtime_path_prepends = RuntimePathPrepends::default();
 
-    runtime_path_prepends.prepend(&mut env, PathBuf::from("/package/atlas-engine-path").as_path());
+    runtime_path_prepends.prepend(
+        &mut env,
+        PathBuf::from("/package/atlas-engine-path").as_path(),
+    );
 
     assert_eq!(
         env.get("PATH").map(String::as_str),
@@ -203,7 +206,10 @@ fn runtime_path_prepends_drops_empty_path_entries() {
     )]);
     let mut runtime_path_prepends = RuntimePathPrepends::default();
 
-    runtime_path_prepends.prepend(&mut env, PathBuf::from("/package/atlas-engine-path").as_path());
+    runtime_path_prepends.prepend(
+        &mut env,
+        PathBuf::from("/package/atlas-engine-path").as_path(),
+    );
 
     assert_eq!(
         env.get("PATH").map(String::as_str),
@@ -523,7 +529,10 @@ fn maybe_wrap_shell_lc_with_snapshot_restores_atlas_engine_thread_id_from_env() 
         &session_shell,
         Some(&shell_snapshot),
         &HashMap::new(),
-        &HashMap::from([("ATLAS_AGENT_THREAD_ID".to_string(), "nested-thread".to_string())]),
+        &HashMap::from([(
+            "ATLAS_AGENT_THREAD_ID".to_string(),
+            "nested-thread".to_string(),
+        )]),
         &RuntimePathPrepends::default(),
     );
     let output = Command::new(&rewritten[0])
@@ -844,7 +853,8 @@ fn maybe_wrap_shell_lc_with_snapshot_restores_custom_git_ssh_command() {
 
 #[cfg(target_os = "macos")]
 #[test]
-fn maybe_wrap_shell_lc_with_snapshot_clears_stale_atlas_engine_git_ssh_command_without_live_command() {
+fn maybe_wrap_shell_lc_with_snapshot_clears_stale_atlas_engine_git_ssh_command_without_live_command()
+ {
     let dir = tempdir().expect("create temp dir");
     let snapshot_path = dir.path().join("snapshot.sh");
     let stale_command = format!(

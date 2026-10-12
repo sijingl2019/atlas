@@ -66,7 +66,8 @@ impl ConfigManager {
     }
 
     pub(crate) fn user_config_path(&self) -> std::io::Result<AbsolutePathBuf> {
-        self.loader_overrides.user_config_path(self.atlas_agent_home())
+        self.loader_overrides
+            .user_config_path(self.atlas_agent_home())
     }
 
     pub(crate) fn current_cli_overrides(&self) -> Vec<(String, TomlValue)> {
@@ -305,7 +306,8 @@ impl ConfigManager {
 
     fn apply_arg0_paths(&self, config: &mut Config) {
         config.atlas_engine_self_exe = self.arg0_paths.atlas_engine_self_exe.clone();
-        config.atlas_engine_linux_sandbox_exe = self.arg0_paths.atlas_engine_linux_sandbox_exe.clone();
+        config.atlas_engine_linux_sandbox_exe =
+            self.arg0_paths.atlas_engine_linux_sandbox_exe.clone();
         config.main_execve_wrapper_exe = self.arg0_paths.main_execve_wrapper_exe.clone();
     }
 

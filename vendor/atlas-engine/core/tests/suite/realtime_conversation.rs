@@ -1,7 +1,6 @@
 // Modified by Atlas from upstream OpenAI Codex (Apache-2.0). See CONTEXT.md.
 use anyhow::Context;
 use anyhow::Result;
-use chrono::Utc;
 use atlas_engine_config::config_toml::RealtimeWsVersion;
 use atlas_engine_core::TurnInputRequest;
 use atlas_engine_core::test_support::auth_manager_from_auth;
@@ -30,6 +29,7 @@ use atlas_engine_protocol::protocol::RealtimeOutputModality;
 use atlas_engine_protocol::protocol::RealtimeVoice;
 use atlas_engine_protocol::protocol::SessionSource;
 use atlas_engine_protocol::user_input::UserInput;
+use chrono::Utc;
 use core_test_support::responses;
 use core_test_support::responses::WebSocketConnectionConfig;
 use core_test_support::responses::start_mock_server;
@@ -411,7 +411,9 @@ async fn conversation_start_audio_text_close_round_trip() -> Result<()> {
         ]
     );
 
-    test.atlas_engine.submit(Op::RealtimeConversationClose).await?;
+    test.atlas_engine
+        .submit(Op::RealtimeConversationClose)
+        .await?;
     let closed = wait_for_event_match(&test.atlas_engine, |msg| match msg {
         EventMsg::RealtimeConversationClosed(closed) => Some(closed.clone()),
         _ => None,
@@ -609,7 +611,9 @@ async fn conversation_webrtc_frameless_chatgpt_sends_codex_headers_to_backend() 
         })
     );
 
-    test.atlas_engine.submit(Op::RealtimeConversationClose).await?;
+    test.atlas_engine
+        .submit(Op::RealtimeConversationClose)
+        .await?;
     let _closed = wait_for_event_match(&test.atlas_engine, |msg| match msg {
         EventMsg::RealtimeConversationClosed(closed) => Some(closed.clone()),
         _ => None,
@@ -801,7 +805,9 @@ async fn conversation_webrtc_start_posts_generated_session() -> Result<()> {
         Some("Bearer dummy")
     );
 
-    test.atlas_engine.submit(Op::RealtimeConversationClose).await?;
+    test.atlas_engine
+        .submit(Op::RealtimeConversationClose)
+        .await?;
     let closed = wait_for_event_match(&test.atlas_engine, |msg| match msg {
         EventMsg::RealtimeConversationClosed(closed) => Some(closed.clone()),
         _ => None,
@@ -918,7 +924,9 @@ async fn conversation_webrtc_start_uses_avas_query() -> Result<()> {
         Some("Bearer dummy")
     );
 
-    test.atlas_engine.submit(Op::RealtimeConversationClose).await?;
+    test.atlas_engine
+        .submit(Op::RealtimeConversationClose)
+        .await?;
     realtime_server.shutdown().await;
     Ok(())
 }
@@ -1011,7 +1019,9 @@ async fn conversation_webrtc_default_v1_ignores_configured_v2_voice() -> Result<
         "cove"
     );
 
-    test.atlas_engine.submit(Op::RealtimeConversationClose).await?;
+    test.atlas_engine
+        .submit(Op::RealtimeConversationClose)
+        .await?;
     realtime_server.shutdown().await;
     Ok(())
 }
@@ -1167,7 +1177,9 @@ async fn conversation_webrtc_start_uses_configured_call_base_url_for_avas() -> R
         Some("Bearer dummy")
     );
 
-    test.atlas_engine.submit(Op::RealtimeConversationClose).await?;
+    test.atlas_engine
+        .submit(Op::RealtimeConversationClose)
+        .await?;
     realtime_server.shutdown().await;
     Ok(())
 }
@@ -1253,7 +1265,9 @@ async fn conversation_webrtc_close_while_sideband_connecting_drops_pending_join(
         .await
         .context("timed out waiting for the sideband handshake")??;
 
-    test.atlas_engine.submit(Op::RealtimeConversationClose).await?;
+    test.atlas_engine
+        .submit(Op::RealtimeConversationClose)
+        .await?;
     let closed = wait_for_event_match(&test.atlas_engine, |msg| match msg {
         EventMsg::RealtimeConversationClosed(closed) => Some(closed.clone()),
         _ => None,
@@ -1416,7 +1430,8 @@ async fn conversation_start_uses_openai_env_key_fallback_with_chatgpt_auth() -> 
     ])
     .await;
 
-    let mut builder = test_atlas_engine().with_auth(AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing());
+    let mut builder =
+        test_atlas_engine().with_auth(AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing());
     let test = builder.build_with_websocket_server(&server).await?;
     assert!(
         server
@@ -1475,7 +1490,9 @@ async fn conversation_start_uses_openai_env_key_fallback_with_chatgpt_auth() -> 
         Some("Bearer env-realtime-key")
     );
 
-    test.atlas_engine.submit(Op::RealtimeConversationClose).await?;
+    test.atlas_engine
+        .submit(Op::RealtimeConversationClose)
+        .await?;
     let _closed = wait_for_event_match(&test.atlas_engine, |msg| match msg {
         EventMsg::RealtimeConversationClosed(closed) => Some(closed.clone()),
         _ => None,
@@ -1623,7 +1640,10 @@ async fn conversation_audio_before_start_emits_error() -> Result<()> {
         _ => None,
     })
     .await;
-    assert_eq!(err.atlas_engine_error_info, Some(AtlasEngineErrorInfo::BadRequest));
+    assert_eq!(
+        err.atlas_engine_error_info,
+        Some(AtlasEngineErrorInfo::BadRequest)
+    );
     assert_eq!(err.message, "conversation is not running");
 
     server.shutdown().await;
@@ -1642,7 +1662,8 @@ async fn conversation_start_preflight_failure_emits_realtime_error_only() -> Res
     skip_if_no_network!(Ok(()));
 
     let server = start_websocket_server(vec![]).await;
-    let mut builder = test_atlas_engine().with_auth(AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing());
+    let mut builder =
+        test_atlas_engine().with_auth(AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing());
     let test = builder.build_with_websocket_server(&server).await?;
 
     test.atlas_engine
@@ -1770,7 +1791,10 @@ async fn conversation_text_before_start_emits_error() -> Result<()> {
         _ => None,
     })
     .await;
-    assert_eq!(err.atlas_engine_error_info, Some(AtlasEngineErrorInfo::BadRequest));
+    assert_eq!(
+        err.atlas_engine_error_info,
+        Some(AtlasEngineErrorInfo::BadRequest)
+    );
     assert_eq!(err.message, "conversation is not running");
 
     server.shutdown().await;
@@ -2151,7 +2175,9 @@ async fn conversation_uses_empty_instructions_for_null_or_empty_prompt() -> Resu
         .await;
         assert_eq!(session_updated, expected_session_id);
 
-        test.atlas_engine.submit(Op::RealtimeConversationClose).await?;
+        test.atlas_engine
+            .submit(Op::RealtimeConversationClose)
+            .await?;
         let _closed = wait_for_event_match(&test.atlas_engine, |msg| match msg {
             EventMsg::RealtimeConversationClosed(closed) => Some(closed.clone()),
             _ => None,
@@ -2184,7 +2210,9 @@ async fn conversation_uses_explicit_start_voice() -> Result<()> {
         })]],
     ])
     .await;
-    let test = test_atlas_engine().build_with_websocket_server(&server).await?;
+    let test = test_atlas_engine()
+        .build_with_websocket_server(&server)
+        .await?;
     assert!(
         server
             .wait_for_handshakes(/*expected*/ 1, Duration::from_secs(2))
@@ -4138,7 +4166,9 @@ async fn conversation_close_routes_only_remaining_transcript_tail_once() -> Resu
         matches!(event, EventMsg::TurnComplete(_))
     })
     .await;
-    test.atlas_engine.submit(Op::RealtimeConversationClose).await?;
+    test.atlas_engine
+        .submit(Op::RealtimeConversationClose)
+        .await?;
 
     let closed = wait_for_event_match(&test.atlas_engine, |msg| match msg {
         EventMsg::RealtimeConversationClosed(closed) => Some(closed.clone()),
@@ -4153,7 +4183,9 @@ async fn conversation_close_routes_only_remaining_transcript_tail_once() -> Resu
         tokio::time::sleep(Duration::from_millis(10)).await;
     }
 
-    test.atlas_engine.submit(Op::RealtimeConversationClose).await?;
+    test.atlas_engine
+        .submit(Op::RealtimeConversationClose)
+        .await?;
     tokio::time::sleep(Duration::from_millis(200)).await;
 
     let requests = response_mock.requests();

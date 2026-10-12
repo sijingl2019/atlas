@@ -70,7 +70,10 @@ async fn user_shell_cmd_ls_and_cat_in_temp_dir() {
         .submit(Op::RunUserShellCommand { command: list_cmd })
         .await
         .unwrap();
-    let msg = wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::ExecCommandEnd(_))).await;
+    let msg = wait_for_event(&atlas_engine, |ev| {
+        matches!(ev, EventMsg::ExecCommandEnd(_))
+    })
+    .await;
     let EventMsg::ExecCommandEnd(ExecCommandEndEvent {
         stdout, exit_code, ..
     }) = msg
@@ -89,7 +92,10 @@ async fn user_shell_cmd_ls_and_cat_in_temp_dir() {
         .submit(Op::RunUserShellCommand { command: cat_cmd })
         .await
         .unwrap();
-    let msg = wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::ExecCommandEnd(_))).await;
+    let msg = wait_for_event(&atlas_engine, |ev| {
+        matches!(ev, EventMsg::ExecCommandEnd(_))
+    })
+    .await;
     let EventMsg::ExecCommandEnd(ExecCommandEndEvent {
         mut stdout,
         exit_code,
@@ -114,10 +120,12 @@ async fn user_shell_command_without_local_environment_emits_error() -> anyhow::R
     submit_thread_settings(
         &test.atlas_engine,
         ThreadSettingsOverrides {
-            environments: Some(atlas_engine_protocol::protocol::TurnEnvironmentSelections::new(
-                test.config.cwd.clone(),
-                vec![],
-            )),
+            environments: Some(
+                atlas_engine_protocol::protocol::TurnEnvironmentSelections::new(
+                    test.config.cwd.clone(),
+                    vec![],
+                ),
+            ),
             ..Default::default()
         },
     )
@@ -129,8 +137,10 @@ async fn user_shell_command_without_local_environment_emits_error() -> anyhow::R
         })
         .await?;
 
-    let EventMsg::Error(error) =
-        wait_for_event(&test.atlas_engine, |event| matches!(event, EventMsg::Error(_))).await
+    let EventMsg::Error(error) = wait_for_event(&test.atlas_engine, |event| {
+        matches!(event, EventMsg::Error(_))
+    })
+    .await
     else {
         unreachable!()
     };
@@ -304,12 +314,13 @@ async fn user_shell_command_does_not_replace_active_turn() -> anyhow::Result<()>
 async fn user_shell_command_history_is_persisted_and_shared_with_model() -> anyhow::Result<()> {
     let server = responses::start_mock_server().await;
     // Disable it to ease command matching.
-    let mut builder = core_test_support::test_atlas_engine::test_atlas_engine().with_config(move |config| {
-        config
-            .features
-            .disable(Feature::ShellSnapshot)
-            .expect("test config should allow feature update");
-    });
+    let mut builder =
+        core_test_support::test_atlas_engine::test_atlas_engine().with_config(move |config| {
+            config
+                .features
+                .disable(Feature::ShellSnapshot)
+                .expect("test config should allow feature update");
+        });
     let test = builder.build(&server).await?;
 
     #[cfg(windows)]
@@ -355,7 +366,10 @@ async fn user_shell_command_history_is_persisted_and_shared_with_model() -> anyh
     assert_eq!(end_event.exit_code, 0);
     assert_eq!(end_event.stdout.trim(), "not-set");
 
-    let _ = wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    let _ = wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let responses = vec![responses::sse(vec![
         responses::ev_response_created("resp-1"),
@@ -386,16 +400,17 @@ async fn user_shell_command_history_is_persisted_and_shared_with_model() -> anyh
 #[tokio::test]
 async fn user_shell_command_does_not_set_network_sandbox_env_var() -> anyhow::Result<()> {
     let server = responses::start_mock_server().await;
-    let mut builder = core_test_support::test_atlas_engine::test_atlas_engine().with_config(|config| {
-        let file_system_sandbox_policy = config.permissions.file_system_sandbox_policy();
-        config
-            .permissions
-            .set_permission_profile(PermissionProfile::from_runtime_permissions(
-                &file_system_sandbox_policy,
-                NetworkSandboxPolicy::Restricted,
-            ))
-            .expect("set permission profile");
-    });
+    let mut builder =
+        core_test_support::test_atlas_engine::test_atlas_engine().with_config(|config| {
+            let file_system_sandbox_policy = config.permissions.file_system_sandbox_policy();
+            config
+                .permissions
+                .set_permission_profile(PermissionProfile::from_runtime_permissions(
+                    &file_system_sandbox_policy,
+                    NetworkSandboxPolicy::Restricted,
+                ))
+                .expect("set permission profile");
+        });
     let test = builder.build(&server).await?;
 
     #[cfg(windows)]
@@ -458,7 +473,10 @@ async fn user_shell_command_output_is_truncated_in_history() -> anyhow::Result<(
     .await;
     assert_eq!(end_event.exit_code, 0);
 
-    let _ = wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    let _ = wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let responses = vec![responses::sse(vec![
         responses::ev_response_created("resp-1"),
@@ -498,9 +516,11 @@ async fn user_shell_command_is_truncated_only_once() -> anyhow::Result<()> {
 
     let server = start_mock_server().await;
 
-    let mut builder = test_atlas_engine().with_model("gpt-5.4").with_config(|config| {
-        config.tool_output_token_limit = Some(100);
-    });
+    let mut builder = test_atlas_engine()
+        .with_model("gpt-5.4")
+        .with_config(|config| {
+            config.tool_output_token_limit = Some(100);
+        });
     let fixture = builder.build(&server).await?;
 
     let call_id = "user-shell-double-truncation";

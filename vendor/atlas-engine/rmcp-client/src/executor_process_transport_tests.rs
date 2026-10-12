@@ -1,5 +1,4 @@
 // Modified by Atlas from upstream OpenAI Codex (Apache-2.0). See CONTEXT.md.
-use bytes::BytesMut;
 use atlas_engine_exec_server::ExecOutputStream;
 use atlas_engine_exec_server::ExecProcess;
 use atlas_engine_exec_server::ExecProcessEventReceiver;
@@ -10,6 +9,7 @@ use atlas_engine_exec_server::ProcessSignal;
 use atlas_engine_exec_server::ReadResponse;
 use atlas_engine_exec_server::WriteResponse;
 use atlas_engine_exec_server::WriteStatus;
+use bytes::BytesMut;
 use pretty_assertions::assert_eq;
 use rmcp::service::RoleClient;
 use rmcp::service::TxJsonRpcMessage;

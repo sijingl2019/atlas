@@ -361,13 +361,23 @@ fn views(rt: &IntegrationsRuntime) -> Vec<IntegrationView> {
     let runs = rt.store.runs();
     let secrets = rt.store.secrets();
     let errors = rt.poll_errors.lock().unwrap().clone();
+    let listed = rt.listed.lock().unwrap().clone();
     rt.store
         .integrations()
         .into_iter()
         .map(|integration| {
-            let last_run = runs
-                .get(&integration.id)
-                .and_then(|l| l.iter().max_by(|a, b| a.at.cmp(&b.at)).cloned());
+            // Before the first fetch nothing is known to be gone; a live run
+            // shows whether or not the tracker still lists its issue.
+            let keys = listed.get(&integration.id);
+            let last_run = runs.get(&integration.id).and_then(|l| {
+                l.iter()
+                    .filter(|r| {
+                        matches!(r.status, RunStatus::Running | RunStatus::Queued)
+                            || keys.is_none_or(|k| k.contains(&r.issue_key))
+                    })
+                    .max_by(|a, b| a.at.cmp(&b.at))
+                    .cloned()
+            });
             IntegrationView {
                 has_secret: secrets.contains_key(&integration.id),
                 poll_error: errors.get(&integration.id).cloned(),

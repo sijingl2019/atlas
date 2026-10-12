@@ -169,8 +169,6 @@ mod tests {
     use super::apply_rollout_item;
     use super::rollout_item_affects_thread_metadata;
     use crate::model::ThreadMetadata;
-    use chrono::DateTime;
-    use chrono::Utc;
     use atlas_engine_history::RolloutItem;
     use atlas_engine_protocol::ThreadId;
     use atlas_engine_protocol::config_types::ApprovalsReviewer;
@@ -201,6 +199,8 @@ mod tests {
     use atlas_engine_protocol::protocol::USER_MESSAGE_BEGIN;
     use atlas_engine_protocol::protocol::UserMessageEvent;
     use atlas_engine_protocol::user_input::UserInput;
+    use chrono::DateTime;
+    use chrono::Utc;
 
     use pretty_assertions::assert_eq;
     use std::path::PathBuf;

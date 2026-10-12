@@ -197,7 +197,8 @@ pub async fn run(
 ) -> Result<()> {
     let request = ticket_request(url, &token)?;
 
-    let dialed = tokio::time::timeout(keepalive.dial, tokio_tungstenite::connect_async(request)).await;
+    let dialed =
+        tokio::time::timeout(keepalive.dial, tokio_tungstenite::connect_async(request)).await;
     let (stream, _response) = match dialed {
         Ok(Ok(ok)) => ok,
         Ok(Err(err)) => {
@@ -212,7 +213,9 @@ pub async fn run(
                 "handshake produced no answer in {:?}",
                 keepalive.dial
             );
-            let _ = events.send(ConnEvent::Closed(ExitReason::Transport("dial timeout".into())));
+            let _ = events.send(ConnEvent::Closed(ExitReason::Transport(
+                "dial timeout".into(),
+            )));
             return Ok(());
         }
     };
@@ -353,11 +356,17 @@ mod tests {
                 Response::builder().status(status).body(None).unwrap(),
             ))
         };
-        assert!(matches!(classify_handshake(&http(404)), ExitReason::Transport(_)));
+        assert!(matches!(
+            classify_handshake(&http(404)),
+            ExitReason::Transport(_)
+        ));
         assert!(classify_handshake(&http(404)).should_retry());
         assert_eq!(classify_handshake(&http(403)), ExitReason::Forbidden);
         assert_eq!(classify_handshake(&http(401)), ExitReason::Unauthorized);
-        assert!(matches!(classify_handshake(&http(503)), ExitReason::Transport(_)));
+        assert!(matches!(
+            classify_handshake(&http(503)),
+            ExitReason::Transport(_)
+        ));
     }
 
     #[test]

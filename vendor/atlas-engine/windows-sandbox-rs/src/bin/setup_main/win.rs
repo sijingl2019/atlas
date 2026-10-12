@@ -4,8 +4,6 @@ mod read_acl_mutex;
 
 use anyhow::Context;
 use anyhow::Result;
-use base64::Engine;
-use base64::engine::general_purpose::STANDARD as BASE64;
 use atlas_engine_windows_sandbox::SETUP_VERSION;
 use atlas_engine_windows_sandbox::SetupErrorCode;
 use atlas_engine_windows_sandbox::SetupErrorReport;
@@ -30,6 +28,8 @@ use atlas_engine_windows_sandbox::to_wide;
 use atlas_engine_windows_sandbox::workspace_write_cap_sid_for_root;
 use atlas_engine_windows_sandbox::workspace_write_root_overlaps_path;
 use atlas_engine_windows_sandbox::write_setup_error_report;
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD as BASE64;
 use serde::Deserialize;
 use serde::Serialize;
 use std::collections::HashSet;
@@ -835,8 +835,11 @@ fn run_setup_full(payload: &Payload, log: &mut dyn Write, sbx_dir: &Path) -> Res
             )?;
             continue;
         }
-        let root_cap_sid_str =
-            workspace_write_cap_sid_for_root(&payload.atlas_agent_home, &payload.command_cwd, root)?;
+        let root_cap_sid_str = workspace_write_cap_sid_for_root(
+            &payload.atlas_agent_home,
+            &payload.command_cwd,
+            root,
+        )?;
         let root_cap_psid = unsafe {
             convert_string_sid_to_sid(&root_cap_sid_str)
                 .ok_or_else(|| anyhow::anyhow!("convert write root capability SID failed"))?
@@ -1014,7 +1017,7 @@ mod tests {
     use super::WRITE_ROOT_ALLOW_MASK;
     use super::convert_string_sid_to_sid;
     use super::workspace_write_cap_sids_for_path;
-        use atlas_engine_windows_sandbox::ensure_allow_mask_aces;
+    use atlas_engine_windows_sandbox::ensure_allow_mask_aces;
     use atlas_engine_windows_sandbox::ensure_allow_write_aces;
     use atlas_engine_windows_sandbox::load_or_create_cap_sids;
     use atlas_engine_windows_sandbox::path_mask_allows;
@@ -1090,10 +1093,12 @@ mod tests {
         fs::create_dir_all(&workspace).expect("create workspace");
         fs::create_dir_all(&other_root).expect("create other root");
 
-        let workspace_sid = workspace_write_cap_sid_for_root(&atlas_agent_home, &workspace, &workspace)
-            .expect("workspace sid");
-        let other_sid = workspace_write_cap_sid_for_root(&atlas_agent_home, &workspace, &other_root)
-            .expect("other root sid");
+        let workspace_sid =
+            workspace_write_cap_sid_for_root(&atlas_agent_home, &workspace, &workspace)
+                .expect("workspace sid");
+        let other_sid =
+            workspace_write_cap_sid_for_root(&atlas_agent_home, &workspace, &other_root)
+                .expect("other root sid");
         let workspace_psid =
             unsafe { convert_string_sid_to_sid(&workspace_sid).expect("convert workspace sid") };
         let other_psid =
@@ -1184,12 +1189,15 @@ mod tests {
         fs::create_dir_all(&stale_root).expect("create stale root");
         fs::create_dir_all(&deny_path).expect("create deny path");
 
-        let stale_sid = workspace_write_cap_sid_for_root(&atlas_agent_home, &workspace, &stale_root)
-            .expect("stale sid");
-        let active_sid = workspace_write_cap_sid_for_root(&atlas_agent_home, &workspace, &active_root)
-            .expect("active sid");
-        let workspace_sid = workspace_write_cap_sid_for_root(&atlas_agent_home, &workspace, &workspace)
-            .expect("workspace sid");
+        let stale_sid =
+            workspace_write_cap_sid_for_root(&atlas_agent_home, &workspace, &stale_root)
+                .expect("stale sid");
+        let active_sid =
+            workspace_write_cap_sid_for_root(&atlas_agent_home, &workspace, &active_root)
+                .expect("active sid");
+        let workspace_sid =
+            workspace_write_cap_sid_for_root(&atlas_agent_home, &workspace, &workspace)
+                .expect("workspace sid");
         let caps = load_or_create_cap_sids(&atlas_agent_home).expect("load caps");
 
         let deny_sids = workspace_write_cap_sids_for_path(
@@ -1220,12 +1228,15 @@ mod tests {
         fs::create_dir_all(&stale_root).expect("create stale root");
         fs::create_dir_all(&deny_path).expect("create deny path");
 
-        let stale_sid = workspace_write_cap_sid_for_root(&atlas_agent_home, &workspace, &stale_root)
-            .expect("stale sid");
-        let active_sid = workspace_write_cap_sid_for_root(&atlas_agent_home, &workspace, &active_root)
-            .expect("active sid");
-        let workspace_sid = workspace_write_cap_sid_for_root(&atlas_agent_home, &workspace, &workspace)
-            .expect("workspace sid");
+        let stale_sid =
+            workspace_write_cap_sid_for_root(&atlas_agent_home, &workspace, &stale_root)
+                .expect("stale sid");
+        let active_sid =
+            workspace_write_cap_sid_for_root(&atlas_agent_home, &workspace, &active_root)
+                .expect("active sid");
+        let workspace_sid =
+            workspace_write_cap_sid_for_root(&atlas_agent_home, &workspace, &workspace)
+                .expect("workspace sid");
         let caps = load_or_create_cap_sids(&atlas_agent_home).expect("load caps");
 
         let deny_sids = workspace_write_cap_sids_for_path(
@@ -1254,10 +1265,12 @@ mod tests {
         fs::create_dir_all(&workspace).expect("create workspace");
         fs::create_dir_all(&nested_root).expect("create nested root");
 
-        let workspace_sid = workspace_write_cap_sid_for_root(&atlas_agent_home, &workspace, &workspace)
-            .expect("workspace sid");
-        let nested_sid = workspace_write_cap_sid_for_root(&atlas_agent_home, &workspace, &nested_root)
-            .expect("nested sid");
+        let workspace_sid =
+            workspace_write_cap_sid_for_root(&atlas_agent_home, &workspace, &workspace)
+                .expect("workspace sid");
+        let nested_sid =
+            workspace_write_cap_sid_for_root(&atlas_agent_home, &workspace, &nested_root)
+                .expect("nested sid");
 
         let deny_sids = workspace_write_cap_sids_for_path(
             &atlas_agent_home,

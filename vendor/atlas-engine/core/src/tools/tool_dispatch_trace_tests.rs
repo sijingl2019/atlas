@@ -69,7 +69,8 @@ impl atlas_engine_code_mode::CodeModeSessionProvider for MissingCellCodeModeSess
         _delegate: Arc<dyn atlas_engine_code_mode::CodeModeSessionDelegate>,
     ) -> atlas_engine_code_mode::CodeModeSessionProviderFuture<'a> {
         Box::pin(async {
-            Ok(Arc::new(MissingCellCodeModeSession) as Arc<dyn atlas_engine_code_mode::CodeModeSession>)
+            Ok(Arc::new(MissingCellCodeModeSession)
+                as Arc<dyn atlas_engine_code_mode::CodeModeSession>)
         })
     }
 }
@@ -80,21 +81,24 @@ impl atlas_engine_code_mode::CodeModeSession for MissingCellCodeModeSession {
     fn execute<'a>(
         &'a self,
         _request: atlas_engine_code_mode::ExecuteRequest,
-    ) -> atlas_engine_code_mode::CodeModeSessionResultFuture<'a, atlas_engine_code_mode::StartedCell> {
+    ) -> atlas_engine_code_mode::CodeModeSessionResultFuture<'a, atlas_engine_code_mode::StartedCell>
+    {
         Box::pin(async { Err("test session cannot execute cells".to_string()) })
     }
 
     fn wait<'a>(
         &'a self,
         request: atlas_engine_code_mode::WaitRequest,
-    ) -> atlas_engine_code_mode::CodeModeSessionResultFuture<'a, atlas_engine_code_mode::WaitOutcome> {
+    ) -> atlas_engine_code_mode::CodeModeSessionResultFuture<'a, atlas_engine_code_mode::WaitOutcome>
+    {
         self.terminate(request.cell_id)
     }
 
     fn terminate<'a>(
         &'a self,
         cell_id: atlas_engine_code_mode::CellId,
-    ) -> atlas_engine_code_mode::CodeModeSessionResultFuture<'a, atlas_engine_code_mode::WaitOutcome> {
+    ) -> atlas_engine_code_mode::CodeModeSessionResultFuture<'a, atlas_engine_code_mode::WaitOutcome>
+    {
         Box::pin(async move {
             Ok(atlas_engine_code_mode::WaitOutcome::MissingCell(
                 atlas_engine_code_mode::RuntimeResponse::Result {

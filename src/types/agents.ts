@@ -89,9 +89,11 @@ export interface Usage {
   /** Reasoning / thinking output, when the agent reports it apart from
    *  `output_tokens` (the native engine does). Informational. */
   reasoning_tokens?: number;
-  /** Cumulative cost in USD as the AGENT reported it; 0 when it reported none
+  /** Cumulative cost as the AGENT reported it; 0 when it reported none
    *  (every ACP adapter today) — the renderer estimates from pricing then. */
   cost?: number;
+  /** ISO 4217 code `cost` is in; null/absent means USD. */
+  currency?: string | null;
 }
 
 /** One ACP-advertised session mode (e.g. Codex's read-only / auto / full-access). */
@@ -99,6 +101,14 @@ export interface SessionModeInfo {
   id: string;
   name: string;
   description?: string | null;
+  /** Models only: who makes it, as the agent stated it — the gateway's
+   *  `publisher`, or the name of the group an ACP agent listed it under.
+   *  Absent when unstated; never inferred from the id. */
+  provider?: string | null;
+  /** Models only: newly released — the picker's "New" badge. */
+  is_new?: boolean;
+  /** Models only: superseded but still served — folded under "Legacy models". */
+  legacy?: boolean;
 }
 
 /** What `native_agent_refresh_models` returns — the picker's Refresh for the
@@ -301,6 +311,8 @@ export type AgentDelta =
       used: number;
       size: number;
       cost: number;
+      /** ISO 4217 code `cost` is in; null/absent means USD. */
+      currency?: string | null;
     }
   | {
       kind: "compaction";

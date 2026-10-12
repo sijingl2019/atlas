@@ -59,6 +59,7 @@ pub(super) fn provider_endpoint(provider: &str) -> Option<(ApiKind, &'static str
         "openrouter" => (ApiKind::OpenAi, "https://openrouter.ai/api/v1"),
         "empero" => (ApiKind::OpenAi, "https://free.empero.org/v1"),
         "orcarouter" => (ApiKind::OpenAi, "https://api.orcarouter.ai/v1"),
+        "cheaperinference" => (ApiKind::OpenAi, "https://api.cheaperinference.com/v1"),
         _ => return None,
     })
 }
@@ -398,6 +399,7 @@ fn fallback_models(provider: &str) -> Vec<&'static str> {
         "cohere" => vec!["command-a-03-2025", "command-r-plus", "command-r"],
         "empero" => vec!["glm-5.3-flash"],
         "orcarouter" => vec!["orcarouter/auto"],
+        "cheaperinference" => vec!["gpt-5.4-mini", "gpt-5.4", "claude-sonnet-5"],
         _ => vec![],
     }
 }
@@ -508,5 +510,19 @@ mod tests {
     fn test_orcarouter_fallback_models() {
         let models = fallback_models("orcarouter");
         assert_eq!(models, vec!["orcarouter/auto"]);
+    }
+
+    #[test]
+    fn test_cheaperinference_endpoint() {
+        let (kind, url) =
+            provider_endpoint("cheaperinference").expect("cheaperinference endpoint must exist");
+        assert_eq!(kind, ApiKind::OpenAi);
+        assert_eq!(url, "https://api.cheaperinference.com/v1");
+    }
+
+    #[test]
+    fn test_cheaperinference_fallback_models() {
+        let models = fallback_models("cheaperinference");
+        assert_eq!(models, vec!["gpt-5.4-mini", "gpt-5.4", "claude-sonnet-5"]);
     }
 }

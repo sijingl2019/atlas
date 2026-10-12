@@ -11,8 +11,8 @@ use atlas_engine_config::types::MemoriesConfig;
 use atlas_engine_features::Feature;
 use atlas_engine_git_utils::diff_since_latest_init;
 use atlas_engine_git_utils::reset_git_repository;
-use atlas_engine_login::AuthManager;
 use atlas_engine_login::AtlasEngineAuth;
+use atlas_engine_login::AuthManager;
 use atlas_engine_model_provider::ModelProvider;
 use atlas_engine_model_provider::ModelProviderFuture;
 use atlas_engine_model_provider::ProviderAccountResult;
@@ -482,7 +482,8 @@ async fn run_memory_phase_one_model_request_test(
     home: Arc<TempDir>,
     memories: MemoriesConfig,
 ) -> anyhow::Result<ResponsesRequest> {
-    let test = build_test_atlas_engine_with_memories_config(server, Arc::clone(&home), memories).await?;
+    let test =
+        build_test_atlas_engine_with_memories_config(server, Arc::clone(&home), memories).await?;
     let provider = Arc::new(MockMemoryModelProvider::new(
         test.config.model_provider.clone(),
         Some(test.thread_manager.auth_manager()),
@@ -610,7 +611,9 @@ async fn build_test_atlas_engine_with_memories_config(
         .await
 }
 
-async fn init_state_db(home: &Arc<TempDir>) -> anyhow::Result<Arc<atlas_engine_state::StateRuntime>> {
+async fn init_state_db(
+    home: &Arc<TempDir>,
+) -> anyhow::Result<Arc<atlas_engine_state::StateRuntime>> {
     let db = atlas_engine_state::StateRuntime::init(
         atlas_engine_state::SqliteConfig::new_for_testing(home.path().abs()),
         "test-provider".into(),
@@ -642,7 +645,10 @@ async fn trigger_memories_startup(test: &TestAtlasEngine) {
 async fn memory_startup_context_with_provider(
     test: &TestAtlasEngine,
     provider: SharedModelProvider,
-) -> (Arc<MemoryStartupContext>, Arc<atlas_engine_core::config::Config>) {
+) -> (
+    Arc<MemoryStartupContext>,
+    Arc<atlas_engine_core::config::Config>,
+) {
     let config_snapshot = test.atlas_engine.config_snapshot().await;
     let mut config = test.config.clone();
     config
@@ -961,6 +967,9 @@ async fn read_rollout_summary_bodies(memory_root: &Path) -> anyhow::Result<Vec<S
 
 async fn shutdown_test_atlas_engine(test: &TestAtlasEngine) -> anyhow::Result<()> {
     test.atlas_engine.submit(Op::Shutdown {}).await?;
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::ShutdownComplete)).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::ShutdownComplete)
+    })
+    .await;
     Ok(())
 }

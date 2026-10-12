@@ -232,7 +232,8 @@ fn handler_normalizes_only_the_default_namespace() {
 #[test]
 fn registry_rejects_default_namespace_alias_collisions() {
     let plain_name = atlas_engine_tools::ToolName::plain("lookup");
-    let namespaced_name = atlas_engine_tools::ToolName::namespaced(DEFAULT_FUNCTION_NAMESPACE, "lookup");
+    let namespaced_name =
+        atlas_engine_tools::ToolName::namespaced(DEFAULT_FUNCTION_NAMESPACE, "lookup");
 
     for [first_name, duplicate_name] in [
         [plain_name.clone(), namespaced_name.clone()],
@@ -346,9 +347,9 @@ fn registry_records_reserved_shell_command_when_a_matching_tool_exists() {
 #[test]
 fn registry_allows_identical_names_in_different_namespaces() {
     let handler = |tool_name| Arc::new(TestHandler { tool_name }) as Arc<dyn CoreToolRuntime>;
-    let mut registry = ToolRegistry::from_tools([handler(atlas_engine_tools::ToolName::namespaced(
-        "first", "lookup",
-    ))]);
+    let mut registry = ToolRegistry::from_tools([handler(
+        atlas_engine_tools::ToolName::namespaced("first", "lookup"),
+    )]);
 
     assert!(
         registry.register_external(handler(atlas_engine_tools::ToolName::namespaced(
@@ -418,7 +419,10 @@ async fn readiness_selects_exact_tool_with_registry_owned_exposure() {
 
     assert!(
         registry
-            .tool(&atlas_engine_tools::ToolName::namespaced("mcp__missing__", "echo"))
+            .tool(&atlas_engine_tools::ToolName::namespaced(
+                "mcp__missing__",
+                "echo"
+            ))
             .is_none()
     );
     assert_eq!(
@@ -631,7 +635,8 @@ fn post_tool_use_feedback_output_keeps_code_mode_result_typed() {
 async fn dispatch_uses_canonical_tool_names_for_lifecycle_contributors() -> anyhow::Result<()> {
     let (mut session, turn) = crate::session::tests::make_session_and_context().await;
     let records = Arc::new(std::sync::Mutex::new(Vec::new()));
-    let mut builder = atlas_engine_extension_api::ExtensionRegistryBuilder::<crate::config::Config>::new();
+    let mut builder =
+        atlas_engine_extension_api::ExtensionRegistryBuilder::<crate::config::Config>::new();
     builder.tool_lifecycle_contributor(Arc::new(ToolLifecycleRecorder {
         records: Arc::clone(&records),
     }));

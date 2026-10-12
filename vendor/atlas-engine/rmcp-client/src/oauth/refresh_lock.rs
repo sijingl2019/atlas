@@ -24,7 +24,8 @@ const REFRESH_LOCK_ACQUIRE_TIMEOUT: Duration = Duration::from_secs(/*secs*/ 60);
 const REFRESH_LOCK_RETRY_SLEEP: Duration = Duration::from_millis(/*millis*/ 50);
 // Keep this internal target stable so diagnostics and cross-process tests can distinguish actual
 // WouldBlock contention from a contender that merely started late and observed persisted tokens.
-const LOCK_CONTENTION_EVENT_TARGET: &str = "atlas_engine_rmcp_client::oauth::refresh_lock::contention";
+const LOCK_CONTENTION_EVENT_TARGET: &str =
+    "atlas_engine_rmcp_client::oauth::refresh_lock::contention";
 
 pub(super) struct RefreshCredentialLock {
     _file: File,

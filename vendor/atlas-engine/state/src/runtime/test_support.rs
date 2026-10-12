@@ -1,9 +1,5 @@
 // Modified by Atlas from upstream OpenAI Codex (Apache-2.0). See CONTEXT.md.
 #[cfg(test)]
-use chrono::DateTime;
-#[cfg(test)]
-use chrono::Utc;
-#[cfg(test)]
 use atlas_engine_protocol::ThreadId;
 #[cfg(test)]
 use atlas_engine_protocol::openai_models::ReasoningEffort;
@@ -13,6 +9,10 @@ use atlas_engine_protocol::protocol::AskForApproval;
 use atlas_engine_protocol::protocol::SandboxPolicy;
 #[cfg(test)]
 use atlas_engine_protocol::protocol::ThreadHistoryMode;
+#[cfg(test)]
+use chrono::DateTime;
+#[cfg(test)]
+use chrono::Utc;
 #[cfg(test)]
 use std::path::Path;
 #[cfg(test)]

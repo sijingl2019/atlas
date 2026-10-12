@@ -342,7 +342,8 @@ mod tests {
 
         assert!(!is_chatgpt_cookie_url(&url));
 
-        let url = reqwest::Url::parse("wss://chatgpt.com/backend-api/atlas-agent/responses").unwrap();
+        let url =
+            reqwest::Url::parse("wss://chatgpt.com/backend-api/atlas-agent/responses").unwrap();
 
         assert!(!is_chatgpt_cookie_url(&url));
     }

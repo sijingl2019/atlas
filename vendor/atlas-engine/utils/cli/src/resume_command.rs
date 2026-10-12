@@ -70,7 +70,10 @@ mod tests {
         assert_eq!(command, Some("atlas-agent resume 'two words'".to_string()));
 
         let command = resume_command(Some("quote'case"), /*thread_id*/ None);
-        assert_eq!(command, Some("atlas-agent resume \"quote'case\"".to_string()));
+        assert_eq!(
+            command,
+            Some("atlas-agent resume \"quote'case\"".to_string())
+        );
     }
 
     #[test]

@@ -1,8 +1,8 @@
 // Modified by Atlas from upstream OpenAI Codex (Apache-2.0). See CONTEXT.md.
 use crate::AtlasAppsToolsCache;
 use crate::agent::AgentControl;
-use crate::attestation::AttestationProvider;
 use crate::atlas_engine_thread::AtlasEngineThread;
+use crate::attestation::AttestationProvider;
 use crate::config::Config;
 use crate::config::ThreadStoreConfig;
 use crate::current_time::TimeProvider;
@@ -38,8 +38,8 @@ use atlas_engine_features::Feature;
 use atlas_engine_history::InitialHistory;
 use atlas_engine_history::ResumedHistory;
 use atlas_engine_history::RolloutItem;
-use atlas_engine_login::AuthManager;
 use atlas_engine_login::AtlasEngineAuth;
+use atlas_engine_login::AuthManager;
 use atlas_engine_login::default_client::ATLAS_AGENT_INTERNAL_ORIGINATOR_OVERRIDE_ENV_VAR;
 use atlas_engine_login::default_client::originator;
 use atlas_engine_model_provider::create_model_provider;
@@ -393,7 +393,9 @@ pub fn thread_store_from_config(
                     }
                 });
             } else if compression_enabled {
-                atlas_engine_rollout::spawn_rollout_compression_worker(config.atlas_agent_home.to_path_buf());
+                atlas_engine_rollout::spawn_rollout_compression_worker(
+                    config.atlas_agent_home.to_path_buf(),
+                );
             }
             store
         }
@@ -541,7 +543,9 @@ impl ThreadManager {
             atlas_agent_home.clone(),
             Arc::new(EnvironmentManager::default_for_tests()),
         );
-        manager._test_atlas_agent_home_guard = Some(TempAtlasAgentHomeGuard { path: atlas_agent_home });
+        manager._test_atlas_agent_home_guard = Some(TempAtlasAgentHomeGuard {
+            path: atlas_agent_home,
+        });
         manager
     }
 
@@ -572,10 +576,11 @@ impl ThreadManager {
         set_thread_manager_test_mode_for_tests(/*enabled*/ true);
         let auth_manager = AuthManager::from_auth_for_testing(auth);
         let installation_id = uuid::Uuid::new_v4().to_string();
-        let absolute_atlas_agent_home = match AbsolutePathBuf::from_absolute_path_checked(&atlas_agent_home) {
-            Ok(atlas_agent_home) => atlas_agent_home,
-            Err(err) => panic!("test atlas_agent_home should be absolute: {err}"),
-        };
+        let absolute_atlas_agent_home =
+            match AbsolutePathBuf::from_absolute_path_checked(&atlas_agent_home) {
+                Ok(atlas_agent_home) => atlas_agent_home,
+                Err(err) => panic!("test atlas_agent_home should be absolute: {err}"),
+            };
         let (thread_created_tx, _) = broadcast::channel(THREAD_CREATED_CHANNEL_CAPACITY);
         let restriction_product = SessionSource::Exec.restriction_product();
         let skills_service = Arc::new(HostSkillsService::new_with_restriction_product(
@@ -595,7 +600,9 @@ impl ThreadManager {
         let thread_store: Arc<dyn ThreadStore> = Arc::new(LocalThreadStore::new(
             LocalThreadStoreConfig {
                 atlas_agent_home: atlas_agent_home.clone(),
-                sqlite: atlas_engine_state::SqliteConfig::new_for_testing(absolute_atlas_agent_home),
+                sqlite: atlas_engine_state::SqliteConfig::new_for_testing(
+                    absolute_atlas_agent_home,
+                ),
                 default_model_provider_id: OPENAI_PROVIDER_ID.to_string(),
             },
             state_db.clone(),
@@ -752,7 +759,10 @@ impl ThreadManager {
         self.state.thread_created_tx.subscribe()
     }
 
-    pub async fn get_thread(&self, thread_id: ThreadId) -> AtlasEngineResult<Arc<AtlasEngineThread>> {
+    pub async fn get_thread(
+        &self,
+        thread_id: ThreadId,
+    ) -> AtlasEngineResult<Arc<AtlasEngineThread>> {
         self.state.get_thread(thread_id).await
     }
 
@@ -1340,7 +1350,10 @@ impl ThreadManagerState {
     }
 
     /// Fetch a thread by ID or return ThreadNotFound.
-    pub(crate) async fn get_thread(&self, thread_id: ThreadId) -> AtlasEngineResult<Arc<AtlasEngineThread>> {
+    pub(crate) async fn get_thread(
+        &self,
+        thread_id: ThreadId,
+    ) -> AtlasEngineResult<Arc<AtlasEngineThread>> {
         let threads = self.threads.read().await;
         match threads.get(&thread_id) {
             Some(thread) if !thread.session_source.is_internal() => Ok(thread.clone()),
@@ -1413,7 +1426,10 @@ impl ThreadManagerState {
     }
 
     /// Remove a thread from the manager by ID, returning it when present.
-    pub(crate) async fn remove_thread(&self, thread_id: &ThreadId) -> Option<Arc<AtlasEngineThread>> {
+    pub(crate) async fn remove_thread(
+        &self,
+        thread_id: &ThreadId,
+    ) -> Option<Arc<AtlasEngineThread>> {
         self.threads.write().await.remove(thread_id)
     }
 
@@ -1974,13 +1990,16 @@ fn thread_store_rollout_read_error(err: ThreadStoreError) -> AtlasEngineErr {
     }
 }
 
-fn thread_store_metadata_update_error(thread_id: ThreadId, err: ThreadStoreError) -> AtlasEngineErr {
+fn thread_store_metadata_update_error(
+    thread_id: ThreadId,
+    err: ThreadStoreError,
+) -> AtlasEngineErr {
     match err {
         ThreadStoreError::ThreadNotFound { thread_id } => AtlasEngineErr::ThreadNotFound(thread_id),
         ThreadStoreError::InvalidRequest { message } => AtlasEngineErr::InvalidRequest(message),
-        ThreadStoreError::Unsupported { operation } => AtlasEngineErr::UnsupportedOperation(format!(
-            "thread metadata update is not supported by this store: {operation}"
-        )),
+        ThreadStoreError::Unsupported { operation } => AtlasEngineErr::UnsupportedOperation(
+            format!("thread metadata update is not supported by this store: {operation}"),
+        ),
         err => AtlasEngineErr::Fatal(format!(
             "failed to update thread metadata {thread_id}: {err}"
         )),

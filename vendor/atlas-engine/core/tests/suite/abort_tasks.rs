@@ -55,7 +55,10 @@ async fn interrupt_long_running_tool_emits_turn_aborted() {
         .unwrap();
 
     // Wait until the exec begins to avoid a race, then interrupt.
-    wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::ExecCommandBegin(_))).await;
+    wait_for_event(&atlas_engine, |ev| {
+        matches!(ev, EventMsg::ExecCommandBegin(_))
+    })
+    .await;
 
     atlas_engine.submit(Op::Interrupt).await.unwrap();
 
@@ -105,7 +108,10 @@ async fn interrupt_tool_records_history_entries() {
         .await
         .unwrap();
 
-    wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::ExecCommandBegin(_))).await;
+    wait_for_event(&atlas_engine, |ev| {
+        matches!(ev, EventMsg::ExecCommandBegin(_))
+    })
+    .await;
 
     tokio::time::sleep(Duration::from_secs_f32(0.1)).await;
     atlas_engine.submit(Op::Interrupt).await.unwrap();
@@ -197,7 +203,10 @@ async fn interrupt_persists_turn_aborted_marker_in_next_request() {
         .await
         .unwrap();
 
-    wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::ExecCommandBegin(_))).await;
+    wait_for_event(&atlas_engine, |ev| {
+        matches!(ev, EventMsg::ExecCommandBegin(_))
+    })
+    .await;
 
     tokio::time::sleep(Duration::from_secs_f32(0.1)).await;
     atlas_engine.submit(Op::Interrupt).await.unwrap();

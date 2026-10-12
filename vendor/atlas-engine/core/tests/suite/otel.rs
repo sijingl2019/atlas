@@ -405,7 +405,8 @@ async fn process_sse_failed_event_logs_parse_error() {
         lines
             .iter()
             .find(|line| {
-                line.contains("atlas_agent.sse_event") && line.contains("event.kind=response.failed")
+                line.contains("atlas_agent.sse_event")
+                    && line.contains("event.kind=response.failed")
             })
             .map(|_| Ok(()))
             .unwrap_or(Err("missing atlas-agent.sse_event".to_string()))
@@ -451,7 +452,8 @@ async fn process_sse_failed_event_logs_missing_error() {
         lines
             .iter()
             .find(|line| {
-                line.contains("atlas_agent.sse_event") && line.contains("event.kind=response.failed")
+                line.contains("atlas_agent.sse_event")
+                    && line.contains("event.kind=response.failed")
             })
             .map(|_| Ok(()))
             .unwrap_or(Err("missing atlas-agent.sse_event".to_string()))
@@ -896,7 +898,8 @@ async fn handle_response_item_records_tool_result_for_custom_tool_call() {
         let line = lines
             .iter()
             .find(|line| {
-                line.contains("atlas_agent.tool_result") && line.contains("call_id=custom-tool-call")
+                line.contains("atlas_agent.tool_result")
+                    && line.contains("call_id=custom-tool-call")
             })
             .ok_or_else(|| "missing atlas-agent.tool_result event".to_string())?;
 
@@ -1036,7 +1039,9 @@ async fn handle_response_item_records_tool_result_for_shell_command_call() {
     logs_assert(|lines: &[&str]| {
         let line = lines
             .iter()
-            .find(|line| line.contains("atlas_agent.tool_result") && line.contains("call_id=shell-call"))
+            .find(|line| {
+                line.contains("atlas_agent.tool_result") && line.contains("call_id=shell-call")
+            })
             .ok_or_else(|| "missing atlas-agent.tool_result event".to_string())?;
 
         if !line.contains("tool_name=shell_command") {
@@ -1073,7 +1078,8 @@ fn tool_decision_assertion<'a>(
         let line = lines
             .iter()
             .find(|line| {
-                line.contains("atlas_agent.tool_decision") && line.contains(&format!("call_id={call_id}"))
+                line.contains("atlas_agent.tool_decision")
+                    && line.contains(&format!("call_id={call_id}"))
             })
             .ok_or_else(|| format!("missing atlas-agent.tool_decision event for {call_id}"))?;
 
@@ -1314,8 +1320,10 @@ async fn handle_shell_command_user_approved_records_tool_decision() {
         .await
         .unwrap();
 
-    let approval_event =
-        wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::ExecApprovalRequest(_))).await;
+    let approval_event = wait_for_event(&atlas_engine, |ev| {
+        matches!(ev, EventMsg::ExecApprovalRequest(_))
+    })
+    .await;
     let EventMsg::ExecApprovalRequest(approval) = approval_event else {
         panic!("expected ExecApprovalRequest event");
     };
@@ -1378,8 +1386,10 @@ async fn handle_shell_command_user_approved_for_session_records_tool_decision() 
         .await
         .unwrap();
 
-    let approval_event =
-        wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::ExecApprovalRequest(_))).await;
+    let approval_event = wait_for_event(&atlas_engine, |ev| {
+        matches!(ev, EventMsg::ExecApprovalRequest(_))
+    })
+    .await;
     let EventMsg::ExecApprovalRequest(approval) = approval_event else {
         panic!("expected ExecApprovalRequest event");
     };
@@ -1442,8 +1452,10 @@ async fn handle_sandbox_error_user_approves_retry_records_tool_decision() {
         .await
         .unwrap();
 
-    let approval_event =
-        wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::ExecApprovalRequest(_))).await;
+    let approval_event = wait_for_event(&atlas_engine, |ev| {
+        matches!(ev, EventMsg::ExecApprovalRequest(_))
+    })
+    .await;
     let EventMsg::ExecApprovalRequest(approval) = approval_event else {
         panic!("expected ExecApprovalRequest event");
     };
@@ -1506,8 +1518,10 @@ async fn handle_shell_command_user_denies_records_tool_decision() {
         .await
         .unwrap();
 
-    let approval_event =
-        wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::ExecApprovalRequest(_))).await;
+    let approval_event = wait_for_event(&atlas_engine, |ev| {
+        matches!(ev, EventMsg::ExecApprovalRequest(_))
+    })
+    .await;
     let EventMsg::ExecApprovalRequest(approval) = approval_event else {
         panic!("expected ExecApprovalRequest event");
     };
@@ -1570,8 +1584,10 @@ async fn handle_sandbox_error_user_approves_for_session_records_tool_decision() 
         .await
         .unwrap();
 
-    let approval_event =
-        wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::ExecApprovalRequest(_))).await;
+    let approval_event = wait_for_event(&atlas_engine, |ev| {
+        matches!(ev, EventMsg::ExecApprovalRequest(_))
+    })
+    .await;
     let EventMsg::ExecApprovalRequest(approval) = approval_event else {
         panic!("expected ExecApprovalRequest event");
     };
@@ -1635,8 +1651,10 @@ async fn handle_sandbox_error_user_denies_records_tool_decision() {
         .await
         .unwrap();
 
-    let approval_event =
-        wait_for_event(&atlas_engine, |ev| matches!(ev, EventMsg::ExecApprovalRequest(_))).await;
+    let approval_event = wait_for_event(&atlas_engine, |ev| {
+        matches!(ev, EventMsg::ExecApprovalRequest(_))
+    })
+    .await;
     let EventMsg::ExecApprovalRequest(approval) = approval_event else {
         panic!("expected ExecApprovalRequest event");
     };

@@ -191,15 +191,16 @@ impl EngineSessions {
     }
 
     pub fn thread(&self, session_id: &acp::SessionId) -> Option<AcpThreadHandle> {
-        self.lock()
-            .get(session_id)
-            .and_then(|s| s.thread.upgrade())
+        self.lock().get(session_id).and_then(|s| s.thread.upgrade())
     }
 
     /// Every live thread, for the account-level notifications that name no
     /// session. Dropped threads are skipped, not reaped — `insert` reaps.
     pub fn threads(&self) -> Vec<AcpThreadHandle> {
-        self.lock().values().filter_map(|s| s.thread.upgrade()).collect()
+        self.lock()
+            .values()
+            .filter_map(|s| s.thread.upgrade())
+            .collect()
     }
 
     /// Records that `thread_id` was configured with these host MCP servers.
@@ -220,13 +221,21 @@ impl EngineSessions {
     }
 
     /// Records the host's tools that ask `thread_id` on every call.
-    pub fn expect_every_time<'a>(&self, thread_id: &str, tools: impl IntoIterator<Item = (&'a str, &'a str)>) {
+    pub fn expect_every_time<'a>(
+        &self,
+        thread_id: &str,
+        tools: impl IntoIterator<Item = (&'a str, &'a str)>,
+    ) {
         self.every_time
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .entry(thread_id.to_string())
             .or_default()
-            .extend(tools.into_iter().map(|(s, t)| (s.to_string(), t.to_string())));
+            .extend(
+                tools
+                    .into_iter()
+                    .map(|(s, t)| (s.to_string(), t.to_string())),
+            );
     }
 
     /// Whether `server`'s `tool` asks `thread_id` on every call.
@@ -251,15 +260,23 @@ impl EngineSessions {
     /// session.
     pub fn allow_for_session(&self, session_id: &acp::SessionId, server: &str, tool: &str) {
         if let Some(session) = self.lock().get_mut(session_id) {
-            session.allowed_for_session.insert((server.to_string(), tool.to_string()));
+            session
+                .allowed_for_session
+                .insert((server.to_string(), tool.to_string()));
         }
     }
 
     /// Whether the user allowed `server`'s `tool` for the rest of this session.
-    pub fn allowed_for_session(&self, session_id: &acp::SessionId, server: &str, tool: &str) -> bool {
-        self.lock()
-            .get(session_id)
-            .is_some_and(|s| s.allowed_for_session.contains(&(server.to_string(), tool.to_string())))
+    pub fn allowed_for_session(
+        &self,
+        session_id: &acp::SessionId,
+        server: &str,
+        tool: &str,
+    ) -> bool {
+        self.lock().get(session_id).is_some_and(|s| {
+            s.allowed_for_session
+                .contains(&(server.to_string(), tool.to_string()))
+        })
     }
 
     /// The engine's report on one MCP server's startup for one thread.
@@ -296,7 +313,9 @@ impl EngineSessions {
         }
     }
 
-    fn mcp_startup_lock(&self) -> std::sync::MutexGuard<'_, HashMap<String, HashMap<String, bool>>> {
+    fn mcp_startup_lock(
+        &self,
+    ) -> std::sync::MutexGuard<'_, HashMap<String, HashMap<String, bool>>> {
         self.mcp_startup
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -332,7 +351,10 @@ impl EngineSessions {
     ) -> Option<String> {
         let mut sessions = self.lock();
         let session = sessions.get_mut(session_id)?;
-        let output = session.command_output.entry(item_id.to_string()).or_default();
+        let output = session
+            .command_output
+            .entry(item_id.to_string())
+            .or_default();
         output.push_str(delta);
         Some(output.clone())
     }
@@ -387,7 +409,9 @@ impl EngineSessions {
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, HashMap<acp::SessionId, EngineSession>> {
-        self.sessions.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+        self.sessions
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 }
 
@@ -441,7 +465,11 @@ pub(crate) fn tool_call_of(item: &ThreadItem) -> Option<acp::ToolCall> {
             }
             Some(call)
         }
-        ThreadItem::FileChange { id, changes, status } => {
+        ThreadItem::FileChange {
+            id,
+            changes,
+            status,
+        } => {
             use atlas_engine_app_server_protocol::PatchApplyStatus as S;
             let status = match status {
                 S::InProgress => acp::ToolCallStatus::InProgress,
@@ -563,7 +591,9 @@ fn session_id(thread_id: &str) -> acp::SessionId {
 }
 
 fn lock(thread: &AcpThreadHandle) -> std::sync::MutexGuard<'_, AcpThread> {
-    thread.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+    thread
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 /// Map the engine's thread token usage onto the shape the UI reads.
@@ -642,13 +672,20 @@ pub fn apply_notification(
                 return;
             };
             match &params.item {
-                ThreadItem::AgentMessage { id: item_id, text, .. } => {
+                ThreadItem::AgentMessage {
+                    id: item_id, text, ..
+                } => {
                     if sessions.already_streamed(&id, item_id) || text.is_empty() {
                         return;
                     }
                     lock(&thread).push_assistant_content_block(text_block(text), false);
                 }
-                ThreadItem::Reasoning { id: item_id, summary, content, .. } => {
+                ThreadItem::Reasoning {
+                    id: item_id,
+                    summary,
+                    content,
+                    ..
+                } => {
                     if sessions.already_streamed(&id, item_id) {
                         return;
                     }
@@ -724,9 +761,9 @@ pub fn apply_notification(
             if let Some(thread) = sessions.thread(&session) {
                 let update = acp::ToolCallUpdate::new(
                     acp::ToolCallId::new(params.item_id),
-                    acp::ToolCallUpdateFields::new().content(vec![
-                        acp::ToolCallContent::Content(acp::Content::new(text_block(&total))),
-                    ]),
+                    acp::ToolCallUpdateFields::new().content(vec![acp::ToolCallContent::Content(
+                        acp::Content::new(text_block(&total)),
+                    )]),
                 );
                 let _ = lock(&thread)
                     .update_tool_call(atlas_acp_thread::ToolCallUpdate::UpdateFields(update));
@@ -950,7 +987,11 @@ mod tests {
                 tokio::time::sleep(Duration::from_millis(20)).await;
                 reporter.record_mcp_status("t1", "atlas_memory", true);
             });
-            assert!(sessions.wait_for_mcp_servers("t1", Duration::from_secs(5)).await);
+            assert!(
+                sessions
+                    .wait_for_mcp_servers("t1", Duration::from_secs(5))
+                    .await
+            );
         }
 
         #[tokio::test]
@@ -958,7 +999,11 @@ mod tests {
             let sessions = EngineSessions::default();
             sessions.expect_mcp_servers("t1", ["atlas_memory".to_string()]);
             sessions.record_mcp_status("t1", "atlas_memory", false);
-            assert!(!sessions.wait_for_mcp_servers("t1", Duration::from_millis(20)).await);
+            assert!(
+                !sessions
+                    .wait_for_mcp_servers("t1", Duration::from_millis(20))
+                    .await
+            );
         }
 
         #[tokio::test]
@@ -1005,7 +1050,8 @@ mod tests {
         // The composer degrades an attachment to a path mention; dropping the
         // link entirely would send a prompt that refers to nothing.
         // `ResourceLink::new` is (name, uri) — the display name first.
-        let link = acp::ContentBlock::ResourceLink(acp::ResourceLink::new("a.rs", "file:///tmp/a.rs"));
+        let link =
+            acp::ContentBlock::ResourceLink(acp::ResourceLink::new("a.rs", "file:///tmp/a.rs"));
         assert_eq!(flatten_prompt(&[link]), "file:///tmp/a.rs");
     }
 
@@ -1075,23 +1121,29 @@ mod tests {
             &sessions,
             &turns,
             3,
-            ServerNotification::ItemCompleted(atlas_engine_app_server_protocol::ItemCompletedNotification {
-                thread_id: "t-patch".to_string(),
-                turn_id: "turn-1".to_string(),
-                item: ThreadItem::FileChange {
-                    id: "item-1".to_string(),
-                    status: atlas_engine_app_server_protocol::PatchApplyStatus::Completed,
-                    changes: vec![atlas_engine_app_server_protocol::FileUpdateChange {
-                        path: "src/foo.rs".to_string(),
-                        kind: atlas_engine_app_server_protocol::PatchChangeKind::Update { move_path: None },
-                        diff: "@@ -1 +1 @@\n-old\n+new\n".to_string(),
-                    }],
+            ServerNotification::ItemCompleted(
+                atlas_engine_app_server_protocol::ItemCompletedNotification {
+                    thread_id: "t-patch".to_string(),
+                    turn_id: "turn-1".to_string(),
+                    item: ThreadItem::FileChange {
+                        id: "item-1".to_string(),
+                        status: atlas_engine_app_server_protocol::PatchApplyStatus::Completed,
+                        changes: vec![atlas_engine_app_server_protocol::FileUpdateChange {
+                            path: "src/foo.rs".to_string(),
+                            kind: atlas_engine_app_server_protocol::PatchChangeKind::Update {
+                                move_path: None,
+                            },
+                            diff: "@@ -1 +1 @@\n-old\n+new\n".to_string(),
+                        }],
+                    },
+                    completed_at_ms: 0,
                 },
-                completed_at_ms: 0,
-            }),
+            ),
         );
 
-        let locked = thread.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let locked = thread
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let call = locked
             .entries()
             .iter()
@@ -1106,7 +1158,10 @@ mod tests {
             .and_then(|args| args.get("patch"))
             .and_then(|p| p.as_str())
             .expect("the edit's arguments carry the patch the checkpoint stores");
-        assert!(patch.contains("+new"), "the patch is the engine's own diff: {patch}");
+        assert!(
+            patch.contains("+new"),
+            "the patch is the engine's own diff: {patch}"
+        );
     }
 
     #[test]

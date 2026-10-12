@@ -23,7 +23,9 @@ fn setup_helper_embeds_as_invoker_manifest() -> Result<()> {
     let setup_executable = std::env::var_os("CARGO_BIN_EXE_atlas-engine-windows-sandbox-setup")
         .or_else(|| std::env::var_os("CARGO_BIN_EXE_atlas_engine_windows_sandbox_setup"))
         .map(PathBuf::from)
-        .or_else(|| option_env!("CARGO_BIN_EXE_atlas-engine-windows-sandbox-setup").map(PathBuf::from))
+        .or_else(|| {
+            option_env!("CARGO_BIN_EXE_atlas-engine-windows-sandbox-setup").map(PathBuf::from)
+        })
         .context("locate the Windows sandbox setup executable")?;
     std::fs::metadata(&setup_executable)
         .with_context(|| format!("find setup helper {}", setup_executable.display()))?;

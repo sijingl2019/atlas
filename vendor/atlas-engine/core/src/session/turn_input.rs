@@ -129,7 +129,11 @@ impl PreparedTurnInputSettings {
 
     /// Applies only persistent settings after steering succeeds. The active
     /// turn keeps its existing context; subsequent turns see the update.
-    async fn apply_steered(self, session: &Session, submission_id: String) -> AtlasEngineResult<()> {
+    async fn apply_steered(
+        self,
+        session: &Session,
+        submission_id: String,
+    ) -> AtlasEngineResult<()> {
         let Some(thread_settings_update) = self.thread_settings_update else {
             return Ok(());
         };

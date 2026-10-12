@@ -84,8 +84,12 @@ async fn turn_steer_requires_active_turn() -> Result<()> {
     .await??;
     assert_eq!(steer_err.error.code, -32600);
 
-    let event =
-        wait_for_analytics_event(&server, DEFAULT_READ_TIMEOUT, "atlas_engine_turn_steer_event").await?;
+    let event = wait_for_analytics_event(
+        &server,
+        DEFAULT_READ_TIMEOUT,
+        "atlas_engine_turn_steer_event",
+    )
+    .await?;
     assert_eq!(event["event_params"]["thread_id"], thread.id);
     assert_eq!(event["event_params"]["result"], "rejected");
     assert_eq!(event["event_params"]["num_input_images"], 0);
@@ -335,8 +339,12 @@ async fn turn_steer_returns_active_turn_id() -> Result<()> {
     })
     .await??;
 
-    let event =
-        wait_for_analytics_event(&server, DEFAULT_READ_TIMEOUT, "atlas_engine_turn_steer_event").await?;
+    let event = wait_for_analytics_event(
+        &server,
+        DEFAULT_READ_TIMEOUT,
+        "atlas_engine_turn_steer_event",
+    )
+    .await?;
     assert_eq!(event["event_params"]["thread_id"], thread.id);
     assert_eq!(event["event_params"]["session_id"], thread.session_id);
     assert_eq!(event["event_params"]["result"], "accepted");

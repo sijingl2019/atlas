@@ -4,7 +4,7 @@ import { DialogOverlay } from "@/ui/dialog";
 import { CheckCircle2, XCircle, AlertTriangle, ClipboardList, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useChatStore } from "../stores/chat-store";
-import { agents } from "../lib/agents-api";
+import { respondAndPopPermission, type PermissionAnswer } from "../lib/respond-permission";
 import { cn } from "@/lib/utils";
 import { Kbd } from "@/ui/kbd";
 import { Markdown } from "@/lib/markdown";
@@ -83,7 +83,7 @@ function PermissionModalImpl({ tabId, onSendMessage, keyboard = true }: Permissi
     acpSessionId ? (s.pendingPermissions[acpSessionId]?.length ?? 0) : 0,
   );
   const agentType = useChatStore((s) => s.sessions[tabId]?.agentType ?? "atlas-agent");
-  const { popPermission, applyExitPlanSelection } = useChatStore.use.actions();
+  const { applyExitPlanSelection } = useChatStore.use.actions();
 
   const [draft, setDraft] = useState("");
   const textRef = useRef<HTMLTextAreaElement>(null);
@@ -104,18 +104,17 @@ function PermissionModalImpl({ tabId, onSendMessage, keyboard = true }: Permissi
   // the free-text field is focused (there Enter submits text, Esc still cancels).
   useEffect(() => {
     if (!current || !keyboard) return;
-    const send = (decision: Parameters<typeof agents.respondPermission>[3]) => {
-      agents
-        .respondPermission(current.agentId, current.acpSessionId, current.requestId, decision)
-        .then(() => {
-          // A plan approval picks a mode the adapter applies silently — see
-          // `exit-plan-modes.ts`. Mirror it, or the pill lies from here on.
+    const send = (decision: PermissionAnswer) => {
+      void respondAndPopPermission(current, decision, {
+        // A plan approval picks a mode the adapter applies silently — see
+        // `exit-plan-modes.ts`. Mirror it, or the pill lies from here on.
+        onSent: () => {
           if (decision.kind === "selected" && extractPlanMarkdown(current.toolCall)) {
             applyExitPlanSelection(tabId, decision.option_id);
           }
-        })
-        .catch((e) => toast.error(`Permission send failed: ${e}`))
-        .finally(() => popPermission(current.acpSessionId, current.requestId));
+        },
+        onError: (e) => toast.error(`Permission send failed: ${e}`),
+      });
     };
     const onKey = (e: KeyboardEvent) => {
       const inText = document.activeElement === textRef.current;
@@ -156,7 +155,7 @@ function PermissionModalImpl({ tabId, onSendMessage, keyboard = true }: Permissi
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [current, primaryId, popPermission, applyExitPlanSelection, tabId, keyboard]);
+  }, [current, primaryId, applyExitPlanSelection, tabId, keyboard]);
 
   if (!current) return null;
 
@@ -165,25 +164,24 @@ function PermissionModalImpl({ tabId, onSendMessage, keyboard = true }: Permissi
    *  applies on top of the plain approval). */
   const resolve = (optId: string, override?: "bypassPermissions") => {
     const isPlan = !!extractPlanMarkdown(current.toolCall);
-    agents
-      .respondPermission(current.agentId, current.acpSessionId, current.requestId, {
-        kind: "selected",
-        option_id: optId,
-      })
-      .then(() => {
-        if (isPlan) applyExitPlanSelection(tabId, optId, override);
-      })
-      .catch((e) => toast.error(`Permission send failed: ${e}`))
-      .finally(() => popPermission(current.acpSessionId, current.requestId));
+    void respondAndPopPermission(
+      current,
+      { kind: "selected", option_id: optId },
+      {
+        onSent: () => {
+          if (isPlan) applyExitPlanSelection(tabId, optId, override);
+        },
+        onError: (e) => toast.error(`Permission send failed: ${e}`),
+      },
+    );
   };
 
   const cancel = () => {
-    agents
-      .respondPermission(current.agentId, current.acpSessionId, current.requestId, {
-        kind: "cancelled",
-      })
-      .catch((e) => toast.error(`Permission cancel failed: ${e}`))
-      .finally(() => popPermission(current.acpSessionId, current.requestId));
+    void respondAndPopPermission(
+      current,
+      { kind: "cancelled" },
+      { onError: (e) => toast.error(`Permission cancel failed: ${e}`) },
+    );
   };
 
   // Free-text: cancel the request, then send the typed instruction as a new

@@ -556,7 +556,12 @@ mod tests {
     fn a_session_that_recorded_nothing_at_all_does_not_invent_a_day() {
         let prices = prices();
         let usage = summarize(
-            &[session("ses-1", "atlas-agent", None, TokenTotals::default())],
+            &[session(
+                "ses-1",
+                "atlas-agent",
+                None,
+                TokenTotals::default(),
+            )],
             &HashMap::new(),
             &prices,
         );

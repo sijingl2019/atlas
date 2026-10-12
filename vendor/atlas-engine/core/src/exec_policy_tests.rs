@@ -40,10 +40,12 @@ use toml::Value as TomlValue;
 mod windows_tests;
 
 fn config_stack_for_dot_atlas_agent_folder(dot_atlas_agent_folder: &Path) -> ConfigLayerStack {
-    let dot_atlas_agent_folder =
-        AbsolutePathBuf::from_absolute_path(dot_atlas_agent_folder).expect("absolute dot_atlas_agent_folder");
+    let dot_atlas_agent_folder = AbsolutePathBuf::from_absolute_path(dot_atlas_agent_folder)
+        .expect("absolute dot_atlas_agent_folder");
     let layer = ConfigLayerEntry::new(
-        ConfigLayerSource::Project { dot_atlas_agent_folder },
+        ConfigLayerSource::Project {
+            dot_atlas_agent_folder,
+        },
         TomlValue::Table(Default::default()),
     );
     ConfigLayerStack::new(
@@ -352,7 +354,9 @@ async fn merges_requirements_exec_policy_network_rules() -> anyhow::Result<()> {
     };
     let dot_atlas_agent_folder = AbsolutePathBuf::from_absolute_path(temp_dir.path())?;
     let layer = ConfigLayerEntry::new(
-        ConfigLayerSource::Project { dot_atlas_agent_folder },
+        ConfigLayerSource::Project {
+            dot_atlas_agent_folder,
+        },
         TomlValue::Table(Default::default()),
     );
     let config_stack =
@@ -384,7 +388,9 @@ async fn malformed_custom_rules_preserve_requirements_exec_policy() -> anyhow::R
     };
     let dot_atlas_agent_folder = AbsolutePathBuf::from_absolute_path(temp_dir.path())?;
     let layer = ConfigLayerEntry::new(
-        ConfigLayerSource::Project { dot_atlas_agent_folder },
+        ConfigLayerSource::Project {
+            dot_atlas_agent_folder,
+        },
         TomlValue::Table(Default::default()),
     );
     let config_stack =
@@ -435,7 +441,9 @@ host_executable(name = "git", paths = ["{git_path_literal}"])
     };
     let dot_atlas_agent_folder = AbsolutePathBuf::from_absolute_path(temp_dir.path())?;
     let layer = ConfigLayerEntry::new(
-        ConfigLayerSource::Project { dot_atlas_agent_folder },
+        ConfigLayerSource::Project {
+            dot_atlas_agent_folder,
+        },
         TomlValue::Table(Default::default()),
     );
     let config_stack =

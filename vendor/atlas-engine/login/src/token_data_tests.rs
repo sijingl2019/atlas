@@ -1,8 +1,8 @@
 // Modified by Atlas from upstream OpenAI Codex (Apache-2.0). See CONTEXT.md.
 use super::*;
+use atlas_engine_protocol::auth::KnownPlan;
 use chrono::TimeZone;
 use chrono::Utc;
-use atlas_engine_protocol::auth::KnownPlan;
 use pretty_assertions::assert_eq;
 use serde::Serialize;
 

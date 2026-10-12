@@ -326,18 +326,19 @@ impl LocalProcess {
             );
         }
 
-        let spawned_result = atlas_engine_sandboxing::spawn_process(atlas_engine_sandboxing::SpawnRequest {
-            command: &prepared.command,
-            cwd: prepared.cwd.as_path(),
-            env: &prepared.env,
-            arg0: &prepared.arg0,
-            sandbox: prepared.sandbox,
-            windows_sandbox: prepared.windows_sandbox_spawn_request(),
-            tty: params.tty,
-            stdin_open: params.tty || params.pipe_stdin,
-            inherited_fds: &[],
-        })
-        .await;
+        let spawned_result =
+            atlas_engine_sandboxing::spawn_process(atlas_engine_sandboxing::SpawnRequest {
+                command: &prepared.command,
+                cwd: prepared.cwd.as_path(),
+                env: &prepared.env,
+                arg0: &prepared.arg0,
+                sandbox: prepared.sandbox,
+                windows_sandbox: prepared.windows_sandbox_spawn_request(),
+                tty: params.tty,
+                stdin_open: params.tty || params.pipe_stdin,
+                inherited_fds: &[],
+            })
+            .await;
         let spawned = match spawned_result {
             Ok(spawned) => spawned,
             Err(err) => {

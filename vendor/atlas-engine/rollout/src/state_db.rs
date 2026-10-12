@@ -8,8 +8,6 @@ use crate::list::ThreadSortKey;
 use crate::metadata;
 use crate::sqlite_metrics;
 use anyhow::Context;
-use chrono::DateTime;
-use chrono::Utc;
 use atlas_engine_protocol::ThreadId;
 use atlas_engine_protocol::protocol::SessionSource;
 use atlas_engine_protocol::protocol::ThreadHistoryMode;
@@ -17,6 +15,8 @@ pub use atlas_engine_state::LogEntry;
 use atlas_engine_state::SqliteConfig;
 use atlas_engine_state::ThreadMetadataBuilder;
 use atlas_engine_utils_path::normalize_for_path_comparison;
+use chrono::DateTime;
+use chrono::Utc;
 use serde_json::Value;
 use std::path::Path;
 use std::path::PathBuf;
@@ -45,7 +45,13 @@ const STARTUP_BACKFILL_WAIT_TIMEOUT: Duration = Duration::from_secs(2);
 /// initialized handle.
 pub async fn init(config: &impl RolloutConfigView) -> Option<StateDbHandle> {
     let config = RolloutConfig::from_view(config);
-    match try_init_with_roots(config.atlas_agent_home, config.sqlite, config.model_provider_id).await {
+    match try_init_with_roots(
+        config.atlas_agent_home,
+        config.sqlite,
+        config.model_provider_id,
+    )
+    .await
+    {
         Ok(runtime) => Some(runtime),
         Err(err) => {
             emit_startup_warning(&format!("failed to initialize state runtime: {err:#}"));
@@ -60,7 +66,12 @@ pub async fn init(config: &impl RolloutConfigView) -> Option<StateDbHandle> {
 /// tracing or UI setup has completed.
 pub async fn try_init(config: &impl RolloutConfigView) -> anyhow::Result<StateDbHandle> {
     let config = RolloutConfig::from_view(config);
-    try_init_with_roots(config.atlas_agent_home, config.sqlite, config.model_provider_id).await
+    try_init_with_roots(
+        config.atlas_agent_home,
+        config.sqlite,
+        config.model_provider_id,
+    )
+    .await
 }
 
 async fn try_init_with_roots(

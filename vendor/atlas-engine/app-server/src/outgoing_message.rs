@@ -1060,8 +1060,10 @@ mod tests {
     #[tokio::test]
     async fn send_response_routes_to_target_connection() {
         let (tx, mut rx) = mpsc::channel::<OutgoingEnvelope>(4);
-        let outgoing =
-            OutgoingMessageSender::new(tx, atlas_engine_analytics::AnalyticsEventsClient::disabled());
+        let outgoing = OutgoingMessageSender::new(
+            tx,
+            atlas_engine_analytics::AnalyticsEventsClient::disabled(),
+        );
         let request_id = ConnectionRequestId {
             connection_id: ConnectionId(42),
             request_id: RequestId::Integer(7),
@@ -1104,8 +1106,10 @@ mod tests {
     #[tokio::test]
     async fn send_response_clears_registered_request_context() {
         let (tx, _rx) = mpsc::channel::<OutgoingEnvelope>(4);
-        let outgoing =
-            OutgoingMessageSender::new(tx, atlas_engine_analytics::AnalyticsEventsClient::disabled());
+        let outgoing = OutgoingMessageSender::new(
+            tx,
+            atlas_engine_analytics::AnalyticsEventsClient::disabled(),
+        );
         let request_id = ConnectionRequestId {
             connection_id: ConnectionId(42),
             request_id: RequestId::Integer(7),
@@ -1135,8 +1139,10 @@ mod tests {
     #[tokio::test]
     async fn send_error_routes_to_target_connection() {
         let (tx, mut rx) = mpsc::channel::<OutgoingEnvelope>(4);
-        let outgoing =
-            OutgoingMessageSender::new(tx, atlas_engine_analytics::AnalyticsEventsClient::disabled());
+        let outgoing = OutgoingMessageSender::new(
+            tx,
+            atlas_engine_analytics::AnalyticsEventsClient::disabled(),
+        );
         let request_id = ConnectionRequestId {
             connection_id: ConnectionId(9),
             request_id: RequestId::Integer(3),
@@ -1170,8 +1176,10 @@ mod tests {
     #[tokio::test]
     async fn send_server_notification_to_connections_reuses_timestamp() {
         let (tx, mut rx) = mpsc::channel::<OutgoingEnvelope>(2);
-        let outgoing =
-            OutgoingMessageSender::new(tx, atlas_engine_analytics::AnalyticsEventsClient::disabled());
+        let outgoing = OutgoingMessageSender::new(
+            tx,
+            atlas_engine_analytics::AnalyticsEventsClient::disabled(),
+        );
 
         outgoing
             .send_server_notification_to_connections(
@@ -1207,8 +1215,10 @@ mod tests {
     #[tokio::test]
     async fn send_server_notification_to_connection_and_wait_tracks_write_completion() {
         let (tx, mut rx) = mpsc::channel::<OutgoingEnvelope>(4);
-        let outgoing =
-            OutgoingMessageSender::new(tx, atlas_engine_analytics::AnalyticsEventsClient::disabled());
+        let outgoing = OutgoingMessageSender::new(
+            tx,
+            atlas_engine_analytics::AnalyticsEventsClient::disabled(),
+        );
         let send_task = tokio::spawn(async move {
             outgoing
                 .send_server_notification_to_connection_and_wait(
@@ -1259,8 +1269,10 @@ mod tests {
     #[tokio::test]
     async fn connection_closed_clears_registered_request_contexts() {
         let (tx, _rx) = mpsc::channel::<OutgoingEnvelope>(4);
-        let outgoing =
-            OutgoingMessageSender::new(tx, atlas_engine_analytics::AnalyticsEventsClient::disabled());
+        let outgoing = OutgoingMessageSender::new(
+            tx,
+            atlas_engine_analytics::AnalyticsEventsClient::disabled(),
+        );
         let closed_connection_request = ConnectionRequestId {
             connection_id: ConnectionId(9),
             request_id: RequestId::Integer(3),
@@ -1294,8 +1306,10 @@ mod tests {
     #[tokio::test]
     async fn notify_client_error_forwards_error_to_waiter() {
         let (tx, _rx) = mpsc::channel::<OutgoingEnvelope>(4);
-        let outgoing =
-            OutgoingMessageSender::new(tx, atlas_engine_analytics::AnalyticsEventsClient::disabled());
+        let outgoing = OutgoingMessageSender::new(
+            tx,
+            atlas_engine_analytics::AnalyticsEventsClient::disabled(),
+        );
 
         let (request_id, wait_for_result) = outgoing
             .send_request(ServerRequestPayload::ApplyPatchApproval(

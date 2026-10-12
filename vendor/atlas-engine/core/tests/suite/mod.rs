@@ -43,6 +43,7 @@ mod agents_md;
 mod apply_patch_cli;
 #[cfg(not(target_os = "windows"))]
 mod approvals;
+mod atlas_engine_delegate;
 mod audio_truncation;
 mod auto_review;
 mod catalog_permission_messages;
@@ -52,7 +53,6 @@ mod client_websockets;
 mod cloud_config;
 mod code_mode;
 mod code_mode_elicitation;
-mod atlas_engine_delegate;
 mod collaboration_instructions;
 mod compact;
 mod compact_remote;

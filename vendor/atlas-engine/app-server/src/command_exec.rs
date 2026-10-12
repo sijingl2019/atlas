@@ -5,8 +5,6 @@ use std::sync::atomic::AtomicI64;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 
-use base64::Engine;
-use base64::engine::general_purpose::STANDARD;
 use atlas_engine_app_server_protocol::CommandExecOutputDeltaNotification;
 use atlas_engine_app_server_protocol::CommandExecOutputStream;
 use atlas_engine_app_server_protocol::CommandExecResizeParams;
@@ -30,6 +28,8 @@ use atlas_engine_utils_pty::DEFAULT_OUTPUT_BYTES_CAP;
 use atlas_engine_utils_pty::ProcessHandle;
 use atlas_engine_utils_pty::SpawnedProcess;
 use atlas_engine_utils_pty::TerminalSize;
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD;
 use tokio::sync::Mutex;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
@@ -203,8 +203,11 @@ impl CommandExecManager {
             let sessions = Arc::clone(&self.sessions);
             tokio::spawn(async move {
                 let _started_network_proxy = started_network_proxy;
-                match atlas_engine_core::sandboxing::execute_env(exec_request, /*stdout_stream*/ None)
-                    .await
+                match atlas_engine_core::sandboxing::execute_env(
+                    exec_request,
+                    /*stdout_stream*/ None,
+                )
+                .await
                 {
                     Ok(output) => {
                         outgoing
@@ -280,8 +283,15 @@ impl CommandExecManager {
             )
             .await
         } else if stream_stdin {
-            atlas_engine_utils_pty::spawn_pipe_process(program, args, cwd.as_path(), &env, &arg0, &[])
-                .await
+            atlas_engine_utils_pty::spawn_pipe_process(
+                program,
+                args,
+                cwd.as_path(),
+                &env,
+                &arg0,
+                &[],
+            )
+            .await
         } else {
             atlas_engine_utils_pty::spawn_pipe_process_no_stdin(
                 program,

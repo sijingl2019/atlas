@@ -261,7 +261,10 @@ fn build_token_limited_compacted_history_truncates_overlong_user_messages() {
         other => panic!("unexpected item in history: {other:?}"),
     };
     assert_eq!(summary_text, "SUMMARY");
-    assert_eq!(history[0].metadata, Some(AtlasEngineHarnessMetadata::default()));
+    assert_eq!(
+        history[0].metadata,
+        Some(AtlasEngineHarnessMetadata::default())
+    );
     assert_eq!(history[1].metadata, None);
 }
 
@@ -306,7 +309,10 @@ fn build_compacted_history_preserves_user_message_passthrough_metadata() {
 
     assert_eq!(history[0].turn_id(), Some("turn-1"));
     assert_eq!(history[1].turn_id(), None);
-    assert_eq!(history[0].metadata, Some(AtlasEngineHarnessMetadata::default()));
+    assert_eq!(
+        history[0].metadata,
+        Some(AtlasEngineHarnessMetadata::default())
+    );
     assert_eq!(history[1].metadata, None);
 }
 

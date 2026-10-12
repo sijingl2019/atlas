@@ -2391,8 +2391,9 @@ mod tests {
     }
 
     fn schema_root() -> Result<PathBuf> {
-        let typescript_index = atlas_engine_utils_cargo_bin::find_resource!("schema/typescript/index.ts")
-            .context("resolve TypeScript schema index.ts")?;
+        let typescript_index =
+            atlas_engine_utils_cargo_bin::find_resource!("schema/typescript/index.ts")
+                .context("resolve TypeScript schema index.ts")?;
         let schema_root = typescript_index
             .parent()
             .and_then(|parent| parent.parent())
@@ -2434,7 +2435,8 @@ mod tests {
 
     #[test]
     fn stable_schema_filter_removes_mock_thread_start_field() -> Result<()> {
-        let output_dir = std::env::temp_dir().join(format!("atlas_engine_schema_{}", Uuid::now_v7()));
+        let output_dir =
+            std::env::temp_dir().join(format!("atlas_engine_schema_{}", Uuid::now_v7()));
         fs::create_dir(&output_dir)?;
         let schema = write_json_schema_with_return::<v2::ThreadStartParams>(
             &output_dir,
@@ -2721,7 +2723,8 @@ mod tests {
 
     #[test]
     fn experimental_type_fields_ts_filter_handles_interface_shape() -> Result<()> {
-        let output_dir = std::env::temp_dir().join(format!("atlas_engine_ts_filter_{}", Uuid::now_v7()));
+        let output_dir =
+            std::env::temp_dir().join(format!("atlas_engine_ts_filter_{}", Uuid::now_v7()));
         fs::create_dir_all(&output_dir)?;
 
         struct TempDirGuard(PathBuf);
@@ -2760,7 +2763,8 @@ mod tests {
     #[test]
     fn experimental_type_fields_ts_filter_keeps_imports_used_in_intersection_suffix() -> Result<()>
     {
-        let output_dir = std::env::temp_dir().join(format!("atlas_engine_ts_filter_{}", Uuid::now_v7()));
+        let output_dir =
+            std::env::temp_dir().join(format!("atlas_engine_ts_filter_{}", Uuid::now_v7()));
         fs::create_dir_all(&output_dir)?;
 
         struct TempDirGuard(PathBuf);
@@ -2803,7 +2807,8 @@ export type Config = { stableField: Keep, unstableField: string | null } & ({ [k
 
     #[test]
     fn experimental_type_fields_ts_filter_handles_generated_command_params_shape() -> Result<()> {
-        let output_dir = std::env::temp_dir().join(format!("atlas_engine_ts_filter_{}", Uuid::now_v7()));
+        let output_dir =
+            std::env::temp_dir().join(format!("atlas_engine_ts_filter_{}", Uuid::now_v7()));
         fs::create_dir_all(&output_dir)?;
 
         struct TempDirGuard(PathBuf);
@@ -2868,7 +2873,8 @@ permissionProfile?: string | null};
 
     #[test]
     fn stable_schema_filter_removes_mock_experimental_method() -> Result<()> {
-        let output_dir = std::env::temp_dir().join(format!("atlas_engine_schema_{}", Uuid::now_v7()));
+        let output_dir =
+            std::env::temp_dir().join(format!("atlas_engine_schema_{}", Uuid::now_v7()));
         fs::create_dir(&output_dir)?;
         let schema =
             write_json_schema_with_return::<crate::ClientRequest>(&output_dir, "ClientRequest")?;
@@ -2883,7 +2889,8 @@ permissionProfile?: string | null};
 
     #[test]
     fn generate_json_filters_experimental_fields_and_methods() -> Result<()> {
-        let output_dir = std::env::temp_dir().join(format!("atlas_engine_schema_{}", Uuid::now_v7()));
+        let output_dir =
+            std::env::temp_dir().join(format!("atlas_engine_schema_{}", Uuid::now_v7()));
         fs::create_dir(&output_dir)?;
         generate_json_with_experimental(&output_dir, /*experimental_api*/ false)?;
 
@@ -2913,8 +2920,9 @@ permissionProfile?: string | null};
             bundle_json.contains("MockExperimentalMethodResponse"),
             false
         );
-        let flat_v2_bundle_json =
-            fs::read_to_string(output_dir.join("atlas_engine_app_server_protocol.v2.schemas.json"))?;
+        let flat_v2_bundle_json = fs::read_to_string(
+            output_dir.join("atlas_engine_app_server_protocol.v2.schemas.json"),
+        )?;
         assert_eq!(flat_v2_bundle_json.contains("mockExperimentalField"), false);
         assert_eq!(flat_v2_bundle_json.contains("additionalPermissions"), false);
         assert_eq!(
@@ -3024,7 +3032,8 @@ permissionProfile?: string | null};
 
     #[test]
     fn generate_json_includes_remote_control_methods_with_experimental_api() -> Result<()> {
-        let output_dir = std::env::temp_dir().join(format!("atlas_engine_schema_{}", Uuid::now_v7()));
+        let output_dir =
+            std::env::temp_dir().join(format!("atlas_engine_schema_{}", Uuid::now_v7()));
         fs::create_dir(&output_dir)?;
         generate_json_with_experimental(&output_dir, /*experimental_api*/ true)?;
 

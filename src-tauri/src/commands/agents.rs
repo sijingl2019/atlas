@@ -90,6 +90,7 @@ impl TauriDeltaSink {
                 app: app.clone(),
             }))
             .with(Arc::new(AnalyticsMiddleware { app: app.clone() }))
+            .with(Arc::new(KeepAwakeMiddleware { app: app.clone() }))
             // Session capture lives here rather than on the event bus because
             // the bus drops events for a lagging subscriber, and a dropped event
             // is a turn missing from the permanent record. This stage only
@@ -127,6 +128,25 @@ impl OutboundMiddleware<SessionDeltaEnvelope> for BroadcastMiddleware {
         if let Err(e) = self.app.emit("atlas:agents", envelope) {
             tracing::error!(target: "atlas_agents::emit", "failed to emit atlas:agents event: {e}");
         }
+    }
+}
+
+/// Manages OS power assertions to prevent idle system sleep while agents are
+/// running. Sessions that end without a status delta are released through
+/// `SharingGatedLifecycle::session_ended`.
+struct KeepAwakeMiddleware {
+    app: AppHandle,
+}
+
+impl OutboundMiddleware<SessionDeltaEnvelope> for KeepAwakeMiddleware {
+    fn on_event(&self, envelope: &SessionDeltaEnvelope) {
+        let Some(manager) = self
+            .app
+            .try_state::<Arc<crate::keep_awake::KeepAwakeManager>>()
+        else {
+            return;
+        };
+        manager.observe(&envelope.session_id, &envelope.delta);
     }
 }
 
@@ -227,9 +247,14 @@ impl OutboundMiddleware<SessionDeltaEnvelope> for AnalyticsMiddleware {
                 st.with_turn(sid, |a| a.note_tool_call(salt, tool_call));
             }
             SessionDelta::UsageUpdated { usage } => st.with_turn(sid, |a| a.note_usage(usage)),
-            SessionDelta::ContextUsage { used, size, cost } => {
-                st.with_turn(sid, |a| a.note_context(*used, *size, *cost))
-            }
+            SessionDelta::ContextUsage {
+                used,
+                size,
+                cost,
+                currency,
+            } => st.with_turn(sid, |a| {
+                a.note_context(*used, *size, *cost, currency.as_deref())
+            }),
             SessionDelta::PermissionRequest { .. } => st.with_turn(
                 sid,
                 super::agent_analytics::TurnAcc::note_permission_request,
@@ -494,7 +519,7 @@ impl OutboundMiddleware<SessionDeltaEnvelope> for MemoryIngestMiddleware {
                 });
             }
 
-            // Background reindex nudge: the FS watcher only watches `*.md`/docs.json,
+            // Background reindex nudge: the FS watcher only watches `*.md` files,
             // not session transcripts, so a finished turn needs an explicit nudge to
             // make chat-derived corpus searchable. Fire-and-forget — `enqueue_index`
             // `try_send`s and drops on a full queue, so `emit` never blocks here.
@@ -557,6 +582,9 @@ struct SharingGatedLifecycle {
     /// in memory, so a session's token exists as soon as its start is
     /// reported; its per-session clock is dropped when the session ends.
     server: Arc<super::memory_server::MemoryServerHost>,
+    /// Released here rather than from deltas: a session can end without a
+    /// terminal status (sign-out, killing an agent, quitting).
+    keep_awake: Option<Arc<crate::keep_awake::KeepAwakeManager>>,
 }
 
 enum LifecycleWrite {
@@ -572,6 +600,9 @@ enum LifecycleWrite {
 
 impl SharingGatedLifecycle {
     fn new(app: AppHandle, server: Arc<super::memory_server::MemoryServerHost>) -> Self {
+        let keep_awake = app
+            .try_state::<Arc<crate::keep_awake::KeepAwakeManager>>()
+            .map(|state| state.inner().clone());
         let (tx, rx) = std::sync::mpsc::channel::<LifecycleWrite>();
         std::thread::Builder::new()
             .name("atlas-session-lifecycle".into())
@@ -606,7 +637,11 @@ impl SharingGatedLifecycle {
                 }
             })
             .expect("the session lifecycle thread starts");
-        Self { writes: tx, server }
+        Self {
+            writes: tx,
+            server,
+            keep_awake,
+        }
     }
 
     fn queue(&self, write: LifecycleWrite) {
@@ -631,6 +666,9 @@ impl super::agent_host::SessionLifecycle for SharingGatedLifecycle {
 
     fn session_ended(&self, session_id: &str) {
         super::agent_host::SessionLifecycle::session_ended(&**self.server.tokens(), session_id);
+        if let Some(keep_awake) = &self.keep_awake {
+            keep_awake.session_ended(session_id);
+        }
         self.server.clocks().forget(session_id);
         self.queue(LifecycleWrite::Ended {
             session_id: session_id.to_string(),
@@ -686,6 +724,10 @@ pub fn install_manager(app: &AppHandle) {
         AgentHost::new(sink, config_dir, store.clone(), registry.clone())
     };
     app.manage(host.clone());
+    app.manage(super::session_watcher::SessionWatcher::new(
+        host.clone(),
+        app.clone(),
+    ));
 
     // Subagents: agents that other agents start (the herdr model). The
     // manager rides on the host; its tool server is offered to every session
@@ -759,7 +801,9 @@ pub fn install_manager(app: &AppHandle) {
         let emit_app = app.clone();
         let ui_bridge = Arc::new(super::ui_server::UiBridge::new(Arc::new(
             move |request: &super::ui_server::UiRequest| {
-                emit_app.emit(super::ui_server::action_event(request), request).map_err(|e| e.to_string())
+                emit_app
+                    .emit(super::ui_server::action_event(request), request)
+                    .map_err(|e| e.to_string())
             },
         )));
         app.manage(ui_bridge.clone());
@@ -771,8 +815,10 @@ pub fn install_manager(app: &AppHandle) {
                 .try_state::<crate::state::AtlasConfigHandle>()
                 .is_some_and(|config| config.lock().effective().agent_ui_navigation)
         });
-        let ui_router =
-            super::ui_server::router(super::ui_server::UiTools::new(ui_bridge.clone(), navigation.clone()));
+        let ui_router = super::ui_server::router(super::ui_server::UiTools::new(
+            ui_bridge.clone(),
+            navigation.clone(),
+        ));
         // The organisation tool server (ADR-0014): calls act in the
         // organisation the session's Project is bound to, through the clients
         // the app already holds. Its setting, "Let Atlas Agent act in your
@@ -796,13 +842,33 @@ pub fn install_manager(app: &AppHandle) {
             org_access.clone(),
             session_orgs.clone(),
         )
-        .with_audit(Arc::new(move |record: &super::org_server::OrgActionRecord| {
-            let _ = audit_app.emit(super::org_server::ORG_ACTION_EVENT, record);
-        }))
+        .with_audit(Arc::new(
+            move |record: &super::org_server::OrgActionRecord| {
+                let _ = audit_app.emit(super::org_server::ORG_ACTION_EVENT, record);
+            },
+        ))
         // Drawing on a Space page crosses to the window: the page's codec
         // lives in the frontend.
         .with_window(ui_bridge);
         let org_router = super::org_server::router(org_tools.clone());
+        // The code tool server (ADR-0015): grep and find_files over the
+        // session's directory, for every agent that speaks HTTP MCP. Its
+        // setting is read on every offer and every call, like the two
+        // above; the shared-memory toggle does not gate it.
+        let code_app = app.clone();
+        let code_tools: super::code_server::CodeToolsGate = Arc::new(move || {
+            code_app
+                .try_state::<crate::state::AtlasConfigHandle>()
+                .is_some_and(|config| config.lock().effective().agent_code_tools)
+        });
+        // The code index (Phase 2) serves the symbol tools and names grep
+        // hits by their enclosing symbol; it is managed in `setup` before
+        // this runs.
+        let mut code_server_tools = super::code_server::CodeTools::new(code_tools.clone());
+        if let Some(registry) = app.try_state::<Arc<super::code_index::CodeIndexRegistry>>() {
+            code_server_tools = code_server_tools.with_index(registry.inner().clone());
+        }
+        let code_router = super::code_server::router(code_server_tools);
         // Every agent that can take the server is handed it on each session
         // request, with a token of its own. It is the only way memory reaches
         // an agent (ADR-0010): nothing is prepended to a prompt. A connection
@@ -820,7 +886,8 @@ pub fn install_manager(app: &AppHandle) {
                         .with_org(
                             super::org_server::OrgOffer::new(org_access, session_orgs)
                                 .describing_with(org_tools),
-                        ),
+                        )
+                        .with_code(super::code_server::CodeOffer::new(code_tools)),
                 ),
                 Arc::new(super::subagents::server::SubagentSessionOffers::new(
                     subagent_server,
@@ -881,7 +948,7 @@ pub fn install_manager(app: &AppHandle) {
                 evict: Some(evict),
                 documents_shown: Some(documents_shown),
             },
-            vec![ui_router, org_router],
+            vec![ui_router, org_router, code_router],
         );
     }
 
@@ -988,8 +1055,14 @@ pub fn install_manager(app: &AppHandle) {
         });
     }
 
-    // The sidebar refreshes from store changes, not from watching anyone's
-    // files (ADR-0001). One task forwards them to the webview.
+    // The sidebar refreshes from store changes; one task forwards them to the
+    // webview. Since the ADR-0001 amendment ("discovery is not replay") one of
+    // the store's writers watches files: the session watcher
+    // (`session_watcher.rs`) lists the open project's Claude transcript
+    // directory and reads file times — never contents — bumping or adding rows
+    // through the store, so its changes arrive here like any other. Liveness
+    // ("running in a terminal") is not stored; the watcher emits the same event
+    // itself when the live set changes.
     if let Some(history) = host.history() {
         let app = app.clone();
         let mut changes = history.store().subscribe();
@@ -1504,8 +1577,12 @@ pub async fn threads_resume(
 pub async fn threads_delete(
     thread_id: String,
     host: State<'_, Arc<AgentHost>>,
+    watcher: State<'_, Arc<super::session_watcher::SessionWatcher>>,
 ) -> Result<(), CmdError> {
-    host.delete_thread(parse_thread_id(&thread_id)?)
+    // The watcher's file times decide "live elsewhere", which refuses the
+    // delete — the same input the sidebar's dot reads.
+    let modified = watcher.last_modified();
+    host.delete_thread(parse_thread_id(&thread_id)?, &modified)
         .await
         .map_err(CmdError::from)
 }
@@ -1515,8 +1592,10 @@ pub async fn threads_delete(
 pub fn threads_projects(
     cwd: Option<String>,
     host: State<'_, Arc<AgentHost>>,
+    watcher: State<'_, Arc<super::session_watcher::SessionWatcher>>,
 ) -> Result<Vec<super::agent_host::ThreadProjectWire>, CmdError> {
-    host.thread_projects(cwd.as_deref()).map_err(CmdError::from)
+    host.thread_projects(cwd.as_deref(), &watcher.last_modified())
+        .map_err(CmdError::from)
 }
 
 /// Every thread, archived or not, newest-started first — the history view.
@@ -1524,8 +1603,10 @@ pub fn threads_projects(
 pub fn threads_history(
     archived_only: bool,
     host: State<'_, Arc<AgentHost>>,
+    watcher: State<'_, Arc<super::session_watcher::SessionWatcher>>,
 ) -> Result<Vec<super::agent_host::ThreadRow>, CmdError> {
-    host.thread_history(archived_only).map_err(CmdError::from)
+    host.thread_history(archived_only, &watcher.last_modified())
+        .map_err(CmdError::from)
 }
 
 /// Take a thread out of the active list, keeping it in history.
@@ -1537,7 +1618,10 @@ pub fn threads_archive(thread_id: String, host: State<'_, Arc<AgentHost>>) -> Re
 
 /// Put an archived thread back in the active list (the sidebar's Trash).
 #[tauri::command]
-pub fn threads_unarchive(thread_id: String, host: State<'_, Arc<AgentHost>>) -> Result<(), CmdError> {
+pub fn threads_unarchive(
+    thread_id: String,
+    host: State<'_, Arc<AgentHost>>,
+) -> Result<(), CmdError> {
     host.unarchive_thread(parse_thread_id(&thread_id)?)
         .map_err(CmdError::from)
 }
@@ -1562,6 +1646,50 @@ pub async fn threads_import(
     host.import_threads(plugin_ids)
         .await
         .map_err(CmdError::from)
+}
+
+/// Sync one project's recent agent sessions into the sidebar (ADR-0001
+/// amendment, ATL-422). Debounced in the host; answers how many rows landed.
+#[tauri::command]
+pub async fn threads_sync_project(
+    cwd: String,
+    host: State<'_, Arc<AgentHost>>,
+    watcher: State<'_, Arc<super::session_watcher::SessionWatcher>>,
+) -> Result<usize, CmdError> {
+    // One spelling of the project for everything below: the watcher's slug
+    // directory (Claude Code names it after its physical `getcwd`), the
+    // `session/list` cwd filter, and the sync debounce key. The UI's path is
+    // not canonical — a symlink, macOS's `/private` prefix, a trailing slash —
+    // and each of those uses would silently miss on a different spelling.
+    // `canonicalize` touches the disk, so it runs off the async workers.
+    let cwd = tauri::async_runtime::spawn_blocking(move || canonical_project_dir(&cwd))
+        .await
+        .map_err(|e| CmdError::new(e.to_string(), ErrorClass::Fatal))?;
+    // Arm first: the watcher keeps the sidebar current between these calls.
+    if !cwd.is_empty() {
+        watcher.arm(&cwd);
+    }
+    host.sync_project(&cwd, false).await.map_err(CmdError::from)
+}
+
+/// The physical path of a project directory as the UI named it: resolved
+/// through symlinks when it exists, else the raw path with surrounding
+/// whitespace and any trailing slash removed (the root stays `/`). Empty in,
+/// empty out.
+fn canonical_project_dir(raw: &str) -> String {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+    if let Ok(canonical) = std::fs::canonicalize(trimmed) {
+        return canonical.to_string_lossy().into_owned();
+    }
+    let without_slash = trimmed.trim_end_matches('/');
+    if without_slash.is_empty() {
+        "/".to_owned()
+    } else {
+        without_slash.to_owned()
+    }
 }
 
 fn parse_thread_id(raw: &str) -> Result<atlas_thread_metadata::ThreadId, CmdError> {
@@ -2314,7 +2442,7 @@ impl atlas_native_agent::engine::auth::AtlasTokenSource for AccountTokenSource {
 
 /// Where an agent update is, as the webview hears it on `atlas:agents`
 /// (`{kind: "agent_update", plugin_id, version, phase, error?}`). Not a
-/// session delta — that wire is frozen, and an update belongs to a plugin,
+/// session delta — that wire is per-session, and an update belongs to a plugin,
 /// not to one session.
 #[derive(Clone, Copy)]
 pub(crate) enum AgentUpdatePhase<'a> {
@@ -2383,7 +2511,10 @@ impl PendingUpdates {
 
     fn schedule(&self, app: &AppHandle, host: &Arc<AgentHost>, plugin_id: String, version: String) {
         let first = {
-            let mut pending = self.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            let mut pending = self
+                .0
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             pending.insert(plugin_id.clone(), version).is_none()
         };
         if !first {
@@ -2426,5 +2557,43 @@ impl PendingUpdates {
             }
             super::catalog::emit_catalog_changed(&app, "update");
         });
+    }
+}
+
+#[cfg(test)]
+mod project_dir_tests {
+    use super::canonical_project_dir;
+
+    /// The review finding: the UI's raw cwd keyed the watcher's slug directory,
+    /// the `session/list` filter and the debounce, so a symlinked checkout (or
+    /// macOS's `/tmp` → `/private/tmp`) watched a folder Claude Code never
+    /// writes. Claude names the folder after its physical `getcwd`.
+    #[cfg(unix)]
+    #[test]
+    fn a_symlinked_project_resolves_to_its_physical_path() {
+        let tmp = tempfile::tempdir().unwrap();
+        let real = tmp.path().join("real");
+        std::fs::create_dir_all(&real).unwrap();
+        let link = tmp.path().join("link");
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+        let physical = std::fs::canonicalize(&real).unwrap();
+        let physical = physical.to_string_lossy();
+
+        assert_eq!(canonical_project_dir(&link.to_string_lossy()), physical);
+        assert_eq!(
+            canonical_project_dir(&format!("{}/", link.to_string_lossy())),
+            physical,
+            "a trailing slash is the same project"
+        );
+    }
+
+    #[test]
+    fn a_missing_directory_falls_back_to_the_trimmed_raw_path() {
+        assert_eq!(
+            canonical_project_dir(" /no/such/atlas-project/ "),
+            "/no/such/atlas-project"
+        );
+        assert_eq!(canonical_project_dir(""), "");
+        assert_eq!(canonical_project_dir("   "), "");
     }
 }

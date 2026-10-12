@@ -540,9 +540,11 @@ pub(crate) async fn run_turn(
                 return Err(err);
             }
             Err(err)
-                if matches!(err.details(), AtlasEngineErrorDetails::ContextWindowExceeded)
-                    && turn_context.provider.info().wire_api
-                        == atlas_engine_model_provider_info::WireApi::Chat
+                if matches!(
+                    err.details(),
+                    AtlasEngineErrorDetails::ContextWindowExceeded
+                ) && turn_context.provider.info().wire_api
+                    == atlas_engine_model_provider_info::WireApi::Chat
                     && !gateway_overflow_recovery_attempted =>
             {
                 gateway_overflow_recovery_attempted = true;
@@ -2301,9 +2303,9 @@ async fn try_run_sampling_request(
                         ResponseItem::ToolSearchCall { call_id, .. }
                         | ResponseItem::LocalShellCall { call_id, .. } => call_id.as_deref(),
                         ResponseItem::WebSearchCall { id, .. }
-                        | ResponseItem::ImageGenerationCall { id, .. } => {
-                            id.as_ref().map(atlas_engine_protocol::ResponseItemId::as_str)
-                        }
+                        | ResponseItem::ImageGenerationCall { id, .. } => id
+                            .as_ref()
+                            .map(atlas_engine_protocol::ResponseItemId::as_str),
                         _ => None,
                     };
                     if let Some(call_id) = call_id {

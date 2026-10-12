@@ -5,8 +5,6 @@ use std::path::Path;
 
 use anyhow::Context;
 use anyhow::Result;
-use base64::Engine;
-use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use atlas_engine_core::StartThreadOptions;
 use atlas_engine_core::TurnInputRequest;
 use atlas_engine_core::X_ATLAS_AGENT_ROUTING_HINT_HEADER;
@@ -50,6 +48,8 @@ use atlas_engine_protocol::protocol::RealtimeEvent;
 use atlas_engine_protocol::protocol::RealtimeOutputModality;
 use atlas_engine_protocol::protocol::ThreadSettingsOverrides;
 use atlas_engine_protocol::user_input::UserInput;
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use core_test_support::PathBufExt;
 use core_test_support::apps_test_server::configure_search_capable_model;
 use core_test_support::context_snapshot;
@@ -252,7 +252,9 @@ async fn start_remote_realtime_server() -> responses::WebSocketTestServer {
     .await
 }
 
-async fn start_realtime_conversation(atlas_engine: &atlas_engine_core::AtlasEngineThread) -> Result<()> {
+async fn start_realtime_conversation(
+    atlas_engine: &atlas_engine_core::AtlasEngineThread,
+) -> Result<()> {
     atlas_engine
         .submit(Op::RealtimeConversationStart(ConversationStartParams {
             client_managed_handoffs: false,
@@ -300,7 +302,9 @@ async fn start_realtime_conversation(atlas_engine: &atlas_engine_core::AtlasEngi
     Ok(())
 }
 
-async fn close_realtime_conversation(atlas_engine: &atlas_engine_core::AtlasEngineThread) -> Result<()> {
+async fn close_realtime_conversation(
+    atlas_engine: &atlas_engine_core::AtlasEngineThread,
+) -> Result<()> {
     atlas_engine.submit(Op::RealtimeConversationClose).await?;
     wait_for_event_match(atlas_engine, |msg| match msg {
         EventMsg::RealtimeConversationClosed(closed) => Some(closed.clone()),
@@ -450,7 +454,8 @@ fn assert_compact_request_omits_harness_metadata(request: &responses::ResponsesR
 async fn amazon_bedrock_uses_remote_compaction_endpoint() -> Result<()> {
     skip_if_no_network!(Ok(()));
 
-    let harness = TestAtlasEngineHarness::with_auto_env_builder(amazon_bedrock_test_atlas_engine()).await?;
+    let harness =
+        TestAtlasEngineHarness::with_auto_env_builder(amazon_bedrock_test_atlas_engine()).await?;
 
     let response_mock = responses::mount_sse_sequence(
         harness.server(),
@@ -673,11 +678,11 @@ async fn remote_compact_v2_retains_only_client_developer_messages_when_enabled(
 async fn amazon_bedrock_automatic_compaction_uses_v1_endpoint_when_v2_is_enabled() -> Result<()> {
     skip_if_no_network!(Ok(()));
 
-    let harness = TestAtlasEngineHarness::with_auto_env_builder(amazon_bedrock_test_atlas_engine().with_config(
-        |config| {
+    let harness = TestAtlasEngineHarness::with_auto_env_builder(
+        amazon_bedrock_test_atlas_engine().with_config(|config| {
             config.model_auto_compact_token_limit = Some(200);
-        },
-    ))
+        }),
+    )
     .await?;
     let response_mock = responses::mount_sse_sequence(
         harness.server(),
@@ -812,7 +817,9 @@ async fn remote_compact_replaces_history_for_followups() -> Result<()> {
     )
     .expect("remote compact turn metadata should be valid json");
     assert_eq!(
-        compact_request.header("x-atlas-engine-installation-id").as_deref(),
+        compact_request
+            .header("x-atlas-engine-installation-id")
+            .as_deref(),
         compact_metadata["installation_id"].as_str()
     );
     assert!(
@@ -828,7 +835,9 @@ async fn remote_compact_replaces_history_for_followups() -> Result<()> {
     assert_eq!(compact_metadata["sandbox_mode"].as_str(), Some("read-only"));
     assert_eq!(
         compact_metadata["window_id"].as_str(),
-        compact_request.header("x-atlas-engine-window-id").as_deref()
+        compact_request
+            .header("x-atlas-engine-window-id")
+            .as_deref()
     );
     assert_eq!(
         compact_metadata["compaction"],
@@ -910,7 +919,9 @@ async fn remote_compact_replaces_history_for_followups() -> Result<()> {
     );
     assert_eq!(
         follow_up_metadata["window_id"].as_str(),
-        follow_up_request.header("x-atlas-engine-window-id").as_deref()
+        follow_up_request
+            .header("x-atlas-engine-window-id")
+            .as_deref()
     );
     assert_ne!(
         follow_up_metadata["window_id"], compact_metadata["window_id"],
@@ -1478,7 +1489,9 @@ async fn remote_compact_v2_reuses_compaction_trigger_for_followups() -> Result<(
     );
     assert_eq!(
         compact_metadata["window_id"].as_str(),
-        compact_request.header("x-atlas-engine-window-id").as_deref()
+        compact_request
+            .header("x-atlas-engine-window-id")
+            .as_deref()
     );
     assert_eq!(
         compact_request.body_json()["client_metadata"]["x-atlas-engine-window-id"].as_str(),
@@ -1750,7 +1763,8 @@ async fn remote_compact_filters_deferred_dynamic_tools() -> Result<()> {
     skip_if_no_network!(Ok(()));
 
     let server = responses::start_mock_server().await;
-    let mut builder = test_atlas_engine().with_auth(AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing());
+    let mut builder =
+        test_atlas_engine().with_auth(AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing());
     let mut test = builder.build(&server).await?;
     let hidden_tool = "hidden_dynamic_tool";
     let visible_tool = "visible_dynamic_tool";
@@ -1848,7 +1862,12 @@ async fn remote_compact_does_not_charge_inline_audio_payload_as_text() -> Result
         vec![
             sse(vec![
                 responses::ev_response_created("resp-1"),
-                responses::ev_function_call_with_namespace(call_id, "atlas_engine_app", tool_name, "{}"),
+                responses::ev_function_call_with_namespace(
+                    call_id,
+                    "atlas_engine_app",
+                    tool_name,
+                    "{}",
+                ),
                 responses::ev_completed_with_tokens("resp-1", /*total_tokens*/ 100),
             ]),
             sse(vec![
@@ -1996,7 +2015,10 @@ async fn remote_compact_runs_automatically() -> Result<()> {
         _ => None,
     })
     .await;
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
     assert!(message);
     assert_eq!(compact_mock.requests().len(), 1);
     assert_eq!(
@@ -2121,7 +2143,10 @@ async fn remote_compact_trims_function_call_history_to_fit_context_window() -> R
             text_elements: Vec::new(),
         }]))
         .await?;
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     atlas_engine
         .start_or_steer_turn(TurnInputRequest::user_input(vec![UserInput::Text {
@@ -2129,7 +2154,10 @@ async fn remote_compact_trims_function_call_history_to_fit_context_window() -> R
             text_elements: Vec::new(),
         }]))
         .await?;
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let compact_mock = responses::mount_compact_user_history_with_summary_once(
         harness.server(),
@@ -2138,7 +2166,10 @@ async fn remote_compact_trims_function_call_history_to_fit_context_window() -> R
     .await;
 
     atlas_engine.submit(Op::Compact).await?;
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let compact_request = compact_mock.single_request();
     let user_messages = compact_request.message_input_texts("user");
@@ -2237,7 +2268,10 @@ async fn remote_compact_rewrites_multiple_trailing_function_call_outputs() -> Re
             text_elements: Vec::new(),
         }]))
         .await?;
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     atlas_engine
         .start_or_steer_turn(TurnInputRequest::user_input(vec![UserInput::Text {
@@ -2245,7 +2279,10 @@ async fn remote_compact_rewrites_multiple_trailing_function_call_outputs() -> Re
             text_elements: Vec::new(),
         }]))
         .await?;
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let compact_mock = responses::mount_compact_user_history_with_summary_once(
         harness.server(),
@@ -2254,7 +2291,10 @@ async fn remote_compact_rewrites_multiple_trailing_function_call_outputs() -> Re
     .await;
 
     atlas_engine.submit(Op::Compact).await?;
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let compact_request = compact_mock.single_request();
     assert!(
@@ -2351,7 +2391,10 @@ async fn auto_remote_compact_trims_function_call_history_to_fit_context_window()
             text_elements: Vec::new(),
         }]))
         .await?;
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     atlas_engine
         .start_or_steer_turn(TurnInputRequest::user_input(vec![UserInput::Text {
@@ -2359,7 +2402,10 @@ async fn auto_remote_compact_trims_function_call_history_to_fit_context_window()
             text_elements: Vec::new(),
         }]))
         .await?;
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let compact_mock = responses::mount_compact_user_history_with_summary_once(
         harness.server(),
@@ -2373,7 +2419,10 @@ async fn auto_remote_compact_trims_function_call_history_to_fit_context_window()
             text_elements: Vec::new(),
         }]))
         .await?;
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
     assert_eq!(
         compact_mock.requests().len(),
         1,
@@ -2572,7 +2621,10 @@ async fn auto_remote_compact_failure_stops_agent_loop() -> Result<()> {
             text_elements: Vec::new(),
         }]))
         .await?;
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     atlas_engine
         .start_or_steer_turn(TurnInputRequest::user_input(vec![UserInput::Text {
@@ -2586,7 +2638,10 @@ async fn auto_remote_compact_failure_stops_agent_loop() -> Result<()> {
         _ => None,
     })
     .await;
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     assert!(
         error_message.contains("Error running remote compact task"),
@@ -2845,7 +2900,10 @@ async fn remote_manual_compact_emits_context_compaction_items() -> Result<()> {
             text_elements: Vec::new(),
         }]))
         .await?;
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     atlas_engine.submit(Op::Compact).await?;
 
@@ -2920,7 +2978,10 @@ async fn remote_manual_compact_failure_emits_task_error_event() -> Result<()> {
             text_elements: Vec::new(),
         }]))
         .await?;
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     atlas_engine.submit(Op::Compact).await?;
 
@@ -2938,7 +2999,10 @@ async fn remote_manual_compact_failure_emits_task_error_event() -> Result<()> {
             || error_message.contains("invalid type: string"),
         "expected invalid compact payload details, got {error_message}"
     );
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     assert_eq!(compact_mock.requests().len(), 1);
 
@@ -3143,10 +3207,16 @@ async fn remote_compact_and_resume_refresh_stale_developer_instructions() -> Res
             text_elements: Vec::new(),
         }]))
         .await?;
-    wait_for_event(&initial.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&initial.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     initial.atlas_engine.submit(Op::Compact).await?;
-    wait_for_event(&initial.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&initial.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     initial
         .atlas_engine
@@ -3155,7 +3225,10 @@ async fn remote_compact_and_resume_refresh_stale_developer_instructions() -> Res
             text_elements: Vec::new(),
         }]))
         .await?;
-    wait_for_event(&initial.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&initial.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     initial.atlas_engine.submit(Op::Shutdown).await?;
     wait_for_event(&initial.atlas_engine, |ev| {
@@ -3174,7 +3247,10 @@ async fn remote_compact_and_resume_refresh_stale_developer_instructions() -> Res
             text_elements: Vec::new(),
         }]))
         .await?;
-    wait_for_event(&resumed.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&resumed.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     assert_eq!(compact_mock.requests().len(), 1);
     let requests = responses_mock.requests();
@@ -3221,7 +3297,8 @@ async fn remote_compact_refreshes_stale_developer_instructions_without_resume() 
     let server = wiremock::MockServer::start().await;
     let stale_developer_message = "STALE_DEVELOPER_INSTRUCTIONS_SHOULD_BE_REMOVED";
 
-    let mut builder = test_atlas_engine().with_auth(AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing());
+    let mut builder =
+        test_atlas_engine().with_auth(AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing());
     let test = builder.build(&server).await?;
 
     let responses_mock = responses::mount_sse_sequence(
@@ -3267,10 +3344,16 @@ async fn remote_compact_refreshes_stale_developer_instructions_without_resume() 
             text_elements: Vec::new(),
         }]))
         .await?;
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     test.atlas_engine.submit(Op::Compact).await?;
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     test.atlas_engine
         .start_or_steer_turn(TurnInputRequest::user_input(vec![UserInput::Text {
@@ -3278,7 +3361,10 @@ async fn remote_compact_refreshes_stale_developer_instructions_without_resume() 
             text_elements: Vec::new(),
         }]))
         .await?;
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     assert_eq!(compact_mock.requests().len(), 1);
     let requests = responses_mock.requests();
@@ -3307,9 +3393,10 @@ async fn snapshot_request_shape_remote_pre_turn_compaction_restates_realtime_sta
 
     let server = wiremock::MockServer::start().await;
     let realtime_server = start_remote_realtime_server().await;
-    let mut builder = remote_realtime_test_atlas_engine_builder(&realtime_server).with_config(|config| {
-        config.model_auto_compact_token_limit = Some(200);
-    });
+    let mut builder =
+        remote_realtime_test_atlas_engine_builder(&realtime_server).with_config(|config| {
+            config.model_auto_compact_token_limit = Some(200);
+        });
     let test = builder.build(&server).await?;
 
     let responses_mock = responses::mount_sse_sequence(
@@ -3344,7 +3431,10 @@ async fn snapshot_request_shape_remote_pre_turn_compaction_restates_realtime_sta
             text_elements: Vec::new(),
         }]))
         .await?;
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     test.atlas_engine
         .start_or_steer_turn(TurnInputRequest::user_input(vec![UserInput::Text {
@@ -3352,7 +3442,10 @@ async fn snapshot_request_shape_remote_pre_turn_compaction_restates_realtime_sta
             text_elements: Vec::new(),
         }]))
         .await?;
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     assert_eq!(compact_mock.requests().len(), 1);
     let requests = responses_mock.requests();
@@ -3413,7 +3506,10 @@ async fn remote_request_uses_custom_experimental_realtime_start_instructions() -
             text_elements: Vec::new(),
         }]))
         .await?;
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     assert_request_contains_custom_realtime_start(
         &responses_mock.single_request(),
@@ -3538,10 +3634,16 @@ async fn snapshot_request_shape_remote_manual_compact_restates_realtime_start() 
             text_elements: Vec::new(),
         }]))
         .await?;
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     test.atlas_engine.submit(Op::Compact).await?;
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     test.atlas_engine
         .start_or_steer_turn(TurnInputRequest::user_input(vec![UserInput::Text {
@@ -3549,7 +3651,10 @@ async fn snapshot_request_shape_remote_manual_compact_restates_realtime_start() 
             text_elements: Vec::new(),
         }]))
         .await?;
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     assert_eq!(compact_mock.requests().len(), 1);
     let requests = responses_mock.requests();
@@ -3585,9 +3690,10 @@ async fn snapshot_request_shape_remote_mid_turn_compaction_does_not_restate_real
 
     let server = wiremock::MockServer::start().await;
     let realtime_server = start_remote_realtime_server().await;
-    let mut builder = remote_realtime_test_atlas_engine_builder(&realtime_server).with_config(|config| {
-        config.model_auto_compact_token_limit = Some(200);
-    });
+    let mut builder =
+        remote_realtime_test_atlas_engine_builder(&realtime_server).with_config(|config| {
+            config.model_auto_compact_token_limit = Some(200);
+        });
     let test = builder.build(&server).await?;
 
     let responses_mock = responses::mount_sse_sequence(
@@ -3626,7 +3732,10 @@ async fn snapshot_request_shape_remote_mid_turn_compaction_does_not_restate_real
             text_elements: Vec::new(),
         }]))
         .await?;
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     close_realtime_conversation(test.atlas_engine.as_ref()).await?;
 
@@ -3636,7 +3745,10 @@ async fn snapshot_request_shape_remote_mid_turn_compaction_does_not_restate_real
             text_elements: Vec::new(),
         }]))
         .await?;
-    wait_for_event(&test.atlas_engine, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&test.atlas_engine, |ev| {
+        matches!(ev, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     assert_eq!(compact_mock.requests().len(), 1);
     let requests = responses_mock.requests();

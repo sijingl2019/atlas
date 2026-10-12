@@ -22,7 +22,7 @@ import type {
   FolderMatch,
 } from "@/features/file-picker/lib/file-picker-api";
 import type { RecentFile } from "@/features/chat/stores/recent-files-store";
-import type { SearchResult } from "@/components/search-overlay";
+import type { CodeGrepMatch, CodeGrepResult } from "@/components/code-search-api";
 import type { TypedHandlers, Unread } from "../types";
 import { abs, MOCK_PROJECT } from "../project";
 
@@ -553,6 +553,100 @@ const LOGO_PNG_BASE64 =
 const SPEC_PDF_BASE64 =
   "JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUiA1IDAgUl0gL0NvdW50IDIgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXSAvUmVzb3VyY2VzIDw8IC9Gb250IDw8IC9GMSA3IDAgUiA+PiA+PiAvQ29udGVudHMgNCAwIFIgPj4KZW5kb2JqCjQgMCBvYmoKPDwgL0xlbmd0aCA1OTYgPj4Kc3RyZWFtCkJUIC9GMSAyMiBUZiA3MiA3MjAgVGQgKEFjbWUgZGVzaWduIHRva2VucykgVGogRVQKQlQgL0YxIDExIFRmIDcyIDY5MCBUZCAoSW50ZXJuYWwgc3BlY2lmaWNhdGlvbiAtIHJldmlzaW9uIDQpIFRqIEVUCkJUIC9GMSAxMSBUZiA3MiA2NTAgVGQgKEV2ZXJ5IGNvbG91ciBpbiB0aGUgYWRtaW4gYXBwIHJlc29sdmVzIHRvIGEgdG9rZW4gZGVjbGFyZWQgaW4pIFRqIEVUCkJUIC9GMSAxMSBUZiA3MiA2MzQgVGQgKHNyYy9zdHlsZXMvdG9rZW5zLmNzcy4gTm8gaGV4IGxpdGVyYWwgbWF5IGFwcGVhciBpbiBKU1guKSBUaiBFVApCVCAvRjEgMTEgVGYgNzIgNjAyIFRkICgxLiBCYXNlIHRva2VucyBjYXJyeSB0aGUgcmF3IHJhbXAuKSBUaiBFVApCVCAvRjEgMTEgVGYgNzIgNTg2IFRkICgyLiBTZW1hbnRpYyB0b2tlbnMgbmFtZSBhIHJvbGUsIG5ldmVyIGEgY29sb3VyLikgVGogRVQKQlQgL0YxIDExIFRmIDcyIDU3MCBUZCAoMy4gRGFyayBtb2RlIHJlZGVmaW5lcyB0aGUgYmFzZSwgbmV2ZXIgdGhlIHNlbWFudGljcy4pIFRqIEVUCjAuNDMgMC42MSAxIHJnIDcyIDUyMCAyMDAgMjQgcmUgZgowLjY5IDAuNDggMSByZyAyODggNTIwIDIwMCAyNCByZSBmCmVuZHN0cmVhbQplbmRvYmoKNSAwIG9iago8PCAvVHlwZSAvUGFnZSAvUGFyZW50IDIgMCBSIC9NZWRpYUJveCBbMCAwIDYxMiA3OTJdIC9SZXNvdXJjZXMgPDwgL0ZvbnQgPDwgL0YxIDcgMCBSID4+ID4+IC9Db250ZW50cyA2IDAgUiA+PgplbmRvYmoKNiAwIG9iago8PCAvTGVuZ3RoIDM5NyA+PgpzdHJlYW0KQlQgL0YxIDIyIFRmIDcyIDcyMCBUZCAoT3BlbiBxdWVzdGlvbnMpIFRqIEVUCkJUIC9GMSAxMSBUZiA3MiA2ODYgVGQgKEFDTUUtMTE4NCBtb3ZlcyAvdXNlcnMgdG8gL3YyL3VzZXJzLiBUaGUgdG9rZW4gcmFtcCkgVGogRVQKQlQgL0YxIDExIFRmIDcyIDY3MCBUZCAocmVnZW5lcmF0aW9uIGxhbmRzIGluIHRoZSBzYW1lIHJlbGVhc2UuKSBUaiBFVApCVCAvRjEgMTEgVGYgNzIgNjM4IFRkIChIaWdobGlnaHRpbmcgdGhpcyBwYXJhZ3JhcGggaXMgdGhlIGZhc3Rlc3Qgd2F5IHRvIHNlZSB3aGV0aGVyKSBUaiBFVApCVCAvRjEgMTEgVGYgNzIgNjIyIFRkIChhbiBhbm5vdGF0aW9uIHN1cnZpdmVzIGEgcGFnZSByb3RhdGUuKSBUaiBFVAowLjk1IDAuMzMgMC4zNSByZyA3MiA1NjAgNDE2IDIgcmUgZgplbmRzdHJlYW0KZW5kb2JqCjcgMCBvYmoKPDwgL1R5cGUgL0ZvbnQgL1N1YnR5cGUgL1R5cGUxIC9CYXNlRm9udCAvSGVsdmV0aWNhIC9FbmNvZGluZyAvV2luQW5zaUVuY29kaW5nID4+CmVuZG9iagp4cmVmCjAgOAowMDAwMDAwMDAwIDY1NTM1IGYgCjAwMDAwMDAwMDkgMDAwMDAgbiAKMDAwMDAwMDA1OCAwMDAwMCBuIAowMDAwMDAwMTIxIDAwMDAwIG4gCjAwMDAwMDAyNDcgMDAwMDAgbiAKMDAwMDAwMDg5NCAwMDAwMCBuIAowMDAwMDAxMDIwIDAwMDAwIG4gCjAwMDAwMDE0NjggMDAwMDAgbiAKdHJhaWxlcgo8PCAvU2l6ZSA4IC9Sb290IDEgMCBSID4+CnN0YXJ0eHJlZgoxNTY1CiUlRU9GCg==";
 
+// One cell or output of every kind the notebook viewer distinguishes, including
+// the two it must refuse: the `text/html` output carries a script, and should
+// fall back to its `text/plain` sibling rather than run.
+const EXPLORE_IPYNB = JSON.stringify(
+  {
+    cells: [
+      {
+        cell_type: "markdown",
+        metadata: {},
+        source: ["# Signup funnel\n", "\n", "Weekly conversion from **visit** to **paid**.\n"],
+      },
+      {
+        cell_type: "code",
+        execution_count: 1,
+        metadata: {},
+        outputs: [{ output_type: "stream", name: "stdout", text: ["loaded 4 weeks\n"] }],
+        source: [
+          "import pandas as pd\n",
+          "df = pd.read_csv('funnel.csv')\n",
+          "print('loaded 4 weeks')",
+        ],
+      },
+      {
+        cell_type: "code",
+        execution_count: 2,
+        metadata: {},
+        outputs: [
+          {
+            output_type: "execute_result",
+            execution_count: 2,
+            metadata: {},
+            data: {
+              "text/html": ["<script>alert('ran')</script><table><tr><td>0.042</td></tr></table>"],
+              "text/plain": [
+                "week\n",
+                "1    0.031\n",
+                "2    0.036\n",
+                "3    0.040\n",
+                "4    0.042",
+              ],
+            },
+          },
+        ],
+        source: ["df.paid / df.visits"],
+      },
+      {
+        cell_type: "code",
+        execution_count: 3,
+        metadata: {},
+        outputs: [
+          {
+            output_type: "display_data",
+            metadata: {},
+            data: { "image/png": LOGO_PNG_BASE64, "text/plain": ["<Figure size 96x96>"] },
+          },
+          {
+            output_type: "stream",
+            name: "stderr",
+            text: ["UserWarning: tight_layout not applied\n"],
+          },
+        ],
+        source: ["df.plot()"],
+      },
+      {
+        cell_type: "code",
+        execution_count: 4,
+        metadata: {},
+        outputs: [
+          {
+            output_type: "error",
+            ename: "ZeroDivisionError",
+            evalue: "division by zero",
+            traceback: [
+              "\u001b[0;31m---------------------------------------------------------------------------\u001b[0m",
+              "\u001b[0;31mZeroDivisionError\u001b[0m: division by zero",
+            ],
+          },
+        ],
+        source: ["df.paid.sum() / 0"],
+      },
+      { cell_type: "code", execution_count: null, metadata: {}, outputs: [], source: [] },
+      { cell_type: "raw", metadata: {}, source: ["raw cell: passed through untouched"] },
+    ],
+    metadata: {
+      kernelspec: { display_name: "Python 3", language: "python", name: "python3" },
+      language_info: { name: "python" },
+    },
+    nbformat: 4,
+    nbformat_minor: 5,
+  },
+  null,
+  1,
+);
+
 /** Working-tree content, keyed by path relative to the project root. */
 const SEED: Record<string, MockFile> = {
   "src/lib/api.ts": { text: API_TS, mtimeMs: T0 },
@@ -580,6 +674,7 @@ const SEED: Record<string, MockFile> = {
     mime: "application/pdf",
     mtimeMs: T0 - 5_400_000,
   },
+  "notebooks/explore.ipynb": { text: EXPLORE_IPYNB, mtimeMs: T0 - 2_700_000 },
   // Seeded so `fs_add_to_gitignore` lands on its dedupe branch — the one every
   // project open hits — instead of always creating the file. Delete it in the
   // explorer to reach the create branch.
@@ -816,44 +911,22 @@ function stemAndExt(name: string): { stem: string; ext: string | null } {
   return { stem: name.slice(0, dot), ext: name.slice(dot + 1) };
 }
 
-/** The extension allowlist `search.rs` walks, and the names it refuses to enter. */
-const SEARCHABLE_EXTS = new Set([
-  "rs",
-  "ts",
-  "tsx",
-  "js",
-  "jsx",
-  "py",
-  "go",
-  "rb",
-  "java",
-  "c",
-  "cpp",
-  "h",
-  "hpp",
-  "swift",
-  "kt",
-  "css",
-  "scss",
-  "html",
-  "json",
-  "toml",
-  "yaml",
-  "yml",
-  "md",
-  "sh",
-  "bash",
-  "zsh",
-  "sql",
-  "xml",
-  "svg",
-  "txt",
-  "cfg",
-  "ini",
-  "env",
-  "lock",
-]);
-const SEARCH_SKIPPED = new Set(["node_modules", "target", "dist", "build", "__pycache__"]);
+/**
+ * The secret files `code_grep` hides (`atlas_search::DEFAULT_DENY_GLOBS`):
+ * `.env` and `.env.*` but not `.env.example`, `*.pem`, `*.key`, `id_rsa*`,
+ * `id_ed25519*`.
+ */
+function isSecretFile(name: string): boolean {
+  if (name === ".env.example") return false;
+  return (
+    name === ".env" ||
+    name.startsWith(".env.") ||
+    name.endsWith(".pem") ||
+    name.endsWith(".key") ||
+    name.startsWith("id_rsa") ||
+    name.startsWith("id_ed25519")
+  );
+}
 
 /**
  * The "recently opened" queue Rust owns. Seeded, because the `@` picker's
@@ -905,7 +978,7 @@ export interface FsResponses {
   fs_duplicate: string;
   fs_add_to_gitignore: Unread;
   fs_open_in_terminal: Unread;
-  search_in_files: SearchResult[];
+  code_grep: CodeGrepResult;
 }
 
 export const fsHandlers: TypedHandlers<FsResponses> = {
@@ -1112,40 +1185,39 @@ export const fsHandlers: TypedHandlers<FsResponses> = {
   // success — the menu item is deliberately the one that shows nothing.
   fs_open_in_terminal: (): null => null,
 
-  // Cmd+Shift+F. Kept here because it reads the same in-memory files, and
-  // because the overlay renders `results.length` straight from the result.
-  search_in_files: ({ path, query, maxResults }): SearchResult[] => {
+  // Cmd+Shift+F. Kept here because it reads the same in-memory files. The
+  // engine's visible rules: literal unless `regex`, case-insensitive unless
+  // `caseSensitive`, `wholeWord` on word boundaries, `.git` and secret files
+  // never read. Paths in order (the engine sorts newest-modified first; the
+  // fixture's mtimes are not what this screen is about).
+  code_grep: ({ path, query, regex, caseSensitive, wholeWord, maxResults }): CodeGrepResult => {
     const root = String(path);
-    if (!isDir(root)) throw new Error("Not a directory");
+    if (!isDir(root)) throw new Error(`io error: session root ${root} is not readable`);
     const max = Number(maxResults ?? 100);
-    const needle = String(query).toLowerCase();
-    const results: SearchResult[] = [];
+    const source = regex ? String(query) : String(query).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const needle = new RegExp(wholeWord ? `\\b(?:${source})\\b` : source, caseSensitive ? "" : "i");
+    const matches: CodeGrepMatch[] = [];
+    const matchedFiles = new Set<string>();
+    let totalMatches = 0;
     for (const rel of mockFilePaths().sort()) {
-      if (results.length >= max) break;
       const segments = rel.split("/");
-      // Rust refuses to enter (or read) anything hidden or vendored, so
-      // `.env.local` and `.gitignore` never appear in results.
-      if (segments.some((name) => name.startsWith(".") || SEARCH_SKIPPED.has(name))) continue;
-      const { ext } = stemAndExt(segments[segments.length - 1] ?? rel);
-      if (ext === null || !SEARCHABLE_EXTS.has(ext)) continue;
+      if (segments.includes(".git") || isSecretFile(segments[segments.length - 1] ?? rel)) continue;
       const text = files.get(abs(rel))?.text;
       if (text === undefined || text === null) continue;
-      // `str::lines()`, so a trailing newline does not invent a final line.
       const lines = text.endsWith("\n") ? text.slice(0, -1).split("\n") : text.split("\n");
       for (const [index, line] of lines.entries()) {
-        if (results.length >= max) break;
-        // Rust reports the FIRST hit on a line, not every one.
-        const at = line.toLowerCase().indexOf(needle);
-        if (at === -1) continue;
-        results.push({
-          file_path: rel,
-          line: index + 1,
-          content: line,
-          match_start: at,
-          match_end: at + needle.length,
-        });
+        if (!needle.test(line)) continue;
+        totalMatches += 1;
+        matchedFiles.add(rel);
+        if (matches.length < max) matches.push({ path: rel, line: index + 1, text: line });
       }
     }
-    return results;
+    return {
+      matches,
+      totalMatches,
+      totalFiles: matchedFiles.size,
+      truncated: totalMatches > matches.length,
+      partial: false,
+    };
   },
 };

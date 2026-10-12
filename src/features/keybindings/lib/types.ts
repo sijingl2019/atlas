@@ -8,6 +8,10 @@
  * action's default combos, `null` unbinds it, and an absent key means "use
  * the default". New actions shipped in a later build therefore flow into
  * every existing profile without a migration.
+ *
+ * `basedOn` names a preset (`presets.ts`) layered between the defaults and
+ * the overrides, so "the default" for an absent key is the preset's chord
+ * when it has one. An id this build doesn't know is kept on disk and ignored.
  */
 export interface KeybindingProfile {
   id: string;
@@ -15,6 +19,7 @@ export interface KeybindingProfile {
   /** The built-in "Default" profile: always present, never editable, always
    *  has empty `bindings`. Duplicate it to start customising. */
   builtIn?: boolean;
+  basedOn?: string;
   bindings: Record<string, string[] | null>;
 }
 

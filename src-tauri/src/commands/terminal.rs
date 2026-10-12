@@ -172,7 +172,7 @@ pub fn terminal_ack(state: State<'_, TerminalState>, id: String, count: Option<u
     if let Some(w) = window {
         let _ = w
             .in_flight
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |v| {
+            .try_update(Ordering::AcqRel, Ordering::Acquire, |v| {
                 Some(v.saturating_sub(n))
             });
         w.notify.notify_one();

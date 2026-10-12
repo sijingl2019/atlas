@@ -2,11 +2,11 @@
 use super::*;
 use crate::exec_output::StreamOutput;
 use crate::protocol::RateLimitWindow;
+use atlas_engine_http_client::HttpResponse;
 use chrono::DateTime;
 use chrono::Duration as ChronoDuration;
 use chrono::TimeZone;
 use chrono::Utc;
-use atlas_engine_http_client::HttpResponse;
 use http::Response as RawHttpResponse;
 use http::StatusCode;
 use pretty_assertions::assert_eq;

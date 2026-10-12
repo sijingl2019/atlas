@@ -12,6 +12,8 @@
 import type { CliStatus } from "@/features/settings/components/settings-panel";
 import type { EnvEntry, EnvKeyMeta, ProfileInfo } from "@/features/settings/lib/byok-api";
 import type { ModelPrice } from "@/features/settings/stores/model-pricing-store";
+import type { KeybindingsLoadResult } from "@/features/keybindings/lib/keybindings-api";
+import { DEFAULT_KEYBINDINGS_FILE, type KeybindingsFile } from "@/features/keybindings/lib/types";
 import type { TypedHandlers, Unit, Unread } from "../types";
 
 const price = (input: number, output: number, cacheRead = 0, cacheWrite = 0): ModelPrice => ({
@@ -138,9 +140,27 @@ export interface SettingsResponses {
   byok_env_reveal: string | null;
   byok_env_set: string;
   byok_env_unset: Unit;
+  keybindings_load: KeybindingsLoadResult;
+  keybindings_save: KeybindingsFile;
+  keybindings_open: Unit;
+  keybindings_set_close_tab_accelerator: Unit;
 }
 
 export const settingsHandlers: TypedHandlers<SettingsResponses> = {
+  keybindings_load: (): KeybindingsLoadResult => ({
+    file: DEFAULT_KEYBINDINGS_FILE,
+    path: "~/.config/atlas/keybindings.json",
+    // A returning user; `?scenario=keymap-first-run` shows the first launch.
+    exists: true,
+    warnings: [],
+  }),
+  // Rust writes the file and answers with what it wrote, so the editor shows
+  // the saved state rather than the state it optimistically drew.
+  keybindings_save: ({ file }): KeybindingsFile =>
+    (file as KeybindingsFile) ?? DEFAULT_KEYBINDINGS_FILE,
+  keybindings_open: () => null,
+  keybindings_set_close_tab_accelerator: () => null,
+
   models_pricing_get: (): Record<string, ModelPrice> => PRICING,
   models_pricing_refresh: () => null,
 

@@ -12,12 +12,6 @@ use anyhow::Result;
 use app_test_support::MockResponsesConfig;
 use app_test_support::TestAppServer;
 use app_test_support::create_mock_responses_server_sequence_unchecked;
-use axum::Json;
-use axum::Router;
-use axum::body::Bytes;
-use axum::http::HeaderMap;
-use axum::routing::get;
-use axum::routing::post;
 use atlas_engine_app_server_protocol::ClientRequest;
 use atlas_engine_app_server_protocol::JSONRPCError;
 use atlas_engine_app_server_protocol::ListMcpServerStatusParams;
@@ -30,6 +24,12 @@ use atlas_engine_app_server_protocol::ThreadStartParams;
 use atlas_engine_app_server_protocol::ThreadStartResponse;
 use atlas_engine_core::config::set_project_trust_level;
 use atlas_engine_protocol::config_types::TrustLevel;
+use axum::Json;
+use axum::Router;
+use axum::body::Bytes;
+use axum::http::HeaderMap;
+use axum::routing::get;
+use axum::routing::post;
 use core_test_support::stdio_server_bin;
 use pretty_assertions::assert_eq;
 use rmcp::handler::server::ServerHandler;
@@ -595,7 +595,11 @@ async fn mcp_server_status_list_uses_thread_project_local_config() -> Result<()>
     let workspace = TempDir::new()?;
     mock_responses_config(&server.uri()).write(atlas_agent_home.path())?;
     std::fs::create_dir_all(workspace.path().join(".git"))?;
-    set_project_trust_level(atlas_agent_home.path(), workspace.path(), TrustLevel::Trusted)?;
+    set_project_trust_level(
+        atlas_agent_home.path(),
+        workspace.path(),
+        TrustLevel::Trusted,
+    )?;
 
     let mut mcp = TestAppServer::builder()
         .with_atlas_agent_home(atlas_agent_home.path())

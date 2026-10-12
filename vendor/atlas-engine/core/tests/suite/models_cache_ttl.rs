@@ -5,9 +5,6 @@ use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Result;
-use chrono::DateTime;
-use chrono::TimeZone;
-use chrono::Utc;
 use atlas_engine_login::AtlasEngineAuth;
 use atlas_engine_models_manager::client_version_to_whole;
 use atlas_engine_models_manager::manager::RefreshStrategy;
@@ -28,6 +25,9 @@ use atlas_engine_protocol::openai_models::default_input_modalities;
 use atlas_engine_protocol::protocol::EventMsg;
 use atlas_engine_protocol::protocol::ThreadSettingsOverrides;
 use atlas_engine_protocol::user_input::UserInput;
+use chrono::DateTime;
+use chrono::TimeZone;
+use chrono::Utc;
 use core_test_support::responses;
 use core_test_support::responses::ev_assistant_message;
 use core_test_support::responses::ev_completed;
@@ -64,7 +64,8 @@ async fn renews_cache_ttl_on_matching_models_etag() -> Result<()> {
     )
     .await;
 
-    let mut builder = test_atlas_engine().with_auth(AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing());
+    let mut builder =
+        test_atlas_engine().with_auth(AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing());
     builder = builder.with_config(|config| {
         config.model = Some("gpt-5.2".to_string());
         config.model_provider.request_max_retries = Some(0);
@@ -126,7 +127,10 @@ async fn renews_cache_ttl_on_matching_models_etag() -> Result<()> {
         )
         .await?;
 
-    let _ = wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    let _ = wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let refreshed_cache = read_cache(&cache_path).await?;
     assert!(
@@ -169,7 +173,8 @@ async fn matching_models_etag_does_not_rewrite_recent_cache() -> Result<()> {
     )
     .await;
 
-    let mut builder = test_atlas_engine().with_auth(AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing());
+    let mut builder =
+        test_atlas_engine().with_auth(AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing());
     builder = builder.with_config(|config| {
         config.model = Some("gpt-5.2".to_string());
         config.model_provider.request_max_retries = Some(0);
@@ -229,7 +234,8 @@ async fn matching_models_etag_renews_cache_after_half_its_lifetime() -> Result<(
     )
     .await;
 
-    let mut builder = test_atlas_engine().with_auth(AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing());
+    let mut builder =
+        test_atlas_engine().with_auth(AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing());
     builder = builder.with_config(|config| {
         config.model = Some("gpt-5.2".to_string());
         config.model_provider.request_max_retries = Some(0);
@@ -289,7 +295,8 @@ async fn uses_cache_when_version_matches() -> Result<()> {
     )
     .await;
 
-    let mut builder = test_atlas_engine().with_auth(AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing());
+    let mut builder =
+        test_atlas_engine().with_auth(AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing());
     builder = builder
         .with_pre_build_hook(move |home| {
             let mut cache = serde_json::to_value(ModelsCache {
@@ -354,7 +361,8 @@ async fn refreshes_when_cache_version_missing() -> Result<()> {
     )
     .await;
 
-    let mut builder = test_atlas_engine().with_auth(AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing());
+    let mut builder =
+        test_atlas_engine().with_auth(AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing());
     builder = builder
         .with_pre_build_hook(move |home| {
             let cache = ModelsCache {
@@ -404,7 +412,8 @@ async fn refreshes_when_cache_version_differs() -> Result<()> {
         models_mocks.push(responses::mount_models_once(&server, models_response.clone()).await);
     }
 
-    let mut builder = test_atlas_engine().with_auth(AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing());
+    let mut builder =
+        test_atlas_engine().with_auth(AtlasEngineAuth::create_dummy_chatgpt_auth_for_testing());
     builder = builder
         .with_pre_build_hook(move |home| {
             let client_version = client_version_to_whole();

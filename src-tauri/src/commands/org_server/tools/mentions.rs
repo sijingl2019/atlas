@@ -12,7 +12,10 @@ use super::{resolve_member, roster_name, tool_error, OrgTools};
 /// server parses written as `@Name` from the roster. A mention the roster
 /// cannot name — it failed, or they have left — keeps its `<@id>`, so the
 /// model still holds the id.
-pub(in crate::commands::org_server) fn named_mentions(body: &str, roster: Option<&[Member]>) -> String {
+pub(in crate::commands::org_server) fn named_mentions(
+    body: &str,
+    roster: Option<&[Member]>,
+) -> String {
     let mut out = String::with_capacity(body.len());
     let mut rest = body;
     while let Some(start) = rest.find("<@") {
@@ -46,7 +49,11 @@ pub(in crate::commands::org_server) fn named_mentions(body: &str, roster: Option
 /// body becomes the mention, and a member the body does not `@` leads it. A
 /// name that matches nobody, or several members, is the answer instead —
 /// before anything is posted.
-pub(in crate::commands::org_server) fn with_mentions(body: &str, mentions: &[String], roster: &[Member]) -> Result<String, CallToolResult> {
+pub(in crate::commands::org_server) fn with_mentions(
+    body: &str,
+    mentions: &[String],
+    roster: &[Member],
+) -> Result<String, CallToolResult> {
     let mut out = body.to_string();
     let mut leading = Vec::new();
     for named in mentions {
@@ -54,7 +61,11 @@ pub(in crate::commands::org_server) fn with_mentions(body: &str, mentions: &[Str
         let token = format!("<@{}>", member.user_id);
         let mut found = false;
         // Longest first, so "@Sam Lee" is not taken as "@Sam".
-        let mut spellings = vec![named.trim_start_matches('@').to_string(), member.name.clone(), member.email.clone()];
+        let mut spellings = vec![
+            named.trim_start_matches('@').to_string(),
+            member.name.clone(),
+            member.email.clone(),
+        ];
         spellings.sort_by_key(|s| std::cmp::Reverse(s.len()));
         for spelling in spellings.iter().filter(|s| !s.is_empty()) {
             let at = format!("@{spelling}");
@@ -87,7 +98,10 @@ fn replace_standalone(text: &str, needle: &str, with: &str) -> Option<String> {
     let mut prev: Option<char> = None;
     let mut replaced = false;
     while let Some(at) = rest.find(needle) {
-        let before = rest[..at].chars().next_back().or(if at == 0 { prev } else { None });
+        let before = rest[..at]
+            .chars()
+            .next_back()
+            .or(if at == 0 { prev } else { None });
         let after = rest[at + needle.len()..].chars().next();
         out.push_str(&rest[..at]);
         if before.is_some_and(is_word) || after.is_some_and(is_word) {
@@ -127,7 +141,12 @@ impl OrgTools {
             return Ok(body.to_string());
         }
         if roster.is_none() {
-            *roster = Some(self.cloud.members(org_id).await.map_err(|e| tool_error(e.to_string()))?);
+            *roster = Some(
+                self.cloud
+                    .members(org_id)
+                    .await
+                    .map_err(|e| tool_error(e.to_string()))?,
+            );
         }
         with_mentions(body, mentions, roster.as_deref().unwrap_or_default())
     }

@@ -130,7 +130,8 @@ pub fn arg0_dispatch() -> Option<Arg0PathEntryGuard> {
                     Err(_) => std::process::exit(1),
                 };
                 let cwd = cwd.into();
-                let update_file_mode = atlas_engine_apply_patch::apply_patch_file_update_mode_from_env();
+                let update_file_mode =
+                    atlas_engine_apply_patch::apply_patch_file_update_mode_from_env();
                 match runtime.block_on(atlas_engine_apply_patch::apply_patch_with_mode(
                     &patch_arg,
                     update_file_mode,
@@ -145,7 +146,9 @@ pub fn arg0_dispatch() -> Option<Arg0PathEntryGuard> {
                 }
             }
             None => {
-                eprintln!("Error: {ATLAS_AGENT_CORE_APPLY_PATCH_ARG1} requires a UTF-8 PATCH argument.");
+                eprintln!(
+                    "Error: {ATLAS_AGENT_CORE_APPLY_PATCH_ARG1} requires a UTF-8 PATCH argument."
+                );
                 1
             }
         };
@@ -607,7 +610,10 @@ mod tests {
         );
 
         assert_eq!(
-            linux_sandbox_exe_path(Some(&path_entry), Some(PathBuf::from("/usr/bin/atlas-agent"))),
+            linux_sandbox_exe_path(
+                Some(&path_entry),
+                Some(PathBuf::from("/usr/bin/atlas-agent"))
+            ),
             Some(alias_path),
         );
         Ok(())

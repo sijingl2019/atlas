@@ -16,9 +16,9 @@ use atlas_engine_feedback::FeedbackRequestTags;
 use atlas_engine_feedback::emit_feedback_request_tags_with_auth_env;
 use atlas_engine_http_client::ClientRouteClass;
 use atlas_engine_http_client::HttpClientFactory;
+use atlas_engine_login::AtlasEngineAuth;
 use atlas_engine_login::AuthEnvTelemetry;
 use atlas_engine_login::AuthManager;
-use atlas_engine_login::AtlasEngineAuth;
 use atlas_engine_login::collect_auth_env_telemetry;
 use atlas_engine_login::default_client::create_client_for_route_async;
 use atlas_engine_model_provider_info::ModelProviderInfo;
@@ -78,8 +78,10 @@ impl OpenAiModelsEndpoint {
         client_version: &str,
         http_client_factory: HttpClientFactory,
     ) -> CoreResult<(Vec<ModelInfo>, Option<String>)> {
-        let _timer =
-            atlas_engine_otel::start_global_timer("atlas_agent.remote_models.fetch_update.duration_ms", &[]);
+        let _timer = atlas_engine_otel::start_global_timer(
+            "atlas_agent.remote_models.fetch_update.duration_ms",
+            &[],
+        );
         let auth = self.auth().await;
         let auth_mode = auth.as_ref().map(AtlasEngineAuth::auth_mode);
         let api_provider = self.provider_info.to_api_provider(auth_mode)?;
@@ -87,11 +89,12 @@ impl OpenAiModelsEndpoint {
         let request_url =
             ModelsClient::<ReqwestTransport>::request_url(&api_provider, client_version);
         let auth_telemetry = auth_header_telemetry(api_auth.as_ref());
-        let agent_identity_telemetry = if let Some(AtlasEngineAuth::AgentIdentity(auth)) = auth.as_ref() {
-            Some(agent_identity_telemetry(auth))
-        } else {
-            None
-        };
+        let agent_identity_telemetry =
+            if let Some(AtlasEngineAuth::AgentIdentity(auth)) = auth.as_ref() {
+                Some(agent_identity_telemetry(auth))
+            } else {
+                None
+            };
         let request_telemetry: Arc<dyn RequestTelemetry> = Arc::new(ModelsRequestTelemetry {
             auth_mode: auth_mode.map(|mode| TelemetryAuthMode::from(mode).to_string()),
             auth_header_attached: auth_telemetry.attached,

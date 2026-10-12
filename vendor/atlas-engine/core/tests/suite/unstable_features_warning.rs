@@ -40,8 +40,9 @@ async fn emits_warning_when_unstable_features_enabled_via_config() {
         AtlasEngineAuth::from_api_key("test"),
         config.model_provider.clone(),
     );
-    let auth_manager =
-        atlas_engine_core::test_support::auth_manager_from_auth(AtlasEngineAuth::from_api_key("test"));
+    let auth_manager = atlas_engine_core::test_support::auth_manager_from_auth(
+        AtlasEngineAuth::from_api_key("test"),
+    );
 
     let NewThread {
         thread: conversation,
@@ -90,8 +91,9 @@ async fn suppresses_warning_when_configured() {
         AtlasEngineAuth::from_api_key("test"),
         config.model_provider.clone(),
     );
-    let auth_manager =
-        atlas_engine_core::test_support::auth_manager_from_auth(AtlasEngineAuth::from_api_key("test"));
+    let auth_manager = atlas_engine_core::test_support::auth_manager_from_auth(
+        AtlasEngineAuth::from_api_key("test"),
+    );
 
     let NewThread {
         thread: conversation,

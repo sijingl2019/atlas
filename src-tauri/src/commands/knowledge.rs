@@ -53,13 +53,11 @@ pub struct KbSource {
 }
 
 fn kb_dir(project_path: &str) -> PathBuf {
-    Path::new(project_path).join(".atlas").join("knowledge")
+    atlas_profile::dir_in(Path::new(project_path)).join("knowledge")
 }
 
 fn sources_path(project_path: &str) -> PathBuf {
-    Path::new(project_path)
-        .join(".atlas")
-        .join("knowledge-sources.json")
+    atlas_profile::dir_in(Path::new(project_path)).join("knowledge-sources.json")
 }
 
 /// Linked folders for a project. Missing or corrupt file → none.
@@ -144,7 +142,9 @@ fn walk_files(dir: &Path, prefix: &str, out: &mut Vec<(String, PathBuf)>) {
         if !entry.file_type().is_some_and(|t| t.is_file()) {
             continue;
         }
-        let Ok(rel) = entry.path().strip_prefix(dir) else { continue };
+        let Ok(rel) = entry.path().strip_prefix(dir) else {
+            continue;
+        };
         let rel = rel.to_string_lossy().replace('\\', "/");
         let id_part = if prefix.is_empty() {
             rel
@@ -340,7 +340,7 @@ pub async fn import_into_knowledge(
     sources: Vec<String>,
 ) -> Result<KbImportResult, String> {
     tokio::task::spawn_blocking(move || -> Result<KbImportResult, String> {
-        let kb = Path::new(&project_path).join(".atlas").join("knowledge");
+        let kb = atlas_profile::dir_in(Path::new(&project_path)).join("knowledge");
         fs::create_dir_all(&kb).map_err(|e| e.to_string())?;
         let mut res = KbImportResult::default();
         for src in &sources {
@@ -525,8 +525,7 @@ pub async fn knowledge_cover_upload(
             return Err("invalid entry id".to_string());
         }
         let rel = format!("covers/{safe_name}.{ext}");
-        let dest = Path::new(&project_path)
-            .join(".atlas")
+        let dest = atlas_profile::dir_in(Path::new(&project_path))
             .join("knowledge")
             .join(&rel);
         if let Some(parent) = dest.parent() {
@@ -561,8 +560,7 @@ pub async fn knowledge_cover_data_url(
         // any snapshot that captures it. Covers are decorative; 2MiB is
         // generous.
         const MAX_COVER_BYTES: u64 = 2 * 1024 * 1024;
-        let abs = Path::new(&project_path)
-            .join(".atlas")
+        let abs = atlas_profile::dir_in(Path::new(&project_path))
             .join("knowledge")
             .join(&cover);
         let meta = fs::metadata(&abs).map_err(|e| e.to_string())?;
@@ -598,7 +596,7 @@ pub async fn log_interaction(
     summary: String,
 ) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
-        let atlas_dir = Path::new(&project_path).join(".atlas");
+        let atlas_dir = atlas_profile::dir_in(Path::new(&project_path));
         fs::create_dir_all(&atlas_dir).map_err(|e| e.to_string())?;
 
         let log_path = atlas_dir.join("interactions.jsonl");
@@ -630,7 +628,7 @@ pub async fn log_interaction(
 #[tauri::command]
 pub async fn save_editor_state(project_path: String, state_json: String) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
-        let atlas_dir = Path::new(&project_path).join(".atlas");
+        let atlas_dir = atlas_profile::dir_in(Path::new(&project_path));
         fs::create_dir_all(&atlas_dir).map_err(|e| e.to_string())?;
         let state_path = atlas_dir.join("editor-state.json");
         fs::write(&state_path, &state_json).map_err(|e| e.to_string())?;
@@ -644,9 +642,7 @@ pub async fn save_editor_state(project_path: String, state_json: String) -> Resu
 #[tauri::command]
 pub async fn load_editor_state(project_path: String) -> Result<String, String> {
     tokio::task::spawn_blocking(move || {
-        let state_path = Path::new(&project_path)
-            .join(".atlas")
-            .join("editor-state.json");
+        let state_path = atlas_profile::dir_in(Path::new(&project_path)).join("editor-state.json");
         if state_path.exists() {
             fs::read_to_string(&state_path).map_err(|e| e.to_string())
         } else {
@@ -1020,7 +1016,14 @@ mod linked_source_tests {
         fs::create_dir_all(tmp.join("sub/deep")).unwrap();
         fs::write(tmp.join(".knowledgeignore"), "drafts/\n*.log\n!keep.log\n").unwrap();
         fs::write(tmp.join("sub/.knowledgeignore"), "deep\n").unwrap();
-        for f in ["a.md", "x.log", "keep.log", "drafts/d.md", "sub/b.md", "sub/deep/c.md"] {
+        for f in [
+            "a.md",
+            "x.log",
+            "keep.log",
+            "drafts/d.md",
+            "sub/b.md",
+            "sub/deep/c.md",
+        ] {
             fs::write(tmp.join(f), "").unwrap();
         }
         fs::write(tmp.join(".gitignore"), "a.md\n").unwrap();

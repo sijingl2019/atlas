@@ -1,12 +1,12 @@
 // Modified by Atlas from upstream OpenAI Codex (Apache-2.0). See CONTEXT.md.
 use std::collections::HashMap;
 
-use chrono::DateTime;
-use chrono::Utc;
 use atlas_engine_rollout::RolloutConfig;
 use atlas_engine_rollout::RolloutRecorder;
 use atlas_engine_rollout::parse_cursor;
 use atlas_engine_state::ThreadFilterOptions;
+use chrono::DateTime;
+use chrono::Utc;
 
 use super::LocalThreadStore;
 use super::helpers::resolve_thread_names;
@@ -150,11 +150,12 @@ async fn list_section_threads(
                 .ok_or_else(|| ThreadStoreError::InvalidRequest {
                     message: format!("invalid cursor: {cursor}"),
                 })?;
-            let thread_id = atlas_engine_protocol::ThreadId::from_string(thread_id).map_err(|_| {
-                ThreadStoreError::InvalidRequest {
-                    message: format!("invalid cursor: {cursor}"),
-                }
-            })?;
+            let thread_id =
+                atlas_engine_protocol::ThreadId::from_string(thread_id).map_err(|_| {
+                    ThreadStoreError::InvalidRequest {
+                        message: format!("invalid cursor: {cursor}"),
+                    }
+                })?;
             Ok(atlas_engine_state::Anchor {
                 ts: timestamp,
                 id: Some(thread_id),
@@ -347,12 +348,12 @@ pub(super) async fn list_rollout_threads(
 
 #[cfg(test)]
 mod tests {
-    use chrono::Utc;
     use atlas_engine_protocol::ThreadId;
     use atlas_engine_protocol::protocol::SessionSource;
     use atlas_engine_protocol::protocol::ThreadHistoryMode;
     use atlas_engine_state::PINNED_THREAD_SECTION_ID;
     use atlas_engine_utils_absolute_path::test_support::PathExt;
+    use chrono::Utc;
     use pretty_assertions::assert_eq;
     use std::fs;
     use tempfile::TempDir;

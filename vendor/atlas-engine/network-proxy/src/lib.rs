@@ -58,9 +58,9 @@ pub use network_policy::NetworkProtocol;
 pub use policy::normalize_host;
 pub use proxy::ALL_PROXY_ENV_KEYS;
 pub use proxy::ALLOW_LOCAL_BINDING_ENV_KEY;
-pub use proxy::Args;
 #[cfg(target_os = "macos")]
 pub use proxy::ATLAS_AGENT_PROXY_GIT_SSH_COMMAND_MARKER;
+pub use proxy::Args;
 pub use proxy::DEFAULT_NO_PROXY_VALUE;
 pub use proxy::ManagedNetworkSandboxContext;
 pub use proxy::NO_PROXY_ENV_KEYS;

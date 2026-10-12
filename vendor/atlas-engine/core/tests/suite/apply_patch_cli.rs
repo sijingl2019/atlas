@@ -1,8 +1,8 @@
 // Modified by Atlas from upstream OpenAI Codex (Apache-2.0). See CONTEXT.md.
 use anyhow::Result;
+use atlas_engine_core::TurnInputRequest;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
-use atlas_engine_core::TurnInputRequest;
 use core_test_support::responses::ev_apply_patch_custom_tool_call;
 use core_test_support::responses::ev_apply_patch_shell_command_call_via_heredoc;
 use core_test_support::responses::ev_shell_command_call;
@@ -372,7 +372,8 @@ async fn apply_patch_shell_heredoc_preserves_crlf_with_preserve_line_endings_fea
 
 #[cfg(target_os = "linux")]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn apply_patch_cli_uses_atlas_engine_self_exe_with_linux_sandbox_helper_alias() -> Result<()> {
+async fn apply_patch_cli_uses_atlas_engine_self_exe_with_linux_sandbox_helper_alias() -> Result<()>
+{
     skip_if_no_network!(Ok(()));
 
     let harness = apply_patch_harness().await?;
@@ -1898,10 +1899,12 @@ async fn apply_patch_turn_diff_tracks_local_and_remote_environment_paths() -> Re
                 text_elements: Vec::new(),
             }])
             .with_thread_settings(ThreadSettingsOverrides {
-                environments: Some(atlas_engine_protocol::protocol::TurnEnvironmentSelections::new(
-                    test.config.cwd.clone(),
-                    environments,
-                )),
+                environments: Some(
+                    atlas_engine_protocol::protocol::TurnEnvironmentSelections::new(
+                        test.config.cwd.clone(),
+                        environments,
+                    ),
+                ),
                 approval_policy: Some(AskForApproval::Never),
                 sandbox_policy: Some(sandbox_policy),
                 permission_profile,

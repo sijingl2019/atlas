@@ -15,7 +15,7 @@ import {
 import { copyText } from "@/lib/clipboard";
 import { ACTION_BY_ID, type ActionDef, type ActionId, WHEN_LABELS } from "../lib/actions";
 import { type Combo, displayKeys, displayLabel } from "../lib/combo";
-import type { Conflict, ResolvedBinding } from "../lib/resolve";
+import { type Conflict, type ResolvedBinding, conflictKey } from "../lib/resolve";
 import { useKeybindingsStore } from "../stores/keybindings-store";
 import type { RecorderMode } from "./keybinding-recorder";
 
@@ -24,6 +24,9 @@ export interface TableRow {
   id: ActionId;
   bindings: ResolvedBinding[];
   overridden: boolean;
+  /** The profile's preset label when the chords come from it, not the
+   *  registry default or a user override. */
+  presetLabel: string | null;
   invalid: string[];
 }
 
@@ -210,17 +213,18 @@ function Row({
   onShowSame: (combo: Combo) => void;
   onCopy: () => void;
 }) {
-  const source = row.overridden ? "User" : "Default";
+  const source = row.overridden ? "User" : (row.presetLabel ?? "Default");
+  const custom = row.overridden || row.presetLabel !== null;
   // Per-row severity: red when another action in the SAME context shares a
   // chord (it can never fire); amber when a user override overlaps a chord
   // from another context. Shipped default overlaps across contexts (the
   // terminal's ⌘W shadowing close-tab) are by design and stay quiet.
   const others = row.bindings
-    .flatMap((b) => conflicts.get(b.serialized)?.bindings ?? [])
+    .flatMap((b) => conflicts.get(conflictKey(b.combo))?.bindings ?? [])
     .filter((b) => b.actionId !== row.id);
   const hardOthers = others.filter((o) => o.when === row.def.when);
   const softOthers = others.filter(
-    (o) => o.when !== row.def.when && (row.overridden || o.source === "user"),
+    (o) => o.when !== row.def.when && (custom || o.source !== "default"),
   );
   const worst = hardOthers.length ? "hard" : softOthers.length ? "soft" : null;
   const shown = worst === "hard" ? hardOthers : softOthers;
@@ -332,6 +336,7 @@ function Row({
             <span
               className={cn(
                 "text-xs",
+                "truncate",
                 row.overridden ? "text-foreground" : "text-muted-foreground",
               )}
             >

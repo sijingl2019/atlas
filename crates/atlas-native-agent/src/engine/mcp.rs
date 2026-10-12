@@ -50,7 +50,10 @@ use serde_json::{json, Value as JsonValue};
 /// names on its server projected as
 /// `mcp_servers.<server>.tools.<tool>.approval_mode = "prompt"` over the
 /// server's `approve`; `None` when there are no servers.
-pub fn thread_config(servers: &[acp::McpServer], ask_first: &AskFirst) -> Option<HashMap<String, JsonValue>> {
+pub fn thread_config(
+    servers: &[acp::McpServer],
+    ask_first: &AskFirst,
+) -> Option<HashMap<String, JsonValue>> {
     let mut config = HashMap::new();
     for server in servers {
         let acp::McpServer::Http(http) = server else {
@@ -106,12 +109,18 @@ mod tests {
                 .headers(vec![acp::HttpHeader::new("Authorization", "Bearer t")]),
         );
         let config = thread_config(&[server], &AskFirst::none()).expect("one entry");
-        assert_eq!(config["mcp_servers.atlas_memory.url"], json!("http://127.0.0.1:9/mcp"));
+        assert_eq!(
+            config["mcp_servers.atlas_memory.url"],
+            json!("http://127.0.0.1:9/mcp")
+        );
         assert_eq!(
             config["mcp_servers.atlas_memory.http_headers"],
             json!({ "Authorization": "Bearer t" }),
         );
-        assert_eq!(config["mcp_servers.atlas_memory.default_tools_approval_mode"], json!("approve"));
+        assert_eq!(
+            config["mcp_servers.atlas_memory.default_tools_approval_mode"],
+            json!("approve")
+        );
     }
 
     /// The whole of #286's read half: deferred tools sit behind a tool search,
@@ -129,6 +138,30 @@ mod tests {
         );
     }
 
+    /// ADR-0015: the code tools must stay callable on `code_mode_only`
+    /// models, which reach MCP tools only from inside `exec`. The engine
+    /// nests a tool there when its exposure keeps `code_mode`
+    /// (`ToolExposure::is_available_in_code_mode`); omitting only `deferred`
+    /// leaves it `Direct`, which code mode accepts. Omitting `code_mode` or
+    /// `direct` here would strand the tools on those models.
+    #[test]
+    fn the_code_tools_stay_reachable_from_code_mode() {
+        let server = acp::McpServer::Http(acp::McpServerHttp::new(
+            "atlas_code",
+            "http://127.0.0.1:9/code",
+        ));
+        let config = thread_config(&[server], &AskFirst::none()).expect("one entry");
+        assert_eq!(
+            config["mcp_servers.atlas_code.omit_tools_from"],
+            json!(["deferred"]),
+        );
+        assert_eq!(
+            config["mcp_servers.atlas_code.default_tools_approval_mode"],
+            json!("approve"),
+            "read-only code search never asks"
+        );
+    }
+
     /// The projection is only half the story: these are DOTTED keys, merged
     /// into a TOML tree and then deserialized into the engine's own config.
     /// An unknown or wrongly-shaped key on that path is dropped rather than
@@ -139,10 +172,13 @@ mod tests {
     fn the_dotted_keys_survive_the_merge_into_the_engines_own_config() {
         use atlas_engine_protocol::config_types::ToolExposureSurface;
 
-        let projected = thread_config(&[acp::McpServer::Http(
-            acp::McpServerHttp::new("atlas_memory", "http://127.0.0.1:9/mcp")
-                .headers(vec![acp::HttpHeader::new("Authorization", "Bearer t")]),
-        )], &AskFirst::none())
+        let projected = thread_config(
+            &[acp::McpServer::Http(
+                acp::McpServerHttp::new("atlas_memory", "http://127.0.0.1:9/mcp")
+                    .headers(vec![acp::HttpHeader::new("Authorization", "Bearer t")]),
+            )],
+            &AskFirst::none(),
+        )
         .expect("one entry");
 
         // Exactly what `ConfigManager::load_with_overrides` does with them.
@@ -178,8 +214,14 @@ mod tests {
         });
         let config = thread_config(&servers, &AskFirst::none()).expect("two entries");
         for name in ["atlas_memory", "atlas_ui"] {
-            assert_eq!(config[&format!("mcp_servers.{name}.default_tools_approval_mode")], json!("approve"));
-            assert_eq!(config[&format!("mcp_servers.{name}.omit_tools_from")], json!(["deferred"]));
+            assert_eq!(
+                config[&format!("mcp_servers.{name}.default_tools_approval_mode")],
+                json!("approve")
+            );
+            assert_eq!(
+                config[&format!("mcp_servers.{name}.omit_tools_from")],
+                json!(["deferred"])
+            );
         }
         assert_eq!(server_names(&servers), ["atlas_memory", "atlas_ui"]);
     }
@@ -198,10 +240,22 @@ mod tests {
         });
         let config = thread_config(&servers, &AskFirst::none()).expect("three entries");
         for name in names {
-            assert_eq!(config[&format!("mcp_servers.{name}.url")], json!(format!("http://127.0.0.1:9/{name}")));
-            assert_eq!(config[&format!("mcp_servers.{name}.http_headers")], json!({ "Authorization": "Bearer t" }));
-            assert_eq!(config[&format!("mcp_servers.{name}.default_tools_approval_mode")], json!("approve"));
-            assert_eq!(config[&format!("mcp_servers.{name}.omit_tools_from")], json!(["deferred"]));
+            assert_eq!(
+                config[&format!("mcp_servers.{name}.url")],
+                json!(format!("http://127.0.0.1:9/{name}"))
+            );
+            assert_eq!(
+                config[&format!("mcp_servers.{name}.http_headers")],
+                json!({ "Authorization": "Bearer t" })
+            );
+            assert_eq!(
+                config[&format!("mcp_servers.{name}.default_tools_approval_mode")],
+                json!("approve")
+            );
+            assert_eq!(
+                config[&format!("mcp_servers.{name}.omit_tools_from")],
+                json!(["deferred"])
+            );
         }
         assert_eq!(server_names(&servers), names);
     }
@@ -215,10 +269,13 @@ mod tests {
     fn the_comment_tools_stay_auto_approved_in_the_projection() {
         use atlas_engine_config::AppToolApproval;
 
-        let projected = thread_config(&[acp::McpServer::Http(
-            acp::McpServerHttp::new("atlas_org", "http://127.0.0.1:9/org")
-                .headers(vec![acp::HttpHeader::new("Authorization", "Bearer t")]),
-        )], &org_outward())
+        let projected = thread_config(
+            &[acp::McpServer::Http(
+                acp::McpServerHttp::new("atlas_org", "http://127.0.0.1:9/org")
+                    .headers(vec![acp::HttpHeader::new("Authorization", "Bearer t")]),
+            )],
+            &org_outward(),
+        )
         .expect("one entry");
         let overrides: Vec<(String, toml::Value)> = projected
             .into_iter()
@@ -233,10 +290,17 @@ mod tests {
             .try_into()
             .expect("the engine parses it");
 
-        assert_eq!(server.default_tools_approval_mode, Some(AppToolApproval::Approve));
+        assert_eq!(
+            server.default_tools_approval_mode,
+            Some(AppToolApproval::Approve)
+        );
         for tool in ["org_comments", "org_comment_resolve"] {
             let standing = server.tools.get(tool).and_then(|t| t.approval_mode);
-            assert_ne!(standing, Some(AppToolApproval::Prompt), "{tool} must not ask");
+            assert_ne!(
+                standing,
+                Some(AppToolApproval::Prompt),
+                "{tool} must not ask"
+            );
             assert_eq!(
                 standing.or(server.default_tools_approval_mode),
                 Some(AppToolApproval::Approve),
@@ -253,13 +317,19 @@ mod tests {
     fn the_outward_tools_the_host_declares_ask_first_and_the_server_stays_approved() {
         use atlas_engine_config::AppToolApproval;
 
-        let projected = thread_config(&[acp::McpServer::Http(
-            acp::McpServerHttp::new("atlas_org", "http://127.0.0.1:9/org")
-                .headers(vec![acp::HttpHeader::new("Authorization", "Bearer t")]),
-        )], &org_outward())
+        let projected = thread_config(
+            &[acp::McpServer::Http(
+                acp::McpServerHttp::new("atlas_org", "http://127.0.0.1:9/org")
+                    .headers(vec![acp::HttpHeader::new("Authorization", "Bearer t")]),
+            )],
+            &org_outward(),
+        )
         .expect("one entry");
         for tool in ["org_comment_reply", "org_send"] {
-            assert_eq!(projected[&format!("mcp_servers.atlas_org.tools.{tool}.approval_mode")], json!("prompt"));
+            assert_eq!(
+                projected[&format!("mcp_servers.atlas_org.tools.{tool}.approval_mode")],
+                json!("prompt")
+            );
         }
         let overrides: Vec<(String, toml::Value)> = projected
             .into_iter()
@@ -274,7 +344,10 @@ mod tests {
             .try_into()
             .expect("the engine parses it");
 
-        assert_eq!(server.default_tools_approval_mode, Some(AppToolApproval::Approve));
+        assert_eq!(
+            server.default_tools_approval_mode,
+            Some(AppToolApproval::Approve)
+        );
         for tool in ["org_comment_reply", "org_send"] {
             assert_eq!(
                 server.tools.get(tool).and_then(|t| t.approval_mode),
@@ -291,7 +364,10 @@ mod tests {
     #[test]
     fn only_the_tools_the_offer_declares_ask() {
         let servers = ["atlas_memory", "atlas_ui", "atlas_org"].map(|name| {
-            acp::McpServer::Http(acp::McpServerHttp::new(name, format!("http://127.0.0.1:9/{name}")))
+            acp::McpServer::Http(acp::McpServerHttp::new(
+                name,
+                format!("http://127.0.0.1:9/{name}"),
+            ))
         });
         let config = thread_config(&servers, &org_outward()).expect("three entries");
         let mut prompted: Vec<&String> = config.keys().filter(|k| k.contains(".tools.")).collect();
@@ -305,7 +381,10 @@ mod tests {
         );
 
         let config = thread_config(&servers, &AskFirst::none()).expect("three entries");
-        assert!(!config.keys().any(|k| k.contains(".tools.")), "an offer that declares none asks nothing");
+        assert!(
+            !config.keys().any(|k| k.contains(".tools.")),
+            "an offer that declares none asks nothing"
+        );
     }
 
     #[test]

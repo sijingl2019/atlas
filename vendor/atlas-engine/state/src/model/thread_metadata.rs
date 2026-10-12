@@ -1,7 +1,5 @@
 // Modified by Atlas from upstream OpenAI Codex (Apache-2.0). See CONTEXT.md.
 use anyhow::Result;
-use chrono::DateTime;
-use chrono::Utc;
 use atlas_engine_protocol::ThreadId;
 use atlas_engine_protocol::openai_models::ReasoningEffort;
 use atlas_engine_protocol::protocol::AskForApproval;
@@ -9,6 +7,8 @@ use atlas_engine_protocol::protocol::SandboxPolicy;
 use atlas_engine_protocol::protocol::SessionSource;
 use atlas_engine_protocol::protocol::ThreadHistoryMode;
 use atlas_engine_protocol::protocol::ThreadSource;
+use chrono::DateTime;
+use chrono::Utc;
 use serde::Deserialize;
 use serde::Serialize;
 use sqlx::Row;
@@ -682,11 +682,11 @@ pub struct BackfillStats {
 mod tests {
     use super::ThreadMetadata;
     use super::ThreadRow;
-    use chrono::DateTime;
-    use chrono::Utc;
     use atlas_engine_protocol::ThreadId;
     use atlas_engine_protocol::openai_models::ReasoningEffort;
     use atlas_engine_protocol::protocol::ThreadHistoryMode;
+    use chrono::DateTime;
+    use chrono::Utc;
     use pretty_assertions::assert_eq;
     use std::path::PathBuf;
 

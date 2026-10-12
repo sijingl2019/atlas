@@ -12,8 +12,8 @@ use std::sync::Arc;
 use atlas_engine_api::ApiError;
 use atlas_engine_api::Provider;
 use atlas_engine_api::SharedAuthProvider;
-use atlas_engine_login::AuthManager;
 use atlas_engine_login::AtlasEngineAuth;
+use atlas_engine_login::AuthManager;
 use atlas_engine_login::auth::BedrockApiKeyAuth;
 use atlas_engine_model_provider_info::AMAZON_BEDROCK_GPT_5_6_LUNA_MODEL_ID;
 use atlas_engine_model_provider_info::AMAZON_BEDROCK_GPT_5_6_TERRA_MODEL_ID;
@@ -332,8 +332,9 @@ mod tests {
             api_key: "managed-bedrock-api-key".to_string(),
             region: "us-east-1".to_string(),
         };
-        let auth_manager =
-            AuthManager::from_auth_for_testing(AtlasEngineAuth::BedrockApiKey(managed_auth.clone()));
+        let auth_manager = AuthManager::from_auth_for_testing(AtlasEngineAuth::BedrockApiKey(
+            managed_auth.clone(),
+        ));
         let provider = AmazonBedrockModelProvider::new(
             ModelProviderInfo::create_amazon_bedrock_provider(Some(ModelProviderAwsAuthInfo {
                 profile: Some("aws-profile-that-should-not-be-loaded".to_string()),
@@ -383,9 +384,9 @@ mod tests {
     async fn openai_auth_is_not_exposed_to_bedrock() {
         let provider = AmazonBedrockModelProvider::new(
             ModelProviderInfo::create_amazon_bedrock_provider(/*aws*/ None),
-            Some(AuthManager::from_auth_for_testing(AtlasEngineAuth::from_api_key(
-                "openai-api-key",
-            ))),
+            Some(AuthManager::from_auth_for_testing(
+                AtlasEngineAuth::from_api_key("openai-api-key"),
+            )),
         );
 
         assert!(provider.auth_manager().is_none());

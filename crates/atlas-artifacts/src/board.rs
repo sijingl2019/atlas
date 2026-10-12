@@ -38,12 +38,26 @@ use crate::model::{RemoteProject, RemoteSession};
 /// Organisation, and two checkouts of one repository share a Project.
 pub type ProjectKey = (String, String);
 
+/// Which Session, in which Project — `(workspace_id, session_id)`, both server ids.
+///
+/// A Session id alone is not unique across an Organisation. Connecting a Local
+/// Project to an existing Project, or moving a Project's sync to another one,
+/// re-sends the same Sessions under the same ids to a second Project while the
+/// first keeps its copy. Keyed by id alone, one of the two copies silently
+/// vanished from the board.
+pub type SessionKey = (String, String);
+
+fn session_key(session: &RemoteSession) -> SessionKey {
+    (session.workspace_id.clone(), session.id.clone())
+}
+
 /// One Organisation's remote board, as of the last refresh.
 #[derive(Debug, Clone, Default)]
 pub struct OrgBoard {
-    /// Keyed by Session id, which is the same id the local store minted — so
-    /// merging with the local board is a keyed union, not a reconciliation.
-    pub sessions: HashMap<String, RemoteSession>,
+    /// Keyed by `(Project id, Session id)` — see [`SessionKey`]. The Session id
+    /// is the one the local store minted, so merging with the local board is
+    /// still a keyed union, not a reconciliation.
+    pub sessions: HashMap<SessionKey, RemoteSession>,
     /// Project id → how to name it, for a row from a Project this machine has
     /// no checkout of.
     pub projects: HashMap<String, RemoteProject>,
@@ -87,7 +101,7 @@ impl CloudBoard {
         notes: Vec<String>,
     ) {
         let board = OrgBoard {
-            sessions: sessions.into_iter().map(|s| (s.id.clone(), s)).collect(),
+            sessions: sessions.into_iter().map(|s| (session_key(&s), s)).collect(),
             projects: projects.into_iter().map(|p| (p.id.clone(), p)).collect(),
             notes,
             loaded: true,
@@ -109,7 +123,7 @@ impl CloudBoard {
             orgs.entry(org_id.to_string())
                 .or_default()
                 .sessions
-                .insert(session.id.clone(), session);
+                .insert(session_key(&session), session);
         }
     }
 
@@ -158,7 +172,10 @@ impl CloudBoard {
         self.orgs
             .read()
             .ok()
-            .and_then(|orgs| orgs.get(org_id).map(|board| board.attempted && !board.loaded))
+            .and_then(|orgs| {
+                orgs.get(org_id)
+                    .map(|board| board.attempted && !board.loaded)
+            })
             .unwrap_or(false)
     }
 
@@ -198,17 +215,56 @@ mod tests {
         }
     }
 
+    fn key(project: &str, id: &str) -> SessionKey {
+        (project.into(), id.into())
+    }
+
+    #[test]
+    fn one_session_in_two_projects_keeps_both_copies() {
+        // Moving a Project's sync re-sends its Sessions, same ids, to the new
+        // Project while the old one keeps its copy. The server lists both.
+        let board = CloudBoard::new();
+        board.replace(
+            "org_1",
+            vec![session("s", "ws_b", "t2"), session("s", "ws_a", "t1")],
+            vec![],
+            vec![],
+        );
+        let snap = board.snapshot("org_1");
+        assert_eq!(snap.sessions.len(), 2);
+        assert_eq!(snap.sessions[&key("ws_a", "s")].last_activity_at, "t1");
+        assert_eq!(snap.sessions[&key("ws_b", "s")].last_activity_at, "t2");
+
+        // A live frame from one Project updates that copy, not the other.
+        board.upsert("org_1", session("s", "ws_a", "t3"));
+        let snap = board.snapshot("org_1");
+        assert_eq!(snap.sessions.len(), 2);
+        assert_eq!(snap.sessions[&key("ws_a", "s")].last_activity_at, "t3");
+        assert_eq!(snap.sessions[&key("ws_b", "s")].last_activity_at, "t2");
+
+        // Forgetting one Project leaves the other's copy.
+        board.forget_project(&("org_1".into(), "ws_a".into()));
+        let snap = board.snapshot("org_1");
+        assert_eq!(snap.sessions.len(), 1);
+        assert!(snap.sessions.contains_key(&key("ws_b", "s")));
+    }
+
     #[test]
     fn a_refresh_replaces_rather_than_merges() {
         // A Session deleted server-side has to leave the board. Merging would
         // keep it forever, because nothing ever announces a deletion.
         let board = CloudBoard::new();
-        board.replace("org_1", vec![session("a", "ws_1", "t1"), session("b", "ws_1", "t1")], vec![], vec![]);
+        board.replace(
+            "org_1",
+            vec![session("a", "ws_1", "t1"), session("b", "ws_1", "t1")],
+            vec![],
+            vec![],
+        );
         board.replace("org_1", vec![session("b", "ws_1", "t2")], vec![], vec![]);
 
         let snap = board.snapshot("org_1");
         assert_eq!(snap.sessions.len(), 1);
-        assert!(snap.sessions.contains_key("b"));
+        assert!(snap.sessions.contains_key(&key("ws_1", "b")));
         assert!(snap.loaded);
     }
 
@@ -233,7 +289,7 @@ mod tests {
 
         let snap = board.snapshot("org_1");
         assert_eq!(snap.sessions.len(), 1);
-        assert_eq!(snap.sessions["a"].last_activity_at, "t2");
+        assert_eq!(snap.sessions[&key("ws_1", "a")].last_activity_at, "t2");
     }
 
     #[test]
@@ -301,7 +357,12 @@ mod tests {
     #[test]
     fn clearing_leaves_nothing_for_the_next_organisation() {
         let board = CloudBoard::new();
-        board.replace("org_1", vec![session("a", "ws_1", "t1")], vec![], vec!["a note".into()]);
+        board.replace(
+            "org_1",
+            vec![session("a", "ws_1", "t1")],
+            vec![],
+            vec!["a note".into()],
+        );
         board.clear();
         assert!(board.snapshot("org_1").sessions.is_empty());
     }
@@ -314,8 +375,16 @@ mod tests {
             "org_1",
             vec![session("a", "ws_1", "t1"), session("b", "ws_2", "t1")],
             vec![
-                RemoteProject { id: "ws_1".into(), slug: None, name: None },
-                RemoteProject { id: "ws_2".into(), slug: None, name: None },
+                RemoteProject {
+                    id: "ws_1".into(),
+                    slug: None,
+                    name: None,
+                },
+                RemoteProject {
+                    id: "ws_2".into(),
+                    slug: None,
+                    name: None,
+                },
             ],
             vec![],
         );
@@ -323,7 +392,7 @@ mod tests {
         board.forget_project(&("org_1".into(), "ws_1".into()));
         let snap = board.snapshot("org_1");
         assert_eq!(snap.sessions.len(), 1);
-        assert!(snap.sessions.contains_key("b"));
+        assert!(snap.sessions.contains_key(&key("ws_2", "b")));
         assert!(!snap.projects.contains_key("ws_1"));
         assert!(snap.projects.contains_key("ws_2"));
     }

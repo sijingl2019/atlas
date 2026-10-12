@@ -72,7 +72,9 @@ impl atlas_artifacts::TokenSource for AppTokenSource {
         let app = self.app.clone();
         Box::pin(async move {
             let Some(state) = app.try_state::<crate::commands::auth::AuthState>() else {
-                return Err(atlas_artifacts::Error::Unauthorized("auth is not ready".into()));
+                return Err(atlas_artifacts::Error::Unauthorized(
+                    "auth is not ready".into(),
+                ));
             };
             state.core().mint_access_token().await.map_err(|e| match e {
                 // INDETERMINATE — a transport failure, DNS, a timeout, a 5xx:
@@ -161,7 +163,11 @@ pub fn install(app: &AppHandle) {
 /// renderer's `payload.sessionId` filter drops every frame. That was the whole
 /// of the "comments aren't live" bug — see the test below.
 #[derive(Serialize)]
-#[serde(tag = "kind", rename_all = "camelCase", rename_all_fields = "camelCase")]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 enum WireEvent {
     BoardChanged,
     EntryUpsert {
@@ -191,15 +197,28 @@ fn emit(app: &AppHandle, event: ArtifactsEvent) {
             let _ = app.emit(crate::commands::capture::CAPTURE_CHANGED, ());
             WireEvent::BoardChanged
         }
-        ArtifactsEvent::EntryUpsert { session_id, change, entry, .. } => {
-            WireEvent::EntryUpsert { session_id, change, entry }
-        }
-        ArtifactsEvent::CommentUpsert { session_id, comment, .. } => {
-            WireEvent::CommentUpsert { session_id, comment: *comment }
-        }
-        ArtifactsEvent::Presence { key, online } => {
-            WireEvent::Presence { project_id: key.1, online }
-        }
+        ArtifactsEvent::EntryUpsert {
+            session_id,
+            change,
+            entry,
+            ..
+        } => WireEvent::EntryUpsert {
+            session_id,
+            change,
+            entry,
+        },
+        ArtifactsEvent::CommentUpsert {
+            session_id,
+            comment,
+            ..
+        } => WireEvent::CommentUpsert {
+            session_id,
+            comment: *comment,
+        },
+        ArtifactsEvent::Presence { key, online } => WireEvent::Presence {
+            project_id: key.1,
+            online,
+        },
         ArtifactsEvent::Revoked { key } => WireEvent::Revoked { project_id: key.1 },
         ArtifactsEvent::Resync => WireEvent::Resync,
     };
@@ -214,7 +233,9 @@ fn emit(app: &AppHandle, event: ArtifactsEvent) {
 /// its local rows, and a toast every fifteen seconds on a flaky connection
 /// would be worse than a quietly stale remote half.
 async fn refresh_board(app: &AppHandle) {
-    let Some(state) = app.try_state::<ArtifactsCloudState>() else { return };
+    let Some(state) = app.try_state::<ArtifactsCloudState>() else {
+        return;
+    };
     let Some(org_id) = state.org_id() else { return };
 
     match state.client.board(&org_id, None).await {
@@ -270,9 +291,10 @@ pub async fn artifacts_cloud_retarget(
 /// callers hold nothing this needs, and a binding write must not wait on a
 /// board refresh.
 pub fn resync_targets(app: &AppHandle, touched: Option<&str>) {
-    let Some(state) = app.try_state::<ArtifactsCloudState>() else { return };
-    let (org_id, mut project_paths) =
-        state.targets.lock().map(|t| t.clone()).unwrap_or_default();
+    let Some(state) = app.try_state::<ArtifactsCloudState>() else {
+        return;
+    };
+    let (org_id, mut project_paths) = state.targets.lock().map(|t| t.clone()).unwrap_or_default();
     if let Some(path) = touched {
         if !project_paths.iter().any(|p| p == path) {
             project_paths.push(path.to_string());
@@ -349,7 +371,9 @@ fn connected_projects(project_paths: &[String], org_id: &str) -> Vec<String> {
         let Ok(Some(store)) = crate::commands::capture::open_reader(path) else {
             continue;
         };
-        let Ok(Some(binding)) = store.binding() else { continue };
+        let Ok(Some(binding)) = store.binding() else {
+            continue;
+        };
         if !is_cloud_bound(&binding, org_id) {
             continue;
         }
@@ -405,24 +429,36 @@ pub async fn chat_comment_target(
     native_session_id: String,
     app: AppHandle,
 ) -> Result<Option<CommentTarget>, String> {
-    let Some(state) = app.try_state::<ArtifactsCloudState>() else { return Ok(None) };
-    let Some(org_id) = state.org_id() else { return Ok(None) };
+    let Some(state) = app.try_state::<ArtifactsCloudState>() else {
+        return Ok(None);
+    };
+    let Some(org_id) = state.org_id() else {
+        return Ok(None);
+    };
     tauri::async_runtime::spawn_blocking(move || {
         let Some(store) = crate::commands::capture::open_reader(&project_path)? else {
             return Ok(None);
         };
-        let Ok(Some(binding)) = store.binding() else { return Ok(None) };
+        let Ok(Some(binding)) = store.binding() else {
+            return Ok(None);
+        };
         if !is_cloud_bound(&binding, &org_id) {
             return Ok(None);
         }
-        let Some(remote_project_id) = binding.remote_workspace_id else { return Ok(None) };
+        let Some(remote_project_id) = binding.remote_workspace_id else {
+            return Ok(None);
+        };
         let Some(session_id) = recorded_session_id(&store, &project_path, &native_session_id)?
         else {
             return Ok(None);
         };
         let entries =
             atlas_checkpoint::session_anchors(&store, &session_id).map_err(|e| e.to_string())?;
-        Ok(Some(CommentTarget { remote_project_id, session_id, entries }))
+        Ok(Some(CommentTarget {
+            remote_project_id,
+            session_id,
+            entries,
+        }))
     })
     .await
     .map_err(|e| e.to_string())?
@@ -465,7 +501,9 @@ pub async fn artifacts_cloud_follow(
     session_id: String,
     app: AppHandle,
 ) -> Result<(), String> {
-    let Some(state) = app.try_state::<ArtifactsCloudState>() else { return Ok(()) };
+    let Some(state) = app.try_state::<ArtifactsCloudState>() else {
+        return Ok(());
+    };
     state.manager.follow(&project_id, &session_id);
     Ok(())
 }
@@ -477,7 +515,9 @@ pub async fn artifacts_cloud_unfollow(
     session_id: String,
     app: AppHandle,
 ) -> Result<(), String> {
-    let Some(state) = app.try_state::<ArtifactsCloudState>() else { return Ok(()) };
+    let Some(state) = app.try_state::<ArtifactsCloudState>() else {
+        return Ok(());
+    };
     state.manager.unfollow(&project_id, &session_id);
     Ok(())
 }
@@ -513,7 +553,10 @@ pub async fn artifacts_cloud_session(
         tools: page
             .tools
             .into_iter()
-            .map(|t| atlas_checkpoint::ToolTally { tool_name: t.tool_name, count: t.count })
+            .map(|t| atlas_checkpoint::ToolTally {
+                tool_name: t.tool_name,
+                count: t.count,
+            })
             .collect(),
     })
 }
@@ -576,8 +619,12 @@ fn parse_enum<T: serde::de::DeserializeOwned>(raw: &str) -> Option<T> {
 #[tauri::command]
 pub async fn artifacts_cloud_refresh(app: AppHandle) -> Result<bool, String> {
     refresh_board(&app).await;
-    let Some(state) = app.try_state::<ArtifactsCloudState>() else { return Ok(false) };
-    let Some(org_id) = state.org_id() else { return Ok(false) };
+    let Some(state) = app.try_state::<ArtifactsCloudState>() else {
+        return Ok(false);
+    };
+    let Some(org_id) = state.org_id() else {
+        return Ok(false);
+    };
     Ok(!state.board.has_failed(&org_id))
 }
 
@@ -591,9 +638,17 @@ pub async fn artifacts_cloud_session_url(
     session_id: String,
     app: AppHandle,
 ) -> Result<Option<String>, String> {
-    let Some(state) = app.try_state::<ArtifactsCloudState>() else { return Ok(None) };
-    let Some(org_id) = state.org_id() else { return Ok(None) };
-    Ok(Some(atlas_artifacts::session_web_url(&org_id, &project_id, &session_id)))
+    let Some(state) = app.try_state::<ArtifactsCloudState>() else {
+        return Ok(None);
+    };
+    let Some(org_id) = state.org_id() else {
+        return Ok(None);
+    };
+    Ok(Some(atlas_artifacts::session_web_url(
+        &org_id,
+        &project_id,
+        &session_id,
+    )))
 }
 
 /// The full text behind a truncated remote entry.
@@ -659,7 +714,10 @@ fn group(comments: Vec<Comment>) -> CommentThreads {
         if comment.anchor_kind == AnchorKind::Session {
             session.push(comment);
         } else {
-            by_anchor.entry(comment.anchor_id.clone()).or_default().push(comment);
+            by_anchor
+                .entry(comment.anchor_id.clone())
+                .or_default()
+                .push(comment);
         }
     }
     CommentThreads { by_anchor, session }
@@ -739,7 +797,7 @@ fn reader(app: &AppHandle) -> Result<(Arc<ArtifactsClient>, String), String> {
         .ok_or("artifacts cloud is not ready")?;
     let org_id = state
         .org_id()
-        .ok_or("sign in to a synced Organisation to use the shared timeline")?;
+        .ok_or("sign in to a synced Organization to use the shared timeline")?;
     Ok((Arc::clone(&state.client), org_id))
 }
 
@@ -792,12 +850,22 @@ mod tests {
                 change: "updated".into(),
                 entry: serde_json::json!({ "id": "msg_1" }),
             },
-            WireEvent::Presence { project_id: "ws_1".into(), online: vec!["user_ada".into()] },
-            WireEvent::Revoked { project_id: "ws_1".into() },
+            WireEvent::Presence {
+                project_id: "ws_1".into(),
+                online: vec!["user_ada".into()],
+            },
+            WireEvent::Revoked {
+                project_id: "ws_1".into(),
+            },
         ];
         for frame in frames {
             let json = serde_json::to_value(&frame).unwrap();
-            let keys: Vec<&str> = json.as_object().unwrap().keys().map(String::as_str).collect();
+            let keys: Vec<&str> = json
+                .as_object()
+                .unwrap()
+                .keys()
+                .map(String::as_str)
+                .collect();
             assert!(!keys.contains(&"session_id"), "{json}");
             assert!(!keys.contains(&"project_id"), "{json}");
             assert!(
@@ -849,7 +917,10 @@ mod tests {
             comment("c1", AnchorKind::Checkpoint, "cp_1", None),
             comment("c2", AnchorKind::Checkpoint, "cp_1", Some("c1")),
         ]);
-        let ids: Vec<&str> = threads.by_anchor["cp_1"].iter().map(|c| c.id.as_str()).collect();
+        let ids: Vec<&str> = threads.by_anchor["cp_1"]
+            .iter()
+            .map(|c| c.id.as_str())
+            .collect();
         assert_eq!(ids, ["c1", "c2"]);
     }
 
@@ -929,7 +1000,10 @@ mod tests {
             ..Default::default()
         };
         let mapped = remote_entry(&entry);
-        assert_eq!(mapped.tool_status, Some(atlas_checkpoint::ToolStatus::Failed));
+        assert_eq!(
+            mapped.tool_status,
+            Some(atlas_checkpoint::ToolStatus::Failed)
+        );
         assert_eq!(mapped.paths, vec!["src/main.rs".to_string()]);
     }
 

@@ -12,7 +12,6 @@ use super::segment::split_server_envelope_for_transport;
 use crate::outgoing_message::OutgoingMessage;
 #[cfg(unix)]
 use crate::outgoing_message::OutgoingResponse;
-use base64::Engine;
 #[cfg(unix)]
 use atlas_engine_app_server_protocol::ClientResponsePayload;
 use atlas_engine_app_server_protocol::ConfigWarningNotification;
@@ -26,6 +25,7 @@ use atlas_engine_app_server_protocol::ServerNotification;
 use atlas_engine_app_server_protocol::ServerNotificationEnvelope;
 #[cfg(unix)]
 use atlas_engine_utils_absolute_path::AbsolutePathBuf;
+use base64::Engine;
 use pretty_assertions::assert_eq;
 #[cfg(unix)]
 use serde_json::json;
@@ -128,10 +128,11 @@ fn invalid_response_becomes_remote_control_jsonrpc_error() {
     use std::os::unix::ffi::OsStringExt;
     use std::path::PathBuf;
 
-    let atlas_agent_home = AbsolutePathBuf::from_absolute_path(PathBuf::from(OsString::from_vec(vec![
-        b'/', b'b', b'a', b'd', 0xff,
-    ])))
-    .expect("non-UTF-8 Unix paths are valid absolute paths");
+    let atlas_agent_home =
+        AbsolutePathBuf::from_absolute_path(PathBuf::from(OsString::from_vec(vec![
+            b'/', b'b', b'a', b'd', 0xff,
+        ])))
+        .expect("non-UTF-8 Unix paths are valid absolute paths");
     let envelope = ServerEnvelope {
         event: ServerEvent::ServerMessage {
             message: Box::new(OutgoingMessage::Response(OutgoingResponse {

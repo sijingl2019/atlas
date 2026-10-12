@@ -93,12 +93,13 @@ impl ConnectionDriver {
                 ..
             } => {
                 let cell_id = match request {
-                    atlas_engine_code_mode_protocol::host::DelegateRequest::InvokeTool { invocation } => {
-                        &invocation.cell_id
-                    }
-                    atlas_engine_code_mode_protocol::host::DelegateRequest::Notify { cell_id, .. } => {
-                        cell_id
-                    }
+                    atlas_engine_code_mode_protocol::host::DelegateRequest::InvokeTool {
+                        invocation,
+                    } => &invocation.cell_id,
+                    atlas_engine_code_mode_protocol::host::DelegateRequest::Notify {
+                        cell_id,
+                        ..
+                    } => cell_id,
                 };
                 !self.sessions.contains_cell(session_id, cell_id)
                     && self.requests.has_pending_execute_for_session(session_id)

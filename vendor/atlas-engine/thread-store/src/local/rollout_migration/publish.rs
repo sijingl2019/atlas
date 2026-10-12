@@ -45,12 +45,12 @@ pub(super) fn migration_journal_path(atlas_agent_home: &Path, thread_id: ThreadI
 pub(super) async fn pending_migration_thread_ids(
     atlas_agent_home: &Path,
 ) -> ThreadStoreResult<HashSet<ThreadId>> {
-    let mut entries = match tokio::fs::read_dir(atlas_agent_home.join(MIGRATION_JOURNAL_DIRECTORY)).await
-    {
-        Ok(entries) => entries,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(HashSet::new()),
-        Err(error) => return Err(migration_error(error)),
-    };
+    let mut entries =
+        match tokio::fs::read_dir(atlas_agent_home.join(MIGRATION_JOURNAL_DIRECTORY)).await {
+            Ok(entries) => entries,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(HashSet::new()),
+            Err(error) => return Err(migration_error(error)),
+        };
     let mut thread_ids = HashSet::new();
     while let Some(entry) = entries.next_entry().await.map_err(migration_error)? {
         if !entry.file_type().await.map_err(migration_error)?.is_file() {

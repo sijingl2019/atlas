@@ -10,8 +10,6 @@ use app_test_support::create_mock_responses_server_repeating_assistant;
 use app_test_support::create_mock_responses_server_sequence;
 use app_test_support::rollout_path;
 use app_test_support::test_absolute_path;
-use chrono::DateTime;
-use chrono::Utc;
 use atlas_engine_app_server_protocol::ClientRequest;
 use atlas_engine_app_server_protocol::GitInfo as ApiGitInfo;
 use atlas_engine_app_server_protocol::JSONRPCError;
@@ -48,6 +46,8 @@ use atlas_engine_rollout::append_rollout_item_to_path;
 use atlas_engine_rollout::read_session_meta_line;
 use atlas_engine_state::DirectionalThreadSpawnEdgeStatus;
 use atlas_engine_utils_absolute_path::test_support::PathExt;
+use chrono::DateTime;
+use chrono::Utc;
 use core_test_support::responses;
 use pretty_assertions::assert_eq;
 use std::cmp::Reverse;
@@ -342,7 +342,10 @@ approval_policy = "never"
     )
 }
 
-fn create_runtime_config(atlas_agent_home: &std::path::Path, server_uri: &str) -> std::io::Result<()> {
+fn create_runtime_config(
+    atlas_agent_home: &std::path::Path,
+    server_uri: &str,
+) -> std::io::Result<()> {
     MockResponsesConfig::new(server_uri).write(atlas_agent_home)
 }
 
@@ -526,7 +529,12 @@ async fn thread_list_respects_cwd_filters() -> Result<()> {
     fs::create_dir_all(&first_target_cwd)?;
     fs::create_dir_all(&second_target_cwd)?;
     set_rollout_cwd(
-        rollout_path(atlas_agent_home.path(), "2025-01-02T10-00-00", &first_filtered_id).as_path(),
+        rollout_path(
+            atlas_agent_home.path(),
+            "2025-01-02T10-00-00",
+            &first_filtered_id,
+        )
+        .as_path(),
         &first_target_cwd,
     )?;
     set_rollout_cwd(
@@ -2193,7 +2201,12 @@ async fn thread_list_backwards_cursor_can_seed_forward_delta_sync() -> Result<()
         "2025-02-02T00:00:00Z",
     )?;
     set_rollout_mtime(
-        rollout_path(atlas_agent_home.path(), "2025-02-01T11-00-00", &id_watermark).as_path(),
+        rollout_path(
+            atlas_agent_home.path(),
+            "2025-02-01T11-00-00",
+            &id_watermark,
+        )
+        .as_path(),
         "2025-02-03T00:00:00Z",
     )?;
 
@@ -2436,7 +2449,8 @@ async fn thread_list_archived_filter() -> Result<()> {
 
     let archived_dir = atlas_agent_home.path().join(ARCHIVED_SESSIONS_SUBDIR);
     fs::create_dir_all(&archived_dir)?;
-    let archived_source = rollout_path(atlas_agent_home.path(), "2025-03-01T09-00-00", &archived_id);
+    let archived_source =
+        rollout_path(atlas_agent_home.path(), "2025-03-01T09-00-00", &archived_id);
     let archived_dest = archived_dir.join(
         archived_source
             .file_name()

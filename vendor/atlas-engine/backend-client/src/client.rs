@@ -1,8 +1,8 @@
 // Modified by Atlas from upstream OpenAI Codex (Apache-2.0). See CONTEXT.md.
 use crate::types::AccountsCheckResponse;
-use crate::types::CodeTaskDetailsResponse;
 use crate::types::AtlasEngineUserSettingsResponse;
 use crate::types::AtlasEngineWorkspaceMessagesResponse;
+use crate::types::CodeTaskDetailsResponse;
 use crate::types::ConfigBundleResponse;
 use crate::types::PaginatedListTaskListItem;
 use crate::types::RateLimitReachedKind as BackendRateLimitReachedKind;
@@ -321,7 +321,9 @@ impl Client {
 
     pub async fn get_accounts_check(&self) -> Result<AccountsCheckResponse> {
         let url = match self.path_style {
-            PathStyle::AtlasEngineApi => format!("{}/api/atlas-agent/accounts/check", self.base_url),
+            PathStyle::AtlasEngineApi => {
+                format!("{}/api/atlas-agent/accounts/check", self.base_url)
+            }
             PathStyle::ChatGptApi => format!("{}/wham/accounts/check", self.base_url),
         };
         let req = self.request(Method::GET, &url).headers(self.headers());
@@ -414,7 +416,9 @@ impl Client {
         task_id: &str,
     ) -> Result<(CodeTaskDetailsResponse, String, String)> {
         let url = match self.path_style {
-            PathStyle::AtlasEngineApi => format!("{}/api/atlas-agent/tasks/{}", self.base_url, task_id),
+            PathStyle::AtlasEngineApi => {
+                format!("{}/api/atlas-agent/tasks/{}", self.base_url, task_id)
+            }
             PathStyle::ChatGptApi => format!("{}/wham/tasks/{}", self.base_url, task_id),
         };
         let req = self.request(Method::GET, &url).headers(self.headers());
@@ -566,7 +570,9 @@ impl Client {
         limit_name: Option<String>,
         rate_limit: Option<crate::types::RateLimitStatusDetails>,
         credits: Option<crate::types::CreditStatusDetails>,
-        spend_control: Option<atlas_engine_backend_openapi_models::models::SpendControlStatusDetails>,
+        spend_control: Option<
+            atlas_engine_backend_openapi_models::models::SpendControlStatusDetails,
+        >,
         plan_type: Option<AccountPlanType>,
         rate_limit_reached_type: Option<RateLimitReachedType>,
     ) -> RateLimitSnapshot {
@@ -634,7 +640,9 @@ impl Client {
 
     fn workspace_messages_url(&self) -> String {
         match self.path_style {
-            PathStyle::AtlasEngineApi => format!("{}/api/atlas-agent/workspace-messages", self.base_url),
+            PathStyle::AtlasEngineApi => {
+                format!("{}/api/atlas-agent/workspace-messages", self.base_url)
+            }
             PathStyle::ChatGptApi => format!("{}/wham/workspace-messages", self.base_url),
         }
     }
@@ -867,7 +875,10 @@ mod tests {
         );
 
         assert_eq!(snapshots[1].limit_id.as_deref(), Some("atlas_engine_other"));
-        assert_eq!(snapshots[1].limit_name.as_deref(), Some("atlas_engine_other"));
+        assert_eq!(
+            snapshots[1].limit_name.as_deref(),
+            Some("atlas_engine_other")
+        );
         assert_eq!(
             snapshots[1].primary.as_ref().map(|w| w.used_percent),
             Some(70.0)
@@ -900,7 +911,10 @@ mod tests {
         assert_eq!(snapshots[0].limit_name, None);
         assert_eq!(snapshots[0].primary, None);
         assert_eq!(snapshots[1].limit_id.as_deref(), Some("atlas_engine_other"));
-        assert_eq!(snapshots[1].limit_name.as_deref(), Some("atlas_engine_other"));
+        assert_eq!(
+            snapshots[1].limit_name.as_deref(),
+            Some("atlas_engine_other")
+        );
     }
 
     #[test]
@@ -1134,7 +1148,8 @@ mod tests {
     #[test]
     fn user_settings_missing_attribution_policy_defaults_to_disabled() {
         assert_eq!(
-            serde_json::from_value::<AtlasEngineUserSettingsResponse>(serde_json::json!({})).unwrap(),
+            serde_json::from_value::<AtlasEngineUserSettingsResponse>(serde_json::json!({}))
+                .unwrap(),
             AtlasEngineUserSettingsResponse {
                 commit_attribution_enabled: false,
             }
@@ -1173,7 +1188,9 @@ mod tests {
         Client {
             base_url: base_url.to_string(),
             http: RouteAwareClientPool::new(
-                HttpClientFactory::new(atlas_engine_http_client::OutboundProxyPolicy::ReqwestDefault),
+                HttpClientFactory::new(
+                    atlas_engine_http_client::OutboundProxyPolicy::ReqwestDefault,
+                ),
                 ClientRouteClass::Api,
             ),
             auth_provider: atlas_engine_model_provider::unauthenticated_auth_provider(),

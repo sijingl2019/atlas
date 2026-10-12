@@ -88,8 +88,8 @@ fn config_layer_stack_with_requirements(
     .expect("requirements should be present");
     let requirements_toml = with_sources.clone().into_toml();
     let requirements = ConfigRequirements::try_from(with_sources).expect("normalize requirements");
-    let config_file =
-        AbsolutePathBuf::try_from(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("absolute config path");
+    let config_file = AbsolutePathBuf::try_from(atlas_agent_home.join(CONFIG_TOML_FILE))
+        .expect("absolute config path");
     ConfigLayerStack::new(
         vec![ConfigLayerEntry::new(
             ConfigLayerSource::User {
@@ -536,7 +536,11 @@ async fn plugin_auth_projection_hides_dual_surface_mcp_with_agent_identity_apps_
 #[tokio::test]
 async fn plugin_auth_projection_keeps_non_conflicting_mcp_with_chatgpt_apps_route() {
     let atlas_agent_home = TempDir::new().unwrap();
-    write_auth_projection_plugin(atlas_agent_home.path(), "sample", /*include_app*/ false);
+    write_auth_projection_plugin(
+        atlas_agent_home.path(),
+        "sample",
+        /*include_app*/ false,
+    );
     write_auth_projection_app(atlas_agent_home.path(), "sample", "sample_app");
     write_auth_projection_plugin(atlas_agent_home.path(), "docs", /*include_app*/ false);
     let config = auth_projection_config(atlas_agent_home.path()).await;
@@ -765,7 +769,10 @@ fn write_plugin(root: &Path, dir_name: &str, manifest_name: &str) {
 
 fn init_git_repo(repo: &Path) {
     run_git(repo, &["init"]);
-    run_git(repo, &["config", "user.email", "atlas-engine-test@example.com"]);
+    run_git(
+        repo,
+        &["config", "user.email", "atlas-engine-test@example.com"],
+    );
     run_git(repo, &["config", "user.name", "Atlas Agent Test"]);
     run_git(repo, &["add", "."]);
     run_git(repo, &["commit", "-m", "initial"]);
@@ -815,9 +822,13 @@ async fn load_plugins_from_config(
 ) -> PluginLoadOutcome {
     write_file(&atlas_agent_home.join(CONFIG_TOML_FILE), config_toml);
     let config = load_config(atlas_agent_home, atlas_agent_home).await;
-    test_plugins_manager_with_options(atlas_agent_home.to_path_buf(), Some(Product::AtlasEngine), auth_mode)
-        .plugins_for_config(&config)
-        .await
+    test_plugins_manager_with_options(
+        atlas_agent_home.to_path_buf(),
+        Some(Product::AtlasEngine),
+        auth_mode,
+    )
+    .plugins_for_config(&config)
+    .await
 }
 
 async fn load_config(atlas_agent_home: &Path, cwd: &Path) -> PluginsConfigInput {
@@ -1039,8 +1050,12 @@ plugins = true
 [plugins."counter-sample@test"]
 enabled = true
 "#;
-    let outcome =
-        load_plugins_from_config(config_toml, atlas_agent_home.path(), /*auth_mode*/ None).await;
+    let outcome = load_plugins_from_config(
+        config_toml,
+        atlas_agent_home.path(),
+        /*auth_mode*/ None,
+    )
+    .await;
 
     assert_eq!(outcome.plugins()[0].error, None);
     assert_eq!(
@@ -1123,8 +1138,12 @@ disabled_tools = ["delete"]
 approval_mode = "approve"
 "#;
 
-    let outcome =
-        load_plugins_from_config(config_toml, atlas_agent_home.path(), /*auth_mode*/ None).await;
+    let outcome = load_plugins_from_config(
+        config_toml,
+        atlas_agent_home.path(),
+        /*auth_mode*/ None,
+    )
+    .await;
     let server = outcome.plugins()[0]
         .mcp_servers
         .get("sample")
@@ -1509,7 +1528,11 @@ enabled = true
     write_cached_plugin(atlas_agent_home.path(), "openai-curated", "calendar");
     write_cached_plugin(atlas_agent_home.path(), "openai-api-curated", "linear");
     write_cached_plugin(atlas_agent_home.path(), "openai-curated-remote", "linear");
-    write_cached_plugin(atlas_agent_home.path(), "openai-curated-remote", "remote-only");
+    write_cached_plugin(
+        atlas_agent_home.path(),
+        "openai-curated-remote",
+        "remote-only",
+    );
 
     let config = load_config(atlas_agent_home.path(), atlas_agent_home.path()).await;
     let manager = test_plugins_manager_with_options(
@@ -1584,7 +1607,11 @@ enabled = true
     write_cached_plugin(atlas_agent_home.path(), "openai-api-curated", "linear");
     write_cached_plugin(atlas_agent_home.path(), "openai-curated", "calendar");
     write_cached_plugin(atlas_agent_home.path(), "openai-curated-remote", "linear");
-    write_cached_plugin(atlas_agent_home.path(), "openai-curated-remote", "remote-only");
+    write_cached_plugin(
+        atlas_agent_home.path(),
+        "openai-curated-remote",
+        "remote-only",
+    );
 
     let config = load_config(atlas_agent_home.path(), atlas_agent_home.path()).await;
     let manager = test_plugins_manager_with_options(
@@ -1623,7 +1650,11 @@ enabled = true
     );
     write_cached_plugin(atlas_agent_home.path(), "openai-curated", "linear");
     write_cached_plugin(atlas_agent_home.path(), "openai-api-curated", "linear");
-    write_cached_plugin(atlas_agent_home.path(), "openai-curated-remote", "remote-only");
+    write_cached_plugin(
+        atlas_agent_home.path(),
+        "openai-curated-remote",
+        "remote-only",
+    );
 
     let mut config = load_config(atlas_agent_home.path(), atlas_agent_home.path()).await;
     let manager = test_plugins_manager_with_options(
@@ -1673,7 +1704,8 @@ async fn build_remote_installed_plugin_marketplaces_from_cache_uses_remote_metad
     let atlas_agent_home = TempDir::new().unwrap();
     let manager = test_plugins_manager(atlas_agent_home.path().to_path_buf());
     let mut plugin = remote_installed_linear_plugin();
-    plugin.install_policy = atlas_engine_app_server_protocol::PluginInstallPolicy::InstalledByDefault;
+    plugin.install_policy =
+        atlas_engine_app_server_protocol::PluginInstallPolicy::InstalledByDefault;
     plugin.auth_policy = atlas_engine_app_server_protocol::PluginAuthPolicy::OnInstall;
     plugin.interface = Some(atlas_engine_app_server_protocol::PluginInterface {
         display_name: Some("Linear".to_string()),
@@ -1804,8 +1836,12 @@ enabled = false
 [plugins."sample@test"]
 enabled = true
 "#;
-    let outcome =
-        load_plugins_from_config(config_toml, atlas_agent_home.path(), /*auth_mode*/ None).await;
+    let outcome = load_plugins_from_config(
+        config_toml,
+        atlas_agent_home.path(),
+        /*auth_mode*/ None,
+    )
+    .await;
     let skill_path = std::fs::canonicalize(skill_path)
         .expect("skill path should canonicalize")
         .abs();
@@ -1845,8 +1881,12 @@ enabled = false
 [plugins."sample@test"]
 enabled = true
 "#;
-    let outcome =
-        load_plugins_from_config(config_toml, atlas_agent_home.path(), /*auth_mode*/ None).await;
+    let outcome = load_plugins_from_config(
+        config_toml,
+        atlas_agent_home.path(),
+        /*auth_mode*/ None,
+    )
+    .await;
 
     assert!(outcome.plugins()[0].disabled_skill_paths.is_empty());
     assert!(outcome.plugins()[0].has_enabled_skills);
@@ -2210,7 +2250,8 @@ async fn install_plugin_materializes_default_command_skills() {
         &format!("---\ndescription: Oversized\n---\n{}", "x".repeat(4_000)),
     );
     write_file(
-        &source_root.join(".atlas-agent-plugin/migrated-command-skills/undeclared-command/SKILL.md"),
+        &source_root
+            .join(".atlas-agent-plugin/migrated-command-skills/undeclared-command/SKILL.md"),
         "---\nname: undeclared-command\ndescription: undeclared command\n---\n",
     );
     let result = PluginStore::new(atlas_agent_home.path().to_path_buf())
@@ -2677,8 +2718,12 @@ async fn effective_apps_dedupes_connector_ids_across_plugins() {
     let config_toml =
         toml::to_string(&Value::Table(root)).expect("plugin test config should serialize");
 
-    let outcome =
-        load_plugins_from_config(&config_toml, atlas_agent_home.path(), Some(AuthMode::Chatgpt)).await;
+    let outcome = load_plugins_from_config(
+        &config_toml,
+        atlas_agent_home.path(),
+        Some(AuthMode::Chatgpt),
+    )
+    .await;
 
     assert_eq!(
         outcome.effective_apps(),
@@ -3221,7 +3266,10 @@ source_type = "local"
 source = {marketplace_root:?}
 "#
     );
-    write_file(&atlas_agent_home.path().join(CONFIG_TOML_FILE), &user_config);
+    write_file(
+        &atlas_agent_home.path().join(CONFIG_TOML_FILE),
+        &user_config,
+    );
     let config =
         config_layer_stack_with_requirements(atlas_agent_home.path(), &user_config, &requirements);
     let outcome = manager
@@ -3500,7 +3548,11 @@ async fn install_plugin_supports_git_subdir_marketplace_sources() {
             auth_policy: MarketplacePluginAuthPolicy::OnInstall,
         }
     );
-    assert!(installed_path.join(".atlas-agent-plugin/plugin.json").is_file());
+    assert!(
+        installed_path
+            .join(".atlas-agent-plugin/plugin.json")
+            .is_file()
+    );
 }
 
 #[tokio::test]
@@ -3554,7 +3606,11 @@ async fn install_plugin_supports_relative_git_subdir_marketplace_sources() {
             auth_policy: MarketplacePluginAuthPolicy::OnInstall,
         }
     );
-    assert!(installed_path.join(".atlas-agent-plugin/plugin.json").is_file());
+    assert!(
+        installed_path
+            .join(".atlas-agent-plugin/plugin.json")
+            .is_file()
+    );
 }
 
 #[tokio::test]
@@ -6517,7 +6573,10 @@ async fn load_plugins_ignores_project_config_files() {
     let stack = ConfigLayerStack::new(
         vec![ConfigLayerEntry::new(
             ConfigLayerSource::Project {
-                dot_atlas_agent_folder: AbsolutePathBuf::try_from(project_root.join(".atlas-agent")).unwrap(),
+                dot_atlas_agent_folder: AbsolutePathBuf::try_from(
+                    project_root.join(".atlas-agent"),
+                )
+                .unwrap(),
             },
             toml::from_str(&plugin_config_toml(
                 /*enabled*/ true, /*plugins_feature_enabled*/ true,

@@ -8,8 +8,6 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::time::SystemTime;
 
-use chrono::DateTime;
-use chrono::Utc;
 use atlas_engine_git_utils::GitSha;
 use atlas_engine_protocol::ThreadId;
 use atlas_engine_protocol::models::PermissionProfile;
@@ -24,6 +22,8 @@ use atlas_engine_rollout::RolloutReferenceIndex;
 use atlas_engine_rollout::ThreadItem;
 use atlas_engine_rollout::find_thread_names_by_ids;
 use atlas_engine_state::ThreadMetadata;
+use chrono::DateTime;
+use chrono::Utc;
 
 use super::LocalThreadStore;
 use crate::StoredThread;

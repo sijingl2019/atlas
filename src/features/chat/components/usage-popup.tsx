@@ -31,7 +31,7 @@ import { TickMeter } from "./usage-meter";
 
 function Headline({ view }: { view: SessionUsageView }) {
   const h = view.headline;
-  const target = !h ? 0 : h.kind === "context" ? h.pct : h.kind === "tokens" ? h.total : h.usd;
+  const target = !h ? 0 : h.kind === "context" ? h.pct : h.kind === "tokens" ? h.total : h.amount;
   const value = useCountUp(target);
   if (!h) return null;
   if (h.kind === "context") {
@@ -82,7 +82,7 @@ function Headline({ view }: { view: SessionUsageView }) {
       <div className={CAPTION}>Cost · this session{h.estimated ? " · est." : ""}</div>
       {/* ratchet-allow: the popup's hero figure, above the largest scale step (24px) */}
       <div className="mt-1 text-[28px] leading-none font-semibold tabular-nums text-[var(--foreground)]">
-        {fmtCost(value)}
+        {fmtCost(value, h.currency)}
       </div>
     </Card>
   );
@@ -118,7 +118,7 @@ function Cost({ cost, index }: { cost: NonNullable<SessionUsageView["cost"]>; in
         <span className="flex items-baseline gap-1.5">
           {/* ratchet-allow: a subtotal one notch under text-lg (16px), which outshouted the rows */}
           <span className="text-[15px] leading-none font-semibold tabular-nums text-[var(--foreground)]">
-            {fmtCost(cost.total)}
+            {fmtCost(cost.total, cost.currency)}
           </span>
           {cost.estimated ? <EstTag /> : null}
         </span>
@@ -129,7 +129,7 @@ function Cost({ cost, index }: { cost: NonNullable<SessionUsageView["cost"]>; in
             <div key={r.key} className="flex items-baseline justify-between">
               <span className="text-2xs text-[var(--muted-foreground)]">{r.label}</span>
               <span className="text-2xs tabular-nums text-[var(--secondary-foreground)]">
-                {fmtCost(r.cost ?? 0)}
+                {fmtCost(r.cost ?? 0, cost.currency)}
               </span>
             </div>
           ))}

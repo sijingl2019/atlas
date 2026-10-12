@@ -79,10 +79,10 @@ use crate::facts::AnalyticsJsonRpcError;
 use crate::facts::AppMentionedInput;
 use crate::facts::AppUsedInput;
 use crate::facts::ArtifactOperationInput;
-use crate::facts::CodeModeToolCallFact;
-use crate::facts::CodeModeToolCallStatus;
 use crate::facts::AtlasEngineCompactionEvent;
 use crate::facts::AtlasEngineGoalEvent;
+use crate::facts::CodeModeToolCallFact;
+use crate::facts::CodeModeToolCallStatus;
 use crate::facts::CustomAnalyticsFact;
 use crate::facts::ExternalAgentConfigImportCompletedInput;
 use crate::facts::ExternalAgentConfigImportFailureInput;
@@ -115,9 +115,9 @@ use crate::now_unix_seconds;
 use crate::option_i64_to_u64;
 use crate::serialize_enum_as_string;
 use crate::usize_to_u64;
+use atlas_engine_app_server_protocol::AtlasEngineErrorInfo;
 use atlas_engine_app_server_protocol::ClientRequest;
 use atlas_engine_app_server_protocol::ClientResponse;
-use atlas_engine_app_server_protocol::AtlasEngineErrorInfo;
 use atlas_engine_app_server_protocol::CollabAgentStatus;
 use atlas_engine_app_server_protocol::CollabAgentTool;
 use atlas_engine_app_server_protocol::CollabAgentToolCallStatus;
@@ -808,18 +808,19 @@ impl AnalyticsReducer {
                     },
                 );
                 base.cell_id = cell_id;
-                let event = TrackEventRequest::DynamicToolCall(AtlasEngineDynamicToolCallEventRequest {
-                    event_type: "atlas_engine_dynamic_tool_call_event",
-                    event_params: AtlasEngineDynamicToolCallEventParams {
-                        base,
-                        dynamic_tool_name: tool_name,
-                        success: Some(success),
-                        output_content_item_count: None,
-                        output_text_item_count: None,
-                        output_image_item_count: None,
-                        output_audio_item_count: None,
-                    },
-                });
+                let event =
+                    TrackEventRequest::DynamicToolCall(AtlasEngineDynamicToolCallEventRequest {
+                        event_type: "atlas_engine_dynamic_tool_call_event",
+                        event_params: AtlasEngineDynamicToolCallEventParams {
+                            base,
+                            dynamic_tool_name: tool_name,
+                            success: Some(success),
+                            output_content_item_count: None,
+                            output_text_item_count: None,
+                            output_image_item_count: None,
+                            output_audio_item_count: None,
+                        },
+                    });
                 let counts = &mut self.turns.entry(turn_id.clone()).or_default().tool_counts;
                 counts.total += 1;
                 counts.dynamic_tool_call += 1;
@@ -1211,10 +1212,12 @@ impl AnalyticsReducer {
 
     fn ingest_plugin_used(&mut self, input: PluginUsedInput, out: &mut Vec<TrackEventRequest>) {
         let PluginUsedInput { tracking, plugin } = input;
-        out.push(TrackEventRequest::PluginUsed(AtlasEnginePluginUsedEventRequest {
-            event_type: "atlas_engine_plugin_used",
-            event_params: atlas_engine_plugin_used_metadata(&tracking, plugin),
-        }));
+        out.push(TrackEventRequest::PluginUsed(
+            AtlasEnginePluginUsedEventRequest {
+                event_type: "atlas_engine_plugin_used",
+                event_params: atlas_engine_plugin_used_metadata(&tracking, plugin),
+            },
+        ));
     }
 
     fn ingest_plugin_install_requested(
@@ -1917,7 +1920,11 @@ impl AnalyticsReducer {
         ));
     }
 
-    fn ingest_compaction(&mut self, input: AtlasEngineCompactionEvent, out: &mut Vec<TrackEventRequest>) {
+    fn ingest_compaction(
+        &mut self,
+        input: AtlasEngineCompactionEvent,
+        out: &mut Vec<TrackEventRequest>,
+    ) {
         let Some((connection_state, thread_state, thread_metadata)) =
             self.thread_context_or_warn(AnalyticsDropSite::compaction(&input))
         else {
@@ -1945,18 +1952,20 @@ impl AnalyticsReducer {
         else {
             return;
         };
-        out.push(TrackEventRequest::Goal(Box::new(AtlasEngineGoalEventRequest {
-            event_type: "atlas_engine_goal_event",
-            event_params: atlas_engine_goal_event_params(
-                input,
-                thread_metadata.session_id.clone(),
-                thread_state.app_server_client(connection_state),
-                connection_state.runtime.clone(),
-                thread_metadata.thread_source.clone(),
-                thread_metadata.subagent_source.clone(),
-                thread_metadata.parent_thread_id.clone(),
-            ),
-        })));
+        out.push(TrackEventRequest::Goal(Box::new(
+            AtlasEngineGoalEventRequest {
+                event_type: "atlas_engine_goal_event",
+                event_params: atlas_engine_goal_event_params(
+                    input,
+                    thread_metadata.session_id.clone(),
+                    thread_state.app_server_client(connection_state),
+                    connection_state.runtime.clone(),
+                    thread_metadata.thread_source.clone(),
+                    thread_metadata.subagent_source.clone(),
+                    thread_metadata.parent_thread_id.clone(),
+                ),
+            },
+        )));
     }
 
     fn ingest_guardian_review_completed(
@@ -2047,24 +2056,26 @@ impl AnalyticsReducer {
             warn_missing_analytics_context(&drop_site, MissingAnalyticsContext::ThreadMetadata);
             return;
         };
-        out.push(TrackEventRequest::TurnSteer(AtlasEngineTurnSteerEventRequest {
-            event_type: "atlas_engine_turn_steer_event",
-            event_params: AtlasEngineTurnSteerEventParams {
-                thread_id: pending_request.thread_id,
-                session_id: thread_metadata.session_id.clone(),
-                expected_turn_id: Some(pending_request.expected_turn_id),
-                accepted_turn_id,
-                app_server_client: thread_state.app_server_client(connection_state),
-                runtime: connection_state.runtime.clone(),
-                thread_source: thread_metadata.thread_source.clone(),
-                subagent_source: thread_metadata.subagent_source.clone(),
-                parent_thread_id: thread_metadata.parent_thread_id.clone(),
-                num_input_images: pending_request.num_input_images,
-                result,
-                rejection_reason,
-                created_at: pending_request.created_at,
+        out.push(TrackEventRequest::TurnSteer(
+            AtlasEngineTurnSteerEventRequest {
+                event_type: "atlas_engine_turn_steer_event",
+                event_params: AtlasEngineTurnSteerEventParams {
+                    thread_id: pending_request.thread_id,
+                    session_id: thread_metadata.session_id.clone(),
+                    expected_turn_id: Some(pending_request.expected_turn_id),
+                    accepted_turn_id,
+                    app_server_client: thread_state.app_server_client(connection_state),
+                    runtime: connection_state.runtime.clone(),
+                    thread_source: thread_metadata.thread_source.clone(),
+                    subagent_source: thread_metadata.subagent_source.clone(),
+                    parent_thread_id: thread_metadata.parent_thread_id.clone(),
+                    num_input_images: pending_request.num_input_images,
+                    result,
+                    rejection_reason,
+                    created_at: pending_request.created_at,
+                },
             },
-        }));
+        ));
     }
 
     fn emit_review_event(
@@ -2090,29 +2101,34 @@ impl AnalyticsReducer {
         else {
             return;
         };
-        out.push(TrackEventRequest::ReviewEvent(AtlasEngineReviewEventRequest {
-            event_type: "atlas_engine_review_event",
-            event_params: AtlasEngineReviewEventParams {
-                thread_id: pending_review.thread_id,
-                turn_id: pending_review.turn_id,
-                item_id: pending_review.item_id,
-                review_id: pending_review.review_id,
-                app_server_client: thread_state.app_server_client(connection_state),
-                runtime: connection_state.runtime.clone(),
-                thread_source: thread_metadata.thread_source.clone(),
-                subagent_source: thread_metadata.subagent_source.clone(),
-                parent_thread_id: thread_metadata.parent_thread_id.clone(),
-                subject_kind: pending_review.subject_kind,
-                subject_name: pending_review.subject_name,
-                reviewer,
-                trigger: pending_review.trigger,
-                status,
-                resolution,
-                started_at_ms: pending_review.started_at_ms,
-                completed_at_ms,
-                duration_ms: observed_duration_ms(pending_review.started_at_ms, completed_at_ms),
+        out.push(TrackEventRequest::ReviewEvent(
+            AtlasEngineReviewEventRequest {
+                event_type: "atlas_engine_review_event",
+                event_params: AtlasEngineReviewEventParams {
+                    thread_id: pending_review.thread_id,
+                    turn_id: pending_review.turn_id,
+                    item_id: pending_review.item_id,
+                    review_id: pending_review.review_id,
+                    app_server_client: thread_state.app_server_client(connection_state),
+                    runtime: connection_state.runtime.clone(),
+                    thread_source: thread_metadata.thread_source.clone(),
+                    subagent_source: thread_metadata.subagent_source.clone(),
+                    parent_thread_id: thread_metadata.parent_thread_id.clone(),
+                    subject_kind: pending_review.subject_kind,
+                    subject_name: pending_review.subject_name,
+                    reviewer,
+                    trigger: pending_review.trigger,
+                    status,
+                    resolution,
+                    started_at_ms: pending_review.started_at_ms,
+                    completed_at_ms,
+                    duration_ms: observed_duration_ms(
+                        pending_review.started_at_ms,
+                        completed_at_ms,
+                    ),
+                },
             },
-        }));
+        ));
     }
 
     fn record_item_review_summary(
@@ -2462,17 +2478,19 @@ fn tool_item_event(input: ToolItemEventInput<'_>) -> Option<TrackEventRequest> {
                     review_summary,
                 },
             );
-            Some(TrackEventRequest::FileChange(AtlasEngineFileChangeEventRequest {
-                event_type: "atlas_engine_file_change_event",
-                event_params: AtlasEngineFileChangeEventParams {
-                    base,
-                    file_change_count: usize_to_u64(changes.len()),
-                    file_add_count: counts.add,
-                    file_update_count: counts.update,
-                    file_delete_count: counts.delete,
-                    file_move_count: counts.move_,
+            Some(TrackEventRequest::FileChange(
+                AtlasEngineFileChangeEventRequest {
+                    event_type: "atlas_engine_file_change_event",
+                    event_params: AtlasEngineFileChangeEventParams {
+                        base,
+                        file_change_count: usize_to_u64(changes.len()),
+                        file_add_count: counts.add,
+                        file_update_count: counts.update,
+                        file_delete_count: counts.delete,
+                        file_move_count: counts.move_,
+                    },
                 },
-            }))
+            ))
         }
         ThreadItem::McpToolCall {
             id,
@@ -2655,15 +2673,17 @@ fn tool_item_event(input: ToolItemEventInput<'_>) -> Option<TrackEventRequest> {
                     review_summary,
                 },
             );
-            Some(TrackEventRequest::WebSearch(AtlasEngineWebSearchEventRequest {
-                event_type: "atlas_engine_web_search_event",
-                event_params: AtlasEngineWebSearchEventParams {
-                    base,
-                    web_search_action: item.action.as_ref().map(web_search_action_kind),
-                    query_present: !item.query.trim().is_empty(),
-                    query_count: web_search_query_count(&item.query, item.action.as_ref()),
+            Some(TrackEventRequest::WebSearch(
+                AtlasEngineWebSearchEventRequest {
+                    event_type: "atlas_engine_web_search_event",
+                    event_params: AtlasEngineWebSearchEventParams {
+                        base,
+                        web_search_action: item.action.as_ref().map(web_search_action_kind),
+                        query_present: !item.query.trim().is_empty(),
+                        query_count: web_search_query_count(&item.query, item.action.as_ref()),
+                    },
                 },
-            }))
+            ))
         }
         ThreadItem::ImageGeneration(item) => {
             let (terminal_status, failure_kind) = image_generation_outcome(item.status.as_str());
@@ -3100,7 +3120,9 @@ struct FileChangeCounts {
     move_: u64,
 }
 
-fn file_change_counts(changes: &[atlas_engine_app_server_protocol::FileUpdateChange]) -> FileChangeCounts {
+fn file_change_counts(
+    changes: &[atlas_engine_app_server_protocol::FileUpdateChange],
+) -> FileChangeCounts {
     let mut counts = FileChangeCounts::default();
     for change in changes {
         match &change.kind {
@@ -3286,7 +3308,8 @@ fn atlas_engine_turn_event_params(
             .explicit_client_interrupt_requested_at_ms,
         turn_error: completed.turn_error,
         atlas_engine_error_kind: atlas_engine_error.map(|error| error.kind),
-        atlas_engine_error_http_status_code: atlas_engine_error.and_then(|error| error.http_status_code),
+        atlas_engine_error_http_status_code: atlas_engine_error
+            .and_then(|error| error.http_status_code),
         steer_count: Some(turn_state.steer_count),
         total_tool_call_count: Some(turn_state.tool_counts.total),
         shell_command_count: Some(turn_state.tool_counts.shell_command),
@@ -3373,7 +3396,9 @@ fn personality_mode(personality: Option<Personality>) -> Option<String> {
     }
 }
 
-fn analytics_turn_status(status: atlas_engine_app_server_protocol::TurnStatus) -> Option<TurnStatus> {
+fn analytics_turn_status(
+    status: atlas_engine_app_server_protocol::TurnStatus,
+) -> Option<TurnStatus> {
     match status {
         atlas_engine_app_server_protocol::TurnStatus::Completed => Some(TurnStatus::Completed),
         atlas_engine_app_server_protocol::TurnStatus::Failed => Some(TurnStatus::Failed),

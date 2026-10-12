@@ -20,7 +20,12 @@ impl UiOfferDecision {
     /// Included only for a connection that carries UI control, speaks HTTP
     /// MCP, while the user lets the agent act on the window and the server is
     /// running. Never decided by which agent it is.
-    pub fn decide(http_mcp: bool, ui_control: bool, navigation_on: bool, server_running: bool) -> Self {
+    pub fn decide(
+        http_mcp: bool,
+        ui_control: bool,
+        navigation_on: bool,
+        server_running: bool,
+    ) -> Self {
         if !http_mcp {
             Self::Omitted("agent did not advertise mcpCapabilities.http")
         } else if !ui_control {
@@ -36,7 +41,9 @@ impl UiOfferDecision {
 
     /// The one log line per session request.
     pub fn log_line(self, agent: &str, http_mcp: bool, ui_control: bool) -> String {
-        let head = format!("ui tool server offer: agent={agent} http_mcp={http_mcp} ui_control={ui_control}");
+        let head = format!(
+            "ui tool server offer: agent={agent} http_mcp={http_mcp} ui_control={ui_control}"
+        );
         match self {
             Self::Included => format!("{head} ui_server=included"),
             Self::Omitted(reason) => format!("{head} ui_server=omitted reason=\"{reason}\""),
@@ -56,7 +63,12 @@ impl UiOffer {
     }
 
     /// Decide for one request; the setting is read only when it can matter.
-    pub fn decide(&self, http_mcp: bool, ui_control: bool, server_running: bool) -> UiOfferDecision {
+    pub fn decide(
+        &self,
+        http_mcp: bool,
+        ui_control: bool,
+        server_running: bool,
+    ) -> UiOfferDecision {
         let navigation_on = http_mcp && ui_control && (self.gate)();
         UiOfferDecision::decide(http_mcp, ui_control, navigation_on, server_running)
     }

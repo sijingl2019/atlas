@@ -8,8 +8,8 @@
 // This is a port of the engine's own answer to that problem,
 // `vendor/atlas-engine/shell-command/src/parse_command.rs`, which is why the command
 // tables below match its lists rather than anyone's intuition. Ported to TS
-// rather than piped through from Rust for two reasons: the delta wire contract
-// is frozen (`docs/agents/delta-wire-contract.md`), and the classification has
+// rather than piped through from Rust for two reasons: the delta wire does not
+// carry a parsed command today (an additive field would be the way), and the classification has
 // to work for EVERY agent — an ACP agent's bash call carries a command string
 // and nothing else, so a native-agent-only `parsed_cmd` field would leave the
 // installed agents exactly as undifferentiated as they are now.

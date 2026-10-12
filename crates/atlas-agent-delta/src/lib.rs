@@ -1,11 +1,11 @@
-//! Projects the ported thread's events into the FROZEN `SessionDelta` wire.
+//! Projects the ported thread's events into the `SessionDelta` wire.
 //!
 //! This is the load-bearing seam of the ACP port. Everything Atlas remembers
 //! about what an agent did — the Timeline, the permanent checkpoint record,
 //! analytics, transcripts, memory ingest — is downstream of these deltas, and
-//! all of it pattern-matches concrete variants and fields. The shapes are
-//! frozen (`docs/agents/delta-wire-contract.md`); this crate's job is to
-//! reproduce them from a different source, not to redesign them.
+//! all of it pattern-matches concrete variants and fields. The wire is
+//! additive-only (`atlas-agent-wire/tests/contract.rs` is the authority); this
+//! crate's job is to reproduce its shapes from the thread, not to redesign them.
 //!
 //! # Where the two models differ, and how the gap is closed
 //!

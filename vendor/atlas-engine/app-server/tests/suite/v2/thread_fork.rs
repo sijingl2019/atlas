@@ -1387,7 +1387,11 @@ async fn assert_thread_fork_freezes_active_paginated_turn_as_interrupted(
         Some("mock_provider"),
         /*git_info*/ None,
     )?;
-    let source_path = rollout_path(atlas_agent_home.path(), "2025-01-05T12-00-00", &source_thread_id);
+    let source_path = rollout_path(
+        atlas_agent_home.path(),
+        "2025-01-05T12-00-00",
+        &source_thread_id,
+    );
     let source_id = ThreadId::from_string(source_thread_id.as_str())?;
     let user_response_item = |id: &str| {
         RolloutItem::ResponseItem(

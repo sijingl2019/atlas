@@ -24,7 +24,10 @@ impl McpServerContributor<Config> for HostedPluginRuntimeExtension {
         Box::pin(async move {
             let config = context.config();
             let name = ATLAS_APPS_MCP_SERVER_NAME.to_string();
-            if !config.features.enabled(atlas_engine_features::Feature::Apps) {
+            if !config
+                .features
+                .enabled(atlas_engine_features::Feature::Apps)
+            {
                 return vec![McpServerContribution::Remove { name }];
             }
 

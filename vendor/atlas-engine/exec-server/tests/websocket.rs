@@ -29,7 +29,10 @@ async fn exec_server_reports_malformed_websocket_json_and_keeps_running() -> any
     let JSONRPCMessage::Error(JSONRPCError { id, error }) = response else {
         panic!("expected malformed-message error response");
     };
-    assert_eq!(id, atlas_engine_exec_server_protocol::RequestId::Integer(-1));
+    assert_eq!(
+        id,
+        atlas_engine_exec_server_protocol::RequestId::Integer(-1)
+    );
     assert_eq!(error.code, -32600);
     assert!(
         error

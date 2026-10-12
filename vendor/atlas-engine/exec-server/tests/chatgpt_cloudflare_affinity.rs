@@ -388,9 +388,9 @@ where
     let message = server
         .wait_for_event(|event| match event {
             JSONRPCMessage::Response(JSONRPCResponse { id, .. })
-            | JSONRPCMessage::Error(atlas_engine_exec_server_protocol::JSONRPCError { id, .. }) => {
-                id == &request_id
-            }
+            | JSONRPCMessage::Error(atlas_engine_exec_server_protocol::JSONRPCError {
+                id, ..
+            }) => id == &request_id,
             _ => false,
         })
         .await?;

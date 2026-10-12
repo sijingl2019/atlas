@@ -44,7 +44,8 @@ export interface SessionUsageInput {
   cacheWrite: number | null;
   reasoning: number | null;
   /** What the AGENT said it cost. `null` when it said nothing. */
-  agentCost: number | null;
+  /** What the agent reported, in the currency it named. */
+  agentCost: { amount: number; currency: string } | null;
   compacting: boolean;
   pendingSavedTokens: number | null;
   rateLimits: RateLimits | null;
@@ -65,7 +66,7 @@ export interface MetricRow {
   value: number;
   /** Share of the largest row, for the inline bar. */
   frac: number;
-  /** USD, or `null` when this row is not priced on its own. */
+  /** In the view's `cost.currency`, or `null` when this row is not priced on its own. */
   cost: number | null;
 }
 
@@ -74,12 +75,13 @@ export type ContextStatus = "ok" | "warn" | "full";
 export type Headline =
   | { kind: "context"; pct: number; used: number; size: number; status: ContextStatus }
   | { kind: "tokens"; total: number }
-  | { kind: "cost"; usd: number; estimated: boolean };
+  | { kind: "cost"; amount: number; currency: string; estimated: boolean };
 
 export interface SessionUsageView {
   headline: Headline | null;
   tokens: MetricRow[] | null;
-  cost: { total: number; estimated: boolean; rows: MetricRow[] } | null;
+  /** `currency` is ISO 4217: the agent's own, or USD for a models.dev estimate. */
+  cost: { total: number; currency: string; estimated: boolean; rows: MetricRow[] } | null;
   quota: {
     primary: RateLimitWindow | null;
     secondary: RateLimitWindow | null;
@@ -154,8 +156,13 @@ export function deriveSessionUsage(i: SessionUsageInput): SessionUsageView {
   // ── Cost: what the agent said, else what the price map implies ────────
   let cost: SessionUsageView["cost"] = null;
   let rowCost = (_k: MetricKey, _v: number): number | null => null;
-  if (i.agentCost && i.agentCost > 0) {
-    cost = { total: i.agentCost, estimated: false, rows: [] };
+  if (i.agentCost && i.agentCost.amount > 0) {
+    cost = {
+      total: i.agentCost.amount,
+      currency: i.agentCost.currency,
+      estimated: false,
+      rows: [],
+    };
   } else if (i.price && splitTotal > 0) {
     const p = i.price;
     const rate: Record<MetricKey, number | null> = {
@@ -167,7 +174,8 @@ export function deriveSessionUsage(i: SessionUsageInput): SessionUsageView {
       reasoning: null,
     };
     rowCost = (k, v) => (rate[k] === null ? null : (v * (rate[k] as number)) / 1e6);
-    cost = { total: estimateCost(split, p), estimated: true, rows: [] };
+    // models.dev publishes its rates in USD.
+    cost = { total: estimateCost(split, p), currency: "USD", estimated: true, rows: [] };
   }
 
   // ── Token rows, only where there is something to show ─────────────────
@@ -207,7 +215,12 @@ export function deriveSessionUsage(i: SessionUsageInput): SessionUsageView {
   } else if (splitTotal > 0) {
     headline = { kind: "tokens", total: splitTotal };
   } else if (cost) {
-    headline = { kind: "cost", usd: cost.total, estimated: cost.estimated };
+    headline = {
+      kind: "cost",
+      amount: cost.total,
+      currency: cost.currency,
+      estimated: cost.estimated,
+    };
   }
 
   // ── Quota (native engine only) ────────────────────────────────────────

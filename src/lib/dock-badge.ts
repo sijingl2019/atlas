@@ -6,6 +6,7 @@
  * it the call rejects and this stays silent.
  */
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { onWindowFocusChange } from "./window-focus";
 
 let last: number | null = null;
 
@@ -16,4 +17,12 @@ export function setDockBadge(count: number): void {
   void getCurrentWindow()
     .setBadgeCount(next > 0 ? next : undefined)
     .catch(() => {});
+}
+
+/** Clear the badge whenever the window comes to the front. Returns a stop
+ *  function; `App.tsx` calls it once alongside `initWindowFocusTracking`. */
+export function initDockBadgeClearing(): () => void {
+  return onWindowFocusChange((focused) => {
+    if (focused) setDockBadge(0);
+  });
 }

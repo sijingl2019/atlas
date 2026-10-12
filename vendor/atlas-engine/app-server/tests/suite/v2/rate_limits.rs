@@ -483,7 +483,9 @@ async fn send_add_credits_nudge_email_posts_expected_body() -> Result<()> {
     write_chatgpt_base_url(atlas_agent_home.path(), &server_url)?;
 
     Mock::given(method("POST"))
-        .and(path("/api/atlas-agent/accounts/send_add_credits_nudge_email"))
+        .and(path(
+            "/api/atlas-agent/accounts/send_add_credits_nudge_email",
+        ))
         .and(header("authorization", "Bearer chatgpt-token"))
         .and(header("chatgpt-account-id", "account-123"))
         .and(wiremock::matchers::body_json(json!({
@@ -531,7 +533,9 @@ async fn send_add_credits_nudge_email_maps_cooldown() -> Result<()> {
     write_chatgpt_base_url(atlas_agent_home.path(), &server_url)?;
 
     Mock::given(method("POST"))
-        .and(path("/api/atlas-agent/accounts/send_add_credits_nudge_email"))
+        .and(path(
+            "/api/atlas-agent/accounts/send_add_credits_nudge_email",
+        ))
         .respond_with(ResponseTemplate::new(429))
         .mount(&server)
         .await;
@@ -574,7 +578,9 @@ async fn send_add_credits_nudge_email_surfaces_backend_failure() -> Result<()> {
     write_chatgpt_base_url(atlas_agent_home.path(), &server_url)?;
 
     Mock::given(method("POST"))
-        .and(path("/api/atlas-agent/accounts/send_add_credits_nudge_email"))
+        .and(path(
+            "/api/atlas-agent/accounts/send_add_credits_nudge_email",
+        ))
         .respond_with(ResponseTemplate::new(500).set_body_string("boom"))
         .mount(&server)
         .await;

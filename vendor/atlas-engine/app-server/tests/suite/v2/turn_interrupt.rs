@@ -254,7 +254,9 @@ async fn turn_interrupt_resolves_pending_command_approval_request() -> Result<()
                     text_elements: Vec::new(),
                 }],
                 cwd: Some(working_directory),
-                approval_policy: Some(atlas_engine_app_server_protocol::AskForApproval::UnlessTrusted),
+                approval_policy: Some(
+                    atlas_engine_app_server_protocol::AskForApproval::UnlessTrusted,
+                ),
                 ..Default::default()
             },
         })

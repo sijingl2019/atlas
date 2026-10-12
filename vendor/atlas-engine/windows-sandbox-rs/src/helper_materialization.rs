@@ -92,7 +92,10 @@ pub(crate) fn resolve_helper_for_launch(
     }
 }
 
-pub fn resolve_current_exe_for_launch(atlas_agent_home: &Path, fallback_executable: &str) -> PathBuf {
+pub fn resolve_current_exe_for_launch(
+    atlas_agent_home: &Path,
+    fallback_executable: &str,
+) -> PathBuf {
     let source = match std::env::current_exe() {
         Ok(path) => path,
         Err(_) => return PathBuf::from(fallback_executable),
@@ -474,9 +477,11 @@ mod tests {
         fs::write(&exe, b"atlas-agent").expect("write exe");
         fs::write(&helper, b"runner").expect("write helper");
 
-        let resolved =
-            bundled_executable_path_for_exe(&exe, /*file_name*/ "atlas-engine-command-runner.exe")
-                .expect("helper path");
+        let resolved = bundled_executable_path_for_exe(
+            &exe,
+            /*file_name*/ "atlas-engine-command-runner.exe",
+        )
+        .expect("helper path");
 
         assert_eq!(resolved, helper);
     }
@@ -494,9 +499,11 @@ mod tests {
         fs::write(&exe, b"atlas-agent").expect("write exe");
         fs::write(&helper, b"runner").expect("write helper");
 
-        let resolved =
-            bundled_executable_path_for_exe(&exe, /*file_name*/ "atlas-engine-command-runner.exe")
-                .expect("helper path");
+        let resolved = bundled_executable_path_for_exe(
+            &exe,
+            /*file_name*/ "atlas-engine-command-runner.exe",
+        )
+        .expect("helper path");
 
         assert_eq!(resolved, helper);
     }
@@ -517,9 +524,11 @@ mod tests {
         fs::write(&package_helper, b"package runner").expect("write package helper");
         fs::write(&bin_helper, b"bin runner").expect("write bin helper");
 
-        let resolved =
-            bundled_executable_path_for_exe(&exe, /*file_name*/ "atlas-engine-command-runner.exe")
-                .expect("helper path");
+        let resolved = bundled_executable_path_for_exe(
+            &exe,
+            /*file_name*/ "atlas-engine-command-runner.exe",
+        )
+        .expect("helper path");
 
         assert_eq!(resolved, package_helper);
     }
@@ -537,9 +546,11 @@ mod tests {
         fs::write(&sibling_helper, b"sibling runner").expect("write sibling helper");
         fs::write(&resource_helper, b"resource runner").expect("write resource helper");
 
-        let resolved =
-            bundled_executable_path_for_exe(&exe, /*file_name*/ "atlas-engine-command-runner.exe")
-                .expect("helper path");
+        let resolved = bundled_executable_path_for_exe(
+            &exe,
+            /*file_name*/ "atlas-engine-command-runner.exe",
+        )
+        .expect("helper path");
 
         assert_eq!(resolved, sibling_helper);
     }

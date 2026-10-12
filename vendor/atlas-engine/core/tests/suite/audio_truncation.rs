@@ -1,7 +1,5 @@
 // Modified by Atlas from upstream OpenAI Codex (Apache-2.0). See CONTEXT.md.
 use anyhow::Result;
-use base64::Engine;
-use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use atlas_engine_core::StartThreadOptions;
 use atlas_engine_core::TurnInputRequest;
 use atlas_engine_protocol::dynamic_tools::DynamicToolCallOutputContentItem;
@@ -18,6 +16,8 @@ use atlas_engine_protocol::openai_models::TruncationPolicyConfig;
 use atlas_engine_protocol::protocol::EventMsg;
 use atlas_engine_protocol::protocol::Op;
 use atlas_engine_protocol::user_input::UserInput;
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use core_test_support::responses;
 use core_test_support::responses::sse;
 use core_test_support::skip_if_no_network;
@@ -62,7 +62,12 @@ async fn dynamic_tool_audio_exceeding_the_output_budget_is_omitted() -> Result<(
         vec![
             sse(vec![
                 responses::ev_response_created("resp-1"),
-                responses::ev_function_call_with_namespace(call_id, "atlas_engine_app", tool_name, "{}"),
+                responses::ev_function_call_with_namespace(
+                    call_id,
+                    "atlas_engine_app",
+                    tool_name,
+                    "{}",
+                ),
                 responses::ev_completed("resp-1"),
             ]),
             sse(vec![

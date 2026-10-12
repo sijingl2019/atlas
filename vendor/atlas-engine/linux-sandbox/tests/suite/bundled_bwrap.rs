@@ -28,8 +28,11 @@ fn bazel_build_rejects_tampered_bundled_bwrap() {
     std::fs::create_dir(&resources).expect("package resource directory should be created");
 
     let sandbox_binary = package.path().join("atlas-engine-linux-sandbox");
-    std::fs::copy(env!("CARGO_BIN_EXE_atlas-engine-linux-sandbox"), &sandbox_binary)
-        .expect("sandbox binary should be copied into the package");
+    std::fs::copy(
+        env!("CARGO_BIN_EXE_atlas-engine-linux-sandbox"),
+        &sandbox_binary,
+    )
+    .expect("sandbox binary should be copied into the package");
 
     let bundled_bwrap = resources.join("bwrap");
     std::fs::copy(&bwrap_binary, &bundled_bwrap)

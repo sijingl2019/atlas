@@ -109,7 +109,8 @@ fn expected_mcp_turn_metadata(turn_context: &TurnContext) -> serde_json::Value {
 
 fn write_sample_plugin_mcp(atlas_agent_home: &std::path::Path) {
     let plugin_root = atlas_agent_home.join("plugins/cache/test/sample/local");
-    std::fs::create_dir_all(plugin_root.join(".atlas-agent-plugin")).expect("create plugin manifest dir");
+    std::fs::create_dir_all(plugin_root.join(".atlas-agent-plugin"))
+        .expect("create plugin manifest dir");
     std::fs::write(
         plugin_root.join(".atlas-agent-plugin/plugin.json"),
         r#"{
@@ -559,7 +560,8 @@ async fn mcp_result_telemetry_truncates_long_target_id() {
     .await;
 
     assert!(
-        logs.contains(&format!("atlas_agent.mcp.target.id=\"{truncated}\"")) && !logs.contains("tail"),
+        logs.contains(&format!("atlas_agent.mcp.target.id=\"{truncated}\""))
+            && !logs.contains("tail"),
         "long MCP result telemetry target_id should be truncated\nlogs:\n{logs}"
     );
 }
@@ -2214,7 +2216,8 @@ enabled = true
 
     maybe_persist_mcp_tool_approval(&session, &turn_context, key.clone()).await;
 
-    let contents = std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
+    let contents =
+        std::fs::read_to_string(atlas_agent_home.join(CONFIG_TOML_FILE)).expect("read config");
     let parsed: ConfigToml = toml::from_str(&contents).expect("parse config");
     let tool = parsed
         .plugins

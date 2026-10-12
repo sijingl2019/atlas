@@ -81,7 +81,10 @@ async fn exec_server_http_request_buffers_response_body() -> anyhow::Result<()> 
     assert_eq!(
         (
             captured.request_line.as_str(),
-            captured.headers.get("x-atlas-engine-test").map(String::as_str),
+            captured
+                .headers
+                .get("x-atlas-engine-test")
+                .map(String::as_str),
             captured.body.as_slice(),
         ),
         (

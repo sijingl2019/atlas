@@ -9,6 +9,7 @@ import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { createSelectors } from "@/lib/create-selectors";
+import { fmtCost } from "@/features/monitor/lib/usage-format";
 
 export interface ModelPrice {
   input: number;
@@ -144,6 +145,6 @@ export function costOf(spend: TokenSpend, price: ModelPrice | null): number | nu
 /** Compact display: `$3 / $15` (input / output per 1M tokens). */
 export function formatPrice(p: ModelPrice | null, loading: boolean): string {
   if (loading || !p) return "---";
-  const fmt = (n: number) => (Number.isInteger(n) ? `$${n}` : `$${n.toFixed(2)}`);
+  const fmt = (n: number) => fmtCost(n, "USD", Number.isInteger(n) ? 0 : 2);
   return `${fmt(p.input)} / ${fmt(p.output)}`;
 }

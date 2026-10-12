@@ -1,4 +1,5 @@
 // Modified by Atlas from upstream OpenAI Codex (Apache-2.0). See CONTEXT.md.
+use atlas_engine_http_client::HttpClientFactory;
 use axum::Router;
 use axum::body::Body;
 use axum::extract::ConnectInfo;
@@ -13,7 +14,6 @@ use axum::response::IntoResponse;
 use axum::response::Response;
 use axum::routing::any;
 use axum::routing::get;
-use atlas_engine_http_client::HttpClientFactory;
 use std::io::Write as _;
 use std::net::SocketAddr;
 use tokio::io;

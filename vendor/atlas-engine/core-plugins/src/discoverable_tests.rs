@@ -610,7 +610,9 @@ async fn does_not_reload_marketplace_per_plugin() {
     let too_long_prompt = "x".repeat(129);
     for plugin_name in ["gmail", "openai-developers"] {
         write_file(
-            &curated_root.join(format!("plugins/{plugin_name}/.atlas-agent-plugin/plugin.json")),
+            &curated_root.join(format!(
+                "plugins/{plugin_name}/.atlas-agent-plugin/plugin.json"
+            )),
             &format!(
                 r#"{{
   "name": "{plugin_name}",
@@ -656,7 +658,11 @@ async fn does_not_reload_marketplace_per_plugin() {
         .expect("utf8 logs")
         .replace('\\', "/");
     assert_eq!(logs.matches("ignoring interface.defaultPrompt").count(), 8);
-    assert_eq!(logs.matches("gmail/.atlas-agent-plugin/plugin.json").count(), 4);
+    assert_eq!(
+        logs.matches("gmail/.atlas-agent-plugin/plugin.json")
+            .count(),
+        4
+    );
     assert_eq!(
         logs.matches("openai-developers/.atlas-agent-plugin/plugin.json")
             .count(),
@@ -782,7 +788,12 @@ source = "/tmp/{sales_marketplace_name}"
 "#
         ),
     );
-    install_marketplace_plugin(atlas_agent_home.path(), sales_marketplace_root.as_path(), "sales").await;
+    install_marketplace_plugin(
+        atlas_agent_home.path(),
+        sales_marketplace_root.as_path(),
+        "sales",
+    )
+    .await;
 
     let plugins = load_plugins_config(atlas_agent_home.path(), atlas_agent_home.path()).await;
     let plugins_manager = test_plugins_manager(atlas_agent_home.path().to_path_buf());
@@ -1030,7 +1041,11 @@ fn string_set(values: &[&str]) -> HashSet<String> {
     values.iter().map(ToString::to_string).collect()
 }
 
-async fn install_marketplace_plugin(atlas_agent_home: &Path, marketplace_root: &Path, plugin_name: &str) {
+async fn install_marketplace_plugin(
+    atlas_agent_home: &Path,
+    marketplace_root: &Path,
+    plugin_name: &str,
+) {
     write_curated_plugin_sha_with(atlas_agent_home, TEST_CURATED_PLUGIN_SHA);
     let config = load_plugins_config(atlas_agent_home, marketplace_root).await;
     test_plugins_manager(atlas_agent_home.to_path_buf())

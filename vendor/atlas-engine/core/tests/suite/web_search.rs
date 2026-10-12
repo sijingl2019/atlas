@@ -41,12 +41,14 @@ async fn web_search_mode_cached_sets_external_web_access_false() {
     ]);
     let resp_mock = responses::mount_sse_once(&server, sse).await;
 
-    let mut builder = test_atlas_engine().with_model("gpt-5.4").with_config(|config| {
-        config
-            .web_search_mode
-            .set(WebSearchMode::Cached)
-            .expect("test web_search_mode should satisfy constraints");
-    });
+    let mut builder = test_atlas_engine()
+        .with_model("gpt-5.4")
+        .with_config(|config| {
+            config
+                .web_search_mode
+                .set(WebSearchMode::Cached)
+                .expect("test web_search_mode should satisfy constraints");
+        });
     let test = builder
         .build(&server)
         .await
@@ -286,16 +288,18 @@ async fn web_search_mode_takes_precedence_over_legacy_flags() {
     ]);
     let resp_mock = responses::mount_sse_once(&server, sse).await;
 
-    let mut builder = test_atlas_engine().with_model("gpt-5.4").with_config(|config| {
-        config
-            .features
-            .enable(Feature::WebSearchRequest)
-            .expect("test config should allow feature update");
-        config
-            .web_search_mode
-            .set(WebSearchMode::Cached)
-            .expect("test web_search_mode should satisfy constraints");
-    });
+    let mut builder = test_atlas_engine()
+        .with_model("gpt-5.4")
+        .with_config(|config| {
+            config
+                .features
+                .enable(Feature::WebSearchRequest)
+                .expect("test config should allow feature update");
+            config
+                .web_search_mode
+                .set(WebSearchMode::Cached)
+                .expect("test web_search_mode should satisfy constraints");
+        });
     let test = builder
         .build(&server)
         .await
@@ -328,20 +332,22 @@ async fn web_search_mode_defaults_to_cached_when_features_disabled() {
     ]);
     let resp_mock = responses::mount_sse_once(&server, sse).await;
 
-    let mut builder = test_atlas_engine().with_model("gpt-5.4").with_config(|config| {
-        config
-            .web_search_mode
-            .set(WebSearchMode::Cached)
-            .expect("test web_search_mode should satisfy constraints");
-        config
-            .features
-            .disable(Feature::WebSearchCached)
-            .expect("test config should allow feature update");
-        config
-            .features
-            .disable(Feature::WebSearchRequest)
-            .expect("test config should allow feature update");
-    });
+    let mut builder = test_atlas_engine()
+        .with_model("gpt-5.4")
+        .with_config(|config| {
+            config
+                .web_search_mode
+                .set(WebSearchMode::Cached)
+                .expect("test web_search_mode should satisfy constraints");
+            config
+                .features
+                .disable(Feature::WebSearchCached)
+                .expect("test config should allow feature update");
+            config
+                .features
+                .disable(Feature::WebSearchRequest)
+                .expect("test config should allow feature update");
+        });
     let test = builder
         .build(&server)
         .await
@@ -383,20 +389,22 @@ async fn web_search_mode_updates_between_turns_with_permission_profile() {
     )
     .await;
 
-    let mut builder = test_atlas_engine().with_model("gpt-5.4").with_config(|config| {
-        config
-            .web_search_mode
-            .set(WebSearchMode::Cached)
-            .expect("test web_search_mode should satisfy constraints");
-        config
-            .features
-            .disable(Feature::WebSearchCached)
-            .expect("test config should allow feature update");
-        config
-            .features
-            .disable(Feature::WebSearchRequest)
-            .expect("test config should allow feature update");
-    });
+    let mut builder = test_atlas_engine()
+        .with_model("gpt-5.4")
+        .with_config(|config| {
+            config
+                .web_search_mode
+                .set(WebSearchMode::Cached)
+                .expect("test web_search_mode should satisfy constraints");
+            config
+                .features
+                .disable(Feature::WebSearchCached)
+                .expect("test config should allow feature update");
+            config
+                .features
+                .disable(Feature::WebSearchRequest)
+                .expect("test config should allow feature update");
+        });
     let test = builder
         .build(&server)
         .await

@@ -102,7 +102,8 @@ Allow appears once they are ready; you can decline now.";
 
 /// Why an ask ended without a card to approve: the host could not say whom
 /// the call reaches, so nothing can be approved and nothing is sent.
-pub const NOT_PREPARED: &str = "Atlas could not prepare the approval for this call (it could not look up \
+pub const NOT_PREPARED: &str =
+    "Atlas could not prepare the approval for this call (it could not look up \
 who it reaches), so it was not sent. Nothing was posted; try again, or ask the user.";
 
 /// The engine's marker for its own approval of an MCP tool call
@@ -116,8 +117,16 @@ const TOOL_PARAMS_KEY: &str = "tool_params";
 /// Whether `request` is the engine asking to approve a call to `server`'s tool,
 /// rather than a tool server asking the user something. `offered` says whether
 /// `server` is one the host offered this thread — which never elicits.
-pub fn is_engine_tool_approval(request: &v2::McpServerElicitationRequestParams, offered: bool) -> bool {
-    let v2::McpServerElicitationRequest::Form { meta, requested_schema, .. } = &request.request else {
+pub fn is_engine_tool_approval(
+    request: &v2::McpServerElicitationRequestParams,
+    offered: bool,
+) -> bool {
+    let v2::McpServerElicitationRequest::Form {
+        meta,
+        requested_schema,
+        ..
+    } = &request.request
+    else {
         return false;
     };
     let approval = meta
@@ -149,7 +158,11 @@ pub fn arguments(request: &v2::McpServerElicitationRequestParams) -> JsonValue {
 /// `server`'s tools, still running, with exactly these arguments. Its row id
 /// and the tool's bare name. The native seam titles an MCP call
 /// `<server>.<tool>` (`engine::sink`).
-pub fn waiting_call(thread: &AcpThread, server: &str, arguments: &JsonValue) -> Option<(acp::ToolCallId, String)> {
+pub fn waiting_call(
+    thread: &AcpThread,
+    server: &str,
+    arguments: &JsonValue,
+) -> Option<(acp::ToolCallId, String)> {
     let prefix = format!("{server}.");
     thread.entries().iter().rev().find_map(|entry| {
         let AgentThreadEntry::ToolCall(call) = entry else {
@@ -167,19 +180,31 @@ pub fn waiting_call(thread: &AcpThread, server: &str, arguments: &JsonValue) -> 
 /// as `<server>.<tool>` so the row still reads as the call while the title
 /// names the act. With no description the row keeps its own title and the
 /// card shows the call's arguments.
-pub fn card(id: acp::ToolCallId, server: &str, tool: &str, description: Option<CallDescription>) -> acp::ToolCallUpdate {
+pub fn card(
+    id: acp::ToolCallId,
+    server: &str,
+    tool: &str,
+    description: Option<CallDescription>,
+) -> acp::ToolCallUpdate {
     let mut fields = acp::ToolCallUpdateFields::default();
     if let Some(description) = description {
         fields.title = Some(description.title);
         fields.content = Some(
             [description.recipient, description.body]
                 .into_iter()
-                .map(|text| acp::ToolCallContent::Content(acp::Content::new(acp::ContentBlock::Text(acp::TextContent::new(text)))))
+                .map(|text| {
+                    acp::ToolCallContent::Content(acp::Content::new(acp::ContentBlock::Text(
+                        acp::TextContent::new(text),
+                    )))
+                })
                 .collect(),
         );
     }
     let mut meta = acp::Meta::new();
-    meta.insert(atlas_acp_thread::TOOL_NAME_META_KEY.to_string(), json!(format!("{server}.{tool}")));
+    meta.insert(
+        atlas_acp_thread::TOOL_NAME_META_KEY.to_string(),
+        json!(format!("{server}.{tool}")),
+    );
     acp::ToolCallUpdate::new(id, fields).meta(meta)
 }
 
@@ -191,7 +216,10 @@ pub fn preparing_card(id: acp::ToolCallId, server: &str, tool: &str) -> acp::Too
         .title(PREPARING_TITLE)
         .content(vec![text_content(PREPARING_NOTE)]);
     let mut meta = acp::Meta::new();
-    meta.insert(atlas_acp_thread::TOOL_NAME_META_KEY.to_string(), json!(format!("{server}.{tool}")));
+    meta.insert(
+        atlas_acp_thread::TOOL_NAME_META_KEY.to_string(),
+        json!(format!("{server}.{tool}")),
+    );
     acp::ToolCallUpdate::new(id, fields).meta(meta)
 }
 
@@ -206,7 +234,9 @@ pub fn not_prepared(id: acp::ToolCallId) -> acp::ToolCallUpdate {
 }
 
 fn text_content(text: &str) -> acp::ToolCallContent {
-    acp::ToolCallContent::Content(acp::Content::new(acp::ContentBlock::Text(acp::TextContent::new(text))))
+    acp::ToolCallContent::Content(acp::Content::new(acp::ContentBlock::Text(
+        acp::TextContent::new(text),
+    )))
 }
 
 /// The described card's options: Allow, Allow for this session, Decline —
@@ -222,7 +252,9 @@ pub fn preparing_options() -> PermissionOptions {
 
 fn keep(wanted: impl Fn(acp::PermissionOptionKind) -> bool) -> PermissionOptions {
     match approvals::options() {
-        PermissionOptions::Flat(all) => PermissionOptions::Flat(all.into_iter().filter(|o| wanted(o.kind)).collect()),
+        PermissionOptions::Flat(all) => {
+            PermissionOptions::Flat(all.into_iter().filter(|o| wanted(o.kind)).collect())
+        }
         other => other,
     }
 }
@@ -274,19 +306,28 @@ mod tests {
     fn the_engines_own_approval_for_an_offered_server_is_recognised() {
         let request = approval(engine_meta(), json!({}));
         assert!(is_engine_tool_approval(&request, true));
-        assert_eq!(arguments(&request), json!({ "comment": "k1", "body": "Done." }));
+        assert_eq!(
+            arguments(&request),
+            json!({ "comment": "k1", "body": "Done." })
+        );
     }
 
     #[test]
     fn the_same_form_naming_a_server_atlas_did_not_offer_is_not() {
         // A third-party server can forge the marker; it cannot be an offered
         // server of Atlas's, which never elicits.
-        assert!(!is_engine_tool_approval(&approval(engine_meta(), json!({})), false));
+        assert!(!is_engine_tool_approval(
+            &approval(engine_meta(), json!({})),
+            false
+        ));
     }
 
     #[test]
     fn a_form_without_the_marker_or_that_asks_for_input_is_a_tool_server_talking() {
-        assert!(!is_engine_tool_approval(&approval(json!({}), json!({})), true));
+        assert!(!is_engine_tool_approval(
+            &approval(json!({}), json!({})),
+            true
+        ));
         assert!(!is_engine_tool_approval(
             &approval(engine_meta(), json!({ "channel": { "type": "string" } })),
             true
@@ -306,10 +347,22 @@ mod tests {
 
     #[test]
     fn each_answer_is_the_engines_own_elicitation_response() {
-        assert_eq!(response(Decision::Accept), json!({ "action": "accept", "content": {}, "_meta": null }));
-        assert_eq!(response(Decision::AcceptForSession), response(Decision::Accept));
-        assert_eq!(response(Decision::Decline), json!({ "action": "decline", "content": null, "_meta": null }));
-        assert_eq!(response(Decision::Cancel), json!({ "action": "cancel", "content": null, "_meta": null }));
+        assert_eq!(
+            response(Decision::Accept),
+            json!({ "action": "accept", "content": {}, "_meta": null })
+        );
+        assert_eq!(
+            response(Decision::AcceptForSession),
+            response(Decision::Accept)
+        );
+        assert_eq!(
+            response(Decision::Decline),
+            json!({ "action": "decline", "content": null, "_meta": null })
+        );
+        assert_eq!(
+            response(Decision::Cancel),
+            json!({ "action": "cancel", "content": null, "_meta": null })
+        );
     }
 
     #[test]
@@ -327,8 +380,15 @@ mod tests {
         );
         let wire = serde_json::to_value(&update).expect("serialises");
         assert_eq!(wire["title"], "Reply on Sam Lee's comment");
-        assert_eq!(wire["content"][0]["content"]["text"], "Sam Lee, on their comment");
-        assert_eq!(wire["content"][1]["content"]["text"], body.as_str(), "never shortened");
+        assert_eq!(
+            wire["content"][0]["content"]["text"],
+            "Sam Lee, on their comment"
+        );
+        assert_eq!(
+            wire["content"][1]["content"]["text"],
+            body.as_str(),
+            "never shortened"
+        );
         assert_eq!(wire["_meta"]["tool_name"], "atlas_org.org_comment_reply");
     }
 
@@ -348,18 +408,34 @@ mod tests {
 
     #[test]
     fn the_preparing_card_offers_only_decline_and_says_it_is_preparing() {
-        assert_eq!(kinds(preparing_options()), [acp::PermissionOptionKind::RejectOnce]);
-        let wire = serde_json::to_value(preparing_card(acp::ToolCallId::new("call-1"), "atlas_org", "org_send"))
-            .expect("serialises");
+        assert_eq!(
+            kinds(preparing_options()),
+            [acp::PermissionOptionKind::RejectOnce]
+        );
+        let wire = serde_json::to_value(preparing_card(
+            acp::ToolCallId::new("call-1"),
+            "atlas_org",
+            "org_send",
+        ))
+        .expect("serialises");
         assert_eq!(wire["title"], PREPARING_TITLE);
         assert_eq!(wire["content"][0]["content"]["text"], PREPARING_NOTE);
-        assert_eq!(wire["content"].as_array().map(Vec::len), Some(1), "no recipient, no body: nothing to approve");
+        assert_eq!(
+            wire["content"].as_array().map(Vec::len),
+            Some(1),
+            "no recipient, no body: nothing to approve"
+        );
         assert_eq!(wire["_meta"]["tool_name"], "atlas_org.org_send");
     }
 
     #[test]
     fn with_no_description_the_row_keeps_its_own_title() {
-        let update = card(acp::ToolCallId::new("call-1"), "atlas_org", "org_comment_reply", None);
+        let update = card(
+            acp::ToolCallId::new("call-1"),
+            "atlas_org",
+            "org_comment_reply",
+            None,
+        );
         assert!(update.fields.title.is_none());
         assert!(update.fields.content.is_none());
     }

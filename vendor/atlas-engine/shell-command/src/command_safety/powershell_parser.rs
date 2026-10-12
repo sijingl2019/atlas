@@ -344,7 +344,9 @@ mod tests {
         let mut parser = PowershellParserProcess::spawn(powershell).unwrap();
 
         let parsed = parser
-            .parse("begin { Set-Content atlas_engine_poc.txt pwned } end { Get-Content Cargo.toml }")
+            .parse(
+                "begin { Set-Content atlas_engine_poc.txt pwned } end { Get-Content Cargo.toml }",
+            )
             .unwrap();
         assert_eq!(parsed, PowershellParseOutcome::Unsupported);
     }

@@ -32,8 +32,11 @@ import { AccountAvatar } from "@/features/auth/components/account-avatar";
 import { useOrgDirectory } from "@/features/organisations/lib/use-org-directory";
 
 import { authorOf, type AuthorDirectory } from "../lib/author-directory";
+import { useOnlineIds } from "../lib/team-presence";
+import { boardKey } from "../lib/board-key";
 import { groupSessions, sessionState, sessionTitle, type GroupPeriod } from "../lib/board";
 import type { BoardSession } from "../types";
+import { OnlineDot } from "./online-teammates";
 import { SidebarSkeleton } from "./timeline-skeleton";
 
 interface Props {
@@ -42,8 +45,9 @@ interface Props {
   loading: boolean;
   /** True when a search or facet is narrowing the board — changes the empty copy. */
   filtered: boolean;
-  /** The Session open on the right, highlighted here. */
-  openId: string | null;
+  /** The row open on the right, highlighted here — a {@link boardKey}, since
+   *  one Session id can be on the board once per Project. */
+  openKey: string | null;
   /** How coarsely rows are grouped — the header's Day / Week / Month. */
   period: GroupPeriod;
   /** The project is passed back because each one has its own store. */
@@ -155,10 +159,13 @@ function dotY(row: Row): number {
  *  and single-valued: there is one Timeline. */
 let scrollTopCache = 0;
 
-export function TimelineSidebar({ sessions, loading, filtered, openId, period, onOpen }: Props) {
+export function TimelineSidebar({ sessions, loading, filtered, openKey, period, onOpen }: Props) {
   // One subscription for the whole nav. Five hundred rows each resolving their
   // own author would re-render the list every time the roster revalidated.
   const directory = useOrgDirectory();
+  // Same reason: one subscription, and each row is handed a boolean so a
+  // teammate coming online re-renders only their own rows.
+  const online = useOnlineIds();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const days = useMemo(() => groupSessions(sessions, period), [sessions, period]);
   const parentRef = useRef<HTMLDivElement | null>(null);
@@ -178,7 +185,12 @@ export function TimelineSidebar({ sessions, loading, filtered, openId, period, o
       });
       for (const item of clusterRows(day.sessions)) {
         if (item.kind === "single") {
-          out.push({ kind: "session", key: item.session.id, lane: 1, session: item.session });
+          out.push({
+            kind: "session",
+            key: boardKey(item.session),
+            lane: 1,
+            session: item.session,
+          });
           continue;
         }
         const expandKey = `${day.label}:${item.title}`;
@@ -192,7 +204,7 @@ export function TimelineSidebar({ sessions, loading, filtered, openId, period, o
         });
         if (expanded.has(expandKey)) {
           for (const session of item.sessions) {
-            out.push({ kind: "session", key: session.id, lane: 2, session });
+            out.push({ kind: "session", key: boardKey(session), lane: 2, session });
           }
         }
       }
@@ -267,12 +279,12 @@ export function TimelineSidebar({ sessions, loading, filtered, openId, period, o
   // make it impossible to browse while an agent is working.
   const revealed = useRef<string | null>(null);
   useEffect(() => {
-    if (!openId || revealed.current === openId) return;
-    const index = rows.findIndex((r) => r.kind === "session" && r.session.id === openId);
+    if (!openKey || revealed.current === openKey) return;
+    const index = rows.findIndex((r) => r.kind === "session" && r.key === openKey);
     if (index < 0) return;
-    revealed.current = openId;
+    revealed.current = openKey;
     virtualizer.scrollToIndex(index, { align: "center" });
-  }, [openId, rows, virtualizer]);
+  }, [openKey, rows, virtualizer]);
 
   // Structure rather than a sentence: the read is usually a few milliseconds,
   // and a line of prose that appears and vanishes reads as a flash of error.
@@ -322,15 +334,16 @@ export function TimelineSidebar({ sessions, loading, filtered, openId, period, o
                   <ClusterRow
                     row={row}
                     expanded={expanded.has(row.expandKey)}
-                    holdsOpen={!!openId && row.sessions.some((s) => s.id === openId)}
+                    holdsOpen={!!openKey && row.sessions.some((s) => boardKey(s) === openKey)}
                     onToggle={toggle}
                   />
                 ) : (
                   <SessionRow
                     session={row.session}
                     lane={row.lane}
-                    selected={row.session.id === openId}
+                    selected={row.key === openKey}
                     directory={directory}
+                    authorOnline={row.session.authorId !== null && online.has(row.session.authorId)}
                     onOpen={onOpen}
                   />
                 )}
@@ -534,6 +547,7 @@ const SessionRow = memo(function SessionRow({
   lane,
   selected,
   directory,
+  authorOnline,
   onOpen,
 }: {
   session: BoardSession;
@@ -542,6 +556,8 @@ const SessionRow = memo(function SessionRow({
   selected: boolean;
   /** Stable across renders, so `memo` on this row still pays for itself. */
   directory: AuthorDirectory;
+  /** The author is online right now. */
+  authorOnline: boolean;
   onOpen: (id: string, projectPath: string, remoteProjectId: string | null) => void;
 }) {
   const state = sessionState(session);
@@ -587,7 +603,7 @@ const SessionRow = memo(function SessionRow({
       >
         {title ?? "Untitled session"}
       </FadingTitle>
-      <SessionMeta session={session} directory={directory} />
+      <SessionMeta session={session} directory={directory} authorOnline={authorOnline} />
     </button>
   );
 });
@@ -603,9 +619,11 @@ const SessionRow = memo(function SessionRow({
 const SessionMeta = memo(function SessionMeta({
   session,
   directory,
+  authorOnline,
 }: {
   session: BoardSession;
   directory: AuthorDirectory;
+  authorOnline: boolean;
 }) {
   const Icon = session.synced ? Check : Laptop;
   const author = authorOf(session.authorId, directory);
@@ -619,7 +637,7 @@ const SessionMeta = memo(function SessionMeta({
             ? "text-[var(--atlas-status-success-foreground)]"
             : "text-[var(--atlas-text-disabled)]",
         )}
-        aria-label={session.synced ? "Shared with your Organisation" : "This machine only"}
+        aria-label={session.synced ? "Shared with your Organization" : "This machine only"}
       />
       {/* The Project first, because it is what a reader scanning the day is
        *  grouping by. It is the part that gives way when the pane is narrow. */}
@@ -630,7 +648,14 @@ const SessionMeta = memo(function SessionMeta({
        *  the way down the list. Never truncated and never dropped — a half-name
        *  reads as the wrong person, which is worse than no byline at all. */}
       <span className="ml-auto flex shrink-0 items-center gap-1 pl-1">
-        {author.avatar && <AccountAvatar user={author.avatar} size={10} />}
+        {author.avatar && (
+          // The dot only for a teammate: your own face is always "here", and
+          // a green dot on every one of your own rows would be noise.
+          <span className="relative inline-flex shrink-0">
+            <AccountAvatar user={author.avatar} size={10} />
+            {authorOnline && !author.isSelf && <OnlineDot px={4} />}
+          </span>
+        )}
         <span className={cn(author.isSelf && "text-[var(--atlas-text-disabled)]")}>
           {author.label}
         </span>

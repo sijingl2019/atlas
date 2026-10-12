@@ -244,7 +244,10 @@ fn collab_is_legacy_alias_for_multi_agent() {
 #[test]
 fn atlas_engine_hooks_is_legacy_alias_for_hooks() {
     assert_eq!(feature_for_key("hooks"), Some(Feature::AtlasEngineHooks));
-    assert_eq!(feature_for_key("atlas_engine_hooks"), Some(Feature::AtlasEngineHooks));
+    assert_eq!(
+        feature_for_key("atlas_engine_hooks"),
+        Some(Feature::AtlasEngineHooks)
+    );
 }
 
 #[test]

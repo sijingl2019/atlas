@@ -228,7 +228,9 @@ fn parse_windows_sandbox_wrapper_args(args: Vec<String>) -> Result<WindowsSandbo
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
-            ATLAS_AGENT_HOME_FLAG => atlas_agent_home = Some(PathBuf::from(next_flag_value(&mut args, &arg)?)),
+            ATLAS_AGENT_HOME_FLAG => {
+                atlas_agent_home = Some(PathBuf::from(next_flag_value(&mut args, &arg)?))
+            }
             COMMAND_CWD_FLAG => {
                 command_cwd = Some(absolute_path_arg(next_flag_value(&mut args, &arg)?, &arg)?);
             }
@@ -284,7 +286,8 @@ fn parse_windows_sandbox_wrapper_args(args: Vec<String>) -> Result<WindowsSandbo
         }
     }
 
-    let atlas_agent_home = atlas_agent_home.ok_or_else(|| anyhow!("missing required {ATLAS_AGENT_HOME_FLAG}"))?;
+    let atlas_agent_home =
+        atlas_agent_home.ok_or_else(|| anyhow!("missing required {ATLAS_AGENT_HOME_FLAG}"))?;
     if !atlas_agent_home.is_absolute() {
         bail!(
             "{ATLAS_AGENT_HOME_FLAG} must be absolute: {}",

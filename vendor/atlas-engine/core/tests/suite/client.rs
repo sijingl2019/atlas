@@ -14,9 +14,9 @@ use atlas_engine_extension_api::empty_extension_registry;
 use atlas_engine_features::Feature;
 use atlas_engine_history::RolloutItem;
 use atlas_engine_history::RolloutLine;
+use atlas_engine_login::AtlasEngineAuth;
 use atlas_engine_login::AuthKeyringBackendKind;
 use atlas_engine_login::AuthManager;
-use atlas_engine_login::AtlasEngineAuth;
 use atlas_engine_login::auth::AgentIdentityAuthPolicy;
 use atlas_engine_login::default_client::originator;
 use atlas_engine_model_provider_info::AMAZON_BEDROCK_PROVIDER_ID;
@@ -327,7 +327,10 @@ async fn non_openai_responses_requests_include_item_ids_without_passthrough_meta
         }]))
         .await
         .unwrap();
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let body = response_mock
         .requests()
@@ -381,7 +384,10 @@ async fn sends_audio_urls_to_responses() {
         }]))
         .await
         .unwrap();
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let user_message = response_mock
         .single_request()
@@ -425,7 +431,10 @@ async fn sends_local_audio_to_responses() -> anyhow::Result<()> {
             path: audio_path.clone(),
         }]))
         .await?;
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let user_message = response_mock
         .single_request()
@@ -582,7 +591,9 @@ async fn synthetic_call_output_id_is_stable_across_resumes() -> anyhow::Result<(
         "prompt-only repair should not be persisted to the rollout"
     );
 
-    let second = builder.resume(&server, atlas_agent_home, session_path).await?;
+    let second = builder
+        .resume(&server, atlas_agent_home, session_path)
+        .await?;
     second.submit_turn("second resume").await?;
 
     let requests = response_mock.requests();
@@ -1510,9 +1521,9 @@ async fn send_request_with_provider(provider: ModelProviderInfo) {
         SessionSource::Exec,
     );
     let client = ModelClient::new(
-        Some(AuthManager::from_auth_for_testing(AtlasEngineAuth::from_api_key(
-            "unused-api-key",
-        ))),
+        Some(AuthManager::from_auth_for_testing(
+            AtlasEngineAuth::from_api_key("unused-api-key"),
+        )),
         AgentIdentityAuthPolicy::JwtOnly,
         thread_id,
         provider,
@@ -1764,7 +1775,10 @@ async fn prefers_apikey_when_config_prefers_apikey_even_with_chatgpt_tokens() {
         /*attestation_provider*/ None,
         /*external_time_provider*/ None,
     );
-    let NewThread { thread: atlas_engine, .. } = thread_manager
+    let NewThread {
+        thread: atlas_engine,
+        ..
+    } = thread_manager
         .start_thread(StartThreadOptions::new(config.clone()))
         .await
         .expect("create new conversation");
@@ -2217,7 +2231,10 @@ async fn includes_no_effort_in_request() -> anyhow::Result<()> {
         sse(vec![ev_response_created("resp1"), ev_completed("resp1")]),
     )
     .await;
-    let TestAtlasEngine { atlas_engine, .. } = test_atlas_engine().with_model("gpt-5.4").build(&server).await?;
+    let TestAtlasEngine { atlas_engine, .. } = test_atlas_engine()
+        .with_model("gpt-5.4")
+        .build(&server)
+        .await?;
 
     atlas_engine
         .start_or_steer_turn(TurnInputRequest::user_input(vec![UserInput::Text {
@@ -2254,7 +2271,10 @@ async fn includes_default_reasoning_effort_in_request_when_defined_by_model_info
         sse(vec![ev_response_created("resp1"), ev_completed("resp1")]),
     )
     .await;
-    let TestAtlasEngine { atlas_engine, .. } = test_atlas_engine().with_model("gpt-5.4").build(&server).await?;
+    let TestAtlasEngine { atlas_engine, .. } = test_atlas_engine()
+        .with_model("gpt-5.4")
+        .build(&server)
+        .await?;
 
     atlas_engine
         .start_or_steer_turn(TurnInputRequest::user_input(vec![UserInput::Text {
@@ -2290,7 +2310,14 @@ async fn user_turn_collaboration_mode_overrides_model_and_effort() -> anyhow::Re
         sse(vec![ev_response_created("resp1"), ev_completed("resp1")]),
     )
     .await;
-    let TestAtlasEngine { atlas_engine, config, .. } = test_atlas_engine().with_model("gpt-5.4").build(&server).await?;
+    let TestAtlasEngine {
+        atlas_engine,
+        config,
+        ..
+    } = test_atlas_engine()
+        .with_model("gpt-5.4")
+        .build(&server)
+        .await?;
 
     let collaboration_mode = CollaborationMode {
         mode: ModeKind::Default,
@@ -2699,7 +2726,10 @@ async fn includes_default_verbosity_in_request() -> anyhow::Result<()> {
         sse(vec![ev_response_created("resp1"), ev_completed("resp1")]),
     )
     .await;
-    let TestAtlasEngine { atlas_engine, .. } = test_atlas_engine().with_model("gpt-5.4").build(&server).await?;
+    let TestAtlasEngine { atlas_engine, .. } = test_atlas_engine()
+        .with_model("gpt-5.4")
+        .build(&server)
+        .await?;
 
     atlas_engine
         .start_or_steer_turn(TurnInputRequest::user_input(vec![UserInput::Text {
@@ -2939,8 +2969,9 @@ async fn azure_responses_request_does_not_store_and_preserves_prefixed_item_ids(
     let model_info =
         atlas_engine_core::test_support::construct_model_info_offline(model.as_str(), &config);
     let thread_id = ThreadId::new();
-    let auth_manager =
-        atlas_engine_core::test_support::auth_manager_from_auth(AtlasEngineAuth::from_api_key("Test API Key"));
+    let auth_manager = atlas_engine_core::test_support::auth_manager_from_auth(
+        AtlasEngineAuth::from_api_key("Test API Key"),
+    );
     let session_telemetry = SessionTelemetry::new(
         thread_id,
         model.as_str(),
@@ -3238,7 +3269,10 @@ async fn token_count_includes_rate_limits_snapshot() {
         Some(1704069000)
     );
 
-    wait_for_event(&atlas_engine, |msg| matches!(msg, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&atlas_engine, |msg| {
+        matches!(msg, EventMsg::TurnComplete(_))
+    })
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -3249,7 +3283,10 @@ async fn usage_limit_error_emits_rate_limit_event() -> anyhow::Result<()> {
     let response = ResponseTemplate::new(429)
         .insert_header("x-atlas-engine-primary-used-percent", "100.0")
         .insert_header("x-atlas-engine-secondary-used-percent", "87.5")
-        .insert_header("x-atlas-engine-primary-over-secondary-limit-percent", "95.0")
+        .insert_header(
+            "x-atlas-engine-primary-over-secondary-limit-percent",
+            "95.0",
+        )
         .insert_header("x-atlas-engine-primary-window-minutes", "15")
         .insert_header("x-atlas-engine-secondary-window-minutes", "60")
         .insert_header("x-atlas-engine-credits-has-credits", "true")
@@ -3311,7 +3348,8 @@ async fn usage_limit_error_emits_rate_limit_event() -> anyhow::Result<()> {
         .await
         .expect("submission should succeed while emitting usage limit error events");
 
-    let token_event = wait_for_event(&atlas_engine, |msg| matches!(msg, EventMsg::TokenCount(_))).await;
+    let token_event =
+        wait_for_event(&atlas_engine, |msg| matches!(msg, EventMsg::TokenCount(_))).await;
     let EventMsg::TokenCount(event) = token_event else {
         unreachable!();
     };

@@ -713,7 +713,7 @@ describe("applyAgentDelta: a whole turn, in wire order", () => {
   });
 
   // `startedAt` is the only field on a tool call the wire does not carry — the
-  // session-delta wire is frozen and has no start time, so the store stamps
+  // session-delta wire carries no start time today, so the store stamps
   // one. The live elapsed figure on a running block is read from it, which
   // makes "stamped once, never restarted" the invariant worth pinning.
   it("stamps a tool call's start on first sight and keeps it across updates", () => {

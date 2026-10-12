@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { copyText } from "@/lib/clipboard";
 
 import { useLayoutStore } from "@/features/layout/stores/layout-store";
+import { useOrgDirectory } from "@/features/organisations/lib/use-org-directory";
 import { useOrgStore } from "@/features/organisations/stores/org-store";
 import { useActiveOrgProjects } from "@/features/projects/lib/org-scope";
 import { BranchLine, GitDot, NumStatPill } from "@/features/projects/components/git-summary";
@@ -18,8 +19,9 @@ import { cn } from "@/lib/utils";
 import { Hint } from "@/ui/tooltip";
 import { HintGroup, HintItem } from "@/ui/hint-group";
 
+import { onlineTeammates, useOnlineIds } from "../lib/team-presence";
 import { useSessionComments } from "../lib/use-session-comments";
-import { useArtifactsStore } from "../stores/artifacts-store";
+import { useArtifactsStore, type OpenSession } from "../stores/artifacts-store";
 import type { BoardPage, BoardSession, SessionDetail as Detail } from "../types";
 import {
   activeFacetCount,
@@ -33,11 +35,13 @@ import {
   type FacetSelection,
   type GroupPeriod,
 } from "../lib/board";
+import { boardKey } from "../lib/board-key";
 import { clearDetailCache, readCachedDetail, writeCachedDetail } from "../lib/detail-cache";
 import { readSessionDetail } from "../lib/read-session-detail";
 import { DockButton, DOCK_ACTIVE, DOCK_TRIGGER, HeaderDock } from "./header-dock";
 import { CheckpointsPicker } from "./checkpoints-picker";
 import { ExportButton } from "./export-button";
+import { OnlineTeammates } from "./online-teammates";
 import { SessionChatPanel } from "./session-chat-panel";
 import { SessionCommentsPanel } from "./session-comments-panel";
 import { SessionDetail } from "./session-detail";
@@ -71,11 +75,13 @@ function sameDetail(a: Detail | null | undefined, b: Detail | null): boolean {
 function sameBoard(a: BoardSession[], b: BoardSession[]): boolean {
   if (a.length !== b.length) return false;
   if (a.length === 0) return true;
-  const sig = (s: BoardSession | undefined) => `${s?.id}|${s?.updatedAt}`;
+  // By board key, not id: a Session re-sent to another Project keeps its id,
+  // and a row that changed Project must still re-render.
+  const sig = (s: BoardSession) => `${boardKey(s)}|${s.updatedAt}`;
   return (
     sig(a[0]) === sig(b[0]) &&
     sig(a[a.length - 1]) === sig(b[b.length - 1]) &&
-    a.every((s, i) => s.id === b[i].id && s.updatedAt === b[i].updatedAt)
+    a.every((s, i) => sig(s) === sig(b[i]))
   );
 }
 
@@ -177,8 +183,19 @@ const BOARD_LIMIT = 500;
  */
 
 /** The board row a Session was opened from, if it is still on the board. */
-function boardRowFor(sessions: BoardSession[], sessionId: string): BoardSession | undefined {
-  return sessions.find((s) => s.id === sessionId);
+function boardRowFor(sessions: BoardSession[], open: OpenSession): BoardSession | undefined {
+  const k = openKeyOf(open);
+  return sessions.find((s) => boardKey(s) === k);
+}
+
+/** The {@link boardKey} of the open Session — the same Session id can be on the
+ *  board once per Project, so the id alone does not say which row is open. */
+function openKeyOf(open: OpenSession): string {
+  return boardKey({
+    id: open.sessionId,
+    projectPath: open.projectPath,
+    remoteProjectId: open.remoteProjectId ?? null,
+  });
 }
 
 /**
@@ -236,6 +253,14 @@ export function ArtifactsPanel() {
   // hook resolves the Organisation's roster itself, so the account no longer
   // has to be plumbed through here.
   const comments = useSessionComments(open?.remoteProjectId ?? null, open?.sessionId ?? null);
+  // Who else is here, for the header's facepile. The roster is the same
+  // cached one the bylines read; the online set is one subscription here.
+  const directory = useOrgDirectory();
+  const onlineSet = useOnlineIds();
+  const teammatesOnline = useMemo(
+    () => onlineTeammates(onlineSet, directory),
+    [onlineSet, directory],
+  );
   // Stable identity for the memo'd board rows — an inline arrow here would
   // re-render all ~500 of them on every panel render.
   const onOpenRow = useCallback(
@@ -312,7 +337,7 @@ export function ArtifactsPanel() {
       }
       if (cloudFailureToldFor.current === orgId) return;
       cloudFailureToldFor.current = orgId;
-      toast.error("Couldn't load this Organisation's shared sessions.", {
+      toast.error("Couldn't load this Organization's shared sessions.", {
         id: "timeline-cloud-failed",
         description: "Showing the sessions recorded on this machine.",
         action: { label: "Retry", onClick: retryCloud },
@@ -497,7 +522,7 @@ export function ArtifactsPanel() {
       // local store.
       readSessionDetail(open)
         .then((result) => {
-          if (result) writeCachedDetail(open.projectPath, open.sessionId, result);
+          if (result) writeCachedDetail(open, result);
           if (seq !== detailSeq.current) return;
           // Keep the previous object when nothing changed.
           //
@@ -541,7 +566,7 @@ export function ArtifactsPanel() {
     // behind the content. Stepping back to the board and into the next row is
     // the normal way to use the Timeline, and re-reading SQLite for a *finished*
     // Session put a blank panel in front of that every time.
-    const cached = readCachedDetail(open.projectPath, open.sessionId);
+    const cached = readCachedDetail(open);
     if (cached) {
       setDetail(cached);
       setEntriesPending(false);
@@ -554,7 +579,7 @@ export function ArtifactsPanel() {
     // matters most for a Session held on the server, where the read is a paged
     // network walk rather than a local SQLite hit and the whole pane would
     // otherwise sit on "Reading the session…" for seconds.
-    const row = boardRowFor(sessions, open.sessionId);
+    const row = boardRowFor(sessions, open);
     if (row) {
       setDetail(shellDetail(row));
       setEntriesPending(true);
@@ -722,9 +747,11 @@ export function ArtifactsPanel() {
                 className="flex h-full shrink-0 items-center gap-2 px-1.5"
                 style={{ width: sidebarWidth }}
               >
-                <span className="flex-1 truncate text-sm font-semibold text-[var(--foreground)]">
+                <span className="min-w-0 truncate text-sm font-semibold text-[var(--foreground)]">
                   Timeline
                 </span>
+                <OnlineTeammates members={teammatesOnline} />
+                <span className="flex-1" />
                 {/* Grain. It changes what the rows under it are grouped INTO,
                     which is the one control that belongs to the list itself;
                     scope and the rest live in the pane header's dock. */}
@@ -742,7 +769,7 @@ export function ArtifactsPanel() {
                     place, whichever state you are in. */}
                 <HintGroup>
                   <DockButton
-                    label={showSidebar ? "Maximise session" : "Show timeline"}
+                    label={showSidebar ? "Maximize session" : "Show timeline"}
                     active={!showSidebar}
                     onClick={toggleTimelineSidebar}
                   >
@@ -833,7 +860,7 @@ export function ArtifactsPanel() {
                 // soon as the store answers.
                 loading={!loaded || cloudPending}
                 filtered={activeFacetCount(selection) > 0 || projectFilter !== null}
-                openId={open?.sessionId ?? null}
+                openKey={open ? openKeyOf(open) : null}
                 period={period}
                 onOpen={onOpenRow}
               />

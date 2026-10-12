@@ -9,10 +9,10 @@
 //! through the elevated runner.
 
 use anyhow::Result;
-use base64::Engine as _;
-use base64::engine::general_purpose::STANDARD;
 use atlas_engine_protocol::models::PermissionProfile;
 use atlas_engine_utils_absolute_path::AbsolutePathBuf;
+use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD;
 use serde::Deserialize;
 use serde::Serialize;
 use std::collections::HashMap;

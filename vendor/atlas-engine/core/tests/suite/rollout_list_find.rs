@@ -5,7 +5,6 @@ use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
 
-use chrono::Utc;
 use atlas_engine_core::RolloutRecorder;
 use atlas_engine_core::RolloutRecorderParams;
 use atlas_engine_core::config::ConfigBuilder;
@@ -18,13 +17,18 @@ use atlas_engine_protocol::protocol::SessionSource;
 use atlas_engine_rollout::StateDbHandle;
 use atlas_engine_state::StateRuntime;
 use atlas_engine_state::ThreadMetadataBuilder;
+use chrono::Utc;
 use pretty_assertions::assert_eq;
 use tempfile::TempDir;
 use uuid::Uuid;
 
 /// Create <subdir>/YYYY/MM/DD and write a minimal rollout file containing the
 /// provided conversation id in the SessionMeta line. Returns the absolute path.
-fn write_minimal_rollout_with_id_in_subdir(atlas_agent_home: &Path, subdir: &str, id: Uuid) -> PathBuf {
+fn write_minimal_rollout_with_id_in_subdir(
+    atlas_agent_home: &Path,
+    subdir: &str,
+    id: Uuid,
+) -> PathBuf {
     let sessions = atlas_agent_home.join(subdir).join("2024/01/01");
     std::fs::create_dir_all(&sessions).unwrap();
 
@@ -113,10 +117,13 @@ async fn find_handles_gitignore_covering_atlas_agent_home_directory() {
     let id = Uuid::new_v4();
     let expected = write_minimal_rollout_with_id(&atlas_agent_home, id);
 
-    let found =
-        find_thread_path_by_id_str(&atlas_agent_home, &id.to_string(), /*state_db_ctx*/ None)
-            .await
-            .unwrap();
+    let found = find_thread_path_by_id_str(
+        &atlas_agent_home,
+        &id.to_string(),
+        /*state_db_ctx*/ None,
+    )
+    .await
+    .unwrap();
 
     assert_eq!(found, Some(expected));
 }

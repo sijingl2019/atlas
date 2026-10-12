@@ -12,8 +12,6 @@ use async_channel::Receiver;
 use async_channel::RecvError;
 use async_channel::Sender;
 use async_channel::TrySendError;
-use base64::Engine;
-use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use atlas_engine_api::ApiError;
 use atlas_engine_api::Provider as ApiProvider;
 use atlas_engine_api::RealtimeAudioFrame;
@@ -61,6 +59,8 @@ use atlas_engine_protocol::protocol::RealtimeVoicesList;
 use atlas_engine_utils_output_truncation::approx_bytes_for_tokens;
 use atlas_engine_utils_string::approx_token_count;
 use atlas_engine_utils_string::take_bytes_at_char_boundary;
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use http::HeaderMap;
 use http::HeaderValue;
 use http::header::AUTHORIZATION;
@@ -724,7 +724,10 @@ impl RealtimeConversationManager {
         }
     }
 
-    pub(crate) async fn text_in(&self, mut params: ConversationTextParams) -> AtlasEngineResult<()> {
+    pub(crate) async fn text_in(
+        &self,
+        mut params: ConversationTextParams,
+    ) -> AtlasEngineResult<()> {
         let sender = {
             let guard = self.state.lock().await;
             guard
@@ -742,10 +745,9 @@ impl RealtimeConversationManager {
             params.text =
                 prefix_realtime_text(params.text, REALTIME_USER_TEXT_PREFIX, session_kind);
         }
-        sender
-            .send(params)
-            .await
-            .map_err(|_| AtlasEngineErr::InvalidRequest("conversation is not running".to_string()))?;
+        sender.send(params).await.map_err(|_| {
+            AtlasEngineErr::InvalidRequest("conversation is not running".to_string())
+        })?;
         Ok(())
     }
 
@@ -835,11 +837,9 @@ impl RealtimeConversationManager {
                 }
             }
         };
-        handoff
-            .output_tx
-            .send(output)
-            .await
-            .map_err(|_| AtlasEngineErr::InvalidRequest("conversation is not running".to_string()))?;
+        handoff.output_tx.send(output).await.map_err(|_| {
+            AtlasEngineErr::InvalidRequest("conversation is not running".to_string())
+        })?;
         Ok(())
     }
 
@@ -989,7 +989,9 @@ impl RealtimeConversationManager {
                 text: realtime_backend_output(text, handoff.session_kind),
             })
             .await
-            .map_err(|_| AtlasEngineErr::InvalidRequest("conversation is not running".to_string()))?;
+            .map_err(|_| {
+                AtlasEngineErr::InvalidRequest("conversation is not running".to_string())
+            })?;
         Ok(())
     }
 
@@ -1219,7 +1221,8 @@ async fn prepare_realtime_start(
         atlas_engine_responses_as_items: params.atlas_engine_responses_as_items,
         atlas_engine_response_item_prefix: params.atlas_engine_response_item_prefix,
         atlas_engine_response_handoff_mode: params.atlas_engine_response_handoff_mode,
-        atlas_engine_response_handoff_channel_prefixes: params.atlas_engine_response_handoff_channel_prefixes,
+        atlas_engine_response_handoff_channel_prefixes: params
+            .atlas_engine_response_handoff_channel_prefixes,
         realtime_start_instructions: params.realtime_start_instructions,
         realtime_end_instructions: params.realtime_end_instructions,
         realtime_call_api_provider,
@@ -1401,7 +1404,10 @@ fn realtime_backend_item(text: String, prefix: Option<&str>) -> String {
     truncate_realtime_text_to_token_budget(&text, REALTIME_ASSISTANT_OUTPUT_TOKEN_BUDGET)
 }
 
-fn validate_realtime_voice(version: RealtimeWsVersion, voice: RealtimeVoice) -> AtlasEngineResult<()> {
+fn validate_realtime_voice(
+    version: RealtimeWsVersion,
+    voice: RealtimeVoice,
+) -> AtlasEngineResult<()> {
     let voices = RealtimeVoicesList::builtin();
     let allowed = match version {
         RealtimeWsVersion::V1 | RealtimeWsVersion::V3 => &voices.v1,
@@ -1577,8 +1583,13 @@ pub(crate) async fn handle_audio(
         if sess.conversation.running_state().await.is_some() {
             warn!("realtime audio input failed while the session was already ending");
         } else {
-            send_conversation_error(sess, sub_id, err.to_string(), AtlasEngineErrorInfo::BadRequest)
-                .await;
+            send_conversation_error(
+                sess,
+                sub_id,
+                err.to_string(),
+                AtlasEngineErrorInfo::BadRequest,
+            )
+            .await;
         }
     }
 }
@@ -1619,7 +1630,10 @@ fn wrap_realtime_delegation_input(
     RealtimeDelegation::new(input, transcript_delta, source).render()
 }
 
-fn realtime_api_key(auth: Option<&AtlasEngineAuth>, provider: &ModelProviderInfo) -> AtlasEngineResult<String> {
+fn realtime_api_key(
+    auth: Option<&AtlasEngineAuth>,
+    provider: &ModelProviderInfo,
+) -> AtlasEngineResult<String> {
     if let Some(api_key) = provider.api_key()? {
         return Ok(api_key);
     }
@@ -1692,8 +1706,13 @@ pub(crate) async fn handle_text(
         if sess.conversation.running_state().await.is_some() {
             warn!("realtime text input failed while the session was already ending");
         } else {
-            send_conversation_error(sess, sub_id, err.to_string(), AtlasEngineErrorInfo::BadRequest)
-                .await;
+            send_conversation_error(
+                sess,
+                sub_id,
+                err.to_string(),
+                AtlasEngineErrorInfo::BadRequest,
+            )
+            .await;
         }
     }
 }
@@ -1709,8 +1728,13 @@ pub(crate) async fn handle_speech(
         if sess.conversation.running_state().await.is_some() {
             warn!("realtime speech append failed while the session was already ending");
         } else {
-            send_conversation_error(sess, sub_id, err.to_string(), AtlasEngineErrorInfo::BadRequest)
-                .await;
+            send_conversation_error(
+                sess,
+                sub_id,
+                err.to_string(),
+                AtlasEngineErrorInfo::BadRequest,
+            )
+            .await;
         }
     }
 }
@@ -1953,7 +1977,9 @@ fn v3_output_writer(
 ) -> RealtimeWebsocketWriter {
     let channel = match handoff_mode {
         AtlasEngineResponseHandoffMode::Thinking => None,
-        AtlasEngineResponseHandoffMode::Commentary => Some(RealtimeContextAppendChannel::Commentary),
+        AtlasEngineResponseHandoffMode::Commentary => {
+            Some(RealtimeContextAppendChannel::Commentary)
+        }
         AtlasEngineResponseHandoffMode::BemTags => match phase {
             Some(MessagePhase::FinalAnswer) => Some(RealtimeContextAppendChannel::Speakable),
             Some(MessagePhase::Commentary) => Some(RealtimeContextAppendChannel::Commentary),

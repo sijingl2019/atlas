@@ -19,8 +19,9 @@
 use tauri::{AppHandle, Manager};
 
 use super::cloud::{
-    BoardQuery, Caller, CloudError, CloudFuture, CommentRef, CurrentSessionQuery, InboxQuery, Member, NewMessage, NewPage,
-    NewReply, OrgConversation, OrganisationCloud, PayloadRef, RecordedSession, SentMessage, TimelineQuery,
+    BoardQuery, Caller, CloudError, CloudFuture, CommentRef, CurrentSessionQuery, InboxQuery,
+    Member, NewMessage, NewPage, NewReply, OrgConversation, OrganisationCloud, PayloadRef,
+    RecordedSession, SentMessage, TimelineQuery,
 };
 use super::offers::SessionOrgs;
 use super::OrgScope;
@@ -39,9 +40,9 @@ impl AppOrganisationCloud {
     }
 
     fn artifacts(&self) -> Result<tauri::State<'_, ArtifactsCloudState>, CloudError> {
-        self.app
-            .try_state::<ArtifactsCloudState>()
-            .ok_or_else(|| CloudError::Unavailable("the Timeline's cloud reader is not ready".into()))
+        self.app.try_state::<ArtifactsCloudState>().ok_or_else(|| {
+            CloudError::Unavailable("the Timeline's cloud reader is not ready".into())
+        })
     }
 }
 
@@ -59,10 +60,18 @@ fn account(app: &AppHandle) -> Result<(Option<AccountUser>, Vec<AccountOrg>), Cl
 /// The captured row a chat is recorded in, and its local title, when the
 /// launch directory's Project is bound to the scope's organisation and
 /// Workspace. The same join the chat's comment pane uses.
-fn captured(query: &CurrentSessionQuery<'_>) -> Result<Option<(String, String, Option<String>)>, String> {
-    let Some(workspace_id) = query.scope.workspace_id.clone() else { return Ok(None) };
-    let Some(store) = crate::commands::capture::open_reader(query.cwd)? else { return Ok(None) };
-    let Ok(Some(binding)) = store.binding() else { return Ok(None) };
+fn captured(
+    query: &CurrentSessionQuery<'_>,
+) -> Result<Option<(String, String, Option<String>)>, String> {
+    let Some(workspace_id) = query.scope.workspace_id.clone() else {
+        return Ok(None);
+    };
+    let Some(store) = crate::commands::capture::open_reader(query.cwd)? else {
+        return Ok(None);
+    };
+    let Ok(Some(binding)) = store.binding() else {
+        return Ok(None);
+    };
     // Still bound where the grant says: a Project rebound elsewhere since the
     // offer is not this session's organisation any more.
     if !is_cloud_bound(&binding, &query.scope.org_id)
@@ -82,7 +91,9 @@ impl OrganisationCloud for AppOrganisationCloud {
         Box::pin(async move {
             let (user, orgs) = account(&self.app)?;
             let Some(user) = user else {
-                return Err(CloudError::Unavailable("the account's profile has not loaded yet".into()));
+                return Err(CloudError::Unavailable(
+                    "the account's profile has not loaded yet".into(),
+                ));
             };
             let org = orgs.into_iter().find(|o| o.id == org_id);
             Ok(Caller {
@@ -94,26 +105,49 @@ impl OrganisationCloud for AppOrganisationCloud {
         })
     }
 
-    fn current_session<'a>(&'a self, query: CurrentSessionQuery<'a>) -> CloudFuture<'a, Option<RecordedSession>> {
+    fn current_session<'a>(
+        &'a self,
+        query: CurrentSessionQuery<'a>,
+    ) -> CloudFuture<'a, Option<RecordedSession>> {
         Box::pin(async move {
-            let owned = (query.scope.clone(), query.native_session_id.to_string(), query.cwd.to_string());
+            let owned = (
+                query.scope.clone(),
+                query.native_session_id.to_string(),
+                query.cwd.to_string(),
+            );
             let found = tauri::async_runtime::spawn_blocking(move || {
                 let (scope, native_session_id, cwd) = owned;
-                captured(&CurrentSessionQuery { scope: &scope, native_session_id: &native_session_id, cwd: &cwd })
+                captured(&CurrentSessionQuery {
+                    scope: &scope,
+                    native_session_id: &native_session_id,
+                    cwd: &cwd,
+                })
             })
             .await
             .map_err(|e| CloudError::Unavailable(e.to_string()))?
             .map_err(CloudError::Unavailable)?;
-            let Some((id, workspace_id, local_title)) = found else { return Ok(None) };
+            let Some((id, workspace_id, local_title)) = found else {
+                return Ok(None);
+            };
 
             // Liveness is the server's to derive. The board the Timeline keeps
             // fresh answers without a request when this organisation is the
             // one it shows; otherwise ask for the session itself.
             let artifacts = self.artifacts()?;
             let org_id = &query.scope.org_id;
-            let summary = match artifacts.board.snapshot(org_id).sessions.get(&id).cloned() {
+            let cached = artifacts
+                .board
+                .snapshot(org_id)
+                .sessions
+                .get(&(workspace_id.clone(), id.clone()))
+                .cloned();
+            let summary = match cached {
                 Some(summary) => summary,
-                None => match artifacts.client.session_detail(org_id, &workspace_id, &id).await {
+                None => match artifacts
+                    .client
+                    .session_detail(org_id, &workspace_id, &id)
+                    .await
+                {
                     Ok(page) => page.summary,
                     // Captured here, not synced yet: the Workspace does not
                     // hold it, so it is not recorded there yet.
@@ -139,34 +173,49 @@ impl OrganisationCloud for AppOrganisationCloud {
             let roster = core.list_members(org_id).await?;
             Ok(roster
                 .into_iter()
-                .map(|m| Member { user_id: m.user_id, name: m.name, email: m.email, role: m.role })
+                .map(|m| Member {
+                    user_id: m.user_id,
+                    name: m.name,
+                    email: m.email,
+                    role: m.role,
+                })
                 .collect())
         })
     }
 
     fn conversations<'a>(&'a self, org_id: &'a str) -> CloudFuture<'a, Vec<OrgConversation>> {
         Box::pin(async move {
-            let comms = crate::commands::comms::manager(&self.app).map_err(CloudError::Unavailable)?;
+            let comms =
+                crate::commands::comms::manager(&self.app).map_err(CloudError::Unavailable)?;
             // Chat's one socket is on the organisation the window chose for
             // it. A chat tool acts there only when that is the grant's.
             let chat_org = comms.org_id();
             if chat_org.as_deref() != Some(org_id) {
-                return Err(CloudError::ChatElsewhere { grant_org: org_id.to_string(), chat_org });
+                return Err(CloudError::ChatElsewhere {
+                    grant_org: org_id.to_string(),
+                    chat_org,
+                });
             }
             let list = comms.rest().conversations(org_id).await?;
-            let listed = |c: atlas_comms::wire::Conversation, caller_is_member: bool| OrgConversation {
-                id: c.id,
-                kind: c.kind,
-                name: c.name,
-                member_ids: c.member_ids,
-                caller_is_member,
-            };
+            let listed =
+                |c: atlas_comms::wire::Conversation, caller_is_member: bool| OrgConversation {
+                    id: c.id,
+                    kind: c.kind,
+                    name: c.name,
+                    member_ids: c.member_ids,
+                    caller_is_member,
+                };
             Ok(list
                 .conversations
                 .into_iter()
                 .filter(|c| c.archived_at.is_none())
                 .map(|c| listed(c, true))
-                .chain(list.discoverable.into_iter().filter(|c| c.archived_at.is_none()).map(|c| listed(c, false)))
+                .chain(
+                    list.discoverable
+                        .into_iter()
+                        .filter(|c| c.archived_at.is_none())
+                        .map(|c| listed(c, false)),
+                )
                 .collect())
         })
     }
@@ -179,14 +228,21 @@ impl OrganisationCloud for AppOrganisationCloud {
     ) -> CloudFuture<'a, Vec<atlas_artifacts::Comment>> {
         Box::pin(async move {
             let artifacts = self.artifacts()?;
-            Ok(artifacts.client.comments(org_id, workspace_id, session_id).await?)
+            Ok(artifacts
+                .client
+                .comments(org_id, workspace_id, session_id)
+                .await?)
         })
     }
 
     /// The comment route's update half through the Timeline's artifacts
     /// client, with only `resolved` in the patch: the body is the author's
     /// and never touched here.
-    fn set_resolved<'a>(&'a self, comment: CommentRef<'a>, resolved: bool) -> CloudFuture<'a, atlas_artifacts::Comment> {
+    fn set_resolved<'a>(
+        &'a self,
+        comment: CommentRef<'a>,
+        resolved: bool,
+    ) -> CloudFuture<'a, atlas_artifacts::Comment> {
         Box::pin(async move {
             let artifacts = self.artifacts()?;
             Ok(artifacts
@@ -227,7 +283,11 @@ impl OrganisationCloud for AppOrganisationCloud {
     /// One board page through the Timeline's artifacts client, in the
     /// grant's Workspace, at the server's largest page so a scan spends as
     /// few requests (and minted tokens) as it can.
-    fn board_page<'a>(&'a self, org_id: &'a str, query: BoardQuery<'a>) -> CloudFuture<'a, atlas_artifacts::SessionBoardPage> {
+    fn board_page<'a>(
+        &'a self,
+        org_id: &'a str,
+        query: BoardQuery<'a>,
+    ) -> CloudFuture<'a, atlas_artifacts::SessionBoardPage> {
         Box::pin(async move {
             let artifacts = self.artifacts()?;
             let query = atlas_artifacts::BoardQuery {
@@ -240,32 +300,57 @@ impl OrganisationCloud for AppOrganisationCloud {
         })
     }
 
-    fn timeline<'a>(&'a self, query: TimelineQuery<'a>) -> CloudFuture<'a, atlas_artifacts::SessionDetailPage> {
+    fn timeline<'a>(
+        &'a self,
+        query: TimelineQuery<'a>,
+    ) -> CloudFuture<'a, atlas_artifacts::SessionDetailPage> {
         Box::pin(async move {
             let artifacts = self.artifacts()?;
             Ok(artifacts
                 .client
-                .session_page(query.org_id, query.workspace_id, query.session_id, query.cursor, query.limit)
+                .session_page(
+                    query.org_id,
+                    query.workspace_id,
+                    query.session_id,
+                    query.cursor,
+                    query.limit,
+                )
                 .await?)
         })
     }
 
-    fn entry_payload<'a>(&'a self, entry: PayloadRef<'a>) -> CloudFuture<'a, atlas_artifacts::EntryPayload> {
+    fn entry_payload<'a>(
+        &'a self,
+        entry: PayloadRef<'a>,
+    ) -> CloudFuture<'a, atlas_artifacts::EntryPayload> {
         Box::pin(async move {
             let artifacts = self.artifacts()?;
             Ok(artifacts
                 .client
-                .entry_payload(entry.org_id, entry.workspace_id, entry.session_id, entry.row_id, entry.part)
+                .entry_payload(
+                    entry.org_id,
+                    entry.workspace_id,
+                    entry.session_id,
+                    entry.row_id,
+                    entry.part,
+                )
                 .await?)
         })
     }
 
     /// The inbox route's read half through the Timeline's artifacts client.
     /// The client has no mark-read call, so this cannot reach one.
-    fn inbox<'a>(&'a self, org_id: &'a str, query: InboxQuery<'a>) -> CloudFuture<'a, atlas_artifacts::InboxPage> {
+    fn inbox<'a>(
+        &'a self,
+        org_id: &'a str,
+        query: InboxQuery<'a>,
+    ) -> CloudFuture<'a, atlas_artifacts::InboxPage> {
         Box::pin(async move {
             let artifacts = self.artifacts()?;
-            Ok(artifacts.client.inbox(org_id, query.unread_only, query.cursor, query.limit).await?)
+            Ok(artifacts
+                .client
+                .inbox(org_id, query.unread_only, query.cursor, query.limit)
+                .await?)
         })
     }
 
@@ -280,21 +365,31 @@ impl OrganisationCloud for AppOrganisationCloud {
     /// [`SpacesManager::create_page`]: atlas_comms::spaces::SpacesManager::create_page
     fn create_page<'a>(&'a self, page: NewPage<'a>) -> CloudFuture<'a, String> {
         Box::pin(async move {
-            let comms = crate::commands::comms::manager(&self.app).map_err(CloudError::Unavailable)?;
+            let comms =
+                crate::commands::comms::manager(&self.app).map_err(CloudError::Unavailable)?;
             let chat_org = comms.org_id();
             if chat_org.as_deref() != Some(page.org_id) {
-                return Err(CloudError::ChatElsewhere { grant_org: page.org_id.to_string(), chat_org });
+                return Err(CloudError::ChatElsewhere {
+                    grant_org: page.org_id.to_string(),
+                    chat_org,
+                });
             }
             let Some(spaces) = self.app.try_state::<crate::commands::spaces::SpacesState>() else {
                 return Err(CloudError::Unavailable("Spaces is not ready".into()));
             };
             let spaces = spaces.0.clone();
             let frame = atlas_comms::spaces::PageCreate::root_page(page.name);
-            Ok(spaces.create_page(page.org_id, page.conversation_id, &frame).await?)
+            Ok(spaces
+                .create_page(page.org_id, page.conversation_id, &frame)
+                .await?)
         })
     }
 
-    fn dm_with<'a>(&'a self, org_id: &'a str, user_id: &'a str) -> CloudFuture<'a, (OrgConversation, bool)> {
+    fn dm_with<'a>(
+        &'a self,
+        org_id: &'a str,
+        user_id: &'a str,
+    ) -> CloudFuture<'a, (OrgConversation, bool)> {
         self.open_dm(org_id, user_id)
     }
 
@@ -323,7 +418,10 @@ impl AppOrganisationCloud {
         let comms = crate::commands::comms::manager(&self.app).map_err(CloudError::Unavailable)?;
         let chat_org = comms.org_id();
         if chat_org.as_deref() != Some(org_id) {
-            return Err(CloudError::ChatElsewhere { grant_org: org_id.to_string(), chat_org });
+            return Err(CloudError::ChatElsewhere {
+                grant_org: org_id.to_string(),
+                chat_org,
+            });
         }
         Ok(comms)
     }
@@ -331,7 +429,11 @@ impl AppOrganisationCloud {
     /// `POST /conversations {kind: "dm", user_id}` through chat's REST client,
     /// as the chat pane's "Message" does (`comms_create_dm`): the server
     /// answers the DM that exists (200) or the one it just made (201).
-    fn open_dm<'a>(&'a self, org_id: &'a str, user_id: &'a str) -> CloudFuture<'a, (OrgConversation, bool)> {
+    fn open_dm<'a>(
+        &'a self,
+        org_id: &'a str,
+        user_id: &'a str,
+    ) -> CloudFuture<'a, (OrgConversation, bool)> {
         Box::pin(async move {
             let comms = self.chat_in(org_id)?;
             let dm = comms.rest().create_dm(org_id, user_id).await?;
@@ -391,7 +493,10 @@ impl AppOrganisationCloud {
             .await
             .ok()
             .flatten();
-            Ok(SentMessage { client_msg_id, message_id: acked })
+            Ok(SentMessage {
+                client_msg_id,
+                message_id: acked,
+            })
         })
     }
 }
@@ -427,5 +532,8 @@ pub(super) fn scope_of(binding: &atlas_checkpoint::Binding) -> Option<OrgScope> 
     if !is_cloud_bound(binding, &org_id) {
         return None;
     }
-    Some(OrgScope { org_id, workspace_id: binding.remote_workspace_id.clone() })
+    Some(OrgScope {
+        org_id,
+        workspace_id: binding.remote_workspace_id.clone(),
+    })
 }

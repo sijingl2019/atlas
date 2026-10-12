@@ -91,7 +91,7 @@ impl KbRoots {
     pub fn new(project_path: &str, sources: Vec<KbSource>) -> Self {
         let cwd = PathBuf::from(project_path);
         Self {
-            kb: cwd.join(".atlas").join("knowledge"),
+            kb: atlas_profile::dir_in(&cwd).join("knowledge"),
             cwd,
             mounts: sources
                 .into_iter()

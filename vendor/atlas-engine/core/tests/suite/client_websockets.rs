@@ -134,7 +134,10 @@ fn responses_metadata(
     )
 }
 
-fn turn_metadata(harness: &WebsocketTestHarness, turn_id: Option<&str>) -> AtlasEngineResponsesMetadata {
+fn turn_metadata(
+    harness: &WebsocketTestHarness,
+    turn_id: Option<&str>,
+) -> AtlasEngineResponsesMetadata {
     responses_metadata(harness, turn_id, TestAtlasEngineResponsesRequestKind::Turn)
 }
 
@@ -142,7 +145,11 @@ fn prewarm_metadata(
     harness: &WebsocketTestHarness,
     turn_id: Option<&str>,
 ) -> AtlasEngineResponsesMetadata {
-    responses_metadata(harness, turn_id, TestAtlasEngineResponsesRequestKind::Prewarm)
+    responses_metadata(
+        harness,
+        turn_id,
+        TestAtlasEngineResponsesRequestKind::Prewarm,
+    )
 }
 
 fn websocket_connection_metadata(harness: &WebsocketTestHarness) -> AtlasEngineResponsesMetadata {
@@ -1088,7 +1095,9 @@ async fn responses_websocket_preconnect_runs_when_only_v2_feature_enabled() {
     assert_eq!(server.handshakes().len(), 1);
     assert_eq!(server.single_connection().len(), 0);
     assert_eq!(
-        server.single_handshake().header("x-atlas-engine-turn-metadata"),
+        server
+            .single_handshake()
+            .header("x-atlas-engine-turn-metadata"),
         None
     );
     assert_eq!(
@@ -1619,8 +1628,10 @@ async fn responses_websocket_usage_limit_error_emits_rate_limit_event() {
         .await
         .expect("submission should succeed while emitting usage limit error events");
 
-    let token_event =
-        wait_for_event(&test.atlas_engine, |msg| matches!(msg, EventMsg::TokenCount(_))).await;
+    let token_event = wait_for_event(&test.atlas_engine, |msg| {
+        matches!(msg, EventMsg::TokenCount(_))
+    })
+    .await;
     let EventMsg::TokenCount(event) = token_event else {
         unreachable!();
     };
@@ -1656,7 +1667,8 @@ async fn responses_websocket_usage_limit_error_emits_rate_limit_event() {
         })
     );
 
-    let error_event = wait_for_event(&test.atlas_engine, |msg| matches!(msg, EventMsg::Error(_))).await;
+    let error_event =
+        wait_for_event(&test.atlas_engine, |msg| matches!(msg, EventMsg::Error(_))).await;
     let EventMsg::Error(error_event) = error_event else {
         unreachable!();
     };
@@ -1708,7 +1720,8 @@ async fn responses_websocket_invalid_request_error_with_status_is_forwarded() {
         .await
         .expect("submission should succeed while emitting invalid request events");
 
-    let error_event = wait_for_event(&test.atlas_engine, |msg| matches!(msg, EventMsg::Error(_))).await;
+    let error_event =
+        wait_for_event(&test.atlas_engine, |msg| matches!(msg, EventMsg::Error(_))).await;
     let EventMsg::Error(error_event) = error_event else {
         unreachable!();
     };
@@ -2392,7 +2405,9 @@ async fn websocket_harness(server: &WebSocketTestServer) -> WebsocketTestHarness
     websocket_harness_with_runtime_metrics(server, /*runtime_metrics_enabled*/ false).await
 }
 
-async fn websocket_harness_for_atlas_engine_backend(server: &WebSocketTestServer) -> WebsocketTestHarness {
+async fn websocket_harness_for_atlas_engine_backend(
+    server: &WebSocketTestServer,
+) -> WebsocketTestHarness {
     let provider = ModelProviderInfo::create_openai_provider(Some(format!("{}/v1", server.uri())));
     websocket_harness_with_provider_options_and_auth(
         provider,
@@ -2484,12 +2499,19 @@ async fn websocket_harness_with_provider_options_and_auth(
     let session_id = SessionId::new();
     let client_auth_manager = auth.map(atlas_engine_core::test_support::auth_manager_from_auth);
     let auth_manager = client_auth_manager.clone().unwrap_or_else(|| {
-        atlas_engine_core::test_support::auth_manager_from_auth(AtlasEngineAuth::from_api_key("Test API Key"))
+        atlas_engine_core::test_support::auth_manager_from_auth(AtlasEngineAuth::from_api_key(
+            "Test API Key",
+        ))
     });
     let exporter = InMemoryMetricExporter::default();
     let metrics = MetricsClient::new(
-        MetricsConfig::in_memory("test", "atlas-engine-core", env!("CARGO_PKG_VERSION"), exporter)
-            .with_runtime_reader(),
+        MetricsConfig::in_memory(
+            "test",
+            "atlas-engine-core",
+            env!("CARGO_PKG_VERSION"),
+            exporter,
+        )
+        .with_runtime_reader(),
     )
     .expect("in-memory metrics client");
     let session_telemetry = SessionTelemetry::new(

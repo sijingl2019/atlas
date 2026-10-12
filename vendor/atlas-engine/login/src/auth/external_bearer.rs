@@ -39,7 +39,9 @@ impl BearerTokenRefresher {
                     None => true,
                 };
                 if should_use_cached_token {
-                    return Ok(AtlasEngineAuth::from_api_key(cached_token.access_token.as_str()));
+                    return Ok(AtlasEngineAuth::from_api_key(
+                        cached_token.access_token.as_str(),
+                    ));
                 }
             }
 
@@ -69,7 +71,10 @@ impl ExternalAuth for BearerTokenRefresher {
         Box::pin(BearerTokenRefresher::resolve(self))
     }
 
-    fn refresh(&self, context: ExternalAuthRefreshContext) -> ExternalAuthFuture<'_, AtlasEngineAuth> {
+    fn refresh(
+        &self,
+        context: ExternalAuthRefreshContext,
+    ) -> ExternalAuthFuture<'_, AtlasEngineAuth> {
         Box::pin(BearerTokenRefresher::refresh(self, context))
     }
 }

@@ -166,8 +166,8 @@ mod tests {
 
         let first_sid =
             workspace_cap_sid_for_cwd(&atlas_agent_home, canonical.as_path()).expect("first sid");
-        let second_sid =
-            workspace_cap_sid_for_cwd(&atlas_agent_home, alt_spelling.as_path()).expect("second sid");
+        let second_sid = workspace_cap_sid_for_cwd(&atlas_agent_home, alt_spelling.as_path())
+            .expect("second sid");
 
         assert_eq!(first_sid, second_sid);
 
@@ -186,15 +186,18 @@ mod tests {
         std::fs::create_dir_all(&workspace).expect("create workspace");
         std::fs::create_dir_all(&extra_root).expect("create extra root");
 
-        let workspace_sid = workspace_write_cap_sid_for_root(&atlas_agent_home, &workspace, &workspace)
-            .expect("workspace sid");
-        let extra_sid = workspace_write_cap_sid_for_root(&atlas_agent_home, &workspace, &extra_root)
-            .expect("extra root sid");
+        let workspace_sid =
+            workspace_write_cap_sid_for_root(&atlas_agent_home, &workspace, &workspace)
+                .expect("workspace sid");
+        let extra_sid =
+            workspace_write_cap_sid_for_root(&atlas_agent_home, &workspace, &extra_root)
+                .expect("extra root sid");
 
         assert_ne!(workspace_sid, extra_sid);
         assert_eq!(
             extra_sid,
-            writable_root_cap_sid_for_path(&atlas_agent_home, &extra_root).expect("extra root sid again")
+            writable_root_cap_sid_for_path(&atlas_agent_home, &extra_root)
+                .expect("extra root sid again")
         );
 
         let caps = load_or_create_cap_sids(&atlas_agent_home).expect("load caps");

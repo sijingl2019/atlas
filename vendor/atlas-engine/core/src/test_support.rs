@@ -14,8 +14,8 @@ use atlas_engine_extension_api::LoadedUserInstructions;
 use atlas_engine_extension_api::UserInstructionsProvider;
 use atlas_engine_http_client::HttpClientFactory;
 use atlas_engine_http_client::OutboundProxyPolicy;
-use atlas_engine_login::AuthManager;
 use atlas_engine_login::AtlasEngineAuth;
+use atlas_engine_login::AuthManager;
 use atlas_engine_model_provider::create_model_provider;
 use atlas_engine_model_provider_info::ModelProviderInfo;
 use atlas_engine_models_manager::bundled_models_response;
@@ -72,7 +72,10 @@ pub fn auth_manager_from_auth(auth: AtlasEngineAuth) -> Arc<AuthManager> {
     AuthManager::from_auth_for_testing(auth)
 }
 
-pub fn auth_manager_from_auth_with_home(auth: AtlasEngineAuth, atlas_agent_home: PathBuf) -> Arc<AuthManager> {
+pub fn auth_manager_from_auth_with_home(
+    auth: AtlasEngineAuth,
+    atlas_agent_home: PathBuf,
+) -> Arc<AuthManager> {
     AuthManager::from_auth_for_testing_with_home(auth, atlas_agent_home)
 }
 
@@ -186,7 +189,9 @@ pub fn responses_metadata(
 ) -> AtlasEngineResponsesMetadata {
     let request_kind = match request_kind {
         TestAtlasEngineResponsesRequestKind::Turn => Some(AtlasEngineResponsesRequestKind::Turn),
-        TestAtlasEngineResponsesRequestKind::Prewarm => Some(AtlasEngineResponsesRequestKind::Prewarm),
+        TestAtlasEngineResponsesRequestKind::Prewarm => {
+            Some(AtlasEngineResponsesRequestKind::Prewarm)
+        }
         TestAtlasEngineResponsesRequestKind::WebsocketConnection => None,
     };
     AtlasEngineResponsesMetadata {
@@ -204,7 +209,10 @@ pub fn responses_metadata(
     }
 }
 
-pub fn with_parent_turn(mut metadata: AtlasEngineResponsesMetadata, id: &str) -> AtlasEngineResponsesMetadata {
+pub fn with_parent_turn(
+    mut metadata: AtlasEngineResponsesMetadata,
+    id: &str,
+) -> AtlasEngineResponsesMetadata {
     metadata.parent_turn_id = Some(id.to_string());
     metadata
 }

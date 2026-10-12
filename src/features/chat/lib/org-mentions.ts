@@ -43,6 +43,8 @@ import { useCommsStore } from "@/features/comms/stores/comms-store";
 import { conversationTitle } from "@/features/comms/lib/derive";
 import type { ChatConversation, ConversationKind } from "@/features/comms/types";
 
+import { searchCommentMentions } from "./comment-mentions";
+
 // ── Types (re-exported by `mentions.ts` as part of `MentionData`) ────────────
 
 export interface MentionMember {
@@ -71,8 +73,36 @@ export interface MentionRecordedSession {
   workspaceId: string;
 }
 
-export type OrgMentionKind = "member" | "conversation" | "recorded_session";
-export type OrgMention = MentionMember | MentionConversation | MentionRecordedSession;
+/**
+ * A comment on the chat's own recorded session, linked so the agent attends
+ * to it. Rides as `atlas-org://comment/<Workspace>/<session>/<comment>` plus a
+ * block quoting it (`compose_prompt.rs`). The quoted fields are a snapshot of
+ * what the user saw when they linked it.
+ */
+export interface MentionComment {
+  kind: "comment";
+  /** The comment id. */
+  id: string;
+  /** `Author: excerpt` — what the chip and the short form read. */
+  displayName: string;
+  /** The server Project (Workspace) id the session is recorded in. */
+  workspaceId: string;
+  sessionId: string;
+  authorName: string;
+  body: string;
+  /** What it hangs off: "the session", "a prompt", "a Bash call". */
+  anchorLabel: string;
+  parentId: string | null;
+  resolved: boolean;
+  createdAt: string;
+}
+
+export type OrgMentionKind = "member" | "conversation" | "recorded_session" | "comment";
+export type OrgMention =
+  | MentionMember
+  | MentionConversation
+  | MentionRecordedSession
+  | MentionComment;
 
 /** Where the chat's Project is bound: the org tools' scope, seen from here. */
 export interface ProjectOrgScope {
@@ -192,18 +222,27 @@ async function searchRecordedSessions(
 
 /**
  * Organisation mentions matching `query`, for one kind or (`scope: null`)
- * all three, in the organisation the chat's Project is bound to. Board order
+ * all four, in the organisation the chat's Project is bound to. Board order
  * for recorded sessions (newest activity first), most recent activity for
- * conversations, alphabetical for members; at most `limit` of each kind.
+ * conversations, alphabetical for members, newest first for comments; at
+ * most `limit` of each kind.
+ *
+ * Comments are the chat tab's own recorded session's, read from the store
+ * `ChatCommentsController` keeps — present only when that session is in the
+ * cloud, which already implies the binding the other kinds check for.
  */
 export async function searchOrgMentions(
   query: string,
   scope: OrgMentionKind | null,
   projectPath: string | null,
   limit: number,
+  tabId?: string,
 ): Promise<OrgMention[]> {
+  const comments =
+    scope === null || scope === "comment" ? searchCommentMentions(query, tabId, limit) : [];
+  if (scope === "comment") return comments;
   const org = await projectOrgScope(projectPath);
-  if (!org || !projectPath) return [];
+  if (!org || !projectPath) return comments;
   const q = query.trim().toLowerCase();
   const want = (k: OrgMentionKind) => scope === null || scope === k;
   const [members, sessions] = await Promise.all([
@@ -215,5 +254,6 @@ export async function searchOrgMentions(
     ...members.slice(0, limit),
     ...conversations.slice(0, limit),
     ...sessions.slice(0, limit),
+    ...comments,
   ];
 }

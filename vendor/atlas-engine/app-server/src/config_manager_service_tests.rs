@@ -1,7 +1,6 @@
 // Modified by Atlas from upstream OpenAI Codex (Apache-2.0). See CONTEXT.md.
 use super::*;
 use anyhow::Result;
-use axum::http::HeaderValue;
 use atlas_engine_app_server_protocol::AppConfig;
 use atlas_engine_app_server_protocol::AppToolApproval;
 use atlas_engine_app_server_protocol::AppsConfig;
@@ -13,6 +12,7 @@ use atlas_engine_config::test_support::CloudConfigBundleFixture;
 use atlas_engine_http_client::HttpClientFactory;
 use atlas_engine_http_client::OutboundProxyPolicy;
 use atlas_engine_utils_absolute_path::AbsolutePathBuf;
+use axum::http::HeaderValue;
 use pretty_assertions::assert_eq;
 use tempfile::tempdir;
 
@@ -747,7 +747,9 @@ async fn load_default_config_preserves_managed_requirements_and_selected_user_co
             .requirements()
             .managed_auth_policy(),
         atlas_engine_config::ManagedAuthPolicy {
-            allowed_login_methods: Some(vec![atlas_engine_protocol::config_types::ForcedLoginMethod::Api]),
+            allowed_login_methods: Some(vec![
+                atlas_engine_protocol::config_types::ForcedLoginMethod::Api
+            ]),
             allowed_chatgpt_workspaces: Some(vec!["managed-workspace".to_string()]),
         }
     );
@@ -785,11 +787,13 @@ async fn managed_auth_policy_survives_unusable_requirements_file_changes() -> Re
         assert_eq!(refreshed.forced_chatgpt_workspace_id, None);
     }
     assert!(
-        auth_manager.is_login_method_allowed(atlas_engine_protocol::config_types::ForcedLoginMethod::Api)
+        auth_manager
+            .is_login_method_allowed(atlas_engine_protocol::config_types::ForcedLoginMethod::Api)
     );
     assert!(
-        !auth_manager
-            .is_login_method_allowed(atlas_engine_protocol::config_types::ForcedLoginMethod::Chatgpt)
+        !auth_manager.is_login_method_allowed(
+            atlas_engine_protocol::config_types::ForcedLoginMethod::Chatgpt
+        )
     );
     assert_eq!(
         auth_manager.effective_chatgpt_workspaces(),

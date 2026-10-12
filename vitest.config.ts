@@ -16,6 +16,24 @@ export default defineConfig({
     // API-seam tests only need a mocked `invoke`. Files that need a DOM opt in
     // per-file with `// @vitest-environment happy-dom`.
     environment: "node",
+    // Both pinned so a test sees the same world on every machine. CI runs in
+    // UTC while developers don't, and a fixture built from "now" landed on the
+    // wrong side of midnight only on the runner (6eb12da5).
+    env: { TZ: "UTC" },
+    environmentOptions: {
+      happyDOM: {
+        settings: {
+          navigator: {
+            // happy-dom derives its default user agent from `process.platform`,
+            // so `src/lib/platform.ts` reported Linux on CI and nothing on a
+            // Mac: a test rendering a shortcut label could pass locally and fail
+            // there. This UA names no OS, as a Mac run always saw; a test that
+            // needs one mocks `@/lib/platform`, as combo-linux.test.ts does.
+            userAgent: "Mozilla/5.0 (X11) AppleWebKit/537.36 (KHTML, like Gecko) HappyDOM",
+          },
+        },
+      },
+    },
     include: ["tests/**/*.test.ts", "src/**/*.test.{ts,tsx}"],
     // The workspace `target/` holds vendored dependency sources; without
     // this Vitest walks 38 GB of build artifacts.

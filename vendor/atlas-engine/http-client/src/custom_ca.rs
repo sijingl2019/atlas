@@ -721,8 +721,8 @@ mod tests {
     use pretty_assertions::assert_eq;
     use tempfile::TempDir;
 
-    use super::BuildCustomCaTransportError;
     use super::ATLAS_AGENT_CA_CERT_ENV;
+    use super::BuildCustomCaTransportError;
     use super::EnvSource;
     use super::SSL_CERT_FILE_ENV;
     use super::maybe_build_rustls_client_config_with_env;
@@ -796,7 +796,10 @@ mod tests {
     fn rustls_config_uses_custom_ca_bundle_when_configured() {
         let temp_dir = TempDir::new().expect("tempdir");
         let cert_path = write_cert_file(&temp_dir, "ca.pem", TEST_CERT);
-        let env = map_env(&[(ATLAS_AGENT_CA_CERT_ENV, cert_path.to_string_lossy().as_ref())]);
+        let env = map_env(&[(
+            ATLAS_AGENT_CA_CERT_ENV,
+            cert_path.to_string_lossy().as_ref(),
+        )]);
 
         let config = maybe_build_rustls_client_config_with_env(&env)
             .expect("rustls config")
@@ -809,7 +812,10 @@ mod tests {
     fn rustls_config_reports_invalid_ca_file() {
         let temp_dir = TempDir::new().expect("tempdir");
         let cert_path = write_cert_file(&temp_dir, "empty.pem", "");
-        let env = map_env(&[(ATLAS_AGENT_CA_CERT_ENV, cert_path.to_string_lossy().as_ref())]);
+        let env = map_env(&[(
+            ATLAS_AGENT_CA_CERT_ENV,
+            cert_path.to_string_lossy().as_ref(),
+        )]);
 
         let error = maybe_build_rustls_client_config_with_env(&env).expect_err("invalid CA");
 

@@ -3099,10 +3099,10 @@ impl From<crate::openai_models::TruncationPolicyConfig> for TruncationPolicy {
 impl TruncationPolicy {
     pub fn token_budget(&self) -> usize {
         match self {
-            TruncationPolicy::Bytes(bytes) => {
-                usize::try_from(atlas_engine_utils_string::approx_tokens_from_byte_count(*bytes))
-                    .unwrap_or(usize::MAX)
-            }
+            TruncationPolicy::Bytes(bytes) => usize::try_from(
+                atlas_engine_utils_string::approx_tokens_from_byte_count(*bytes),
+            )
+            .unwrap_or(usize::MAX),
             TruncationPolicy::Tokens(tokens) => *tokens,
         }
     }
@@ -4713,8 +4713,9 @@ mod tests {
     #[test]
     fn restricted_file_system_policy_treats_root_with_carveouts_as_scoped_access() {
         let cwd = TempDir::new().expect("tempdir");
-        let canonical_cwd = atlas_engine_utils_absolute_path::canonicalize_preserving_symlinks(cwd.path())
-            .expect("canonicalize cwd");
+        let canonical_cwd =
+            atlas_engine_utils_absolute_path::canonicalize_preserving_symlinks(cwd.path())
+                .expect("canonicalize cwd");
         let root = AbsolutePathBuf::from_absolute_path(&canonical_cwd)
             .expect("absolute canonical tempdir")
             .as_path()
@@ -4771,8 +4772,9 @@ mod tests {
         let cwd = TempDir::new().expect("tempdir");
         std::fs::create_dir_all(cwd.path().join(".agents")).expect("create .agents");
         std::fs::create_dir_all(cwd.path().join(".atlas-agent")).expect("create .atlas-agent");
-        let canonical_cwd = atlas_engine_utils_absolute_path::canonicalize_preserving_symlinks(cwd.path())
-            .expect("canonicalize cwd");
+        let canonical_cwd =
+            atlas_engine_utils_absolute_path::canonicalize_preserving_symlinks(cwd.path())
+                .expect("canonicalize cwd");
         let cwd_absolute =
             AbsolutePathBuf::from_absolute_path(&canonical_cwd).expect("absolute tempdir");
         let secret = AbsolutePathBuf::resolve_path_against_base("secret", cwd.path());
@@ -4780,8 +4782,9 @@ mod tests {
             .expect("canonical secret");
         let expected_agents = AbsolutePathBuf::from_absolute_path(canonical_cwd.join(".agents"))
             .expect("canonical .agents");
-        let expected_atlas_engine = AbsolutePathBuf::from_absolute_path(canonical_cwd.join(".atlas-agent"))
-            .expect("canonical .atlas-agent");
+        let expected_atlas_engine =
+            AbsolutePathBuf::from_absolute_path(canonical_cwd.join(".atlas-agent"))
+                .expect("canonical .atlas-agent");
         let policy = FileSystemSandboxPolicy::restricted(vec![
             FileSystemSandboxEntry {
                 path: FileSystemPath::Special {
@@ -4842,8 +4845,9 @@ mod tests {
     #[test]
     fn restricted_file_system_policy_treats_read_entries_as_read_only_subpaths() {
         let cwd = TempDir::new().expect("tempdir");
-        let canonical_cwd = atlas_engine_utils_absolute_path::canonicalize_preserving_symlinks(cwd.path())
-            .expect("canonicalize cwd");
+        let canonical_cwd =
+            atlas_engine_utils_absolute_path::canonicalize_preserving_symlinks(cwd.path())
+                .expect("canonicalize cwd");
         let docs = AbsolutePathBuf::resolve_path_against_base("docs", cwd.path());
         let docs_public = AbsolutePathBuf::resolve_path_against_base("docs/public", cwd.path());
         let expected_docs = AbsolutePathBuf::from_absolute_path(canonical_cwd.join("docs"))
@@ -4851,8 +4855,9 @@ mod tests {
         let expected_docs_public =
             AbsolutePathBuf::from_absolute_path(canonical_cwd.join("docs/public"))
                 .expect("canonical docs/public");
-        let expected_dot_atlas_engine = AbsolutePathBuf::from_absolute_path(canonical_cwd.join(".atlas-agent"))
-            .expect("canonical .atlas-agent");
+        let expected_dot_atlas_engine =
+            AbsolutePathBuf::from_absolute_path(canonical_cwd.join(".atlas-agent"))
+                .expect("canonical .atlas-agent");
         let policy = FileSystemSandboxPolicy::restricted(vec![
             FileSystemSandboxEntry {
                 path: FileSystemPath::Special {

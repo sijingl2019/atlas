@@ -145,8 +145,8 @@ async fn persist_disabled_install_request_writes_connector_config() {
         .await
         .expect("persist connector disable");
 
-    let contents =
-        std::fs::read_to_string(atlas_agent_home.path().join(CONFIG_TOML_FILE)).expect("read config");
+    let contents = std::fs::read_to_string(atlas_agent_home.path().join(CONFIG_TOML_FILE))
+        .expect("read config");
     let parsed: ConfigToml = toml::from_str(&contents).expect("parse config");
     assert_eq!(
         parsed.tool_suggest,
@@ -174,8 +174,8 @@ async fn persist_disabled_install_request_writes_plugin_config() {
         .await
         .expect("persist plugin disable");
 
-    let contents =
-        std::fs::read_to_string(atlas_agent_home.path().join(CONFIG_TOML_FILE)).expect("read config");
+    let contents = std::fs::read_to_string(atlas_agent_home.path().join(CONFIG_TOML_FILE))
+        .expect("read config");
     let parsed: ConfigToml = toml::from_str(&contents).expect("parse config");
     assert_eq!(
         parsed.tool_suggest,
@@ -221,8 +221,8 @@ id = "slack@openai-curated"
         .await
         .expect("persist connector disable");
 
-    let contents =
-        std::fs::read_to_string(atlas_agent_home.path().join(CONFIG_TOML_FILE)).expect("read config");
+    let contents = std::fs::read_to_string(atlas_agent_home.path().join(CONFIG_TOML_FILE))
+        .expect("read config");
     let parsed: ConfigToml = toml::from_str(&contents).expect("parse config");
     assert_eq!(
         parsed.tool_suggest,

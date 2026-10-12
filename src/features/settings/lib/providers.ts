@@ -186,6 +186,15 @@ export const PROVIDERS: ProviderDef[] = [
     chat: true,
   },
   {
+    id: "cheaperinference",
+    name: "Cheaper Inference",
+    env: "CHEAPER_INFERENCE_API_KEY",
+    category: "Gateway",
+    docsUrl: "https://cheaperinference.com/signup",
+    placeholder: "ci_live_...",
+    chat: true,
+  },
+  {
     id: "litellm",
     name: "LiteLLM Proxy",
     env: "LITELLM_API_KEY",

@@ -60,14 +60,16 @@ fn copies_only_selected_projects_and_recopies_changed_content() {
     );
     assert!(!resources_root(&atlas_agent_home).join("project-b").exists());
     assert_eq!(
-        projects_needing_import(&atlas_agent_home, &all_files).expect("detect exact imported content"),
+        projects_needing_import(&atlas_agent_home, &all_files)
+            .expect("detect exact imported content"),
         BTreeSet::from(["project-b".to_string()])
     );
 
     fs::remove_file(&project_a_topic).expect("remove project A topic");
     let updated_files = discover_external_memory_files(&source_home).expect("rediscover memories");
     assert_eq!(
-        projects_needing_import(&atlas_agent_home, &updated_files).expect("detect project file changes"),
+        projects_needing_import(&atlas_agent_home, &updated_files)
+            .expect("detect project file changes"),
         BTreeSet::from(["project-a".to_string(), "project-b".to_string()])
     );
     fs::write(project_a_memory.join("updated.md"), b"updated memory")
@@ -92,8 +94,8 @@ fn copies_only_selected_projects_and_recopies_changed_content() {
         projects_needing_import(&atlas_agent_home, &changed_files).expect("detect changed memory"),
         BTreeSet::from(["project-a".to_string(), "project-b".to_string()])
     );
-    let outcome =
-        copy_resources(&atlas_agent_home, &changed_files, &selected_memory).expect("recopy project A");
+    let outcome = copy_resources(&atlas_agent_home, &changed_files, &selected_memory)
+        .expect("recopy project A");
     assert_eq!(outcome.synchronized_projects, vec!["project-a"]);
     assert_eq!(outcome.failures, Vec::new());
     assert_eq!(

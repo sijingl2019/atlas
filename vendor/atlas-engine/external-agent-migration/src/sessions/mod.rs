@@ -123,22 +123,23 @@ pub fn prepare_validated_session_import_with_metadata_mode(
     else {
         return Ok(None);
     };
-    pending.target = match ledger::find_existing_session_import(atlas_agent_home, &pending.source_path)? {
-        ledger::SessionImportSourceMapping::None => SessionImportTarget::New,
-        ledger::SessionImportSourceMapping::Unique {
-            source_content_sha256,
-            imported_thread_id,
-        } => {
-            if source_content_sha256 == pending.source_content_sha256 {
-                return Ok(None);
+    pending.target =
+        match ledger::find_existing_session_import(atlas_agent_home, &pending.source_path)? {
+            ledger::SessionImportSourceMapping::None => SessionImportTarget::New,
+            ledger::SessionImportSourceMapping::Unique {
+                source_content_sha256,
+                imported_thread_id,
+            } => {
+                if source_content_sha256 == pending.source_content_sha256 {
+                    return Ok(None);
+                }
+                SessionImportTarget::Existing {
+                    thread_id: imported_thread_id,
+                    expected_source_content_sha256: source_content_sha256,
+                }
             }
-            SessionImportTarget::Existing {
-                thread_id: imported_thread_id,
-                expected_source_content_sha256: source_content_sha256,
-            }
-        }
-        ledger::SessionImportSourceMapping::Ambiguous => return Ok(None),
-    };
+            ledger::SessionImportSourceMapping::Ambiguous => return Ok(None),
+        };
     Ok(Some(pending))
 }
 

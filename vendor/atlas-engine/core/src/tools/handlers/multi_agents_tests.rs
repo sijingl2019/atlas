@@ -26,8 +26,8 @@ use atlas_engine_extension_api::empty_extension_registry;
 use atlas_engine_features::Feature;
 use atlas_engine_history::InitialHistory;
 use atlas_engine_history::RolloutItem;
-use atlas_engine_login::AuthManager;
 use atlas_engine_login::AtlasEngineAuth;
+use atlas_engine_login::AuthManager;
 use atlas_engine_model_provider::create_model_provider;
 use atlas_engine_model_provider_info::built_in_model_providers;
 use atlas_engine_protocol::AgentPath;
@@ -190,8 +190,10 @@ where
             let content = match output.body {
                 FunctionCallOutputBody::Text(text) => text,
                 FunctionCallOutputBody::ContentItems(items) => {
-                    atlas_engine_protocol::models::function_call_output_content_items_to_text(&items)
-                        .unwrap_or_default()
+                    atlas_engine_protocol::models::function_call_output_content_items_to_text(
+                        &items,
+                    )
+                    .unwrap_or_default()
                 }
             };
             (content, output.success)
@@ -677,7 +679,11 @@ async fn spawn_agent_role_service_tier_falls_back_to_supported_parent_tier() {
     tokio::fs::create_dir_all(&turn.config.atlas_agent_home)
         .await
         .expect("atlas-agent home should be created");
-    let role_config_path = turn.config.atlas_agent_home.as_path().join("tiered-role.toml");
+    let role_config_path = turn
+        .config
+        .atlas_agent_home
+        .as_path()
+        .join("tiered-role.toml");
     tokio::fs::write(
         &role_config_path,
         r#"model = "gpt-5.4"
@@ -741,7 +747,11 @@ async fn spawn_agent_role_service_tier_does_not_hide_invalid_spawn_request() {
     tokio::fs::create_dir_all(&turn.config.atlas_agent_home)
         .await
         .expect("atlas-agent home should be created");
-    let role_config_path = turn.config.atlas_agent_home.as_path().join("tiered-role.toml");
+    let role_config_path = turn
+        .config
+        .atlas_agent_home
+        .as_path()
+        .join("tiered-role.toml");
     tokio::fs::write(
         &role_config_path,
         r#"model = "gpt-5.4"

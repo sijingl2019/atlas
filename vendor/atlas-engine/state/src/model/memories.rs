@@ -1,7 +1,7 @@
 // Modified by Atlas from upstream OpenAI Codex (Apache-2.0). See CONTEXT.md.
+use atlas_engine_protocol::ThreadId;
 use chrono::DateTime;
 use chrono::Utc;
-use atlas_engine_protocol::ThreadId;
 use std::path::PathBuf;
 
 use super::ThreadMetadata;

@@ -1,7 +1,7 @@
 // Modified by Atlas from upstream OpenAI Codex (Apache-2.0). See CONTEXT.md.
 use super::*;
-use chrono::TimeDelta;
 use atlas_engine_login::AuthHeaders;
+use chrono::TimeDelta;
 use pretty_assertions::assert_eq;
 
 #[test]
@@ -58,11 +58,16 @@ fn global_catalog_cache_reuses_legacy_cache_file() {
         "plugins": [],
     });
     let contents = serde_json::to_string_pretty(&legacy_cache).expect("serialize legacy cache");
-    atlas_engine_utils_path::write_atomically(&legacy_cache_path, &contents).expect("write legacy cache");
+    atlas_engine_utils_path::write_atomically(&legacy_cache_path, &contents)
+        .expect("write legacy cache");
 
-    let cached =
-        load_cached_directory_plugins(atlas_agent_home.path(), &config, &auth, RemotePluginScope::Global)
-            .expect("load legacy global cache");
+    let cached = load_cached_directory_plugins(
+        atlas_agent_home.path(),
+        &config,
+        &auth,
+        RemotePluginScope::Global,
+    )
+    .expect("load legacy global cache");
     assert!(cached.plugins.is_empty());
     assert_eq!(cached.freshness, RemotePluginCatalogCacheFreshness::Stale);
 
@@ -97,8 +102,13 @@ fn header_auth_does_not_cache_private_catalogs_without_a_stable_identity() {
         &[],
     );
     assert!(
-        load_cached_directory_plugins(atlas_agent_home.path(), &config, &auth, RemotePluginScope::Global)
-            .is_some()
+        load_cached_directory_plugins(
+            atlas_agent_home.path(),
+            &config,
+            &auth,
+            RemotePluginScope::Global
+        )
+        .is_some()
     );
 
     for scope in [RemotePluginScope::User, RemotePluginScope::Workspace] {
@@ -123,6 +133,8 @@ fn header_auth_does_not_cache_private_catalogs_without_a_stable_identity() {
         atlas_engine_utils_path::write_atomically(&insecure_cache_path, &contents)
             .expect("write insecure cache");
 
-        assert!(load_cached_directory_plugins(atlas_agent_home.path(), &config, &auth, scope).is_none());
+        assert!(
+            load_cached_directory_plugins(atlas_agent_home.path(), &config, &auth, scope).is_none()
+        );
     }
 }

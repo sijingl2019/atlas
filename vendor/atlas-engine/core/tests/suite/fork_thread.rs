@@ -253,9 +253,10 @@ async fn assert_copied_fork_persists_inherited_history(history_mode: ThreadHisto
             .shutdown_and_wait()
             .await
             .expect("shutdown copied paginated fork");
-        let resumed_history = atlas_engine_rollout::RolloutRecorder::get_rollout_history(&forked_path)
-            .await
-            .expect("load copied paginated fork history");
+        let resumed_history =
+            atlas_engine_rollout::RolloutRecorder::get_rollout_history(&forked_path)
+                .await
+                .expect("load copied paginated fork history");
         let resumed = thread_manager
             .resume_thread_with_history(
                 test.config.clone(),

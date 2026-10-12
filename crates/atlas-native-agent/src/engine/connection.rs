@@ -38,6 +38,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::RwLock;
 
+use crate::AgentSessionEffort;
 use agent_client_protocol::schema::v1 as acp;
 use anyhow::anyhow;
 use anyhow::Result;
@@ -45,38 +46,37 @@ use atlas_acp_thread::{
     AcpThread, AcpThreadHandle, AgentConnection, AgentId, AgentModelId, AgentModelInfo,
     AgentModelList, AgentModelSelector, AgentSessionModes, AgentSessionRewind, AuthorizationKind,
 };
-use crate::AgentSessionEffort;
 use atlas_agent_servers::{SessionMcpOffer, SessionMcpRequest, SessionMcpServers, ThreadEventSink};
 use atlas_engine_app_server_client::InProcessAppServerClient;
 use atlas_engine_app_server_client::InProcessAppServerRequestHandle;
 // The v2 protocol types are re-exported at the crate root
 // (`pub use protocol::v2::*`), so this alias is the whole vocabulary.
+use atlas_engine_app_server::in_process::InProcessServerEvent;
 use atlas_engine_app_server_protocol as v2;
 use atlas_engine_app_server_protocol::ClientRequest;
 use atlas_engine_app_server_protocol::RequestId;
 use atlas_engine_app_server_protocol::ServerRequest;
-use atlas_engine_app_server::in_process::InProcessServerEvent;
 use atlas_engine_login::auth::ExternalAuth;
 use atlas_engine_protocol::openai_models::ReasoningEffort;
 use futures::future::BoxFuture;
 use futures::FutureExt;
 use tokio::sync::oneshot;
 
+use crate::engine::approvals;
 use crate::engine::auth::SystemClock;
 use crate::engine::catalog_cache::{self, CatalogueFetcher, CatalogueUnavailable};
 use crate::engine::config::EngineHome;
 use crate::engine::config::EngineSettings;
 use crate::engine::config::WireDialect;
-use crate::engine::approvals;
 use crate::engine::mcp;
 use crate::engine::modes;
 use crate::engine::questions;
-use crate::engine::tool_approvals;
 use crate::engine::runtime::start_engine;
 use crate::engine::runtime::EngineRuntime;
+use crate::engine::sink::apply_notification;
 use crate::engine::sink::EngineSessions;
 use crate::engine::sink::PromptPlace;
-use crate::engine::sink::apply_notification;
+use crate::engine::tool_approvals;
 
 /// Request ids Atlas mints for the engine.
 ///
@@ -193,14 +193,19 @@ impl TurnWaiters {
     /// Records one retry notice for a turn and returns its attempt number,
     /// counting from 1.
     pub(crate) fn note_retry(&self, turn_id: &str) -> usize {
-        let mut attempts = self.attempts.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut attempts = self
+            .attempts
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let counter = attempts.entry(turn_id.to_string()).or_insert(0);
         *counter += 1;
         *counter
     }
 
     fn unclaimed(&self) -> std::sync::MutexGuard<'_, std::collections::VecDeque<v2::Turn>> {
-        self.unclaimed.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+        self.unclaimed
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
     /// The turn to interrupt for a session, if one is running.
@@ -243,11 +248,15 @@ impl TurnWaiters {
     }
 
     fn starting(&self) -> std::sync::MutexGuard<'_, std::collections::HashSet<String>> {
-        self.starting.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+        self.starting
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
     fn pending_cancel(&self) -> std::sync::MutexGuard<'_, std::collections::HashSet<String>> {
-        self.pending_cancel.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+        self.pending_cancel
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
     fn forget(&self, thread_id: &str, turn_id: &str) {
@@ -259,11 +268,15 @@ impl TurnWaiters {
     }
 
     fn waiters(&self) -> std::sync::MutexGuard<'_, HashMap<String, oneshot::Sender<v2::Turn>>> {
-        self.waiters.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+        self.waiters
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
     fn active(&self) -> std::sync::MutexGuard<'_, HashMap<String, String>> {
-        self.active.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+        self.active
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 }
 
@@ -302,6 +315,8 @@ impl LiveCatalogue {
                 is_latest: false,
                 cost: None,
                 disabled: None,
+                provider: None,
+                legacy: false,
             }],
             default_model: model,
             fingerprint: 0,
@@ -310,7 +325,11 @@ impl LiveCatalogue {
         }
     }
 
-    fn from_projection(projected: catalog_cache::ProjectedCatalogue, fetched_at: u64, stale: bool) -> Self {
+    fn from_projection(
+        projected: catalog_cache::ProjectedCatalogue,
+        fetched_at: u64,
+        stale: bool,
+    ) -> Self {
         Self {
             picker: projected.picker,
             default_model: projected.default_model,
@@ -380,7 +399,16 @@ impl EngineConnection {
         external_auth: Option<Arc<dyn ExternalAuth>>,
         default_mode: Option<acp::SessionModeId>,
     ) -> Result<Arc<Self>> {
-        Self::connect_full(id, settings, thread_events, external_auth, default_mode, None, None).await
+        Self::connect_full(
+            id,
+            settings,
+            thread_events,
+            external_auth,
+            default_mode,
+            None,
+            None,
+        )
+        .await
     }
 
     /// Opens the connection.
@@ -404,7 +432,7 @@ impl EngineConnection {
             WireDialect::Chat => {
                 let Some(fetcher) = catalogue else {
                     return Err(anyhow!(
-                        "the gateway dialect needs a catalogue fetcher and none was supplied"
+                        "the gateway dialect needs a catalog fetcher and none was supplied"
                     ));
                 };
                 let resolved = catalog_cache::resolve(
@@ -550,7 +578,11 @@ impl EngineConnection {
     /// and it takes the approval policy and the sandbox policy separately —
     /// both are needed, because sandbox alone cannot express "ask first" and
     /// approval alone cannot stop a command that never asks.
-    async fn apply_mode(&self, session_id: &acp::SessionId, mode: &acp::SessionModeId) -> Result<()> {
+    async fn apply_mode(
+        &self,
+        session_id: &acp::SessionId,
+        mode: &acp::SessionModeId,
+    ) -> Result<()> {
         let (approval_policy, sandbox_policy) = modes::engine_policy(&mode.0);
         let _: v2::ThreadSettingsUpdateResponse = self
             .call(|request_id| ClientRequest::ThreadSettingsUpdate {
@@ -634,8 +666,7 @@ impl EngineConnection {
             .into_iter()
             .flat_map(|entry| entry.skills)
             .filter(|skill| {
-                skill.enabled
-                    && matches!(skill.scope, v2::SkillScope::User | v2::SkillScope::Repo)
+                skill.enabled && matches!(skill.scope, v2::SkillScope::User | v2::SkillScope::Repo)
             })
             .map(|skill| crate::engine::commands::SkillRef {
                 name: skill.name,
@@ -858,8 +889,7 @@ fn coalesce_message_deltas(events: Vec<InProcessServerEvent>) -> Vec<InProcessSe
                 ServerNotification::AgentMessageDelta(delta),
             ) = (last.as_mut(), next.as_ref())
             {
-                if accumulated.thread_id == delta.thread_id
-                    && accumulated.item_id == delta.item_id
+                if accumulated.thread_id == delta.thread_id && accumulated.item_id == delta.item_id
                 {
                     accumulated.delta.push_str(&delta.delta);
                     continue;
@@ -1018,11 +1048,11 @@ fn handle_server_request(
         // Shaped per request kind: the engine's two approval surfaces take
         // different response types even though the user answered one question.
         let result = match &request {
-            Req::CommandExecutionRequestApproval { .. } => serde_json::to_value(
-                v2::CommandExecutionRequestApprovalResponse {
+            Req::CommandExecutionRequestApproval { .. } => {
+                serde_json::to_value(v2::CommandExecutionRequestApprovalResponse {
                     decision: decision.for_command(),
-                },
-            ),
+                })
+            }
             Req::FileChangeRequestApproval { .. } => {
                 serde_json::to_value(v2::FileChangeRequestApprovalResponse {
                     decision: decision.for_file_change(),
@@ -1083,17 +1113,24 @@ fn ask_tool_approval(
     let server = params.server_name.clone();
     let arguments = tool_approvals::arguments(&params);
     let waiting = {
-        let thread = thread.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let thread = thread
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         tool_approvals::waiting_call(&thread, &server, &arguments)
     };
     // The call's own row when the thread has it; a card of its own otherwise,
     // so the user is still asked rather than the turn left hanging.
     let (item_id, tool) = waiting.unwrap_or_else(|| {
-        (acp::ToolCallId::new(format!("{server}-approval-{request_id:?}")), String::new())
+        (
+            acp::ToolCallId::new(format!("{server}-approval-{request_id:?}")),
+            String::new(),
+        )
     });
-    let every_time = !tool.is_empty() && sessions.asks_every_time(params.thread_id.as_str(), &server, &tool);
+    let every_time =
+        !tool.is_empty() && sessions.asks_every_time(params.thread_id.as_str(), &server, &tool);
 
-    if !tool.is_empty() && !every_time && sessions.allowed_for_session(&session_id, &server, &tool) {
+    if !tool.is_empty() && !every_time && sessions.allowed_for_session(&session_id, &server, &tool)
+    {
         record_consent(host.as_ref(), &session_id, &server, &tool, &arguments);
         tracing::info!(
             target: "atlas::approvals",
@@ -1115,8 +1152,18 @@ fn ask_tool_approval(
     tokio::spawn(async move {
         let answered = match host.clone().filter(|_| !tool.is_empty()) {
             Some(describer) => {
-                ask_outward(place, thread, describer, &session_id, &server, &tool, &arguments, item_id.clone(), every_time)
-                    .await
+                ask_outward(
+                    place,
+                    thread,
+                    describer,
+                    &session_id,
+                    &server,
+                    &tool,
+                    &arguments,
+                    item_id.clone(),
+                    every_time,
+                )
+                .await
             }
             None => {
                 let update = tool_approvals::card(item_id.clone(), &server, &tool, None);
@@ -1135,7 +1182,10 @@ fn ask_tool_approval(
             Ok(Some(decision)) => decision,
             Ok(None) => approvals::Decision::Cancel,
             Err(e) => {
-                let _ = answers.send(ServerAnswer { request_id, result: Err(e) });
+                let _ = answers.send(ServerAnswer {
+                    request_id,
+                    result: Err(e),
+                });
                 return;
             }
         };
@@ -1148,7 +1198,10 @@ fn ask_tool_approval(
         if decision == approvals::Decision::AcceptForSession && !tool.is_empty() {
             sessions.allow_for_session(&session_id, &server, &tool);
         }
-        if matches!(decision, approvals::Decision::Accept | approvals::Decision::AcceptForSession) {
+        if matches!(
+            decision,
+            approvals::Decision::Accept | approvals::Decision::AcceptForSession
+        ) {
             record_consent(host.as_ref(), &session_id, &server, &tool, &arguments);
         }
         tracing::info!(
@@ -1188,7 +1241,9 @@ async fn ask_outward(
     every_time: bool,
 ) -> std::result::Result<Option<approvals::Decision>, String> {
     fn lock(thread: &AcpThreadHandle) -> std::sync::MutexGuard<'_, AcpThread> {
-        thread.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+        thread
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
     let queued = place.is_queued();
     place.wait().await;
@@ -1208,7 +1263,12 @@ async fn ask_outward(
     };
     let describe = tokio::time::timeout(
         tool_approvals::PREPARE_WITHIN,
-        host.describe_call(atlas_agent_servers::CallToApprove { session_id, server, tool, arguments }),
+        host.describe_call(atlas_agent_servers::CallToApprove {
+            session_id,
+            server,
+            tool,
+            arguments,
+        }),
     );
 
     let described = tokio::select! {
@@ -1263,7 +1323,12 @@ fn record_consent(
     arguments: &serde_json::Value,
 ) {
     if let Some(host) = host.filter(|_| !tool.is_empty()) {
-        host.approved_call(atlas_agent_servers::CallToApprove { session_id, server, tool, arguments });
+        host.approved_call(atlas_agent_servers::CallToApprove {
+            session_id,
+            server,
+            tool,
+            arguments,
+        });
     }
 }
 
@@ -1352,7 +1417,9 @@ where
     W::Output: Send,
 {
     fn lock(thread: &AcpThreadHandle) -> std::sync::MutexGuard<'_, AcpThread> {
-        thread.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+        thread
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
     if !place.is_queued() {
         // Take the waiter out under the lock, then await it without holding it.
@@ -1448,7 +1515,10 @@ impl AgentConnection for EngineConnection {
             let session_id = acp::SessionId::new(response.thread.id.as_str());
             self.sessions
                 .expect_mcp_servers(&response.thread.id, mcp::server_names(mcp_offer.servers()));
-            self.sessions.expect_every_time(&response.thread.id, mcp_offer.ask_first().every_time_tools());
+            self.sessions.expect_every_time(
+                &response.thread.id,
+                mcp_offer.ask_first().every_time_tools(),
+            );
             mcp_offer.bind(&session_id);
             let thread = self.new_thread(session_id.clone(), work_dirs, None);
             self.sessions.insert(
@@ -1628,8 +1698,10 @@ impl AgentConnection for EngineConnection {
                 &engine_session_id.to_string(),
                 mcp::server_names(mcp_offer.servers()),
             );
-            self.sessions
-                .expect_every_time(&engine_session_id.to_string(), mcp_offer.ask_first().every_time_tools());
+            self.sessions.expect_every_time(
+                &engine_session_id.to_string(),
+                mcp_offer.ask_first().every_time_tools(),
+            );
             mcp_offer.bind(&engine_session_id);
             let thread = self.new_thread(engine_session_id.clone(), work_dirs, title);
             {
@@ -1639,7 +1711,9 @@ impl AgentConnection for EngineConnection {
                 // it (see `engine::replay`). A pre-cutover row took the
                 // fresh-thread arm above and has no turns; it opens empty,
                 // which D6 accepted, and now only that row does.
-                let mut locked = thread.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+                let mut locked = thread
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
                 crate::engine::replay::replay_turns(&mut locked, &stored_turns);
             }
             self.sessions.insert(
@@ -1675,7 +1749,10 @@ impl AgentConnection for EngineConnection {
         .boxed()
     }
 
-    fn prompt(&self, params: acp::PromptRequest) -> BoxFuture<'static, Result<acp::PromptResponse>> {
+    fn prompt(
+        &self,
+        params: acp::PromptRequest,
+    ) -> BoxFuture<'static, Result<acp::PromptResponse>> {
         let mut text = crate::engine::sink::flatten_prompt(&params.prompt);
         // `flatten_prompt` above keeps only the text-projectable blocks — image
         // blocks have none, so they're pulled out here as their own
@@ -1743,9 +1820,7 @@ impl AgentConnection for EngineConnection {
                 let sessions = self.sessions.clone();
                 let session_id = params.session_id;
                 return async move {
-                    let cwd = sessions
-                        .cwd(&session_id)
-                        .unwrap_or_else(|| ".".to_string());
+                    let cwd = sessions.cwd(&session_id).unwrap_or_else(|| ".".to_string());
                     // git can chew on a large tree; keep it off the async
                     // runtime's threads.
                     let reply = tokio::task::spawn_blocking(move || {
@@ -1795,19 +1870,22 @@ impl AgentConnection for EngineConnection {
                 let session_id = params.session_id;
                 return async move {
                     let rolled = requests
-                        .request_typed::<v2::ThreadRollbackResponse>(ClientRequest::ThreadRollback {
-                            request_id,
-                            params: v2::ThreadRollbackParams {
-                                thread_id,
-                                num_turns: 1,
+                        .request_typed::<v2::ThreadRollbackResponse>(
+                            ClientRequest::ThreadRollback {
+                                request_id,
+                                params: v2::ThreadRollbackParams {
+                                    thread_id,
+                                    num_turns: 1,
+                                },
                             },
-                        })
+                        )
                         .await;
                     let reply = match rolled {
                         Ok(_) => {
                             if let Some(thread) = sessions.thread(&session_id) {
-                                let mut locked =
-                                    thread.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+                                let mut locked = thread
+                                    .lock()
+                                    .unwrap_or_else(std::sync::PoisonError::into_inner);
                                 // The LAST user entry is "/undo" itself — the
                                 // host pushed it before prompt() ran. The
                                 // exchange being undone starts at the user
@@ -1824,9 +1902,7 @@ impl AgentConnection for EngineConnection {
                                     })
                                     .map(|(ix, _)| ix)
                                     .collect();
-                                if let Some(from) =
-                                    user_indices.iter().rev().nth(1).copied()
-                                {
+                                if let Some(from) = user_indices.iter().rev().nth(1).copied() {
                                     locked.remove_entries_from(from);
                                 } else if let Some(only) = user_indices.last().copied() {
                                     locked.remove_entries_from(only);
@@ -1861,14 +1937,16 @@ impl AgentConnection for EngineConnection {
                     let reply = match objective {
                         Some(objective_text) => {
                             let set = requests
-                                .request_typed::<v2::ThreadGoalSetResponse>(ClientRequest::ThreadGoalSet {
-                                    request_id,
-                                    params: v2::ThreadGoalSetParams {
-                                        thread_id,
-                                        objective: Some(objective_text.clone()),
-                                        ..Default::default()
+                                .request_typed::<v2::ThreadGoalSetResponse>(
+                                    ClientRequest::ThreadGoalSet {
+                                        request_id,
+                                        params: v2::ThreadGoalSetParams {
+                                            thread_id,
+                                            objective: Some(objective_text.clone()),
+                                            ..Default::default()
+                                        },
                                     },
-                                })
+                                )
                                 .await;
                             match set {
                                 Ok(_) => format!("**Goal set:** {objective_text}"),
@@ -1877,18 +1955,19 @@ impl AgentConnection for EngineConnection {
                         }
                         None => {
                             let got = requests
-                                .request_typed::<v2::ThreadGoalGetResponse>(ClientRequest::ThreadGoalGet {
-                                    request_id,
-                                    params: v2::ThreadGoalGetParams { thread_id },
-                                })
+                                .request_typed::<v2::ThreadGoalGetResponse>(
+                                    ClientRequest::ThreadGoalGet {
+                                        request_id,
+                                        params: v2::ThreadGoalGetParams { thread_id },
+                                    },
+                                )
                                 .await;
                             match got {
                                 Ok(response) => response
                                     .goal
                                     .map(|goal| format!("**Goal:** {}", goal.objective))
                                     .unwrap_or_else(|| {
-                                        "No goal set. `/goal <objective>` sets one."
-                                            .to_string()
+                                        "No goal set. `/goal <objective>` sets one.".to_string()
                                     }),
                                 Err(e) => format!("Could not read the goal: {e}"),
                             }
@@ -2494,7 +2573,12 @@ mod tests {
             }
 
             fn engine_asks(&self, request: ServerRequest) {
-                handle_server_request(&self.sessions, self.host.as_ref(), request, &self.answers_tx);
+                handle_server_request(
+                    &self.sessions,
+                    self.host.as_ref(),
+                    request,
+                    &self.answers_tx,
+                );
             }
 
             async fn engine_hears(&mut self) -> ServerAnswer {
@@ -2527,13 +2611,15 @@ mod tests {
                     .iter()
                     .find(|e| matches!(e.status, ElicitationStatus::Pending { .. }))
                     .expect("a question card is showing");
-                serde_json::to_value(&pending.request).expect("serialises")["requestedSchema"].clone()
+                serde_json::to_value(&pending.request).expect("serialises")["requestedSchema"]
+                    .clone()
             }
 
             fn answer_question(&self, content: serde_json::Value) {
                 let id = self.question_card().expect("a question card is showing");
-                let response = serde_json::from_value(json!({ "action": "accept", "content": content }))
-                    .expect("an accept response");
+                let response =
+                    serde_json::from_value(json!({ "action": "accept", "content": content }))
+                        .expect("an accept response");
                 lock(&self.thread).respond_to_elicitation(&id, response);
             }
 
@@ -2565,7 +2651,9 @@ mod tests {
         }
 
         fn lock(thread: &AcpThreadHandle) -> std::sync::MutexGuard<'_, AcpThread> {
-            thread.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+            thread
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
         }
 
         async fn settle() {
@@ -2632,12 +2720,15 @@ mod tests {
             assert_eq!(field["oneOf"][0]["title"], "The first one");
             assert_eq!(field["oneOf"][1]["title"], "All four");
             assert_eq!(
-                schema["properties"]["which_comment__other"]["_meta"]["_askUserQuestionCustomAnswer"]
-                    ["questionId"],
+                schema["properties"]["which_comment__other"]["_meta"]
+                    ["_askUserQuestionCustomAnswer"]["questionId"],
                 "which_comment",
                 "the free-form Other the card pairs with the question",
             );
-            assert!(seam.engine_heard_nothing().await, "the turn blocks on the user");
+            assert!(
+                seam.engine_heard_nothing().await,
+                "the turn blocks on the user"
+            );
         }
 
         #[tokio::test]
@@ -2734,7 +2825,10 @@ mod tests {
             seam.allow("cmd-1");
             assert!(is_answer_to(&seam.engine_hears().await, 1));
             settle().await;
-            assert!(seam.question_card().is_some(), "the question is next in line");
+            assert!(
+                seam.question_card().is_some(),
+                "the question is next in line"
+            );
 
             seam.answer_question(json!({ "which_comment": "The first one" }));
             let answer = seam.engine_hears().await;
@@ -2800,13 +2894,19 @@ mod tests {
             lock(&seam.thread).cancel();
             let first = seam.engine_hears().await;
             assert!(is_answer_to(&first, 1));
-            assert_eq!(first.result.expect("an approval")["decision"], json!("cancel"));
+            assert_eq!(
+                first.result.expect("an approval")["decision"],
+                json!("cancel")
+            );
 
             // ...and the question queued behind it is answered, not raised.
             let second = seam.engine_hears().await;
             assert!(is_answer_to(&second, 2));
             assert!(second.result.is_err());
-            assert!(seam.question_card().is_none(), "no card for a turn that is over");
+            assert!(
+                seam.question_card().is_none(),
+                "no card for a turn that is over"
+            );
         }
 
         // ── Outward actions ask first (ADR-0014) ───────────────────────────
@@ -2815,7 +2915,10 @@ mod tests {
         /// comment, as the app's organisation offer does for
         /// `org_comment_reply`, counts the asks, and keeps the approvals it
         /// is told of.
-        struct DescribingHost(Arc<std::sync::atomic::AtomicUsize>, Arc<atlas_agent_servers::OutwardConsent>);
+        struct DescribingHost(
+            Arc<std::sync::atomic::AtomicUsize>,
+            Arc<atlas_agent_servers::OutwardConsent>,
+        );
 
         impl SessionMcpServers for DescribingHost {
             fn offer(&self, _request: &SessionMcpRequest) -> SessionMcpOffer {
@@ -2827,7 +2930,10 @@ mod tests {
                 call: atlas_agent_servers::CallToApprove<'_>,
             ) -> BoxFuture<'static, Option<atlas_agent_servers::CallDescription>> {
                 self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                let body = call.arguments["body"].as_str().unwrap_or_default().to_string();
+                let body = call.arguments["body"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .to_string();
                 async move {
                     Some(atlas_agent_servers::CallDescription {
                         title: "Reply on Sam Lee's comment".into(),
@@ -2856,8 +2962,12 @@ mod tests {
             /// An open session offered `atlas_org`, whose host describes calls.
             fn with_org() -> Self {
                 let mut seam = Self::open();
-                seam.sessions.expect_mcp_servers(THREAD, ["atlas_org".to_string()]);
-                seam.host = Some(Arc::new(DescribingHost(seam.described.clone(), seam.consent.clone())));
+                seam.sessions
+                    .expect_mcp_servers(THREAD, ["atlas_org".to_string()]);
+                seam.host = Some(Arc::new(DescribingHost(
+                    seam.described.clone(),
+                    seam.consent.clone(),
+                )));
                 seam
             }
 
@@ -2869,7 +2979,8 @@ mod tests {
             /// what the organisation tool server checks before posting —
             /// spending it as the server does.
             fn consented(&self, arguments: &serde_json::Value) -> bool {
-                self.consent.take(THREAD, "atlas_org", "org_comment_reply", arguments)
+                self.consent
+                    .take(THREAD, "atlas_org", "org_comment_reply", arguments)
             }
 
             /// The engine announces the call, as `item/started` does before it
@@ -2895,18 +3006,26 @@ mod tests {
             /// The row's title, its content as text, and its tool name.
             fn row(&self, item: &str) -> (String, Vec<String>, Option<String>) {
                 let thread = lock(&self.thread);
-                let (_, call) = thread.tool_call(&acp::ToolCallId::new(item)).expect("the row");
+                let (_, call) = thread
+                    .tool_call(&acp::ToolCallId::new(item))
+                    .expect("the row");
                 let content = call
                     .content
                     .iter()
                     .filter_map(|c| match c {
-                        atlas_acp_thread::ToolCallContent::ContentBlock(atlas_acp_thread::ContentBlock::Text(t)) => {
-                            Some(t.clone())
-                        }
+                        atlas_acp_thread::ToolCallContent::ContentBlock(
+                            atlas_acp_thread::ContentBlock::Text(t),
+                        ) => Some(t.clone()),
                         _ => None,
                     })
                     .collect();
-                (call.label.clone(), content, call.tool_name.as_ref().map(std::string::ToString::to_string))
+                (
+                    call.label.clone(),
+                    content,
+                    call.tool_name
+                        .as_ref()
+                        .map(std::string::ToString::to_string),
+                )
             }
         }
 
@@ -2932,18 +3051,25 @@ mod tests {
         }
 
         fn action(answer: ServerAnswer) -> String {
-            answer.result.expect("an elicitation response")["action"].as_str().unwrap().to_string()
+            answer.result.expect("an elicitation response")["action"]
+                .as_str()
+                .unwrap()
+                .to_string()
         }
 
         #[tokio::test]
-        async fn an_outward_action_is_the_approval_card_on_its_row_with_the_recipient_and_the_full_body() {
+        async fn an_outward_action_is_the_approval_card_on_its_row_with_the_recipient_and_the_full_body(
+        ) {
             let mut seam = Seam::with_org();
             let body = long_body();
             seam.model_calls("call-1", "org_comment_reply", reply_args(&body));
             seam.engine_asks(tool_approval(1, "atlas_org", reply_args(&body)));
             settle().await;
 
-            assert!(seam.approval_card("call-1"), "the card is on the call's own row");
+            assert!(
+                seam.approval_card("call-1"),
+                "the card is on the call's own row"
+            );
             let (title, content, tool_name) = seam.row("call-1");
             assert_eq!(title, "Reply on Sam Lee's comment");
             assert_eq!(
@@ -2954,10 +3080,20 @@ mod tests {
                 ],
                 "the recipient, then the body in full",
             );
-            assert_eq!(tool_name.as_deref(), Some("atlas_org.org_comment_reply"), "the row still reads as the call");
+            assert_eq!(
+                tool_name.as_deref(),
+                Some("atlas_org.org_comment_reply"),
+                "the row still reads as the call"
+            );
             assert_eq!(seam.describes(), 1);
-            assert!(seam.engine_heard_nothing().await, "nothing is posted until the user answers");
-            assert!(!seam.consented(&reply_args(&body)), "and nothing is approved yet");
+            assert!(
+                seam.engine_heard_nothing().await,
+                "nothing is posted until the user answers"
+            );
+            assert!(
+                !seam.consented(&reply_args(&body)),
+                "and nothing is approved yet"
+            );
         }
 
         #[tokio::test]
@@ -2970,7 +3106,10 @@ mod tests {
             let answer = seam.engine_hears().await;
             assert!(is_answer_to(&answer, 1));
             assert_eq!(action(answer), "accept");
-            assert!(seam.consented(&reply_args("first")), "the host holds the approval of this reply");
+            assert!(
+                seam.consented(&reply_args("first")),
+                "the host holds the approval of this reply"
+            );
             assert!(!seam.consented(&reply_args("first")), "once");
 
             seam.model_calls("call-2", "org_comment_reply", reply_args("second"));
@@ -2978,7 +3117,10 @@ mod tests {
             settle().await;
             assert!(seam.approval_card("call-2"), "allow once covers one reply");
             assert!(seam.engine_heard_nothing().await);
-            assert!(!seam.consented(&reply_args("second")), "not approved until asked");
+            assert!(
+                !seam.consented(&reply_args("second")),
+                "not approved until asked"
+            );
         }
 
         #[tokio::test]
@@ -2987,18 +3129,33 @@ mod tests {
             seam.model_calls("call-1", "org_comment_reply", reply_args("first"));
             seam.engine_asks(tool_approval(1, "atlas_org", reply_args("first")));
             settle().await;
-            seam.answer("call-1", acp::PermissionOptionKind::AllowAlways, "allow-always");
+            seam.answer(
+                "call-1",
+                acp::PermissionOptionKind::AllowAlways,
+                "allow-always",
+            );
             assert_eq!(action(seam.engine_hears().await), "accept");
 
             seam.model_calls("call-2", "org_comment_reply", reply_args("second"));
             seam.engine_asks(tool_approval(2, "atlas_org", reply_args("second")));
             let answer = seam.engine_hears().await;
             assert!(is_answer_to(&answer, 2));
-            assert_eq!(action(answer), "accept", "answered from the session's allowance");
+            assert_eq!(
+                action(answer),
+                "accept",
+                "answered from the session's allowance"
+            );
             assert!(!seam.approval_card("call-2"), "no card the second time");
-            assert_eq!(seam.describes(), 1, "nothing to describe when nobody is asked");
+            assert_eq!(
+                seam.describes(),
+                1,
+                "nothing to describe when nobody is asked"
+            );
             assert!(seam.consented(&reply_args("first")));
-            assert!(seam.consented(&reply_args("second")), "the allowance approves each call it covers");
+            assert!(
+                seam.consented(&reply_args("second")),
+                "the allowance approves each call it covers"
+            );
         }
 
         #[tokio::test]
@@ -3014,7 +3171,10 @@ mod tests {
             settle().await;
             seam.answer("call-1", acp::PermissionOptionKind::RejectOnce, "reject");
             assert_eq!(action(seam.engine_hears().await), "decline");
-            assert!(!seam.consented(&reply_args("no")), "a declined reply is never approved");
+            assert!(
+                !seam.consented(&reply_args("no")),
+                "a declined reply is never approved"
+            );
 
             // A decline is not remembered: the next reply asks again.
             seam.model_calls("call-2", "org_comment_reply", reply_args("again"));
@@ -3047,13 +3207,20 @@ mod tests {
             seam.allow("cmd-1");
             assert!(is_answer_to(&seam.engine_hears().await, 1));
             settle().await;
-            assert!(seam.approval_card("call-1"), "the outward card is next in line");
+            assert!(
+                seam.approval_card("call-1"),
+                "the outward card is next in line"
+            );
         }
 
         /// A host whose description the test hands over when it chooses —
         /// or never, or as "cannot describe" (`None`).
         struct GatedHost {
-            answer: std::sync::Mutex<Option<tokio::sync::oneshot::Receiver<Option<atlas_agent_servers::CallDescription>>>>,
+            answer: std::sync::Mutex<
+                Option<
+                    tokio::sync::oneshot::Receiver<Option<atlas_agent_servers::CallDescription>>,
+                >,
+            >,
             consent: Arc<atlas_agent_servers::OutwardConsent>,
         }
 
@@ -3066,7 +3233,11 @@ mod tests {
                 &self,
                 _call: atlas_agent_servers::CallToApprove<'_>,
             ) -> BoxFuture<'static, Option<atlas_agent_servers::CallDescription>> {
-                let answer = self.answer.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take();
+                let answer = self
+                    .answer
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .take();
                 async move {
                     match answer {
                         Some(answer) => answer.await.ok().flatten(),
@@ -3097,10 +3268,15 @@ mod tests {
             /// [`with_org`](Self::with_org), with a host that describes only
             /// when the returned sender is used; `org_send` asks every time,
             /// as the app declares it.
-            fn with_gated_org() -> (Self, tokio::sync::oneshot::Sender<Option<atlas_agent_servers::CallDescription>>) {
+            fn with_gated_org() -> (
+                Self,
+                tokio::sync::oneshot::Sender<Option<atlas_agent_servers::CallDescription>>,
+            ) {
                 let mut seam = Self::open();
-                seam.sessions.expect_mcp_servers(THREAD, ["atlas_org".to_string()]);
-                seam.sessions.expect_every_time(THREAD, [("atlas_org", "org_send")]);
+                seam.sessions
+                    .expect_mcp_servers(THREAD, ["atlas_org".to_string()]);
+                seam.sessions
+                    .expect_every_time(THREAD, [("atlas_org", "org_send")]);
                 let (tx, rx) = tokio::sync::oneshot::channel();
                 seam.host = Some(Arc::new(GatedHost {
                     answer: std::sync::Mutex::new(Some(rx)),
@@ -3125,7 +3301,8 @@ mod tests {
             }
 
             fn sent_consent(&self, arguments: &serde_json::Value) -> bool {
-                self.consent.take(THREAD, "atlas_org", "org_send", arguments)
+                self.consent
+                    .take(THREAD, "atlas_org", "org_send", arguments)
             }
         }
 
@@ -3142,7 +3319,11 @@ mod tests {
             seam.engine_asks(tool_approval(1, "atlas_org", send_args("deploy is green")));
             settle().await;
 
-            assert_eq!(seam.card_options("call-1"), [RejectOnce], "nothing to allow yet");
+            assert_eq!(
+                seam.card_options("call-1"),
+                [RejectOnce],
+                "nothing to allow yet"
+            );
             let (title, content, _) = seam.row("call-1");
             assert_eq!(title, tool_approvals::PREPARING_TITLE);
             assert_eq!(content, [tool_approvals::PREPARING_NOTE.to_string()]);
@@ -3150,22 +3331,41 @@ mod tests {
             // A slow cloud is waited for: no fallback to the arguments.
             tokio::time::advance(Duration::from_secs(30)).await;
             settle().await;
-            assert_eq!(seam.card_options("call-1"), [RejectOnce], "still preparing, not raw arguments");
+            assert_eq!(
+                seam.card_options("call-1"),
+                [RejectOnce],
+                "still preparing, not raw arguments"
+            );
             assert!(seam.engine_heard_nothing().await);
 
-            describe.send(Some(description("deploy is green"))).expect("the host answers");
+            describe
+                .send(Some(description("deploy is green")))
+                .expect("the host answers");
             settle().await;
-            assert_eq!(seam.card_options("call-1"), [AllowOnce, RejectOnce], "a message asks every time");
+            assert_eq!(
+                seam.card_options("call-1"),
+                [AllowOnce, RejectOnce],
+                "a message asks every time"
+            );
             let (title, content, tool_name) = seam.row("call-1");
             assert_eq!(title, "Message #general");
-            assert_eq!(content, ["#general, a channel with 5 members".to_string(), "deploy is green".to_string()]);
+            assert_eq!(
+                content,
+                [
+                    "#general, a channel with 5 members".to_string(),
+                    "deploy is green".to_string()
+                ]
+            );
             assert_eq!(tool_name.as_deref(), Some("atlas_org.org_send"));
 
             seam.answer("call-1", AllowOnce, "allow-once");
             let answer = seam.engine_hears().await;
             assert!(is_answer_to(&answer, 1));
             assert_eq!(action(answer), "accept");
-            assert!(seam.sent_consent(&send_args("deploy is green")), "approved on the described card");
+            assert!(
+                seam.sent_consent(&send_args("deploy is green")),
+                "approved on the described card"
+            );
         }
 
         /// Declining while it prepares is a decline: nothing is approved and
@@ -3209,15 +3409,23 @@ mod tests {
         #[tokio::test]
         async fn a_message_is_never_allowed_for_the_session() {
             let mut seam = Seam::with_org();
-            seam.sessions.expect_every_time(THREAD, [("atlas_org", "org_send")]);
+            seam.sessions
+                .expect_every_time(THREAD, [("atlas_org", "org_send")]);
             seam.model_calls("call-1", "org_send", send_args("one"));
             seam.engine_asks(tool_approval(1, "atlas_org", send_args("one")));
             settle().await;
             assert_eq!(
                 seam.card_options("call-1"),
-                [acp::PermissionOptionKind::AllowOnce, acp::PermissionOptionKind::RejectOnce]
+                [
+                    acp::PermissionOptionKind::AllowOnce,
+                    acp::PermissionOptionKind::RejectOnce
+                ]
             );
-            seam.answer("call-1", acp::PermissionOptionKind::AllowAlways, "allow-always");
+            seam.answer(
+                "call-1",
+                acp::PermissionOptionKind::AllowAlways,
+                "allow-always",
+            );
             assert_eq!(action(seam.engine_hears().await), "accept");
 
             seam.model_calls("call-2", "org_send", send_args("two"));
@@ -3232,12 +3440,21 @@ mod tests {
         #[tokio::test]
         async fn a_reply_allowed_for_the_session_does_not_cover_a_message() {
             let mut seam = Seam::with_org();
-            seam.sessions.expect_every_time(THREAD, [("atlas_org", "org_send")]);
+            seam.sessions
+                .expect_every_time(THREAD, [("atlas_org", "org_send")]);
             seam.model_calls("call-1", "org_comment_reply", reply_args("first"));
             seam.engine_asks(tool_approval(1, "atlas_org", reply_args("first")));
             settle().await;
-            assert!(seam.card_options("call-1").contains(&acp::PermissionOptionKind::AllowAlways), "a reply keeps it");
-            seam.answer("call-1", acp::PermissionOptionKind::AllowAlways, "allow-always");
+            assert!(
+                seam.card_options("call-1")
+                    .contains(&acp::PermissionOptionKind::AllowAlways),
+                "a reply keeps it"
+            );
+            seam.answer(
+                "call-1",
+                acp::PermissionOptionKind::AllowAlways,
+                "allow-always",
+            );
             assert_eq!(action(seam.engine_hears().await), "accept");
 
             seam.model_calls("call-2", "org_send", send_args("hi"));
@@ -3249,7 +3466,8 @@ mod tests {
         #[tokio::test]
         async fn with_nothing_to_describe_it_the_card_still_asks_on_the_rows_own_title() {
             let seam = Seam::open();
-            seam.sessions.expect_mcp_servers(THREAD, ["atlas_org".to_string()]);
+            seam.sessions
+                .expect_mcp_servers(THREAD, ["atlas_org".to_string()]);
             seam.model_calls("call-1", "org_comment_reply", reply_args("x"));
             seam.engine_asks(tool_approval(1, "atlas_org", reply_args("x")));
             settle().await;
@@ -3275,7 +3493,8 @@ mod tests {
             let seam = Seam::open();
             let other = acp::SessionId::new("thread-2");
             let other_thread = crate::engine::test_support::detached_thread(other.clone());
-            seam.sessions.insert(other, &other_thread, "/tmp".to_string());
+            seam.sessions
+                .insert(other, &other_thread, "/tmp".to_string());
 
             seam.engine_asks(command_approval(1, "cmd-1"));
             let mut elsewhere = serde_json::to_value(question(2)).expect("serialises");
@@ -3395,27 +3614,28 @@ impl RewindHandle {
         let Some(thread) = self.sessions.thread(session_id) else {
             return Err(anyhow!(
                 "rewound the engine's history but the session's thread is gone; \
-                 reopen the conversation to resynchronise"
+                 reopen the conversation to resynchronize"
             ));
         };
         let mut locked = thread
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let last_user = locked
-            .entries()
-            .iter()
-            .enumerate()
-            .rev()
-            .find_map(|(ix, entry)| match entry {
-                atlas_acp_thread::AgentThreadEntry::UserMessage(msg) => {
-                    Some((ix, msg.content.to_text().to_string()))
-                }
-                _ => None,
-            });
+        let last_user =
+            locked
+                .entries()
+                .iter()
+                .enumerate()
+                .rev()
+                .find_map(|(ix, entry)| match entry {
+                    atlas_acp_thread::AgentThreadEntry::UserMessage(msg) => {
+                        Some((ix, msg.content.to_text().to_string()))
+                    }
+                    _ => None,
+                });
         let Some((from, text)) = last_user else {
             return Err(anyhow!(
                 "rewound the engine's history but the transcript holds no prompt to \
-                 replay; reopen the conversation to resynchronise"
+                 replay; reopen the conversation to resynchronize"
             ));
         };
         // `EntriesRemoved` is what the delta projector turns into
@@ -3616,10 +3836,8 @@ impl AgentModelSelector for EngineModelSelector {
             .map(|m| AgentModelId::new(m.as_str()))
             .unwrap_or_else(|| AgentModelId::new(self.default_model().as_str()));
         let found = self.catalogue().into_iter().find(|m| m.id == selected);
-        async move {
-            found.ok_or_else(|| anyhow!("the selected model is not in the catalogue"))
-        }
-        .boxed()
+        async move { found.ok_or_else(|| anyhow!("the selected model is not in the catalog")) }
+            .boxed()
     }
 }
 

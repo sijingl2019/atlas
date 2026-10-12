@@ -156,16 +156,17 @@ async fn assert_idle_user_input_reaches_the_first_model_request(
         .await?;
     assert!(matches!(submission, StartIfIdleSubmission::Started { .. }));
 
-    let user_message = core_test_support::wait_for_event_match(test.atlas_engine.as_ref(), |event| {
-        let EventMsg::ItemCompleted(event) = event else {
-            return None;
-        };
-        let TurnItem::UserMessage(item) = &event.item else {
-            return None;
-        };
-        Some(item.clone())
-    })
-    .await;
+    let user_message =
+        core_test_support::wait_for_event_match(test.atlas_engine.as_ref(), |event| {
+            let EventMsg::ItemCompleted(event) = event else {
+                return None;
+            };
+            let TurnItem::UserMessage(item) = &event.item else {
+                return None;
+            };
+            Some(item.clone())
+        })
+        .await;
     assert_eq!(
         Some("queued-user-message".to_string()),
         user_message.client_id
@@ -376,10 +377,17 @@ async fn wait_for_agent_message(atlas_engine: &AtlasEngineThread, text: &str) {
 }
 
 async fn wait_for_turn_complete(atlas_engine: &AtlasEngineThread) {
-    wait_for_event(atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
 }
 
-async fn wait_for_sleep_item_started(atlas_engine: &AtlasEngineThread, call_id: &str, duration_ms: u64) {
+async fn wait_for_sleep_item_started(
+    atlas_engine: &AtlasEngineThread,
+    call_id: &str,
+    duration_ms: u64,
+) {
     let event = wait_for_event(atlas_engine, |event| {
         matches!(
             event,
@@ -406,7 +414,11 @@ async fn wait_for_sleep_item_started(atlas_engine: &AtlasEngineThread, call_id: 
     );
 }
 
-async fn wait_for_sleep_item_completed(atlas_engine: &AtlasEngineThread, call_id: &str, duration_ms: u64) {
+async fn wait_for_sleep_item_completed(
+    atlas_engine: &AtlasEngineThread,
+    call_id: &str,
+    duration_ms: u64,
+) {
     let event = wait_for_event(atlas_engine, |event| {
         matches!(
             event,
@@ -457,8 +469,9 @@ async fn queue_only_agent_mail_wakes_sleeping_root_and_persists_message() {
 
     let (server, _completions) =
         start_streaming_sse_server(vec![response_completed_chunks("resp-1")]).await;
-    let mut extensions =
-        atlas_engine_extension_api::ExtensionRegistryBuilder::<atlas_engine_core::config::Config>::new();
+    let mut extensions = atlas_engine_extension_api::ExtensionRegistryBuilder::<
+        atlas_engine_core::config::Config,
+    >::new();
     extensions.thread_lifecycle_contributor(Arc::new(SleepingRootExtension));
     let atlas_engine = test_atlas_engine()
         .with_model("gpt-5.4")
@@ -636,8 +649,14 @@ async fn any_new_input_interrupts_sleep() {
     let third: Value = from_slice(&requests[2]).expect("parse third request");
     assert_interrupted_sleep_output(function_call_output_text(&third, SECOND_SLEEP_CALL_ID));
 
-    atlas_engine.submit(Op::Shutdown).await.expect("shutdown session");
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::ShutdownComplete)).await;
+    atlas_engine
+        .submit(Op::Shutdown)
+        .await
+        .expect("shutdown session");
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::ShutdownComplete)
+    })
+    .await;
 
     let rollout_path = atlas_engine.rollout_path().expect("rollout path");
     let rollout = tokio::fs::read_to_string(rollout_path)
@@ -771,7 +790,10 @@ async fn injected_user_input_triggers_follow_up_request_with_deltas() {
 
     let _ = gate_completed_tx.send(());
 
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TurnComplete(_))).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
 
     let requests = server.requests().await;
     assert_eq!(requests.len(), 2);
@@ -1339,7 +1361,10 @@ async fn steered_user_input_waits_when_tool_output_triggers_compact_before_next_
     let atlas_engine = test.atlas_engine.clone();
 
     submit_danger_full_access_user_turn(&test, "first prompt").await;
-    wait_for_event(&atlas_engine, |event| matches!(event, EventMsg::TurnStarted(_))).await;
+    wait_for_event(&atlas_engine, |event| {
+        matches!(event, EventMsg::TurnStarted(_))
+    })
+    .await;
     steer_user_input(&atlas_engine, "second prompt").await;
     let _ = gate_first_completed_tx.send(());
 

@@ -34,10 +34,10 @@ use crate::setup_error::read_setup_error_report;
 use crate::ssh_config_dependencies::ssh_config_dependency_paths;
 use anyhow::Result;
 use anyhow::anyhow;
-use base64::Engine;
-use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use atlas_engine_protocol::models::PermissionProfile;
 use atlas_engine_utils_absolute_path::AbsolutePathBuf;
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 
 use windows_sys::Win32::Foundation::CloseHandle;
 use windows_sys::Win32::Foundation::GetLastError;
@@ -1880,7 +1880,12 @@ mod tests {
         let workspace_roots = workspace_roots_for(command_cwd.as_path());
         let permissions = permissions_for(&permission_profile, workspace_roots.as_slice());
 
-        let roots = gather_read_roots(&command_cwd, &permissions, &HashMap::new(), &atlas_agent_home);
+        let roots = gather_read_roots(
+            &command_cwd,
+            &permissions,
+            &HashMap::new(),
+            &atlas_agent_home,
+        );
         let expected =
             dunce::canonicalize(helper_bin_dir(&atlas_agent_home)).expect("canonical helper dir");
 
@@ -1906,7 +1911,12 @@ mod tests {
         let workspace_roots = workspace_roots_for(command_cwd.as_path());
         let permissions = permissions_for(&permission_profile, workspace_roots.as_slice());
 
-        let roots = gather_read_roots(&command_cwd, &permissions, &HashMap::new(), &atlas_agent_home);
+        let roots = gather_read_roots(
+            &command_cwd,
+            &permissions,
+            &HashMap::new(),
+            &atlas_agent_home,
+        );
         let expected_writable =
             dunce::canonicalize(&writable_root).expect("canonical writable root");
 
@@ -2057,7 +2067,8 @@ mod tests {
 
         let expected_workspace = dunce::canonicalize(&command_cwd).expect("canonical workspace");
         let expected_extra = dunce::canonicalize(&extra_root).expect("canonical extra root");
-        let forbidden_atlas_agent_home = dunce::canonicalize(&atlas_agent_home).expect("canonical atlas-agent home");
+        let forbidden_atlas_agent_home =
+            dunce::canonicalize(&atlas_agent_home).expect("canonical atlas-agent home");
         let forbidden_sandbox = dunce::canonicalize(&sandbox_root).expect("canonical sandbox root");
         assert_eq!(effective_write_roots, payload_write_roots);
         assert!(effective_write_roots.contains(&expected_workspace));

@@ -2,8 +2,8 @@
 use anyhow::Result;
 use app_test_support::MockResponsesConfig;
 use app_test_support::TestAppServer;
-use atlas_engine_app_server_protocol::ClientRequest;
 use atlas_engine_app_server_protocol::AtlasEngineErrorInfo;
+use atlas_engine_app_server_protocol::ClientRequest;
 use atlas_engine_app_server_protocol::ErrorNotification;
 use atlas_engine_app_server_protocol::ItemCompletedNotification;
 use atlas_engine_app_server_protocol::ItemStartedNotification;
@@ -454,7 +454,8 @@ async fn collect_cyber_policy_error_and_validate_no_reroute(
                     .params
                     .ok_or_else(|| anyhow::anyhow!("error notifications must include params"))?;
                 let payload: ErrorNotification = serde_json::from_value(params)?;
-                if payload.error.atlas_engine_error_info == Some(AtlasEngineErrorInfo::CyberPolicy) {
+                if payload.error.atlas_engine_error_info == Some(AtlasEngineErrorInfo::CyberPolicy)
+                {
                     error = Some(payload);
                 }
             }

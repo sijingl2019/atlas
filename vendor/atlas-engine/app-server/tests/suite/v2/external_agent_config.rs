@@ -2538,7 +2538,10 @@ async fn external_agent_config_import_compacts_huge_session_before_first_follow_
     Ok(())
 }
 
-fn write_analytics_config(atlas_agent_home: &std::path::Path, base_url: &str) -> std::io::Result<()> {
+fn write_analytics_config(
+    atlas_agent_home: &std::path::Path,
+    base_url: &str,
+) -> std::io::Result<()> {
     std::fs::write(
         atlas_agent_home.join("config.toml"),
         format!("chatgpt_base_url = \"{base_url}\"\n"),

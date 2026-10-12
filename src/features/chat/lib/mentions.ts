@@ -17,6 +17,7 @@ import {
   readAtlasTranscript,
   type AtlasTranscriptMessage,
 } from "./atlas-transcripts";
+import { isRememberTurn } from "./remember";
 import { ensureFileIndex } from "@/features/file-picker/lib/file-picker-api";
 import { activeProjectId } from "@/features/projects/lib/active-project";
 import { useProjectStore } from "@/features/projects/stores/project-store";
@@ -24,13 +25,19 @@ import { useOrgStore } from "@/features/organisations/stores/org-store";
 import { skills } from "@/features/skills/lib/skills-api";
 import {
   searchOrgMentions,
+  type MentionComment,
   type MentionConversation,
   type MentionMember,
   type MentionRecordedSession,
   type OrgMentionKind,
 } from "./org-mentions";
 
-export type { MentionConversation, MentionMember, MentionRecordedSession } from "./org-mentions";
+export type {
+  MentionComment,
+  MentionConversation,
+  MentionMember,
+  MentionRecordedSession,
+} from "./org-mentions";
 import type { PackComponentKind } from "@/features/skills/lib/types";
 // NOTE: skills are no longer a mention kind — inlining a skill body into the
 // prompt was retired (see docs/adr/0001-slash-tokens-pass-through-skills-are-not-inlined.md).
@@ -73,7 +80,10 @@ export type MentionKind =
   // `past_session` (a local transcript, inlined).
   | "member"
   | "conversation"
-  | "recorded_session";
+  | "recorded_session"
+  // A comment on the chat's own recorded session, linked so the agent attends
+  // to it (`comment-mentions.ts`). Rides as `atlas-org://comment/…` + a quote.
+  | "comment";
 
 export interface MentionFile {
   kind: "file";
@@ -174,6 +184,11 @@ export interface MentionPastSession {
   sessionTitle: string;
   /** Which project's transcripts to read it from, at send time. */
   cwd: string;
+  /** Set by an agent-switch handoff that ran after save-before-switch: the
+   *  transcript ends before its last `/remember` turn, so the new agent gets
+   *  the conversation without the save request and the list of what was
+   *  saved (`transcriptBeforeRemember`). */
+  endBeforeRemember?: boolean;
 }
 
 export type MentionData =
@@ -189,7 +204,8 @@ export type MentionData =
   | MentionPastSession
   | MentionMember
   | MentionConversation
-  | MentionRecordedSession;
+  | MentionRecordedSession
+  | MentionComment;
 
 // ── Catalog ──────────────────────────────────────────────────────────────────
 
@@ -236,10 +252,16 @@ export const MENTION_CATEGORIES: readonly MentionCategory[] = [
     aliases: ["recorded", "timeline", "r/"],
     weight: 0.5,
   },
+  { kind: "comment", label: "Comments", aliases: ["comment", "cm/"], weight: 0.75 },
 ];
 
 /** The organisation kinds (issue 122), sourced JS-side by `searchOrgMentions`. */
-const ORG_MENTION_KINDS: readonly MentionKind[] = ["member", "conversation", "recorded_session"];
+const ORG_MENTION_KINDS: readonly MentionKind[] = [
+  "member",
+  "conversation",
+  "recorded_session",
+  "comment",
+];
 
 function isOrgKind(kind: MentionKind | null): kind is OrgMentionKind {
   return kind !== null && ORG_MENTION_KINDS.includes(kind);
@@ -267,6 +289,9 @@ export interface MentionContext {
    *  components from that agent's chat. Undefined = no agent filter (legacy
    *  callers). */
   agentId?: string;
+  /** The chat tab the picker belongs to. Comments are the tab's own
+   *  session's, so without one none are offered. */
+  tabId?: string;
 }
 
 // ── Providers (removed) ─────────────────────────────────────────────────────
@@ -403,6 +428,8 @@ export function toShortForm(m: MentionData): string {
       return `@conversation:${shortFormValue(m.displayName)}`;
     case "recorded_session":
       return `@recorded-session:${shortFormValue(m.displayName)}`;
+    case "comment":
+      return `@comment:${shortFormValue(m.displayName)}`;
   }
 }
 
@@ -456,6 +483,7 @@ export async function searchMentions(
       scope,
       ctx.projectPath,
       ORG_SCOPED_LIMIT,
+      ctx.tabId,
     );
   }
   // Projects live in a JS store — resolve them JS-side, so an agent in one
@@ -489,7 +517,9 @@ export async function searchMentions(
           projectPath: ctx.projectPath,
           workspaceId: activeProjectId(),
         }),
-        searchOrgMentions(stripped, null, ctx.projectPath, ORG_BLEND_LIMIT).catch(() => []),
+        searchOrgMentions(stripped, null, ctx.projectPath, ORG_BLEND_LIMIT, ctx.tabId).catch(
+          () => [],
+        ),
       ]);
       return [...results, ...searchProjects(stripped, ctx), ...org];
     }
@@ -680,6 +710,17 @@ function formatSessionTranscript(dump: AtlasTranscriptMessage[]): string {
   return parts.join("\n\n");
 }
 
+/** The transcript up to, not including, its last `/remember` user turn: that
+ *  turn and everything after it (the agent's reply, any echo of the skill) go.
+ *  Unchanged when there is no such turn. Only for a handoff that follows a
+ *  `/remember` Atlas itself sent, so the last one is that one. */
+export function transcriptBeforeRemember(dump: AtlasTranscriptMessage[]): AtlasTranscriptMessage[] {
+  for (let i = dump.length - 1; i >= 0; i--) {
+    if (dump[i].role === "user" && isRememberTurn(dump[i].content ?? "")) return dump.slice(0, i);
+  }
+  return dump;
+}
+
 /** One `@`-mention the agent reaches itself: a path on disk (`file://`, P2.1)
  *  or an organisation member, conversation or recorded session
  *  (`atlas-org://`, issue 122), read by the org tools. */
@@ -721,7 +762,9 @@ export async function composePrompt(
         let inlineBody: string | null = null;
         try {
           const dump = await readAtlasTranscript(m.cwd, m.sessionId);
-          inlineBody = formatSessionTranscript(dump);
+          inlineBody = formatSessionTranscript(
+            m.endBeforeRemember ? transcriptBeforeRemember(dump) : dump,
+          );
         } catch (e) {
           console.warn("readAtlasTranscript for compose failed:", e);
         }

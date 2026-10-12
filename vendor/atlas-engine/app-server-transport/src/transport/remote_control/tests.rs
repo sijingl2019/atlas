@@ -18,7 +18,6 @@ use crate::outgoing_message::QueuedOutgoingMessage;
 use crate::transport::CHANNEL_CAPACITY;
 use crate::transport::ConnectionOrigin;
 use crate::transport::TransportEvent;
-use base64::Engine;
 use atlas_engine_app_server_protocol::ConfigWarningNotification;
 use atlas_engine_app_server_protocol::JSONRPCMessage;
 use atlas_engine_app_server_protocol::RemoteControlConnectionStatus;
@@ -30,10 +29,10 @@ use atlas_engine_app_server_protocol::ServerNotificationEnvelope;
 use atlas_engine_config::types::AuthCredentialsStoreMode;
 use atlas_engine_core::test_support::auth_manager_from_auth;
 use atlas_engine_core::test_support::auth_manager_from_auth_with_home;
+use atlas_engine_login::AtlasEngineAuth;
 use atlas_engine_login::AuthDotJson;
 use atlas_engine_login::AuthKeyringBackendKind;
 use atlas_engine_login::AuthManager;
-use atlas_engine_login::AtlasEngineAuth;
 use atlas_engine_login::save_auth;
 use atlas_engine_login::token_data::TokenData;
 use atlas_engine_login::token_data::parse_chatgpt_jwt_claims;
@@ -41,6 +40,7 @@ use atlas_engine_protocol::auth::AuthMode;
 use atlas_engine_state::RemoteControlEnrollmentRecord;
 use atlas_engine_state::StateRuntime;
 use atlas_engine_utils_absolute_path::test_support::PathExt;
+use base64::Engine;
 use futures::SinkExt;
 use futures::StreamExt;
 use gethostname::gethostname;
@@ -629,17 +629,18 @@ async fn remote_control_transport_manages_virtual_clients_and_routes_messages() 
         "non-initialize client messages should be ignored before connection creation"
     );
 
-    let initialize_message = JSONRPCMessage::Request(atlas_engine_app_server_protocol::JSONRPCRequest {
-        id: atlas_engine_app_server_protocol::RequestId::Integer(1),
-        method: "initialize".to_string(),
-        params: Some(json!({
-            "clientInfo": {
-                "name": "remote-test-client",
-                "version": "0.1.0"
-            }
-        })),
-        trace: None,
-    });
+    let initialize_message =
+        JSONRPCMessage::Request(atlas_engine_app_server_protocol::JSONRPCRequest {
+            id: atlas_engine_app_server_protocol::RequestId::Integer(1),
+            method: "initialize".to_string(),
+            params: Some(json!({
+                "clientInfo": {
+                    "name": "remote-test-client",
+                    "version": "0.1.0"
+                }
+            })),
+            trace: None,
+        });
     send_client_event(
         &mut websocket,
         ClientEnvelope {
@@ -889,17 +890,19 @@ async fn remote_control_transport_reconnects_after_disconnect() {
         &mut second_websocket,
         ClientEnvelope {
             event: ClientEvent::ClientMessage {
-                message: JSONRPCMessage::Request(atlas_engine_app_server_protocol::JSONRPCRequest {
-                    id: atlas_engine_app_server_protocol::RequestId::Integer(2),
-                    method: "initialize".to_string(),
-                    params: Some(json!({
-                        "clientInfo": {
-                            "name": "remote-test-client",
-                            "version": "0.1.0"
-                        }
-                    })),
-                    trace: None,
-                }),
+                message: JSONRPCMessage::Request(
+                    atlas_engine_app_server_protocol::JSONRPCRequest {
+                        id: atlas_engine_app_server_protocol::RequestId::Integer(2),
+                        method: "initialize".to_string(),
+                        params: Some(json!({
+                            "clientInfo": {
+                                "name": "remote-test-client",
+                                "version": "0.1.0"
+                            }
+                        })),
+                        trace: None,
+                    },
+                ),
             },
             client_id: ClientId("client-2".to_string()),
             stream_id: None,
@@ -1308,17 +1311,18 @@ async fn remote_control_transport_clears_outgoing_buffer_when_backend_acks() {
     .await;
 
     let client_id = ClientId("client-1".to_string());
-    let initialize_message = JSONRPCMessage::Request(atlas_engine_app_server_protocol::JSONRPCRequest {
-        id: atlas_engine_app_server_protocol::RequestId::Integer(1),
-        method: "initialize".to_string(),
-        params: Some(json!({
-            "clientInfo": {
-                "name": "remote-test-client",
-                "version": "0.1.0"
-            }
-        })),
-        trace: None,
-    });
+    let initialize_message =
+        JSONRPCMessage::Request(atlas_engine_app_server_protocol::JSONRPCRequest {
+            id: atlas_engine_app_server_protocol::RequestId::Integer(1),
+            method: "initialize".to_string(),
+            params: Some(json!({
+                "clientInfo": {
+                    "name": "remote-test-client",
+                    "version": "0.1.0"
+                }
+            })),
+            trace: None,
+        });
     send_client_event(
         &mut first_websocket,
         ClientEnvelope {
@@ -1553,7 +1557,9 @@ async fn remote_control_http_mode_enrolls_before_connecting() {
         Some(&base64::engine::general_purpose::STANDARD.encode(&expected_server_name))
     );
     assert_eq!(
-        handshake_request.headers.get("x-atlas-engine-protocol-version"),
+        handshake_request
+            .headers
+            .get("x-atlas-engine-protocol-version"),
         Some(&REMOTE_CONTROL_PROTOCOL_VERSION.to_string())
     );
 

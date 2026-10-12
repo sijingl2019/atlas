@@ -8,9 +8,9 @@ use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
 use anyhow::bail;
+use atlas_engine_exec_server::HttpClient;
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-use atlas_engine_exec_server::HttpClient;
 use rmcp::transport::AuthorizationManager;
 use rmcp::transport::AuthorizationSession;
 use rmcp::transport::auth::OAuthClientConfig;
@@ -739,10 +739,6 @@ mod tests {
     use std::sync::atomic::AtomicUsize;
     use std::sync::atomic::Ordering;
 
-    use axum::Json;
-    use axum::Router;
-    use axum::routing::get;
-    use axum::routing::post;
     use atlas_engine_config::types::AuthKeyringBackendKind;
     use atlas_engine_config::types::OAuthCredentialsStoreMode;
     use atlas_engine_exec_server::ExecServerError;
@@ -753,6 +749,10 @@ mod tests {
     use atlas_engine_exec_server::RouteAwareHttpClient;
     use atlas_engine_http_client::HttpClientFactory;
     use atlas_engine_http_client::OutboundProxyPolicy;
+    use axum::Json;
+    use axum::Router;
+    use axum::routing::get;
+    use axum::routing::post;
     use futures::future::BoxFuture;
     use http::HeaderMap;
     use pretty_assertions::assert_eq;

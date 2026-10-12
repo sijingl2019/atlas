@@ -1,9 +1,11 @@
 mod app_icon;
 mod auth;
 mod commands;
+mod keep_awake;
 mod logging;
 #[cfg(target_os = "macos")]
 mod menu;
+mod notifier;
 mod state;
 mod telemetry;
 mod window_background;
@@ -33,6 +35,19 @@ use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Whose data this process owns, fixed before ANYTHING resolves a path —
+    // the log file below is the first thing that does. The profile is read
+    // off the identifier this binary was built with: `dev:app` builds with
+    // `tauri.dev.conf.json`'s `dev.atlas.ide.dev`, which moves the app config
+    // dir by itself and, through `atlas-profile`, every `.atlas` directory and
+    // `~/.config/atlas` with it. A release build's identifier is
+    // `dev.atlas.ide`, so it is the default profile and nothing here can make
+    // it otherwise. See `crates/atlas-profile`.
+    let context = tauri::generate_context!();
+    atlas_profile::init(atlas_profile::Profile::from_identifier(
+        &context.config().identifier,
+    ));
+
     // Pick the rustls crypto provider, once, before anything can open a TLS
     // connection.
     //
@@ -198,10 +213,19 @@ pub fn run() {
             // The app icon, before the window shows. Later changes arrive
             // through `notify_settings_changed`.
             app_icon::apply(app.handle(), &migration.manager.effective().app_icon);
+            // Whether `instructionSync` is on as Atlas starts, so switching it
+            // off before any project opens still takes the mirrored blocks out.
+            app.state::<commands::instruction_sync::InstructionSyncState>()
+                .init(migration.manager.effective().instruction_sync);
             let atlas_config: state::AtlasConfigHandle = Arc::new(Mutex::new(migration.manager));
             app.manage(atlas_config.clone());
+            let keep_awake = Arc::new(keep_awake::KeepAwakeManager::new(
+                atlas_config.lock().effective().keep_awake_while_running,
+            ));
+            app.manage(keep_awake);
             commands::atlas_config::start_watcher(app.handle(), atlas_config);
             commands::themes::start_watcher(app.handle());
+            commands::git_autofetch::start(app.handle());
 
             // Mirror the (possibly updated) telemetry id + migration marker
             // back into `state.json` so both agree and a downgrade still
@@ -212,9 +236,12 @@ pub fn run() {
             let app_state: AppStateHandle = Arc::new(Mutex::new(loaded));
             app.manage(app_state);
 
-            // Bundled `atlas-self-configure` skill (issue #64): install/
-            // upgrade it into the canonical global skills store so it's
-            // discoverable the same way any other managed skill is.
+            // Bundled skills (`atlas-self-configure`, issue #64; `remember`):
+            // install/upgrade them into the canonical global skills store so
+            // they're discoverable the same way any other managed skill is.
+            // The dev profile seeds its own `atlas-dev-self-configure`
+            // beside the released app's, and never overwrites a shared one:
+            // that store (`~/.agents/skills`) is shared with the released app.
             commands::skills::ensure_bundled_skills();
 
             // Opt-in product telemetry. Inert unless the user has enabled it AND
@@ -266,6 +293,39 @@ pub fn run() {
                     "device_id_source": device_id_source,
                 }),
             );
+
+            // The code index: one SQLite index + worker per open project,
+            // fed by the file and git watchers. Managed before
+            // `install_manager`, whose code tool server reads it. The
+            // observer tells the window a job finished; the status pill
+            // re-reads `codebase_index_status` on it.
+            {
+                use tauri::Emitter;
+                let code_app = app.handle().clone();
+                let code_index = Arc::new(commands::code_index::CodeIndexRegistry::new(Some(
+                    Arc::new(
+                        move |project: &str, job: &'static str, result: &Result<bool, String>| {
+                            let _ = code_app.emit(
+                                "atlas:codebase-index:progress",
+                                serde_json::json!({
+                                    "phase": if result.is_ok() { "done" } else { "error" },
+                                    "current": 0,
+                                    "total": 0,
+                                    "project": project,
+                                    "job": job,
+                                }),
+                            );
+                        },
+                    ),
+                )));
+                app.manage(code_index);
+                // Load the selected code embedding model in the background;
+                // until it is ready, semantic search is keyword + symbol.
+                let embed_app = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    commands::code_index::embed::refresh(&embed_app).await;
+                });
+            }
 
             commands::agents::install_manager(app.handle());
             commands::integrations::install(app.handle());
@@ -334,10 +394,18 @@ pub fn run() {
 
             app.state::<commands::knowledge_refs::KnowledgeRefsState>()
                 .install(app.handle().clone());
+            app.manage(Arc::new(notifier::Notifier::new(app.handle())));
 
             commands::updater::init_on_startup(app.handle());
-            commands::updater::check_in_background(app.handle());
-            commands::updater::spawn_periodic(app.handle());
+            // No automatic update checks for the dev profile: an update it
+            // staged would be the released installer, and applying it on quit
+            // would upgrade the user's installed Atlas from inside a source
+            // build. The manual verbs (`update_check_now`, `update_apply`)
+            // refuse under the dev profile for the same reason.
+            if !atlas_profile::is_dev() {
+                commands::updater::check_in_background(app.handle());
+                commands::updater::spawn_periodic(app.handle());
+            }
 
             // Background memory indexer (Step 4): a single owned Tokio task drains
             // a bounded queue and indexes each open project's corpus into its
@@ -365,6 +433,8 @@ pub fn run() {
         .manage(commands::modelchat::ModelChatState::new())
         .manage(FileIndexState::new())
         .manage(GitWatcherState::new())
+        .manage(commands::instruction_sync::InstructionSyncState::new())
+        .manage(commands::git_autofetch::GitAutoFetchState::new())
         .manage(RecentFilesState::new())
         .manage(MentionCacheState::new())
         .manage(Arc::new(KnowledgeMetaState::new()))
@@ -383,13 +453,35 @@ pub fn run() {
         // its file watcher stops and memory is freed (these states are keyed by
         // webview label for multi-window project scoping).
         .on_window_event(|window, event| {
-            if matches!(event, tauri::WindowEvent::Destroyed) {
-                let label = window.label();
-                window.state::<FileIndexState>().drop_window(label);
-                window.state::<MentionCacheState>().drop_window(label);
+            match event {
+                tauri::WindowEvent::Destroyed => {
+                    let label = window.label();
+                    if let Some(root) = window.state::<FileIndexState>().drop_window(label) {
+                        commands::fileindex::close_code_index(window.app_handle(), &root);
+                    }
+                    window.state::<MentionCacheState>().drop_window(label);
+                    window
+                        .state::<commands::git_autofetch::GitAutoFetchState>()
+                        .drop_window(label);
+                    window
+                        .state::<commands::instruction_sync::InstructionSyncState>()
+                        .drop_window(label);
+                }
+                // Coming back to Atlas is when a stale Pull badge misleads.
+                tauri::WindowEvent::Focused(true) => {
+                    commands::git_autofetch::on_window_focused(window.app_handle(), window.label());
+                }
+                _ => {}
             }
         })
         .invoke_handler(tauri::generate_handler![
+            commands::notifier::notifier_init,
+            commands::notifier::notifier_request_authorization,
+            commands::notifier::notifier_show,
+            commands::notifier::notifier_remove,
+            commands::notifier::notifier_remove_group,
+            commands::notifier::notifier_icon_lookup,
+            commands::notifier::notifier_icon_store,
             commands::agent_entitlement::native_agent_entitlement,
             commands::agent_entitlement::native_agent_refresh_models,
             commands::auth::auth_snapshot,
@@ -402,6 +494,7 @@ pub fn run() {
             commands::comms::comms_save_attachment,
             commands::comms::comms_call_recordings,
             commands::comms::comms_start_call,
+            commands::comms::comms_features,
             commands::comms::comms_save_transcript,
             commands::comms::comms_save_recording,
             commands::comms::comms_status,
@@ -453,6 +546,7 @@ pub fn run() {
             commands::auth::auth_cancel_invitation,
             commands::auth::auth_update_member_role,
             commands::auth::auth_remove_member,
+            commands::auth::auth_leave_org,
             commands::auth::auth_refresh,
             commands::auth::auth_delete_org,
             commands::window::window_zoom,
@@ -514,6 +608,7 @@ pub fn run() {
             commands::git::git_checkout,
             commands::git::git_create_branch,
             commands::git::git_blame_file,
+            commands::git_pr::git_repo_pull_requests,
             commands::git::git_graph_signature,
             commands::git_graph::git_graph_build,
             // Extended source-control manager operations.
@@ -523,6 +618,7 @@ pub fn run() {
             commands::git_ops::git_merge_branch,
             commands::git_ops::git_merge_preview,
             commands::git_ops::git_fetch,
+            commands::git_autofetch::git_autofetch_set_active,
             commands::git_ops::git_pull,
             commands::git_ops::git_push,
             commands::git_ops::git_publish_branch,
@@ -557,6 +653,8 @@ pub fn run() {
             commands::git_ops::git_squash_last,
             commands::git_watcher::git_watch_start,
             commands::git_watcher::git_watch_stop,
+            commands::instruction_sync::instruction_sync_start,
+            commands::instruction_sync::instruction_sync_stop,
             commands::capture::capture_detect,
             commands::capture::capture_binding,
             commands::capture::capture_enable,
@@ -584,6 +682,7 @@ pub fn run() {
             commands::capture::capture_promote,
             commands::capture::capture_connect_options,
             commands::capture::capture_connect,
+            commands::capture::capture_switch_project,
             commands::capture::capture_activate,
             commands::capture::capture_retry_failed,
             commands::capture::capture_retry_watcher,
@@ -615,7 +714,7 @@ pub fn run() {
             commands::gitdiff::diff_structured_text,
             commands::gitdiff::git_commit_changed_files,
             commands::gitdiff::git_diff_line_status,
-            commands::search::search_in_files,
+            commands::code_server::code_grep,
             commands::project_session::save_project_session,
             commands::project_session::load_project_session,
             commands::knowledge::list_knowledge,
@@ -664,6 +763,7 @@ pub fn run() {
             commands::log::clear_project_log,
             commands::app_state::bootstrap_app_state,
             commands::app_state::save_app_state,
+            commands::app_state::app_profile,
             commands::atlas_config::get_atlas_config_info,
             commands::atlas_config::update_atlas_settings,
             commands::atlas_config::reset_atlas_config,
@@ -717,6 +817,7 @@ pub fn run() {
             commands::agents::threads_delete,
             commands::agents::threads_import_candidates,
             commands::agents::threads_import,
+            commands::agents::threads_sync_project,
             commands::agents::threads_projects,
             commands::agents::threads_history,
             commands::agents::threads_archive,
@@ -778,6 +879,7 @@ pub fn run() {
             commands::keybindings::keybindings_load,
             commands::keybindings::keybindings_save,
             commands::keybindings::keybindings_open,
+            commands::keybindings::keybindings_set_close_tab_accelerator,
             commands::memory_graph::memory_embed_status,
             commands::memory_graph::memory_embed_download,
             commands::memory_graph::memory_index_build,
@@ -806,8 +908,8 @@ pub fn run() {
             commands::models::model_download,
             commands::models::model_remove,
             commands::models::model_select,
-            commands::codebase_index::codebase_index_status,
-            commands::codebase_index::codebase_index_build,
+            commands::code_index::codebase_index_status,
+            commands::code_index::codebase_index_build,
             commands::session_chat::session_chat_retrieve,
             commands::session_chat_sessions::session_chat_threads_list,
             commands::session_chat_sessions::session_chat_thread_get,
@@ -841,7 +943,7 @@ pub fn run() {
             commands::skills::pack_projections,
             commands::skills::pack_components_list,
         ])
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("error while building Atlas")
         .run(|app_handle, event| {
             // Apply-on-quit: if the user chose "Later" for a staged update, swap

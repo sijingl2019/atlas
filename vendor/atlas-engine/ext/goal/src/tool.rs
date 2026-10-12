@@ -243,8 +243,12 @@ impl GoalToolExecutor {
 
         self.account_active_goal_progress(
             match args.status {
-                ThreadGoalStatus::Complete => atlas_engine_state::GoalAccountingMode::ActiveOrComplete,
-                ThreadGoalStatus::Blocked => atlas_engine_state::GoalAccountingMode::ActiveOrStopped,
+                ThreadGoalStatus::Complete => {
+                    atlas_engine_state::GoalAccountingMode::ActiveOrComplete
+                }
+                ThreadGoalStatus::Blocked => {
+                    atlas_engine_state::GoalAccountingMode::ActiveOrStopped
+                }
                 ThreadGoalStatus::Active
                 | ThreadGoalStatus::Paused
                 | ThreadGoalStatus::UsageLimited
