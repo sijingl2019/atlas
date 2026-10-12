@@ -281,12 +281,18 @@ export const useSettingsStore = createSelectors(
 // (`author-directory.test.ts` via the org directory), where Tauri's `listen`
 // throws on the missing `window` — and `void` turned that into an unhandled
 // rejection that failed the whole run.
+// A DOM test environment has a `window` but no Tauri behind it, so `listen`
+// rejects there; say so instead of failing the run with an unhandled rejection.
+function noTauri(error: unknown): void {
+  console.warn("[settings] config listener not registered:", error);
+}
+
 if (typeof window !== "undefined") {
   void onConfigChanged(({ settings, generation }) => {
     const previous = useSettingsStore.getState().settings;
     useSettingsStore.setState({ settings, configGeneration: generation, configError: null });
     applySettingsSideEffects(settings, previous);
-  });
+  }).catch(noTauri);
 }
 
 // Every theme apply — a settings change, the OS flipping appearance under
@@ -304,5 +310,5 @@ if (typeof window !== "undefined") {
 if (typeof window !== "undefined") {
   void onConfigError((error) => {
     useSettingsStore.setState({ configError: error });
-  });
+  }).catch(noTauri);
 }
