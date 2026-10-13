@@ -132,5 +132,6 @@ describe("northwind scenario", () => {
     expect(window.__atlasMock?.unmocked()).toEqual([]);
     // Recording mode draws none of the mock's own chrome.
     expect(document.querySelector("[data-mock-badge]")).toBeNull();
-  });
+    // Loads every fixture: ~1s alone, past vitest's 5s default under the full suite.
+  }, 30_000);
 });

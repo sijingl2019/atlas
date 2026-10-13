@@ -25,7 +25,8 @@ describe("mock backend install", () => {
     await emit("mock-install-test", 1);
     expect(seenEarly).toEqual([1]);
     expect(window.__atlasMock?.scenario).toBe("default");
-  });
+    // Loads every fixture: ~1s alone, past vitest's 5s default under the full suite.
+  }, 30_000);
 
   it("still answers an unmocked command with null", async () => {
     await import("./install");
