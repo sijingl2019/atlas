@@ -861,23 +861,30 @@ const TrashSubheadRow = memo(function TrashSubheadRow({
   );
 });
 
-/** One thing in the Trash. Click (or the hover button) restores it; a
- *  trashed integration can also be deleted for good. */
+/** One thing in the Trash. Only the hover button restores it; clicking an
+ *  archived session opens it to read. A trashed integration can also be
+ *  deleted for good. */
 const TrashRow = memo(function TrashRow({
   item,
   onRestore,
   onPurge,
+  onOpen,
 }: {
   item: TrashItem;
   onRestore: (item: TrashItem) => void;
   onPurge: (item: TrashItem) => void;
+  onOpen: (session: WorkspaceSession) => void;
 }) {
+  const session = item.type === "session" ? item.session : undefined;
   return (
     <div
-      onClick={() => onRestore(item)}
+      onClick={session ? () => onOpen(session) : undefined}
       style={{ height: ROW_CARD, paddingLeft: 20 }}
-      className="group flex items-center gap-2 pr-1.5 rounded-md cursor-pointer hover:bg-[var(--atlas-element-hover)]"
-      title={item.type === "project" ? `Restore ${item.id}` : "Restore"}
+      className={cn(
+        "group flex items-center gap-2 pr-1.5 rounded-md hover:bg-[var(--atlas-element-hover)]",
+        session && "cursor-pointer",
+      )}
+      title={item.type === "project" ? item.id : undefined}
     >
       {item.type === "project" ? (
         <Folder size={13} className="shrink-0 text-[var(--muted-foreground)]" />
@@ -1058,7 +1065,7 @@ type Row =
  *  thread id, or the integration id. */
 type TrashItem =
   | { type: "project"; id: string; label: string }
-  | { type: "session"; id: string; label: string; detail: string }
+  | { type: "session"; id: string; label: string; detail: string; session?: WorkspaceSession }
   | { type: "integration"; id: string; label: string; source: IntegrationView["source"]["kind"] };
 
 export function ProjectSidebar() {
@@ -1203,6 +1210,16 @@ export function ProjectSidebar() {
       .filter((t) => t.folderPaths.some((f) => paths.has(comparablePath(f))))
       .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
   }, [archivedThreads, projects]);
+  // An archived thread paired with its project, so its row can open it.
+  const archivedSession = useCallback(
+    (thread: ThreadRow): WorkspaceSession | undefined => {
+      const workspace = projects.find((p) =>
+        thread.folderPaths.some((f) => comparablePath(f) === comparablePath(p.path)),
+      );
+      return workspace ? { workspace, thread } : undefined;
+    },
+    [projects],
+  );
 
   const latestSessions = useMemo(
     () =>
@@ -1304,6 +1321,7 @@ export function ProjectSidebar() {
           id: t.threadId,
           label: t.title || "Untitled session",
           detail: basename(t.folderPaths[0] ?? ""),
+          session: archivedSession(t),
         })),
       },
       {
@@ -1338,6 +1356,7 @@ export function ProjectSidebar() {
     integrations,
     trashedIntegrations,
     archivedSessions,
+    archivedSession,
     pinned,
     unpinned,
     sortedGroups,
@@ -1442,7 +1461,7 @@ export function ProjectSidebar() {
       // app-layout.tsx, not here. Putting the blur on this child would break
       // it: the wrapper's opacity/transform isolates its own layer, leaving a
       // descendant's backdrop-filter nothing to sample.
-      className="flex flex-col h-full w-[244px] shrink-0 bg-transparent"
+      className="flex flex-col h-full w-full bg-transparent"
       data-tauri-drag-region
     >
       {/* Virtualized list. */}
@@ -1458,7 +1477,7 @@ export function ProjectSidebar() {
       <div
         // Same reasoning as CommsSurface: on a near-black panel the shadow has
         // almost nothing to darken, so the ring carries the edge.
-        className="relative m-1.5 flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg bg-background shadow-lg ring-1 ring-border"
+        className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-background"
       >
         {/* ONE scroller for the whole rail (see `RailScroll`).
             The navigation used to be pinned above it, which cost ~200px of
@@ -1645,7 +1664,7 @@ function NavItem({
       >
         {icon}
       </span>
-      <span className="truncate">{label}</span>
+      <span className="truncate leading-normal">{label}</span>
     </button>
   );
 }
@@ -1750,7 +1769,14 @@ function renderRailRow(row: Row, ctx: RailRowCtx) {
         />
       );
     case "trash":
-      return <TrashRow item={row.item} onRestore={ctx.onRestoreTrash} onPurge={ctx.onPurgeTrash} />;
+      return (
+        <TrashRow
+          item={row.item}
+          onRestore={ctx.onRestoreTrash}
+          onPurge={ctx.onPurgeTrash}
+          onOpen={ctx.onOpenSession}
+        />
+      );
     case "chat":
       return (
         <SessionRow

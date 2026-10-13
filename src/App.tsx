@@ -707,7 +707,6 @@ export function App() {
   const [sessionsOpen, setSessionsOpen] = useState(false);
   const [filePickerOpen, setFilePickerOpen] = useState(false);
   const {
-    toggleLeftPanel,
     toggleRightPanel,
     toggleRightChatPanel,
     toggleTabBar,
@@ -1459,7 +1458,7 @@ export function App() {
     "nav.filePicker": () => setFilePickerOpen(true),
     "nav.search": () => setSearchOpen(true),
     "nav.sessions": () => setSessionsOpen(true),
-    "panels.left": toggleLeftPanel,
+    "panels.left": () => useLayoutStore.getState().actions.revealRightSection("files"),
     "panels.right": toggleRightPanel,
     // ⌘⇧C — team chat. Shares the right slot with source control: pressing
     // this while source control is open swaps the occupant rather than

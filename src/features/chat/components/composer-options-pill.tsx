@@ -2,6 +2,7 @@ import { memo, useEffect, useMemo, useState } from "react";
 import { Check, ChevronDown, Loader2, SlidersHorizontal } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { pluginIdForAgent } from "@/types/agent";
 import { useChatStore } from "../stores/chat-store";
 import { parseConfigOptions } from "../lib/acp-config-options";
 import { loadCachedAcpConfigOptions } from "../lib/acp-config-options-cache";
@@ -61,14 +62,17 @@ export const ComposerOptionsPill = memo(function ComposerOptionsPill({ tabId }: 
   const configOptions = useMemo(() => parseConfigOptions(known), [known]);
 
   // Backstop for an agent that never answers. Keyed on the tab+agent so a switch
-  // restarts the wait rather than inheriting a already-elapsed one.
+  // restarts the wait rather than inheriting a already-elapsed one. Not armed
+  // while the manager reports install progress: a first install can outlast
+  // any fixed wait, and settling mid-install states a verdict we do not have.
+  const installing = useChatStore((s) => !!s.agentStartingStatus[pluginIdForAgent(agentType)]);
   const [settled, setSettled] = useState(false);
   useEffect(() => {
     setSettled(false);
-    if (known !== null) return;
+    if (known !== null || installing) return;
     const timer = setTimeout(() => setSettled(true), SETTLE_AFTER_MS);
     return () => clearTimeout(timer);
-  }, [tabId, agentType, known]);
+  }, [tabId, agentType, known, installing]);
 
   const loading = known === null && !settled;
   // Knobs exist, but every one of them is owned by another pill (mode/model) —

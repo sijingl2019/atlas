@@ -337,13 +337,13 @@ describe("ui_focus", () => {
     expect(layout().rightPanel.visible).toBe(true);
   });
 
-  it("reveals a path in the explorer, opening the Files panel", async () => {
+  it("reveals a path in the explorer, opening the Direction tab", async () => {
     useLayoutStore.setState({
-      leftPanel: { ...layout().leftPanel, visible: false, activeSection: "knowledge" },
+      rightPanel: { ...layout().rightPanel, visible: false, activeSection: "changes" },
     });
     const { useExplorerStore } = await import("@/features/explorer/stores/explorer-store");
     result(await act("ui_focus", { target: "explorer", path: "src/App.tsx" }));
-    expect(layout().leftPanel).toMatchObject({ visible: true, activeSection: "files" });
+    expect(layout().rightPanel).toMatchObject({ visible: true, activeSection: "files" });
     expect(useExplorerStore.getState().selectedPaths).toEqual(["/p/src/App.tsx"]);
     expect(error(await act("ui_focus", { target: "explorer", path: "/etc/hosts" }))).toMatch(
       /outside/,

@@ -2,8 +2,9 @@ import { lazy, Suspense } from "react";
 import { cn } from "@/lib/utils";
 import { useLayoutStore } from "../stores/layout-store";
 import { PanelSkeleton } from "@/components/panel-skeleton";
-import { GitCommit, GitCompare } from "lucide-react";
+import { FolderTree, GitCommit, GitCompare } from "lucide-react";
 import { GithubIcon } from "@/components/github-icon";
+import { FileTree } from "@/features/explorer/components/file-tree";
 
 // All three right-panel sub-panels are lazy so they don't run their first
 // invokes / vendor parses during the boot-cascade window. The user lands
@@ -37,6 +38,7 @@ const CommsPanel = lazy(() =>
   })),
 );
 const sections = [
+  { id: "files" as const, label: "Direction", icon: FolderTree },
   { id: "changes" as const, label: "Source Control", icon: GitCompare },
   { id: "git-graph" as const, label: "Commit", icon: GitCommit },
   { id: "github" as const, label: "GitHub", icon: GithubIcon },
@@ -78,8 +80,10 @@ export function RightPanel() {
       <div
         className={cn(
           "flex-1 min-h-0",
-          // Git Graph owns its own scrolling (via ReactFlow); other panels scroll vertically.
-          activeSection === "git-graph" ? "overflow-hidden" : "overflow-auto hide-scrollbar",
+          // Git Graph (ReactFlow) and the file tree (virtualizer) own their scrolling.
+          activeSection === "git-graph" || activeSection === "files"
+            ? "overflow-hidden"
+            : "overflow-auto hide-scrollbar",
         )}
       >
         <Suspense
@@ -87,6 +91,7 @@ export function RightPanel() {
             <PanelSkeleton label={activeSection === "changes" ? "Loading changes…" : "Loading…"} />
           }
         >
+          {activeSection === "files" && <FileTree />}
           {activeSection === "changes" && <GitManagerPanel />}
           {activeSection === "git-graph" && <GitGraphPanel />}
           {activeSection === "github" && <GithubPanel />}

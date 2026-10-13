@@ -431,7 +431,7 @@ function GeneralSettings() {
         <select
           value={settings.defaultAgent}
           onChange={(e) => updateSettings({ defaultAgent: e.target.value })}
-          className={FIELD_CLASS}
+          className={cn(FIELD_CLASS, "min-w-48")}
         >
           {defaultAgentChoices.map((choice) => (
             <option key={choice.id} value={choice.id}>
@@ -495,7 +495,7 @@ function GeneralSettings() {
         <select
           value={settings.terminalFontWeight}
           onChange={(e) => updateSettings({ terminalFontWeight: e.target.value })}
-          className={FIELD_CLASS}
+          className={cn(FIELD_CLASS, "min-w-24")}
         >
           {["normal", "bold", "100", "200", "300", "400", "500", "600", "700", "800", "900"].map(
             (w) => (

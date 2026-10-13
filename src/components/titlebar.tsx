@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { RailGlyph } from "@/ui/animated-icon";
-import { useActionShortcut } from "@/features/keybindings/lib/use-action-shortcut";
+import { Hint } from "@/ui/tooltip";
 import { Popover } from "@base-ui/react/popover";
 import { useAppStore } from "@/features/app/stores/app-store";
 import { useLayoutStore } from "@/features/layout/stores/layout-store";
@@ -19,7 +19,6 @@ import {
   PanelRight,
   Bell,
   Settings,
-  Layers,
   ArrowDownToLine,
   Loader2,
   Hammer,
@@ -44,7 +43,6 @@ import { CapturePopover } from "@/features/capture/components/capture-popover";
 import { StatusDot } from "@/features/capture/components/capture-status";
 import type { Binding, CaptureHealth } from "@/features/capture/types";
 import { activeProjectId } from "@/features/projects/lib/active-project";
-import { useActiveOrgProjects } from "@/features/projects/lib/org-scope";
 import { openSettingsSection } from "@/features/settings/lib/open-settings";
 import { useFullscreen } from "@/hooks/use-fullscreen";
 import { isDev } from "@/lib/env";
@@ -105,12 +103,8 @@ export function Titlebar() {
   // The same hook the project sidebar reads, so the two cannot disagree about
   // whether the traffic lights are on screen.
   const isFullscreen = useFullscreen();
-  // The titlebar reserves 72px for the OS window controls (traffic lights),
-  // EXCEPT when the docked sidebar is open: that column sits under the lights
-  // and carries the gap itself, so the titlebar reclaims the space. Fullscreen
-  // hides the lights entirely. Only macOS has traffic lights on the left;
-  // Windows and Linux get `WindowControls` on the right.
-  const dockedSidebar = useProjectStore.use.sidebarOpen();
+  // The titlebar reserves 72px for the macOS traffic lights; fullscreen hides
+  // them. Windows and Linux get `WindowControls` on the right.
 
   const isTitlebarSurface = (target: EventTarget | null) => {
     const el = target as HTMLElement | null;
@@ -157,14 +151,11 @@ export function Titlebar() {
       className={cn(
         "relative z-titlebar flex h-titlebar select-none items-center bg-[var(--background)] border-b border-border",
         isWindows || isLinux ? "pr-0" : "pr-3",
-        isFullscreen || dockedSidebar || !isMac ? "pl-3" : "pl-[72px]",
+        isFullscreen || !isMac ? "pl-3" : "pl-[72px]",
       )}
     >
       <div className="flex h-titlebar min-w-0 flex-1 items-center gap-1.5">
-        <HintGroup>
-          <ProjectToggle />
-          {currentProject && <LeftPanelToggle />}
-        </HintGroup>
+        <LeftPanelToggle />
         {/* `org / project` pill — click to copy the project path. */}
         <ProjectLabel name={displayName} orgName={orgName} path={currentProject?.path} />
       </div>
@@ -485,49 +476,20 @@ function DevModePill() {
   );
 }
 
-function ProjectToggle() {
-  const hint = useActionShortcut("workspace.toggleSidebar")?.label;
-  const suffix = hint ? ` (${hint})` : "";
-  const sidebarOpen = useProjectStore.use.sidebarOpen();
-  const { toggleSidebar } = useProjectStore.use.actions();
-  // Badge counts only the active org's projects (matches what the sidebar
-  // it toggles will actually show).
-  const count = useActiveOrgProjects().length;
-
-  return (
-    <HintItem label={sidebarOpen ? `Hide projects${suffix}` : `Show projects${suffix}`}>
-      <button
-        onClick={toggleSidebar}
-        className={cn(
-          "relative flex items-center justify-center w-6 h-6 rounded hover:bg-element-hover transition-all duration-150",
-          sidebarOpen ? "text-foreground" : "text-muted-foreground hover:text-secondary-foreground",
-        )}
-        aria-label={sidebarOpen ? "Hide projects" : "Show projects"}
-      >
-        <Layers size={14} />
-        {count > 1 && (
-          <span className="absolute -bottom-0.5 -right-0.5 text-3xs font-mono text-foreground">
-            {count}
-          </span>
-        )}
-      </button>
-    </HintItem>
-  );
-}
-
+/** Reopens the menu sidebar; only shown while it is hidden (its own footer * button hides it). */
 function LeftPanelToggle() {
-  const leftPanel = useLayoutStore.use.leftPanel();
+  const visible = useLayoutStore((s) => s.leftPanel.visible);
   const { toggleLeftPanel } = useLayoutStore.use.actions();
-
   return (
-    <HintItem label={leftPanel.visible ? "Hide left panel" : "Show left panel"}>
+    <Hint label={visible ? "Hide sidebar" : "Show sidebar"}>
       <button
         onClick={toggleLeftPanel}
+        aria-label={visible ? "Hide sidebar" : "Show sidebar"}
         className="flex items-center justify-center w-6 h-6 rounded text-muted-foreground hover:text-secondary-foreground hover:bg-element-hover transition-all duration-150"
       >
-        <RailGlyph open={leftPanel.visible} size="md" />
+        <RailGlyph open={visible} size="md" />
       </button>
-    </HintItem>
+    </Hint>
   );
 }
 

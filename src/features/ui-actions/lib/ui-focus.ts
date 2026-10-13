@@ -83,7 +83,7 @@ export async function performFocus(request: UiActionRequest): Promise<unknown> {
         actions.setLeftSection(section);
         return { side, section };
       }
-      const section = a.oneOf("section", ["changes", "github", "git-graph"] as const);
+      const section = a.oneOf("section", ["files", "changes", "github", "git-graph"] as const);
       actions.revealRightSection(section);
       return { side, section };
     }
@@ -116,8 +116,7 @@ async function revealInExplorer(path: string): Promise<unknown> {
   if (path !== root && !path.startsWith(`${root}/`))
     return refuse(`${path} is outside the active project`);
   const actions = layout().actions;
-  if (!layout().leftPanel.visible) actions.toggleLeftPanel();
-  actions.setLeftSection("files");
+  actions.revealRightSection("files");
   const explorer = useExplorerStore.getState().actions;
   const parts = path
     .slice(root.length + 1)

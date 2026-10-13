@@ -2,14 +2,12 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { Group, Panel, Separator, useDefaultLayout, usePanelRef } from "react-resizable-panels";
 import { useLayoutStore } from "../stores/layout-store";
 import { useAppStore } from "@/features/app/stores/app-store";
-import { useProjectStore } from "@/features/projects/stores/project-store";
 import { useSettingsStore } from "@/features/settings/stores/settings-store";
 import { ProjectSidebar } from "@/features/projects/components/project-sidebar";
 import { useProjectGitPrefetch } from "@/features/projects/lib/use-project-prefetch";
 import { Titlebar } from "@/components/titlebar";
 import { cn } from "@/lib/utils";
 import { isLinux, isWindows } from "@/lib/platform";
-import { LeftPanel } from "./left-panel";
 import { RightPanel } from "./right-panel";
 import { CenterPanel } from "./center-panel";
 
@@ -18,7 +16,9 @@ import { CenterPanel } from "./center-panel";
 // payload shape, so an existing user's saved column widths are picked up
 // rather than reset. Panel ids (`atlas-left` / `atlas-center` / `atlas-right`)
 // are load-bearing for the same reason — a layout is a map keyed by them.
-const MAIN_LAYOUT_ID = "atlas-main-layout";
+// v2: the left slot became the always-on menu sidebar, so old saved layouts
+// (often with the left panel collapsed to 0) are dropped.
+const MAIN_LAYOUT_ID = "atlas-main-layout-v2";
 
 /**
  * Padding that keeps the shell on screen while the window is maximized.
@@ -90,10 +90,9 @@ function useMaximizedInsets(): CSSProperties | undefined {
 }
 
 export function AppLayout() {
-  const leftPanel = useLayoutStore.use.leftPanel();
+  const leftVisible = useLayoutStore((s) => s.leftPanel.visible);
   const rightPanel = useLayoutStore.use.rightPanel();
   const currentProject = useAppStore.use.currentProject();
-  const sidebarOpen = useProjectStore.use.sidebarOpen();
   const personalSync = useSettingsStore((s) => s.settings.personalSync);
 
   // Warm the project-pane git data at startup so the first slide is smooth.
@@ -104,20 +103,17 @@ export function AppLayout() {
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({ id: MAIN_LAYOUT_ID });
   const maximizedInsets = useMaximizedInsets();
 
-  const showLeft = leftPanel.visible && !!currentProject;
-
-  // The left panel stays mounted and is collapsed/expanded imperatively (see the
-  // Panel below). `defaultSize` is only read on first mount, so the initial
-  // visibility is captured once — otherwise a panel that starts hidden would
-  // render at full width for a frame and then snap shut.
+  // The menu sidebar collapses imperatively and stays mounted. `defaultSize`
+  // is only read on first mount, so the initial visibility is captured once.
   const leftPanelRef = usePanelRef();
-  const leftInitiallyVisible = useRef(showLeft);
+  const leftInitiallyVisible = useRef(leftVisible);
   useEffect(() => {
     const panel = leftPanelRef.current;
     if (!panel) return;
-    if (showLeft && panel.isCollapsed()) panel.expand();
-    else if (!showLeft && !panel.isCollapsed()) panel.collapse();
-  }, [showLeft]);
+    if (leftVisible && panel.isCollapsed()) panel.expand();
+    else if (!leftVisible && !panel.isCollapsed()) panel.collapse();
+  }, [leftVisible]);
+
   // Source control needs a project; team chat is org-scoped and is reachable
   // with no project open, so the slot stays available in chat mode — unless
   // Chat Sync is off, where chat has nothing to show but "not connected".
@@ -125,15 +121,6 @@ export function AppLayout() {
     rightPanel.visible && (rightPanel.mode === "chat" ? personalSync : !!currentProject);
   return (
     <div className="flex h-screen bg-sidebar" style={maximizedInsets}>
-      {/* DOCKED project sidebar — an in-flow left column that pushes the
-          whole shell right. Full-height so it sits beside the titlebar; the
-          sidebar's own top bar already dodges the traffic lights. */}
-      {sidebarOpen && (
-        <div className="atlas-project-rail h-full w-[244px] shrink-0">
-          <ProjectSidebar />
-        </div>
-      )}
-
       {/*
        * NOT keyed by project: keying forced a full unmount/remount of the
        * whole shell on every switch (rebuilding CodeMirror/xterm/virtualizer)
@@ -153,14 +140,7 @@ export function AppLayout() {
           by its content, but the content still contributes to the group's
           intrinsic width. Capping the column here is what keeps the shell
           inside the window no matter what any panel renders. */}
-      {/* Same floating-card recipe as the sidebar's rail card. With the rail
-          open its own `m-1.5` already supplies the gap on the left. */}
-      <div
-        className={cn(
-          "flex flex-col flex-1 min-h-0 min-w-0 m-1.5 overflow-hidden rounded-lg bg-background shadow-lg ring-1 ring-border",
-          sidebarOpen && "ml-0",
-        )}
-      >
+      <div className="flex flex-col flex-1 min-h-0 min-w-0 overflow-hidden bg-background">
         <Titlebar />
 
         <div className="flex-1 min-h-0">
@@ -170,21 +150,8 @@ export function AppLayout() {
             defaultLayout={defaultLayout}
             onLayoutChanged={onLayoutChanged}
           >
-            {/* The left panel is ALWAYS MOUNTED and collapsed to zero width when
-                hidden — never conditionally rendered.
-
-                Toggling it used to unmount the whole subtree, so every ⌘B paid to
-                rebuild the file tree from scratch: re-flatten the loaded tree,
-                rebuild the git status/dirty-dir maps, re-create the virtualizer,
-                and force react-resizable-panels to re-derive the whole group's
-                layout because a Panel had appeared. None of that paints
-                progressively, which is why opening showed nothing and then
-                everything at once.
-                This is what VS Code does — `explorerView.ts` overrides
-                `setVisible()` and guards work with `isBodyVisible()`, but never
-                destroys the tree. Showing the panel becomes a paint.
-                (Panels still carry a stable `id`: RRP matches panels by id, and
-                without one its layout state corrupts.) */}
+            {/* The menu sidebar. Collapsed from its footer, reopened from the
+                titlebar. The file tree lives in the right panel's Direction tab. */}
             <Panel
               id="atlas-left"
               panelRef={leftPanelRef}
@@ -194,14 +161,12 @@ export function AppLayout() {
               minSize="14"
               maxSize="28"
             >
-              <LeftPanel />
+              <ProjectSidebar />
             </Panel>
             <Separator
               className={cn(
-                "w-px bg-border hover:bg-primary data-[separator=active]:bg-primary transition-colors cursor-col-resize",
-                // Kept in the tree (removing it would re-derive the layout, the
-                // very thing we're avoiding) but inert while collapsed.
-                showLeft ? "w-px" : "w-0 pointer-events-none invisible",
+                "bg-border hover:bg-primary data-[separator=active]:bg-primary transition-colors cursor-col-resize",
+                leftVisible ? "w-px" : "w-0 pointer-events-none invisible",
               )}
             />
 

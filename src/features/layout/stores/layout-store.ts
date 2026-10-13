@@ -55,7 +55,7 @@ interface LayoutState {
   rightPanel: {
     visible: boolean;
     width: number;
-    activeSection: "changes" | "github" | "git-graph";
+    activeSection: "files" | "changes" | "github" | "git-graph";
     /** The right slot holds one occupant at a time: source control (⌘⇧B) or
      *  team chat (⌘⇧C). Pressing the other one's key swaps the occupant rather
      *  than opening a second panel. */
@@ -975,7 +975,7 @@ export const useLayoutStore = createSelectors(
           // pre-move `state.json` with "git-graph" on the left or "analysis"
           // on the right) back to a valid default so the panel isn't blank.
           const LEFT = ["files", "knowledge"];
-          const RIGHT = ["changes", "github", "git-graph"];
+          const RIGHT = ["files", "changes", "github", "git-graph"];
           if (!LEFT.includes(leftPanel.activeSection)) leftPanel.activeSection = "files";
           if (!RIGHT.includes(rightPanel.activeSection)) rightPanel.activeSection = "changes";
           // Same coercion for the slot occupant — a persisted state predating

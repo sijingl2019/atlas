@@ -10,7 +10,6 @@ import {
   Globe,
   Terminal,
   Settings,
-  PanelLeft,
   PanelRight,
   MessageSquare,
   PanelTop,
@@ -104,7 +103,7 @@ export function CommandPalette({
     if (!useLayoutStore.getState().leftPanel.visible) toggleLeftPanel();
     setLeftSection(section);
   };
-  const showRight = (section: "changes" | "github" | "git-graph") => {
+  const showRight = (section: "files" | "changes" | "github" | "git-graph") => {
     if (!useLayoutStore.getState().rightPanel.visible) toggleRightPanel();
     setRightSection(section);
   };
@@ -198,14 +197,6 @@ export function CommandPalette({
 
       // ── Layout toggles ──
       {
-        id: "toggle-left",
-        label: "Toggle Left Panel",
-        actionId: "panels.left",
-        icon: PanelLeft,
-        category: "Layout",
-        action: toggleLeftPanel,
-      },
-      {
         id: "toggle-right",
         label: "Toggle Source Control Panel",
         actionId: "panels.right",
@@ -276,9 +267,9 @@ export function CommandPalette({
       {
         id: "view-files",
         label: "Show File Explorer",
-        icon: PanelLeft,
+        icon: PanelRight,
         category: "View",
-        action: () => showLeft("files"),
+        action: () => showRight("files"),
       },
       {
         id: "view-knowledge",

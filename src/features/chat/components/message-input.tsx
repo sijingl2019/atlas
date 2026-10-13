@@ -27,6 +27,7 @@ import {
   CLAUDE_PERMISSION_MODES,
   type ClaudePermissionMode,
   agentTypeFromPluginId,
+  pluginIdForAgent,
   type SwitchableAgent,
   type QueuedMessage,
 } from "@/types/agent";
@@ -870,11 +871,17 @@ export function MessageInput({
   // setup), and a timer short enough to fire during it makes the composer
   // look ready while the agent is still starting. If the binding lands after
   // the backstop fires, the self-heal above still seeds the real modes.
+  // Held off entirely while the manager reports install progress — a first
+  // `npm install` of the adapter alone can take minutes (the same rule the
+  // bind deadline follows); the clock starts once the install is done.
+  const agentInstalling = useChatStore(
+    (s) => !!s.agentStartingStatus[pluginIdForAgent(s.sessions[tabId]?.agentType ?? "claude-code")],
+  );
   useEffect(() => {
-    if (!acpModesPending) return;
+    if (!acpModesPending || agentInstalling) return;
     const t = setTimeout(() => setAcpModesPending(tabId, false), 120000);
     return () => clearTimeout(t);
-  }, [tabId, acpModesPending, setAcpModesPending]);
+  }, [tabId, acpModesPending, agentInstalling, setAcpModesPending]);
   // Narrow per-tab selectors — primitives only, no message-array refs. This
   // component otherwise would re-render on every streaming chunk because it
   // sits inside the active chat panel.

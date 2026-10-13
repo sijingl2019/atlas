@@ -60,6 +60,8 @@ describe("with-posthog-env PATH handling", () => {
       expect(entries.some((d) => d.includes(path.join("node_modules", ".bin")))).toBe(true);
       // …and it did not eat what was already there.
       expect(entries).toContain("/sentinel/dir");
-    });
+      // Two node spawns through cmd.exe on Windows: past vitest's 5s default
+      // when the pre-commit hook runs this next to typecheck.
+    }, 30_000);
   }
 });
