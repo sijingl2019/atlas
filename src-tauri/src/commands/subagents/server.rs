@@ -62,7 +62,10 @@ reporting its work.
 5. A subagent whose status is `blocked` is waiting for the user to approve a permission in the \
 Agents panel. You cannot approve it. Tell the user what it is waiting for, then agent_wait again. \
 Never retry a blocked prompt.
-Subagents cannot start agents of their own.";
+Subagents cannot start agents of their own.
+Scheduled tasks: when the user wants something done periodically or at a set time, \
+agent_schedule(prompt, schedule) creates an Atlas scheduled task that runs `prompt` with you in \
+this project on that schedule.";
 
 // ── Specs ────────────────────────────────────────────────────────────────────
 
@@ -156,6 +159,31 @@ pub fn tools(for_child: bool) -> Vec<Tool> {
                 "required": ["name"]
             }),
         ),
+        tool(
+            "agent_schedule",
+            "Create a scheduled task in Atlas: `prompt` is sent to you (this same agent) in this project on \
+             the schedule, unattended, each run in a new chat by default. Use it whenever the user asks for \
+             something to happen periodically or at a set time (\"every 30 minutes\", \"daily at 9\"). The \
+             user manages it in Atlas > Scheduled.",
+            json!({
+                "type": "object",
+                "properties": {
+                    "prompt": { "type": "string", "description": "The complete instruction for each run. It does not see this conversation." },
+                    "name": { "type": "string", "description": "Short title. Defaults to the prompt's first line." },
+                    "schedule": {
+                        "description": "When to run. Times are local, 24h HH:MM. days: 0 = Sunday ... 6 = Saturday.",
+                        "oneOf": [
+                            { "type": "object", "properties": { "type": { "const": "interval" }, "minutes": { "type": "integer", "minimum": 5 } }, "required": ["type", "minutes"] },
+                            { "type": "object", "properties": { "type": { "const": "daily" }, "time": { "type": "string" } }, "required": ["type", "time"] },
+                            { "type": "object", "properties": { "type": { "const": "weekdays" }, "time": { "type": "string" } }, "required": ["type", "time"] },
+                            { "type": "object", "properties": { "type": { "const": "weekly" }, "days": { "type": "array", "items": { "type": "integer" } }, "time": { "type": "string" } }, "required": ["type", "days", "time"] }
+                        ]
+                    },
+                    "new_chat_each_run": { "type": "boolean", "description": "false continues the previous run's chat. Default true." }
+                },
+                "required": ["prompt", "schedule"]
+            }),
+        ),
     ]);
     tools
 }
@@ -209,7 +237,9 @@ struct ApproveArgs {
 }
 
 /// The operations the MCP door serves: the tools, and nothing else.
-const MCP_OPS: [&str; 6] = ["start", "prompt", "wait", "read", "list", "stop"];
+const MCP_OPS: [&str; 7] = [
+    "start", "prompt", "wait", "read", "list", "stop", "schedule",
+];
 
 #[derive(Deserialize)]
 struct StopArgs {
@@ -271,6 +301,16 @@ pub async fn dispatch(
             manager.read(&caller, &a.name, a.lines, a.source)
         }
         "list" => Ok(json!({ "agents": manager.list(&caller) })),
+        // A scheduled task the caller's own agent runs in the caller's project.
+        "schedule" => crate::commands::scheduled_tasks::create_for_session(
+            &caller.plugin_id,
+            &caller.cwd,
+            args,
+        )
+        .map_err(|message| SubagentError {
+            code: "invalid_arguments",
+            message,
+        }),
         "stop" => {
             let a: StopArgs = parse(args)?;
             manager.stop(&caller, &a.name, a.remove).await
@@ -698,7 +738,8 @@ mod tests {
                 "agent_wait",
                 "agent_read",
                 "agent_list",
-                "agent_stop"
+                "agent_stop",
+                "agent_schedule"
             ]
         );
         let result = client
@@ -766,7 +807,7 @@ mod tests {
         };
         assert!(names(false).contains(&"agent_start".to_string()));
         assert!(!names(true).contains(&"agent_start".to_string()));
-        assert_eq!(names(false).len(), 6);
+        assert_eq!(names(false).len(), 7);
     }
 
     #[cfg(unix)]

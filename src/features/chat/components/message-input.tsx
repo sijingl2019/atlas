@@ -311,7 +311,7 @@ function NativeMemoryPill() {
   );
 }
 
-const EFFORT_CYCLE = ["", "low", "medium", "high", "max"] as const;
+export const EFFORT_CYCLE = ["", "low", "medium", "high", "max"] as const;
 
 /** Reasoning-effort pill for the native agent on Anthropic models (maps to a
  *  thinking budget). Cycles off → low → medium → high → max. Hidden for

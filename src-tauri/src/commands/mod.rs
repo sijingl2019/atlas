@@ -70,6 +70,7 @@ pub mod project_session;
 pub mod recent_files;
 pub mod registry;
 pub mod save_guard;
+pub mod scheduled_tasks;
 pub mod session_chat;
 pub mod session_chat_sessions;
 pub mod session_watcher;

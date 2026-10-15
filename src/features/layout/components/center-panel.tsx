@@ -91,6 +91,11 @@ const LogPanel = lazy(() =>
 const UsagePanel = lazy(() =>
   import("@/features/usage/components/usage-panel").then((m) => ({ default: m.UsagePanel })),
 );
+const ScheduledPanel = lazy(() =>
+  import("@/features/scheduled/components/scheduled-panel").then((m) => ({
+    default: m.ScheduledPanel,
+  })),
+);
 const ArtifactsPanel = lazy(() =>
   import("@/features/artifacts/components/artifacts-panel").then((m) => ({
     default: m.ArtifactsPanel,
@@ -132,6 +137,7 @@ import {
   Layers,
   Frame,
   Cable,
+  AlarmClock,
   NotebookText,
 } from "lucide-react";
 import { PROJECTLESS_TYPES, type TabType } from "@/lib/constants";
@@ -166,6 +172,7 @@ const tabIcons: Record<TabType, FallbackIcon> = {
   "comms-draft": FileText,
   spaces: Frame,
   integration: Cable,
+  scheduled: AlarmClock,
 };
 
 const GROUP_OF = (t: Tab) => t.groupId ?? "main";
@@ -1013,6 +1020,8 @@ function TabContent({ tab }: { tab: Tab }) {
       return <LogPanel />;
     case "usage":
       return <UsagePanel />;
+    case "scheduled":
+      return <ScheduledPanel />;
     case "artifacts":
       return <ArtifactsPanel />;
     case "media":

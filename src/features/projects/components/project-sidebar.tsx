@@ -15,6 +15,7 @@ import {
   Plus,
   PinOff,
   Gauge,
+  AlarmClock,
   ChevronRight,
   ChevronDown,
   MoreHorizontal,
@@ -51,6 +52,7 @@ import { useChildSessionIds } from "@/features/subagents/stores/subagents-store"
 import { openAgentSession, openNewAgentChat } from "@/features/chat/lib/open-agent-session";
 import {
   archiveThread,
+  deleteThread,
   threadHistory,
   unarchiveThread,
   onThreadsChanged,
@@ -626,7 +628,7 @@ const GroupHeaderRow = memo(function GroupHeaderRow({
  *  `{icon, title, onClick}` object per render — an object prop defeats `memo`
  *  on every row, every frame. */
 const CLEAR_TITLE: Record<string, string> = {
-  "sec:recent": "Empty trash (projects and integrations)",
+  "sec:recent": "Empty trash",
   "sec:chats": "Clear recent chats",
 };
 
@@ -913,7 +915,7 @@ const TrashRow = memo(function TrashRow({
       >
         <ArchiveRestore size={11} />
       </button>
-      {item.type === "integration" && (
+      {item.type !== "project" && (
         <button
           type="button"
           onClick={(e) => {
@@ -1378,23 +1380,28 @@ export function ProjectSidebar() {
   const summaries = useProjectGitStore.use.summaries();
 
   // Emptying the Trash forgets closed projects and deletes trashed
-  // integrations for good. Archived sessions stay: they are history, and
-  // deleting a transcript is not something a clear-all should do.
+  // integrations and archived sessions for good (after a confirm).
   const clearSection = useCallback(
     async (id: string) => {
       if (id !== "sec:recent") return;
-      if (trashedIntegrations.length) {
+      if (trashedIntegrations.length || archivedSessions.length) {
         const { ask } = await import("@tauri-apps/plugin-dialog");
-        const ok = await ask(
-          `Empty the Trash? ${trashedIntegrations.length} integration(s) will be deleted for good. Archived sessions are kept.`,
-          { title: "Empty Trash", kind: "warning" },
-        );
+        const parts = [
+          trashedIntegrations.length && `${trashedIntegrations.length} integration(s)`,
+          archivedSessions.length && `${archivedSessions.length} session(s)`,
+        ].filter(Boolean);
+        const ok = await ask(`Empty the Trash? ${parts.join(" and ")} will be deleted for good.`, {
+          title: "Empty Trash",
+          kind: "warning",
+        });
         if (!ok) return;
         for (const i of trashedIntegrations) await integrationsApi.purge(i.id).catch(() => {});
+        for (const t of archivedSessions) await deleteThread(t.threadId).catch(() => {});
+        void queryClient.invalidateQueries({ queryKey: ["thread-archived"] });
       }
       clearRecents();
     },
-    [clearRecents, trashedIntegrations],
+    [clearRecents, trashedIntegrations, archivedSessions, queryClient],
   );
 
   const restoreTrash = useCallback(
@@ -1417,15 +1424,24 @@ export function ProjectSidebar() {
     [addProject, queryClient],
   );
 
-  const purgeTrash = useCallback(async (item: TrashItem) => {
-    if (item.type !== "integration") return;
-    const { ask } = await import("@tauri-apps/plugin-dialog");
-    const ok = await ask(`Delete the integration for "${item.label}" for good?`, {
-      title: "Delete integration",
-      kind: "warning",
-    });
-    if (ok) await integrationsApi.purge(item.id).catch((e) => toast.error(String(e)));
-  }, []);
+  const purgeTrash = useCallback(
+    async (item: TrashItem) => {
+      if (item.type === "project") return;
+      const { ask } = await import("@tauri-apps/plugin-dialog");
+      const isSession = item.type === "session";
+      const ok = await ask(
+        isSession
+          ? `Delete the session "${item.label}" for good?`
+          : `Delete the integration for "${item.label}" for good?`,
+        { title: isSession ? "Delete session" : "Delete integration", kind: "warning" },
+      );
+      if (!ok) return;
+      if (!isSession) return integrationsApi.purge(item.id).catch((e) => toast.error(String(e)));
+      await deleteThread(item.id).catch((e) => toast.error(String(e)));
+      void queryClient.invalidateQueries({ queryKey: ["thread-archived"] });
+    },
+    [queryClient],
+  );
 
   const openSession = useCallback(async (session: WorkspaceSession) => {
     // Focus the owning project before loading the selected session.
@@ -1555,6 +1571,10 @@ export function ProjectSidebar() {
                 <NavItem
                   icon={<TerminalSquare size={14} />}
                   label="Terminal"
+                  // Not in PROJECTLESS_TYPES: without a project the tab would be
+                  // added to the store but never rendered.
+                  disabled={!hasProject}
+                  title={hasProject ? undefined : "Open a project to open a terminal"}
                   onClick={() =>
                     // Mirrors `tabs.newTerminal` in App.tsx: a fresh tab each time.
                     addTab({
@@ -1575,7 +1595,13 @@ export function ProjectSidebar() {
                   title={hasProject ? undefined : "Open a project to see its source control"}
                   onClick={() => toggleRightPanelMode("source-control")}
                 />
-                <NavItem icon={<BrainCircuit size={14} />} label="Memory" onClick={openMemory} />
+                <NavItem
+                  icon={<BrainCircuit size={14} />}
+                  label="Memory"
+                  disabled={!hasProject}
+                  title={hasProject ? undefined : "Open a project to see its memory"}
+                  onClick={openMemory}
+                />
                 {/* Usage is a module, not rail chrome. It was up with the pin
                  *  and collapse-all buttons, which are controls on the SIDEBAR
                  *  ITSELF — Usage opens a tab, like every row here. Same
@@ -1589,6 +1615,20 @@ export function ProjectSidebar() {
                       id: "usage",
                       type: "usage",
                       title: "Usage",
+                      closable: true,
+                      dirty: false,
+                      data: {},
+                    })
+                  }
+                />
+                <NavItem
+                  icon={<AlarmClock size={14} />}
+                  label="Scheduled"
+                  onClick={() =>
+                    addTab({
+                      id: "scheduled",
+                      type: "scheduled",
+                      title: "Scheduled",
                       closable: true,
                       dirty: false,
                       data: {},

@@ -37,7 +37,12 @@ function readEndpoint(): Endpoint | null {
   return null;
 }
 
-async function call(op: string, sessionId: string, params: Record<string, unknown>, signal?: AbortSignal) {
+async function call(
+  op: string,
+  sessionId: string,
+  params: Record<string, unknown>,
+  signal?: AbortSignal,
+) {
   const endpoint = readEndpoint();
   if (!endpoint) throw new Error("Atlas is not running (no subagent endpoint)");
   const response = await fetch(`${endpoint.url}/v1/agents/${op}`, {
@@ -89,7 +94,9 @@ const TOOLS = [
       "Start a subagent (another coding agent the user watches in the Atlas Agents panel) on a self-contained task. kind: codex, claude, pi or atlas; defaults to pi. A subagent whose status is `blocked` waits for the user to approve a permission: tell the user, then wait again.",
     parameters: Type.Object({
       name: Type.String({ description: "Short lowercase name: letters, digits, - or _." }),
-      task: Type.String({ description: "The complete task. The subagent does not see this conversation." }),
+      task: Type.String({
+        description: "The complete task. The subagent does not see this conversation.",
+      }),
       kind: Type.Optional(Type.String()),
       wait: Type.Optional(Type.Boolean()),
       timeout_ms: timeoutMs,
@@ -111,7 +118,9 @@ const TOOLS = [
       "Wait until a subagent settles or blocks on a permission. A timed_out result is not a failure: wait again.",
     parameters: Type.Object({
       name: Type.String(),
-      until: Type.Optional(Type.Union([Type.Literal("settled"), Type.Literal("done"), Type.Literal("blocked")])),
+      until: Type.Optional(
+        Type.Union([Type.Literal("settled"), Type.Literal("done"), Type.Literal("blocked")]),
+      ),
       timeout_ms: timeoutMs,
     }),
   },
@@ -137,11 +146,37 @@ const TOOLS = [
       remove: Type.Optional(Type.Boolean()),
     }),
   },
+  {
+    op: "schedule",
+    description:
+      'Create an Atlas scheduled task: `prompt` is sent to you (pi) in this project on the schedule, unattended. Use it when the user wants something done periodically or at a set time ("every 30 minutes", "daily at 9"). The user manages it in Atlas > Scheduled.',
+    parameters: Type.Object({
+      prompt: Type.String({
+        description: "The complete instruction for each run. It does not see this conversation.",
+      }),
+      name: Type.Optional(Type.String()),
+      schedule: Type.Union([
+        Type.Object({ type: Type.Literal("interval"), minutes: Type.Number({ minimum: 5 }) }),
+        Type.Object({
+          type: Type.Literal("daily"),
+          time: Type.String({ description: "HH:MM, local, 24h" }),
+        }),
+        Type.Object({ type: Type.Literal("weekdays"), time: Type.String() }),
+        Type.Object({
+          type: Type.Literal("weekly"),
+          days: Type.Array(Type.Number(), { description: "0 = Sunday ... 6 = Saturday" }),
+          time: Type.String(),
+        }),
+      ]),
+      new_chat_each_run: Type.Optional(Type.Boolean()),
+    }),
+  },
 ];
 
 // Commands that only look. Anything chained, redirected or substituted is
 // never read-only, whatever it starts with.
-const READ_ONLY = /^(ls|pwd|cat|head|tail|wc|grep|rg|find|fd|tree|echo|which|file|stat|du|df|git (status|log|diff|show|branch|rev-parse))(\s|$)/;
+const READ_ONLY =
+  /^(ls|pwd|cat|head|tail|wc|grep|rg|find|fd|tree|echo|which|file|stat|du|df|git (status|log|diff|show|branch|rev-parse))(\s|$)/;
 const COMPOUND = /[;&|<>`]|\$\(/;
 
 function needsConfirm(toolName: string, input: Record<string, unknown>): string | null {
@@ -192,7 +227,8 @@ function registerChildGuard(sessionId: string): () => void {
     root[REQUIRED_REGISTRY_KEY] = registry;
   }
   if (registry?.version !== 1 || !(registry.bySession instanceof Map)) return () => {};
-  const existing: ReadonlyArray<{ id: string; path: string }> = registry.bySession.get(sessionId) ?? [];
+  const existing: ReadonlyArray<{ id: string; path: string }> =
+    registry.bySession.get(sessionId) ?? [];
   if (existing.some((e) => e.id === CHILD_GUARD_ID)) return () => {};
   const snapshot = Object.freeze([
     ...existing,
@@ -210,7 +246,15 @@ function registerChildGuard(sessionId: string): () => void {
 type Item =
   | { type: "user"; text: string }
   | { type: "assistant"; text: string }
-  | { type: "tool"; id: string; name: string; title?: string; status: string; args?: unknown; result?: string };
+  | {
+      type: "tool";
+      id: string;
+      name: string;
+      title?: string;
+      status: string;
+      args?: unknown;
+      result?: string;
+    };
 
 function textOf(content: unknown): string {
   if (typeof content === "string") return content;
@@ -240,17 +284,34 @@ function itemsOf(entry: any): Item[] {
     const out: Item[] = [];
     // Some models put their reasoning inline as <think>…</think>; the column
     // shows what the child said, not how it got there.
-    const text = textOf(m.content).replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+    const text = textOf(m.content)
+      .replace(/<think>[\s\S]*?<\/think>/g, "")
+      .trim();
     if (text) out.push({ type: "assistant", text });
     for (const part of Array.isArray(m.content) ? m.content : []) {
       if (part?.type === "toolCall" && part.id) {
-        out.push({ type: "tool", id: part.id, name: part.name, title: toolTitle(part.name, part.arguments), status: "running", args: part.arguments });
+        out.push({
+          type: "tool",
+          id: part.id,
+          name: part.name,
+          title: toolTitle(part.name, part.arguments),
+          status: "running",
+          args: part.arguments,
+        });
       }
     }
     return out;
   }
   if (m.role === "toolResult" && m.toolCallId) {
-    return [{ type: "tool", id: m.toolCallId, name: m.toolName ?? "tool", status: m.isError ? "failed" : "completed", result: textOf(m.content).slice(0, 4000) }];
+    return [
+      {
+        type: "tool",
+        id: m.toolCallId,
+        name: m.toolName ?? "tool",
+        status: m.isError ? "failed" : "completed",
+        result: textOf(m.content).slice(0, 4000),
+      },
+    ];
   }
   return [];
 }
@@ -334,7 +395,9 @@ class Mirror {
           task: typeof step?.task === "string" ? step.task : undefined,
         });
       });
-      const done = ["complete", "completed", "failed", "stopped", "cancelled"].includes(status?.state);
+      const done = ["complete", "completed", "failed", "stopped", "cancelled"].includes(
+        status?.state,
+      );
       if (done && steps.every((s) => ["completed", "failed", "stopped"].includes(s?.status))) {
         this.asyncDirs.delete(dir);
       }
@@ -383,11 +446,16 @@ class Mirror {
         const items = this.readTranscript(c);
         if (!items.length && !c.dirty) continue;
         c.dirty = false;
-        await call(
-          "mirror",
-          this.sessionId(),
-          { key: c.key, name: c.name, task: c.task, status: c.status, tool_count: c.toolCount, session_file: c.sessionFile, error: c.error, items },
-        ).catch(() => {});
+        await call("mirror", this.sessionId(), {
+          key: c.key,
+          name: c.name,
+          task: c.task,
+          status: c.status,
+          tool_count: c.toolCount,
+          session_file: c.sessionFile,
+          error: c.error,
+          items,
+        }).catch(() => {});
       }
     } finally {
       this.busy = false;
@@ -396,13 +464,21 @@ class Mirror {
 }
 
 /** The `subagent` tool's progress (pi-subagents' `details`) into the mirror. */
-function mirrorProgress(mirror: Mirror, parentFile: string | undefined, args: any, details: any): void {
+function mirrorProgress(
+  mirror: Mirror,
+  parentFile: string | undefined,
+  args: any,
+  details: any,
+): void {
   const path = require("path");
   if (!details || typeof details.runId !== "string") return;
   const runId: string = details.runId;
-  const root = parentFile ? path.join(path.dirname(parentFile), path.basename(parentFile, ".jsonl")) : null;
+  const root = parentFile
+    ? path.join(path.dirname(parentFile), path.basename(parentFile, ".jsonl"))
+    : null;
   const byIndex = new Map<number, any>();
-  for (const r of Array.isArray(details.results) ? details.results : []) byIndex.set(r?.index ?? 0, r);
+  for (const r of Array.isArray(details.results) ? details.results : [])
+    byIndex.set(r?.index ?? 0, r);
   const progress: any[] = Array.isArray(details.progress) ? details.progress : [];
   const indexes = new Set<number>([...progress.map((p) => p?.index ?? 0), ...byIndex.keys()]);
   for (const index of indexes) {
@@ -470,7 +546,13 @@ export default function (pi: any): void {
       label: `atlas agent ${tool.op}`,
       description: tool.description,
       parameters: tool.parameters,
-      async execute(_toolCallId: string, params: Record<string, unknown>, signal: AbortSignal | undefined, _onUpdate: unknown, ctx: any) {
+      async execute(
+        _toolCallId: string,
+        params: Record<string, unknown>,
+        signal: AbortSignal | undefined,
+        _onUpdate: unknown,
+        ctx: any,
+      ) {
         const sessionId = ctx.sessionManager.getSessionId();
         return textResult(await call(tool.op, sessionId, params ?? {}, signal));
       },

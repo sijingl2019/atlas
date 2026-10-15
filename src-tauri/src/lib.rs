@@ -394,6 +394,14 @@ pub fn run() {
             app.state::<commands::knowledge_refs::KnowledgeRefsState>()
                 .install(app.handle().clone());
             app.manage(Arc::new(notifier::Notifier::new(app.handle())));
+            // After `install_manager` (the agent host) and the notifier: a
+            // missed run fires on the first tick and needs both.
+            app.manage(commands::scheduled_tasks::ScheduledTasksState::load(
+                app.path()
+                    .app_config_dir()
+                    .unwrap_or_else(|_| std::path::PathBuf::from(".")),
+            ));
+            commands::scheduled_tasks::start(app.handle());
 
             commands::updater::init_on_startup(app.handle());
             if let Err(e) = tray::install(app.handle()) {
@@ -632,6 +640,10 @@ pub fn run() {
             commands::git_ops::git_merge_preview,
             commands::git_ops::git_fetch,
             commands::git_autofetch::git_autofetch_set_active,
+            commands::scheduled_tasks::scheduled_tasks_list,
+            commands::scheduled_tasks::scheduled_tasks_save,
+            commands::scheduled_tasks::scheduled_tasks_delete,
+            commands::scheduled_tasks::scheduled_tasks_run_now,
             commands::git_ops::git_pull,
             commands::git_ops::git_push,
             commands::git_ops::git_publish_branch,

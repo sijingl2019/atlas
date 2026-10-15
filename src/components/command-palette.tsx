@@ -20,6 +20,7 @@ import {
   BrainCircuit,
   ScrollText,
   Gauge,
+  AlarmClock,
   Code,
   GitBranch,
   ArrowLeftToLine,
@@ -86,6 +87,7 @@ export function CommandPalette({
     "memory",
     "log",
     "usage",
+    "scheduled",
     "settings",
   ]);
   const openTab = (type: TabType, title: string) =>
@@ -193,6 +195,13 @@ export function CommandPalette({
         icon: Gauge,
         category: "Open",
         action: () => openTab("usage", "Usage"),
+      },
+      {
+        id: "open-scheduled",
+        label: "Scheduled Tasks",
+        icon: AlarmClock,
+        category: "Open",
+        action: () => openTab("scheduled", "Scheduled"),
       },
 
       // ── Layout toggles ──

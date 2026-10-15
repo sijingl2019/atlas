@@ -21,6 +21,7 @@ export const TAB_TYPES = [
   "comms-draft",
   "spaces",
   "integration",
+  "scheduled",
 ] as const;
 
 export type TabType = (typeof TAB_TYPES)[number];
@@ -37,6 +38,7 @@ export const PROJECTLESS_TYPES: ReadonlySet<TabType> = new Set<TabType>([
   "spaces",
   "usage",
   "integration",
+  "scheduled",
 ]);
 
 /**

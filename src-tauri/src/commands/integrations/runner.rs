@@ -20,7 +20,7 @@ use super::{
     announce, description, now, sources, BranchMode, Integration, Issue, RunRecord, RunStatus,
     Store,
 };
-use crate::commands::agent_host::{AgentHost, PermissionDecision};
+use crate::commands::agent_host::{AgentHost, PermissionDecision, SessionKey};
 use crate::commands::subagents::manager::SubagentHost;
 
 /// How often the loop checks whether an integration is due.
@@ -403,6 +403,36 @@ impl IntegrationsRuntime {
         outcome(&rec, RunStatus::Done, Some(commit), None)
     }
 
+    /// Run one unattended turn on `key`: `send` starts it, and this waits for
+    /// it to end (at most [`TURN_TIMEOUT`], then cancels). While it runs,
+    /// [`IntegrationMiddleware`] approves the session's permission requests.
+    /// Also how scheduled tasks run theirs.
+    pub async fn await_turn(
+        &self,
+        host: &AgentHost,
+        key: &SessionKey,
+        send: impl std::future::Future<Output = Result<(), String>>,
+    ) -> Result<(), String> {
+        let (tx, rx) = oneshot::channel();
+        self.waiters
+            .lock()
+            .unwrap()
+            .insert(key.session_id.clone(), Waiter { tx, started: false });
+        let result = match send.await {
+            Err(e) => Err(e),
+            Ok(()) => match tokio::time::timeout(TURN_TIMEOUT, rx).await {
+                Ok(Ok(result)) => result,
+                Ok(Err(_)) => Err("the session went away".into()),
+                Err(_) => {
+                    let _ = AgentHost::cancel(host, key);
+                    Err("timed out".into())
+                }
+            },
+        };
+        self.waiters.lock().unwrap().remove(&key.session_id);
+        result
+    }
+
     /// `key` as the tracker lists it now; `None` when it cannot say.
     async fn refetch(&self, integration: &Integration, key: &str) -> Option<Issue> {
         let secret = self
@@ -464,12 +494,6 @@ impl IntegrationsRuntime {
         rec.agent_handle = Some(key.agent_id);
         let _ = self.store.put_run(&integration.id, rec.clone());
 
-        let (tx, rx) = oneshot::channel();
-        self.waiters
-            .lock()
-            .unwrap()
-            .insert(key.session_id.clone(), Waiter { tx, started: false });
-
         let content = if resume.is_some() {
             vec![acp::ContentBlock::Text(acp::TextContent::new(
                 continue_prompt(&rec.issue),
@@ -489,18 +513,11 @@ impl IntegrationsRuntime {
             prompt(&rec.issue, images).await
         };
         // Explicit paths: `SubagentHost` has a `send`/`cancel` of its own.
-        let result = match AgentHost::send(&host, &key, content) {
-            Err(e) => Err(e.to_string()),
-            Ok(()) => match tokio::time::timeout(TURN_TIMEOUT, rx).await {
-                Ok(Ok(result)) => result,
-                Ok(Err(_)) => Err("the session went away".into()),
-                Err(_) => {
-                    let _ = AgentHost::cancel(&host, &key);
-                    Err("timed out".into())
-                }
-            },
-        };
-        self.waiters.lock().unwrap().remove(&key.session_id);
+        let result = self
+            .await_turn(&host, &key, async {
+                AgentHost::send(&host, &key, content).map_err(|e| e.to_string())
+            })
+            .await;
         // Off the run's path: `session/close` waits on the agent with no
         // timeout, and an agent that never answers would leave the run
         // `running` with its finished work never committed.

@@ -1,5 +1,6 @@
 /**
- * Open the agent session an integration run used, in a chat tab.
+ * Open the agent session a background run used, in a chat tab: an
+ * integration's issue run, or a scheduled task's run.
  *
  * A run still going is a live session the BACKEND opened, like a subagent:
  * it is adopted into the chat store (the same way `subagents/lib/adopt.ts`
@@ -15,40 +16,49 @@ import { snapshotMessageToWire } from "@/features/chat/lib/snapshot-message";
 import { agentTypeFromPluginId, type AgentStatus } from "@/types/agent";
 import type { Integration, RunRecord } from "./integrations";
 
-export async function openRunSession(integration: Integration, run: RunRecord): Promise<void> {
-  const sessionId = run.sessionId;
-  if (!sessionId) return;
-  // Chat tabs belong to the active project.
-  if (useProjectStore.getState().projects.some((p) => p.id === integration.projectId)) {
-    await useProjectStore.getState().actions.switchTo(integration.projectId);
-  }
-  const agentType = agentTypeFromPluginId(run.agentId ?? integration.agentId);
-  const title = `${run.issueKey} ${run.title}`;
+export interface BackgroundSession {
+  sessionId: string;
+  /** Live process handle; absent once the run ended. */
+  agentHandle?: string | null;
+  running: boolean;
+  pluginId: string;
+  cwd: string;
+  /** Switched to first when it is one of the user's projects. */
+  projectId?: string;
+  title: string;
+  /** Prefix of the adopted tab's id. */
+  tabPrefix: string;
+}
 
-  if (run.status !== "running" || !run.agentHandle) {
-    await openAgentSession({
-      acpSessionId: sessionId,
-      title,
-      cwd: integration.projectPath,
-      agentType,
-    });
+export async function openBackgroundSession(s: BackgroundSession): Promise<void> {
+  // Chat tabs belong to the active project.
+  const projects = useProjectStore.getState();
+  const projectId =
+    s.projectId ?? projects.projects.find((p) => samePath(p.path, s.cwd))?.id ?? undefined;
+  if (projectId && projects.projects.some((p) => p.id === projectId)) {
+    await projects.actions.switchTo(projectId);
+  }
+  const agentType = agentTypeFromPluginId(s.pluginId);
+
+  if (!s.running || !s.agentHandle) {
+    await openAgentSession({ acpSessionId: s.sessionId, title: s.title, cwd: s.cwd, agentType });
     return;
   }
 
-  const tabId = `integration-run:${sessionId}`;
+  const tabId = `${s.tabPrefix}:${s.sessionId}`;
   const chat = useChatStore.getState().actions;
   if (!useChatStore.getState().sessions[tabId]) {
     chat.adoptBackgroundSession({
       tabId,
       agentType,
-      acpAgentId: run.agentHandle,
-      acpSessionId: sessionId,
-      cwd: integration.projectPath,
-      title,
+      acpAgentId: s.agentHandle,
+      acpSessionId: s.sessionId,
+      cwd: s.cwd,
+      title: s.title,
     });
     try {
       // Everything streamed before the adoption.
-      const snap = await agents.snapshot({ agent_id: run.agentHandle, session_id: sessionId });
+      const snap = await agents.snapshot({ agent_id: s.agentHandle, session_id: s.sessionId });
       chat.replaceMessages(tabId, snap.messages.map(snapshotMessageToWire));
       chat.hydrateSessionSnapshot(tabId, snap.status as AgentStatus, snap.plan);
     } catch {
@@ -59,9 +69,28 @@ export async function openRunSession(integration: Integration, run: RunRecord): 
   useLayoutStore.getState().actions.addTab({
     id: tabId,
     type: "chat",
-    title: title.slice(0, 40),
+    title: s.title.slice(0, 40),
     closable: true,
     dirty: false,
     data: {},
+  });
+}
+
+const samePath = (a: string, b: string) => {
+  const n = (p: string) => p.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+  return n(a) === n(b);
+};
+
+export async function openRunSession(integration: Integration, run: RunRecord): Promise<void> {
+  if (!run.sessionId) return;
+  await openBackgroundSession({
+    sessionId: run.sessionId,
+    agentHandle: run.agentHandle,
+    running: run.status === "running",
+    pluginId: run.agentId ?? integration.agentId,
+    cwd: integration.projectPath,
+    projectId: integration.projectId,
+    title: `${run.issueKey} ${run.title}`,
+    tabPrefix: "integration-run",
   });
 }
