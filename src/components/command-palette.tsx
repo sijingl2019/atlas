@@ -198,10 +198,10 @@ export function CommandPalette({
       },
       {
         id: "open-scheduled",
-        label: "Scheduled Tasks",
+        label: "Routines",
         icon: AlarmClock,
         category: "Open",
-        action: () => openTab("scheduled", "Scheduled"),
+        action: () => openTab("scheduled", "Routines"),
       },
 
       // ── Layout toggles ──

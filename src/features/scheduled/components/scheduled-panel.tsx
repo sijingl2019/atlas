@@ -61,7 +61,7 @@ export function ScheduledPanel() {
     <div className="flex h-full min-h-0">
       <aside className="flex w-[300px] shrink-0 flex-col border-r border-[var(--atlas-border-subtle)]">
         <div className="px-4 pt-4 pb-2 text-base font-semibold text-[var(--foreground)]">
-          Scheduled
+          Routines
         </div>
         <button
           onClick={() => setDialog(null)}

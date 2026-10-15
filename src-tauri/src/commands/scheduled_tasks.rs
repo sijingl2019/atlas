@@ -575,7 +575,7 @@ pub fn create_for_session(
         "agent": saved.plugin_id,
         "project": saved.project_path,
         "next_run": next,
-        "note": "Created in Atlas > Scheduled. The user can edit, pause or delete it there."
+        "note": "Created in Atlas > Routines. The user can edit, pause or delete it there."
     }))
 }
 

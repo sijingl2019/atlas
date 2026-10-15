@@ -1623,12 +1623,12 @@ export function ProjectSidebar() {
                 />
                 <NavItem
                   icon={<AlarmClock size={14} />}
-                  label="Scheduled"
+                  label="Routines"
                   onClick={() =>
                     addTab({
                       id: "scheduled",
                       type: "scheduled",
-                      title: "Scheduled",
+                      title: "Routines",
                       closable: true,
                       dirty: false,
                       data: {},
