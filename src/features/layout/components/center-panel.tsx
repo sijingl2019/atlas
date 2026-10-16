@@ -408,6 +408,25 @@ const TabColumn = memo(function TabColumn({
   const canSplit = view.groupOrder.length < 3;
   const canCloseGroup = view.groupOrder.length > 1;
 
+  // Keep the active tab in view: activating one from elsewhere (the sidebar,
+  // the palette) used to leave it scrolled off the strip. Horizontal only —
+  // `scrollIntoView` would also scroll vertical ancestors.
+  const stripRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const strip = stripRef.current;
+    if (!strip || !activeId) return;
+    const el = strip.querySelector<HTMLElement>(`[data-tab-id="${CSS.escape(activeId)}"]`);
+    if (!el) return;
+    // The strip is `relative`, so it is the tab's offsetParent.
+    const left = el.offsetLeft;
+    const right = left + el.offsetWidth;
+    // The trailing actions overlay a fade over the strip's right edge.
+    const pad = 32;
+    if (left < strip.scrollLeft) strip.scrollLeft = left;
+    else if (right > strip.scrollLeft + strip.clientWidth - pad)
+      strip.scrollLeft = right - strip.clientWidth + pad;
+  }, [activeId, tabs.length, tabBarVisible]);
+
   // Back/forward operate on the (global) tab history.
   const canGoBack = useMemo(() => {
     for (let i = tabHistoryIndex - 1; i >= 0; i--)
@@ -467,7 +486,10 @@ const TabColumn = memo(function TabColumn({
             </div>
           </HintGroup>
 
-          <div className="flex items-stretch min-w-0 flex-1 overflow-x-auto hide-scrollbar">
+          <div
+            ref={stripRef}
+            className="relative flex items-stretch min-w-0 flex-1 overflow-x-auto hide-scrollbar"
+          >
             {tabs.map((tab) => {
               const Icon = tabIcons[tab.type as TabType] ?? MessageSquare;
               // A tab opened from a path carries it in `data.filePath`, so the
@@ -478,6 +500,7 @@ const TabColumn = memo(function TabColumn({
               return (
                 <div
                   key={tab.id}
+                  data-tab-id={tab.id}
                   role="tab"
                   tabIndex={0}
                   onClick={() => setActiveTab(tab.id)}

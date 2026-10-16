@@ -69,6 +69,7 @@ import { useAppStore } from "@/features/app/stores/app-store";
 import { useOrgStore } from "@/features/organisations/stores/org-store";
 import { useActiveOrgProjects, useActiveOrgGroups } from "../lib/org-scope";
 import { useLayoutStore } from "@/features/layout/stores/layout-store";
+import { useChatStore } from "@/features/chat/stores/chat-store";
 import { useActionShortcut } from "@/features/keybindings/lib/use-action-shortcut";
 import { AtlasIcon } from "@/components/atlas-icon";
 import { cn } from "@/lib/utils";
@@ -952,6 +953,7 @@ const SessionRow = memo(function SessionRow({
   pinned,
   running,
   nested,
+  active,
   onOpen,
   onTogglePin,
   onArchive,
@@ -960,6 +962,8 @@ const SessionRow = memo(function SessionRow({
   pinned: boolean;
   running: boolean;
   nested: boolean;
+  /** The session shown in the active tab. */
+  active: boolean;
   onOpen: (session: WorkspaceSession) => void;
   onTogglePin: (threadId: string) => void;
   onArchive: (threadId: string) => void;
@@ -983,7 +987,8 @@ const SessionRow = memo(function SessionRow({
       onClick={() => onOpen(session)}
       style={{ height: nested ? ROW_CARD : CHAT_CARD, paddingLeft: nested ? 28 : 8 }}
       className={cn(
-        "group relative flex gap-2.5 pr-2 rounded-md cursor-pointer hover:bg-[var(--atlas-element-hover)]",
+        "group relative flex gap-2.5 pr-2 rounded-md cursor-pointer",
+        active ? "bg-[var(--atlas-element-active)]" : "hover:bg-[var(--atlas-element-hover)]",
         nested ? "items-center" : "items-start pt-1.5",
       )}
       title={`${session.workspace.name} — ${session.workspace.path}`}
@@ -1004,9 +1009,11 @@ const SessionRow = memo(function SessionRow({
         <span
           className={cn(
             "block truncate text-sm leading-tight",
-            running
-              ? "text-[var(--foreground)]"
-              : "text-[var(--secondary-foreground)] group-hover:text-[var(--foreground)]",
+            active
+              ? "text-[var(--foreground)] font-medium"
+              : running
+                ? "text-[var(--foreground)]"
+                : "text-[var(--secondary-foreground)] group-hover:text-[var(--foreground)]",
           )}
         >
           {session.thread.title || session.workspace.name}
@@ -1443,15 +1450,40 @@ export function ProjectSidebar() {
     [queryClient],
   );
 
+  // The session the active tab shows — its row carries the highlight. A click
+  // marks its row at once; the tab's binding takes over once the load lands.
+  const activeTabId = useLayoutStore((s) => s.activeTabId);
+  const boundSessionId = useChatStore((s) =>
+    activeTabId ? (s.sessions[activeTabId]?.acpSessionId ?? null) : null,
+  );
+  const [openingSessionId, setOpeningSessionId] = useState<string | null>(null);
+  const activeSessionId = openingSessionId ?? boundSessionId;
+  // While one of its session rows is highlighted, the project row is not.
+  const sessionRowActive = useMemo(
+    () =>
+      !!activeSessionId &&
+      rows.some(
+        (r) =>
+          (r.kind === "session" || r.kind === "chat") &&
+          r.session.thread.sessionId === activeSessionId,
+      ),
+    [rows, activeSessionId],
+  );
+
   const openSession = useCallback(async (session: WorkspaceSession) => {
-    // Focus the owning project before loading the selected session.
-    await useProjectStore.getState().actions.switchTo(session.workspace.id);
-    await openAgentSession({
-      acpSessionId: session.thread.sessionId ?? undefined,
-      title: session.thread.title,
-      cwd: session.thread.folderPaths[0] ?? session.workspace.path,
-      agentType: agentTypeFromPluginId(session.thread.agentId),
-    });
+    setOpeningSessionId(session.thread.sessionId ?? null);
+    try {
+      // Focus the owning project before loading the selected session.
+      await useProjectStore.getState().actions.switchTo(session.workspace.id);
+      await openAgentSession({
+        acpSessionId: session.thread.sessionId ?? undefined,
+        title: session.thread.title,
+        cwd: session.thread.folderPaths[0] ?? session.workspace.path,
+        agentType: agentTypeFromPluginId(session.thread.agentId),
+      });
+    } finally {
+      setOpeningSessionId(null);
+    }
   }, []);
 
   const archiveSession = useCallback(
@@ -1528,7 +1560,8 @@ export function ProjectSidebar() {
           collapsed={collapsed}
           summaries={summaries}
           groups={groups}
-          activeId={displayActiveId}
+          activeId={sessionRowActive ? null : displayActiveId}
+          activeSessionId={activeSessionId}
           runningKeys={runningChatKeys}
           mountedIds={mountedIds}
           onToggle={toggle}
@@ -1732,6 +1765,8 @@ interface RailRowCtx {
   summaries: Record<string, GitSummary>;
   groups: ProjectGroup[];
   activeId: string | null;
+  /** ACP session id of the session shown in the active tab. */
+  activeSessionId: string | null;
   runningKeys: Set<string>;
   /** Ids of workspaces currently MOUNTED (open) — the row badges these. */
   mountedIds: Set<string>;
@@ -1791,6 +1826,7 @@ function renderRailRow(row: Row, ctx: RailRowCtx) {
             !!row.session.thread.sessionId && ctx.runningKeys.has(row.session.thread.sessionId)
           }
           nested
+          active={!!ctx.activeSessionId && row.session.thread.sessionId === ctx.activeSessionId}
           onOpen={ctx.onOpenSession}
           onTogglePin={ctx.onToggleSessionPin}
           onArchive={ctx.onArchiveSession}
@@ -1826,6 +1862,7 @@ function renderRailRow(row: Row, ctx: RailRowCtx) {
             !!row.session.thread.sessionId && ctx.runningKeys.has(row.session.thread.sessionId)
           }
           nested={false}
+          active={!!ctx.activeSessionId && row.session.thread.sessionId === ctx.activeSessionId}
           onOpen={ctx.onOpenSession}
           onTogglePin={ctx.onToggleSessionPin}
           onArchive={ctx.onArchiveSession}
