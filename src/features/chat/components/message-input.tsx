@@ -1886,7 +1886,7 @@ export function MessageInput({
     if (githubSyncing !== null) return;
     const text = inputRef.current?.getValue() ?? valueRef.current;
     const trimmed = text.trim();
-    if (!trimmed) {
+    if (!trimmed && !stagedImages.length) {
       // Empty + running → act as a stop button.
       if (running) onStop?.();
       return;
@@ -1962,13 +1962,15 @@ export function MessageInput({
   //   running + text    → QUEUE
   //   not running + any → SEND
   type Mode = "send" | "queue" | "stop";
-  const mode: Mode = running ? (hasText ? "queue" : "stop") : "send";
+  // Staged images alone are sendable content — an image-only message is valid.
+  const hasContent = hasText || stagedImages.length > 0;
+  const mode: Mode = running ? (hasContent ? "queue" : "stop") : "send";
   const buttonEnabled =
     disabled || (mode === "send" && (modeUnrestored || heldForTerminal))
       ? false
       : mode === "stop"
         ? true
-        : hasText;
+        : hasContent;
 
   // One fixed placeholder, always. The composer used to swap in a queue hint
   // while a turn ran and a no-grant explanation when AI access was missing;

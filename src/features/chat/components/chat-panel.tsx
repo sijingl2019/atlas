@@ -53,6 +53,13 @@ const reportedBindFailures = new Set<string>();
 const retriedBinds = new Set<string>();
 const BIND_RETRY_MS = 1500;
 
+/** Session title from a first message. An image-only message has no prose to
+ *  title the session with, so it falls back to a label for the attachment. */
+function titleFromContent(content: string, attachments?: ImageAttachment[]): string {
+  if (!content.trim() && attachments?.length) return "Image";
+  return content.slice(0, 40) + (content.length > 40 ? "..." : "");
+}
+
 /** How long a bind hop (connect, `session/new`) may stay silent before it is
  *  noted as stalled. The soft notice only: the transcript's working indicator
  *  carries its own 30 s clock and shows the persistent Restart / Switch
@@ -1391,10 +1398,7 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
           payload: { tabId, mentionCount: mentions.length, heldForBind: true },
         });
         if (session.messages.length === 0) {
-          setSessionTitle(
-            tabId,
-            actualContent.slice(0, 40) + (actualContent.length > 40 ? "..." : ""),
-          );
+          setSessionTitle(tabId, titleFromContent(actualContent, attachments));
         }
         updateSessionStatus(tabId, "running");
         cs.actions.setPendingSend(tabId, {
@@ -1424,10 +1428,7 @@ export const ChatPanel = memo(function ChatPanel({ tabId }: ChatPanelProps) {
       });
 
       if (session.messages.length === 0) {
-        setSessionTitle(
-          tabId,
-          actualContent.slice(0, 40) + (actualContent.length > 40 ? "..." : ""),
-        );
+        setSessionTitle(tabId, titleFromContent(actualContent, attachments));
       }
     }
     // Idempotent for a held send (already running while it started), and it
